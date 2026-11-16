@@ -2,6 +2,7 @@ package com.ssafy.ontop.minigame.telemetry;
 
 import com.ssafy.ontop.game.mole.domain.MoleRules;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.SplittableRandom;
 import java.util.function.IntUnaryOperator;
@@ -65,6 +66,16 @@ class MoleTimingSignalsTests {
     }
 
     @Test
+    void 두더지의_한_구간이_불규칙해도_두_구간의_반응이_일정하면_기록한다() {
+        var moles = moles(30);
+        var signals = MoleTimingSignals.mole(moles, hits(moles, id -> id < 60 ? 250 + id % 3 : 250 + id % 5 * 30));
+
+        assertThat(signals.segments().getLast().spreadMs()).isGreaterThan(MoleTimingSignals.STEADY_REACTION_MS);
+        assertThat(signals.fastReaction()).isFalse();
+        assertThat(signals.steady()).isTrue();
+    }
+
+    @Test
     void 반응_중앙값이_150ms보다_짧으면_초고속_반응으로_적발한다() {
         var random = new SplittableRandom(11);
         var moles = moles(30);
@@ -100,7 +111,8 @@ class MoleTimingSignalsTests {
 
         assertThat(signals.reactions()).isEqualTo(2);
         assertThat(signals.medianReactionMs()).isEqualTo(350);
-        assertThat(signals.segments().getFirst()).isEqualTo(new MoleTimingSignals.Segment(2, 350, 74));
+        assertThat(signals.segments().getFirst()).isEqualTo(new MoleTimingSignals.Segment(2, 350, 74, null,
+                new MoleTimingSignals.EarlyReaction(2, 0, false)));
     }
 
     @Test
@@ -113,15 +125,17 @@ class MoleTimingSignalsTests {
             human.add(at);
             bot.add(n * 280);
         }
-        var slowReactions = new ArrayList<Integer>();
+        var slowReactions = new ArrayList<MoleTimingSignals.Reaction>();
         for (int n = 0; n < 40; n++) {
-            slowReactions.add(400 + n * 20);
+            slowReactions.add(new MoleTimingSignals.Reaction(n * 1_000, 400 + n * 20));
         }
 
-        var humanSignals = MoleTimingSignals.speed(slowReactions, human);
-        var botSignals = MoleTimingSignals.speed(slowReactions, bot);
-        var fastSignals = MoleTimingSignals.speed(List.of(90, 95, 100, 110, 120, 90, 95, 100, 110, 120,
-                90, 95, 100, 110, 120, 90, 95, 100, 110, 120), human);
+        var humanSignals = MoleTimingSignals.speed(slowReactions, human, List.of());
+        var botSignals = MoleTimingSignals.speed(slowReactions, bot, List.of());
+        var fastReactions = List.of(90, 95, 100, 110, 120, 90, 95, 100, 110, 120,
+                90, 95, 100, 110, 120, 90, 95, 100, 110, 120).stream()
+                .map(ms -> new MoleTimingSignals.Reaction(0, ms)).toList();
+        var fastSignals = MoleTimingSignals.speed(fastReactions, human, List.of());
 
         assertThat(humanSignals.steady()).isFalse();
         assertThat(humanSignals.fastReaction()).isFalse();
@@ -136,16 +150,133 @@ class MoleTimingSignalsTests {
 
     @Test
     void 스피드_두더지의_타격이_없거나_한_구간뿐이면_일정한_간격으로_보지_않는다() {
-        var empty = MoleTimingSignals.speed(List.of(), List.of());
+        var empty = MoleTimingSignals.speed(List.of(), List.of(), List.of());
         assertThat(empty.reactions()).isZero();
         assertThat(empty.medianReactionMs()).isNull();
-        assertThat(empty.segments()).containsOnly(new MoleTimingSignals.Segment(0, null, null));
+        assertThat(empty.segments()).containsOnly(new MoleTimingSignals.Segment(0, null, null,
+                new MoleTimingSignals.Pace(0, 0, null, false), new MoleTimingSignals.EarlyReaction(0, 0, false)));
         assertThat(empty.steady()).isFalse();
+        assertThat(empty.sustainedPace()).isFalse();
 
         var oneSegment = new ArrayList<Integer>();
         for (int n = 0; n < 50; n++) {
             oneSegment.add(n * 300);
         }
-        assertThat(MoleTimingSignals.speed(List.of(), oneSegment).steady()).isFalse();
+        assertThat(MoleTimingSignals.speed(List.of(), oneSegment, oneSegment).steady()).isFalse();
+    }
+
+    @Test
+    void 스피드_두더지의_한_구간이_불규칙해도_두_구간의_타격이_일정하면_기록한다() {
+        var taps = new ArrayList<Integer>();
+        for (int at = 0, n = 0; at < 60_000; n++) {
+            taps.add(at);
+            at += at < 40_000 ? 250 : 200 + n % 5 * 30;
+        }
+
+        var signals = MoleTimingSignals.speed(List.of(), taps, List.of());
+
+        assertThat(signals.segments().getLast().spreadMs()).isGreaterThan(MoleTimingSignals.STEADY_INTERVAL_MS);
+        assertThat(signals.fastReaction()).isFalse();
+        assertThat(signals.steady()).isTrue();
+    }
+
+    @Test
+    void 입력_간격이_달라도_세_구간_모두_빠르고_정확하면_검토_신호를_남긴다() {
+        var taps = new ArrayList<Integer>();
+        var hits = new ArrayList<Integer>();
+        int[] gap = {95, 125, 150};
+        for (int phase = 0; phase < 3; phase++) {
+            int at = phase * 20_000 + 200;
+            for (int i = 0; i < 160; i++) {
+                taps.add(at);
+                if (i % 40 != 0) {
+                    hits.add(at);
+                }
+                at += gap[i % gap.length];
+            }
+        }
+
+        var signals = MoleTimingSignals.speed(List.of(), taps, hits);
+
+        assertThat(signals.fastReaction()).isFalse();
+        assertThat(signals.steady()).isFalse();
+        assertThat(signals.sustainedPace()).isTrue();
+        assertThat(signals.segments()).extracting(MoleTimingSignals.Segment::pace)
+                .containsOnly(new MoleTimingSignals.Pace(160, 156, 150, true));
+        assertThat(MoleTimingSignals.speed(List.of(), taps, hits.subList(0, 312)).sustainedPace()).isFalse();
+    }
+
+    @Test
+    void 지속_고속_적중은_적중_수와_정확도와_빠른_간격을_모두_요구한다() {
+        assertThat(MoleTimingSignals.Pace.measured(144, 140, 180).qualifies()).isTrue();
+        assertThat(MoleTimingSignals.Pace.measured(140, 139, 180).qualifies()).isFalse();
+        assertThat(MoleTimingSignals.Pace.measured(150, 145, 180).qualifies()).isFalse();
+        assertThat(MoleTimingSignals.Pace.measured(145, 145, 181).qualifies()).isFalse();
+        assertThat(MoleTimingSignals.Pace.measured(145, 145, null).qualifies()).isFalse();
+    }
+
+    @Test
+    void 운영_의심_판만_지속_고속_적중_기준을_충족한다() {
+        // 익명 운영 관측 통계. 각 구간은 입력 수, 적중 수, 간격 90백분위 순이다.
+        int[][] suspected = {{160, 156, 158}, {162, 159, 158}, {160, 159, 155}};
+        int[][][] comparison = {
+            {{95, 81, 314}, {80, 71, 394}, {85, 76, 347}},
+            {{37, 33, 723}, {46, 37, 820}, {68, 67, 489}},
+            {{132, 129, 227}, {137, 130, 225}, {135, 126, 237}},
+            {{127, 124, 217}, {128, 126, 224}, {119, 118, 240}},
+            {{122, 119, 227}, {118, 113, 254}, {118, 117, 259}},
+            {{115, 114, 242}, {112, 111, 252}, {110, 109, 258}},
+            {{96, 95, 304}, {106, 105, 276}, {99, 99, 309}},
+            // 다음 날의 별도 표본에서 빠르고 적중 수가 많았던 판.
+            {{170, 161, 173}, {171, 158, 200}, {168, 150, 209}},
+            {{155, 155, 190}, {150, 146, 208}, {153, 152, 207}}
+        };
+
+        assertThat(MoleTimingSignals.sustainedPace(observed(suspected))).isTrue();
+        assertThat(Arrays.asList(comparison)).allSatisfy(
+                round -> assertThat(MoleTimingSignals.sustainedPace(observed(round))).isFalse());
+    }
+
+    private static List<MoleTimingSignals.Segment> observed(int[][] round) {
+        return Arrays.stream(round).map(segment -> new MoleTimingSignals.Segment(0, null, null,
+                MoleTimingSignals.Pace.measured(segment[0], segment[1], segment[2]))).toList();
+    }
+
+    @Test
+    void 일반_두더지에서_판_중앙값이_높아도_두_구간에_초단기_반응이_반복되면_기록한다() {
+        var moles = moles(30);
+        var signals = MoleTimingSignals.mole(moles,
+                hits(moles, id -> id < 60 && id % 2 == 0 ? 50 : 290 + id % 5));
+
+        assertThat(signals.fastReaction()).isFalse();
+        assertThat(signals.repeatedEarlyReaction()).isTrue();
+        assertThat(signals.segments().getFirst().earlyReaction())
+                .isEqualTo(new MoleTimingSignals.EarlyReaction(30, 15, true));
+        assertThat(MoleTimingSignals.mole(moles, hits(moles, id -> id % 5 == 0 ? 50 : 280))
+                .repeatedEarlyReaction()).isFalse();
+        assertThat(MoleTimingSignals.mole(moles, hits(moles, id -> id < 60 && id % 2 == 0 ? 51 : 290))
+                .repeatedEarlyReaction()).isFalse();
+    }
+
+    @Test
+    void 스피드_두더지에서_초단기_반응은_출현한_구간에_넣고_두_구간_이상일_때만_기록한다() {
+        var reactions = new ArrayList<MoleTimingSignals.Reaction>();
+        for (int phase = 0; phase < 3; phase++) {
+            int offset = phase * 20_000;
+            for (int n = 0; n < 16; n++) {
+                int delay = phase < 2 && n % 2 == 0 ? 100 : 450;
+                int tail = phase == 2 ? 19_000 : 19_500;
+                reactions.add(new MoleTimingSignals.Reaction(offset + tail + n * 30, delay));
+            }
+        }
+
+        var signals = MoleTimingSignals.speed(reactions, List.of(), List.of());
+
+        assertThat(signals.fastReaction()).isFalse();
+        assertThat(signals.repeatedEarlyReaction()).isTrue();
+        assertThat(signals.segments().get(1).earlyReaction())
+                .isEqualTo(new MoleTimingSignals.EarlyReaction(16, 8, true));
+        assertThat(MoleTimingSignals.speed(reactions.subList(0, 31), List.of(), List.of()).repeatedEarlyReaction())
+                .isFalse();
     }
 }

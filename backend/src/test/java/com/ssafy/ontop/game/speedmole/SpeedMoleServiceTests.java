@@ -59,7 +59,8 @@ class SpeedMoleServiceTests {
         verify(audit).settled(eq("speed-mole"), eq(42L), eq(7L), eq(1), signals.capture(), eq(now));
         verifyNoMoreInteractions(audit);
         var value = (MoleTimingSignals.Signals) signals.getValue().get();
-        assertThat(value.segments()).first().isEqualTo(new MoleTimingSignals.Segment(2, 100, 0));
+        assertThat(value.segments()).first().isEqualTo(new MoleTimingSignals.Segment(2, 100, 0,
+                new MoleTimingSignals.Pace(3, 3, 100, false), new MoleTimingSignals.EarlyReaction(0, 0, false)));
     }
 
     @Test

@@ -1,5 +1,6 @@
 package com.ssafy.ontop.minigame.telemetry;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.ssafy.ontop.game.mole.domain.MoleRules;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.ArrayList;
@@ -12,7 +13,7 @@ import java.util.List;
  * <p>두더지가 나온 시각은 클라이언트 보고값이 아니라 서버가 시드로 다시 만든 출현 순서에서 얻는다.
  * 화면을 보고 조작하는 매크로는 표적 ID를 정상으로 보내므로 함정 표적에 걸리지 않지만, 고정된 지연으로 반응하거나
  * 일정한 간격으로 누르는 흔적이 남는다. 게임 구간(난이도)마다 사람의 반응은 달라지므로 흔들림은 구간 안에서만 잰다.
- * 기준값은 실측 전 추정치다.
+ * 지속 고속 적중의 기준은 운영 표본으로 예비 점검했다.
  */
 public final class MoleTimingSignals {
     /** 반응 시간 중앙값이 이보다 짧으면 사람이 보고 친 것으로 보기 어렵다. */
@@ -28,6 +29,13 @@ public final class MoleTimingSignals {
     static final int MIN_STEADY_SEGMENTS = 2;
     static final int SPEED_SEGMENT_MS = 20_000;
     static final int SPEED_SEGMENTS = 3;
+    static final int SUSTAINED_MIN_HITS = 140;
+    static final int SUSTAINED_MIN_ACCURACY_PERCENT = 97;
+    static final int SUSTAINED_MAX_P90_MS = 180;
+    static final int EARLY_MOLE_REACTION_MS = 50;
+    static final int EARLY_SPEED_REACTION_MS = 100;
+    static final int EARLY_MIN_SAMPLES = 16;
+    static final int EARLY_MIN_SEGMENTS = 2;
 
     /**
      * @param samples 구간의 표본 수. 두더지 잡기는 반응 시간, 스피드 두더지는 연속 타격 간격.
@@ -35,7 +43,37 @@ public final class MoleTimingSignals {
      * @param spreadMs 표본의 흔들림(중앙값 절대 편차 × 1.4826, 정규 분포의 표준편차에 해당). 표본이 없으면 null.
      */
     @Schema(name = "MoleTimingSegment")
-    public record Segment(int samples, Integer medianMs, Integer spreadMs) {
+    public record Segment(int samples, Integer medianMs, Integer spreadMs,
+                          @JsonInclude(JsonInclude.Include.NON_NULL) Pace pace,
+                          @JsonInclude(JsonInclude.Include.NON_NULL) EarlyReaction earlyReaction) {
+        public Segment(int samples, Integer medianMs, Integer spreadMs) {
+            this(samples, medianMs, spreadMs, null, null);
+        }
+
+        public Segment(int samples, Integer medianMs, Integer spreadMs, Pace pace) {
+            this(samples, medianMs, spreadMs, pace, null);
+        }
+    }
+
+    @Schema(name = "MoleAuditEarlyReaction")
+    public record EarlyReaction(int samples, int quickHits, boolean qualifies) {
+        static EarlyReaction measure(List<Integer> reactions, int maximumMs) {
+            int quickHits = (int) reactions.stream().filter(ms -> ms <= maximumMs).count();
+            boolean qualifies = reactions.size() >= EARLY_MIN_SAMPLES && 2 * quickHits >= reactions.size();
+            return new EarlyReaction(reactions.size(), quickHits, qualifies);
+        }
+    }
+
+    public record Reaction(int appearedAt, int latencyMs) {
+    }
+
+    @Schema(name = "SpeedMoleAuditPace")
+    public record Pace(int taps, int hits, @Schema(nullable = true) Integer p90IntervalMs, boolean qualifies) {
+        static Pace measured(int taps, int hits, Integer p90IntervalMs) {
+            boolean qualifies = hits >= SUSTAINED_MIN_HITS && 100 * hits >= SUSTAINED_MIN_ACCURACY_PERCENT * taps
+                    && p90IntervalMs != null && p90IntervalMs <= SUSTAINED_MAX_P90_MS;
+            return new Pace(taps, hits, p90IntervalMs, qualifies);
+        }
     }
 
     /**
@@ -47,6 +85,13 @@ public final class MoleTimingSignals {
      */
     public record Signals(int reactions, Integer medianReactionMs, List<Segment> segments, boolean fastReaction,
                           boolean steady) {
+        public boolean sustainedPace() {
+            return MoleTimingSignals.sustainedPace(segments);
+        }
+
+        public boolean repeatedEarlyReaction() {
+            return MoleTimingSignals.repeatedEarlyReaction(segments);
+        }
     }
 
     private MoleTimingSignals() {
@@ -78,7 +123,11 @@ public final class MoleTimingSignals {
                 }
             }
         }
-        var segments = bySegment.stream().map(MoleTimingSignals::segment).toList();
+        var segments = bySegment.stream().map(reactions -> {
+            var stats = segment(reactions);
+            return new Segment(stats.samples(), stats.medianMs(), stats.spreadMs(), null,
+                    EarlyReaction.measure(reactions, EARLY_MOLE_REACTION_MS));
+        }).toList();
         return signals(all, segments, steady(segments, SEGMENT_MIN_REACTIONS, STEADY_REACTION_MS));
     }
 
@@ -88,19 +137,63 @@ public final class MoleTimingSignals {
      *
      * @param reactions 처음 4마리를 뺀 적중의 반응 시간
      * @param tapTimes 판정에 들어간 타격 시각(시간 순서)
+     * @param hitTimes 서버 리플레이에서 적중한 타격 시각(첫 4마리 포함)
      */
-    public static Signals speed(List<Integer> reactions, List<Integer> tapTimes) {
+    public static Signals speed(List<Reaction> reactions, List<Integer> tapTimes, List<Integer> hitTimes) {
         var bySegment = new ArrayList<List<Integer>>();
+        var reactionsBySegment = new ArrayList<List<Integer>>();
+        int[] taps = new int[SPEED_SEGMENTS];
+        int[] hits = new int[SPEED_SEGMENTS];
+        int[] firstInternalGap = new int[SPEED_SEGMENTS];
         for (int i = 0; i < SPEED_SEGMENTS; i++) {
             bySegment.add(new ArrayList<>());
+            reactionsBySegment.add(new ArrayList<>());
         }
-        for (int i = 1; i < tapTimes.size(); i++) {
+        int previousSegment = 0;
+        for (int i = 0; i < tapTimes.size(); i++) {
             int at = tapTimes.get(i);
-            bySegment.get(Math.min(SPEED_SEGMENTS - 1, at / SPEED_SEGMENT_MS)).add(at - tapTimes.get(i - 1));
+            int currentSegment = at / SPEED_SEGMENT_MS;
+            taps[currentSegment]++;
+            if (i > 0) {
+                bySegment.get(currentSegment).add(at - tapTimes.get(i - 1));
+                if (currentSegment != previousSegment) {
+                    firstInternalGap[currentSegment] = 1;
+                }
+            }
+            previousSegment = currentSegment;
         }
-        var segments = bySegment.stream().map(MoleTimingSignals::segment).toList();
-        return signals(new ArrayList<>(reactions), segments,
+        hitTimes.forEach(at -> hits[at / SPEED_SEGMENT_MS]++);
+        reactions.forEach(reaction ->
+                reactionsBySegment.get(reaction.appearedAt() / SPEED_SEGMENT_MS).add(reaction.latencyMs()));
+        var segments = new ArrayList<Segment>(SPEED_SEGMENTS);
+        for (int i = 0; i < SPEED_SEGMENTS; i++) {
+            var gaps = bySegment.get(i);
+            var timing = segment(gaps);
+            // 기존 흔들림과 달리 지속 속도는 같은 구간의 연속 입력만 비교한다.
+            var pace = Pace.measured(taps[i], hits[i], p90(gaps.subList(firstInternalGap[i], gaps.size())));
+            segments.add(new Segment(timing.samples(), timing.medianMs(), timing.spreadMs(), pace,
+                    EarlyReaction.measure(reactionsBySegment.get(i), EARLY_SPEED_REACTION_MS)));
+        }
+        return signals(reactions.stream().map(Reaction::latencyMs).toList(), List.copyOf(segments),
                 steady(segments, SEGMENT_MIN_INTERVALS, STEADY_INTERVAL_MS));
+    }
+
+    static boolean repeatedEarlyReaction(List<Segment> segments) {
+        return segments.stream().filter(segment -> segment.earlyReaction() != null
+                && segment.earlyReaction().qualifies()).count() >= EARLY_MIN_SEGMENTS;
+    }
+
+    static boolean sustainedPace(List<Segment> segments) {
+        return segments.size() == SPEED_SEGMENTS
+                && segments.stream().allMatch(segment -> segment.pace() != null && segment.pace().qualifies());
+    }
+
+    private static Integer p90(List<Integer> gaps) {
+        if (gaps.isEmpty()) {
+            return null;
+        }
+        var sorted = gaps.stream().sorted().toList();
+        return sorted.get((9 * sorted.size() - 1) / 10);
     }
 
     private static Signals signals(List<Integer> reactions, List<Segment> segments, boolean steady) {
@@ -109,11 +202,11 @@ public final class MoleTimingSignals {
         return new Signals(reactions.size(), median, segments, fast, steady);
     }
 
-    /** 표본이 충분한 구간이 둘 이상이고, 그 구간이 모두 기준보다 덜 흔들린다. */
+    /** 표본이 충분하고 기준보다 덜 흔들리는 구간이 둘 이상이면 신호를 남긴다. */
     static boolean steady(List<Segment> segments, int minSamples, int thresholdMs) {
-        var measured = segments.stream().filter(segment -> segment.samples() >= minSamples).toList();
-        return measured.size() >= MIN_STEADY_SEGMENTS
-                && measured.stream().allMatch(segment -> segment.spreadMs() < thresholdMs);
+        return segments.stream()
+                .filter(segment -> segment.samples() >= minSamples && segment.spreadMs() < thresholdMs)
+                .count() >= MIN_STEADY_SEGMENTS;
     }
 
     private static Segment segment(List<Integer> values) {
