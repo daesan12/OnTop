@@ -1,6 +1,30 @@
 import {expect,test} from '@playwright/test'
 const practice={name:'박영감',npcUserId:'9001',actorId:'opponent-9001',difficulty:'HARD',phase:'ARRIVING',bet:0,thinking:false,speech:'',speechSource:'FIXED',analysis:{source:'LOCAL',blackEstimate:null,advantage:'UNKNOWN'},analysisNote:'',snapshot:{gameId:'table-opponent',tableId:'table1',version:0,blackUserId:101,whiteUserId:9001,turnUserId:101,winnerUserId:null,turnDeadline:new Date(Date.now()+30000).toISOString(),endedAt:null,endReason:null,board:{board:Array.from({length:15},()=>Array(15).fill(0)),moveCount:0,outcome:'PLAYING',forbiddenMoves:[]}}}
 
+test('idle resident status polls slowly and resumes when the page becomes visible', async ({page}) => {
+ const polls: number[] = []
+ await page.clock.install()
+ await page.route('**/api/v1/ai/companions/status', route => {
+  polls.push(Date.now())
+  return route.fulfill({json:{actors:[],practice:null,commentary:[],waitSeconds:-1}})
+ })
+ await page.goto('/tests/fixtures/npc-opponent.html')
+ await expect.poll(() => polls.length, { timeout: 10_000 }).toBe(2)
+ expect(polls[1] - polls[0]).toBeGreaterThanOrEqual(4_900)
+
+ await page.evaluate(() => {
+  Object.defineProperty(document, 'hidden', { configurable:true, value:true })
+  document.dispatchEvent(new Event('visibilitychange'))
+ })
+ await page.clock.fastForward(10_000)
+ expect(polls).toHaveLength(2)
+ await page.evaluate(() => {
+  Object.defineProperty(document, 'hidden', { configurable:true, value:false })
+  document.dispatchEvent(new Event('visibilitychange'))
+ })
+ await expect.poll(() => polls.length, { timeout: 2_000 }).toBe(3)
+})
+
 for(const entry of ['manual','automatic'] as const){
  test(`${entry} opponent accepts a JSON invitation/first black move instead of HTTP 415`,async({page},info)=>{
   let active=entry==='automatic',moves=0
@@ -95,7 +119,7 @@ test('cleanup failure keeps the result for retry, including after automatic serv
  await result.getByRole('button',{name:'다음 판 준비'}).click()
  await expect(result.getByRole('alert')).toContainText('처리하지 못했어요')
  active=false
- await expect(page.getByLabel('오목판 연결 상태')).toHaveText('대결 입장 대기')
+ await expect(page.getByLabel('오목판 연결 상태')).toHaveText('대결 입장 대기',{timeout:10_000})
  await expect(result).toBeVisible()
  await result.getByRole('button',{name:'자리에서 일어나기'}).click()
  await expect(result).toHaveCount(0)
@@ -125,16 +149,16 @@ test('a new human game clears the cached NPC result and it does not reappear',as
  await page.goto('/tests/fixtures/npc-opponent.html')
  const result=page.getByRole('dialog',{name:'경기 결과',exact:true})
  await expect(result).toBeVisible();active=false
- await expect(page.getByLabel('오목판 연결 상태')).toHaveText('대결 입장 대기')
+ await expect(page.getByLabel('오목판 연결 상태')).toHaveText('대결 입장 대기',{timeout:10_000})
  await result.getByRole('button',{name:'결과 창 닫기'}).click()
  await page.getByRole('button',{name:'사람과 새 판 검수'}).click()
  await expect(page.getByRole('button',{name:'경기 결과 다시 보기'})).toHaveCount(0)
  // Emulate an old terminal status arriving again after the PvP start cleared the cache.
  active=true;const before=polls
- await expect.poll(()=>polls).toBeGreaterThan(before)
+ await expect.poll(()=>polls,{timeout:10_000}).toBeGreaterThan(before)
  await expect(page.getByLabel('오목판 연결 상태')).toHaveText('대결 입장 대기')
  active=false;const late=polls
- await expect.poll(()=>polls).toBeGreaterThan(late)
+ await expect.poll(()=>polls,{timeout:10_000}).toBeGreaterThan(late)
  await page.getByRole('button',{name:'새 판 상태 해제'}).click()
  await expect(result).toHaveCount(0)
 })
