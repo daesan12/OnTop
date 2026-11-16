@@ -95,23 +95,44 @@ class PolicePatrolTests {
         assertThat(returned.action()).isIn("PATROL","REST");assertThat(returned.warp()).isEqualTo(1);
         assertThat(notices.getLast()).isEmpty();
     }
-    @Test void missingDescentRouteWaitsAndRetriesWithoutWarpingOrServingTwoPlacesAtOnce() {
-        var available=new java.util.concurrent.atomic.AtomicBoolean();var arrivals=new AtomicInteger();
+    @Test void missingDescentRouteWarpsHomeAndDoesNotBlockTheNextVisit() {
+        var arrivals=new AtomicInteger();
         var police=new PolicePatrol(new PolicePatrol.Navigation() {
             public Point spawn(){return new Point(0,.8,0);}
             public List<Point> path(Point a,Point b){return List.of();}
             public boolean requiresTeleport(String actor,Point p){return p.y()>1;}
             public boolean canPatrolFrom(Point p){return p.y()<1;}
-            public List<com.ssafy.ontop.world.movement.NpcDescent.Step> returnPath(Point p){return available.get()?List.of(new com.ssafy.ontop.world.movement.NpcDescent.Step(new Point(p.x(),.8,p.z()),1,true)):List.of();}
         });
-        var actors=Map.of("A",new Point(20,10,0),"B",new Point(20,.8,0));
+        var actors=Map.of("A",new Point(300,10,0),"B",new Point(1,.8,0));
         police.incident(new PolicePatrol.Incident("high","A","안내",p->arrivals.incrementAndGet()));
         police.tick(0,.25,actors);police.tick(5000,.25,actors);
         police.incident(new PolicePatrol.Incident("next","B","안내",p->arrivals.incrementAndGet()));
-        var waiting=police.tick(8000,.25,actors);assertThat(waiting.action()).isEqualTo("RETURN_WAIT");
-        assertThat(waiting.warp()).isEqualTo(1);assertThat(arrivals).hasValue(1);
-        available.set(true);for(int i=0;i<20;i++)police.tick(10000+i*250,.25,actors);
-        assertThat(arrivals).hasValue(2);assertThat(police.tick(16000,.25,actors).warp()).isEqualTo(1);
+        var recovered=police.tick(8000,.25,actors);
+        assertThat(recovered.action()).isEqualTo("PATROL");assertThat(recovered.warp()).isEqualTo(2);
+        assertThat(recovered.x()).isZero();assertThat(recovered.y()).isZero();assertThat(arrivals).hasValue(1);
+        police.tick(8250,.25,actors);
+        assertThat(arrivals).hasValue(2);assertThat(police.tick(16000,.25,actors).warp()).isEqualTo(2);
+        assertThat(police.metrics()).containsEntry("return.teleports",1L);
+    }
+    @Test void repeatingDescentStepsAreBoundedAndPatrolDoesNotSnapBackToTheOldAirbornePosition() {
+        var police=new PolicePatrol(new PolicePatrol.Navigation() {
+            public Point spawn(){return new Point(0,.8,0);}
+            public List<Point> path(Point a,Point b){return a.y()<1?List.of(a,b):List.of();}
+            public boolean requiresTeleport(String actor,Point p){return p.y()>1;}
+            public boolean canPatrolFrom(Point p){return p.y()<1;}
+            public List<com.ssafy.ontop.world.movement.NpcDescent.Step> returnPath(Point p){
+                return List.of(new com.ssafy.ontop.world.movement.NpcDescent.Step(new Point(p.x()+1,p.y(),p.z()),.25,false));
+            }
+        },new Random(1));
+        var actors=Map.of("A",new Point(300,10,0));
+        police.incident(new PolicePatrol.Incident("stuck","A","안내",p->{}));
+        police.tick(0,.25,actors);police.tick(5000,.25,actors);
+        for(int i=0;i<40;i++)assertThat(police.tick(8000+i*250,.25,actors).warp()).isEqualTo(1);
+        var recovered=police.tick(18000,.25,actors);
+        assertThat(recovered.warp()).isEqualTo(2);assertThat(recovered.x()).isZero();assertThat(recovered.y()).isZero();
+        var walking=police.tick(18250,.25,actors);
+        assertThat(walking.warp()).isEqualTo(2);assertThat(walking.y()).isZero();assertThat(walking.x()).isBetween(-1.0,1.0);
+        assertThat(police.metrics()).containsEntry("return.teleports",1L);
     }
     @Test void aBriefJumpUsesTheGroundApproachAndLandingCancelsTeleport() {
         var notices=new ArrayList<String>();var arrived=new AtomicInteger();
