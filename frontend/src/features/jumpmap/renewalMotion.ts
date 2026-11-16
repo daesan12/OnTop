@@ -46,12 +46,12 @@ export function renewalPadPose(pad: CourseBlock, now: number) {
   return { offset, solid: true, visible: true }
 }
 
-export function movingPadRiderHeight(block: number) {
+export function movingPadRiderHeight(block: number, msAgo = 0) {
   const pad = COURSE[block]
   if (!renewalCourse || (pad?.theme !== 'mole' && pad?.theme !== 'pigeon')) return undefined
   const now = syncRenewalMotion()
   // Avatar models and the camera use a pose 0.8 m above the feet.
-  return pad.top + renewalPadPose(pad, now).offset + .8
+  return pad.top + renewalPadPose(pad, now - msAgo / 1000).offset + .8
 }
 
 export function renewalPadAt(feet: { x: number; y: number; z: number }, now = syncRenewalMotion()) {

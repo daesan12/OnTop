@@ -3,13 +3,39 @@ import type { MotionSnapshot } from './localMovementPrediction'
 import type { Pose } from './worldClient'
 
 type Flags = { moving: boolean; running: boolean; swimming: boolean }
-type Frame = { tick: number; epoch: number; pose: Pose; flags: Flags; movingPadBlock?: number }
+type Frame = {
+  tick: number; epoch: number; pose: Pose; flags: Flags
+  grounded: boolean; velocityY: number; movingPadBlock?: number
+}
+type PadHeight = (block: number, msAgo?: number) => number | undefined
 type Track = { frames: Frame[]; displayed?: { pose: Pose; at: number }; flags?: Flags; cursor?: number }
 const TICK_MS = 1000 / 30
 // 100ms world cadence + measured 0–60ms delivery jitter + 20ms margin.
 // Remote avatars deliberately trade 60ms more display delay for a stable timeline.
 export const REMOTE_INTERPOLATION_MS = 180
+const TAKEOFF_CORRECTION_MS = 180
 const angle = (from: number, to: number) => Math.atan2(Math.sin(to - from), Math.cos(to - from))
+
+function airborneHeight(frames: Frame[], index: number, desiredTick: number, padHeight: PadHeight) {
+  const frame = frames[index]!
+  if (frame.grounded) return frame.pose.y
+
+  let firstAirIndex = index
+  while (firstAirIndex > 0 && !frames[firstAirIndex - 1]!.grounded) {
+    firstAirIndex--
+    if ((frame.tick - frames[firstAirIndex]!.tick) * TICK_MS >= TAKEOFF_CORRECTION_MS) return frame.pose.y
+  }
+  const support = frames[firstAirIndex - 1]
+  const firstAir = frames[firstAirIndex]!
+  if (support?.movingPadBlock === undefined || firstAir.velocityY <= 0) return frame.pose.y
+
+  // Preserve the jump from the height the observer saw at departure. A mole
+  // can be much lower on the server for this rider than on the observer's screen.
+  const remaining = 1 - (frame.tick - firstAir.tick) * TICK_MS / TAKEOFF_CORRECTION_MS
+  const msAgo = Math.max(0, (desiredTick - support.tick) * TICK_MS)
+  const departureHeight = padHeight(support.movingPadBlock, msAgo) ?? support.pose.y
+  return frame.pose.y + (departureHeight - support.pose.y) * remaining
+}
 
 /** Render-only history. No extrapolation and no writes to authoritative positions. */
 export class RemoteMovement {
@@ -47,33 +73,38 @@ export class RemoteMovement {
     }
     track.frames.push({ tick: motion.tick, epoch: motion.epoch, pose: { x: pose.x, y: pose.y, z: pose.z, yaw: pose.yaw },
       flags: { moving: pose.moving, running: pose.running, swimming: pose.swimming },
+      grounded: motion.grounded, velocityY: motion.velocityY,
       movingPadBlock: motion.grounded ? motion.movingPad?.block : undefined })
     track.frames.sort((a, b) => a.tick - b.tick)
     track.frames = track.frames.slice(-16)
     this.received++
   }
   sample(id: string, at: number, target: Pose, maxSpeed = MOVEMENT.runSpeed + MOVEMENT.walkSpeed / 2,
-    padHeight?: (block: number) => number | undefined): boolean {
+    padHeight?: PadHeight): boolean {
     const track = this.tracks.get(id)
     if (!track?.frames.length) return false
     const frames = track.frames, desiredTick = (at - this.offset - this.delay) / TICK_MS
     // Rephasing must never rewind an already displayed source instant.
     const tick = Math.max(track.cursor ?? -Infinity, Math.min(frames.at(-1)!.tick, desiredTick))
     track.cursor = tick
-    let from = frames[0]!, to = from
-    for (const frame of frames) {
-      to = frame
-      if (frame.tick >= tick) break
-      from = frame
+    let fromIndex = 0, toIndex = 0
+    for (let index = 0; index < frames.length; index++) {
+      toIndex = index
+      if (frames[index]!.tick >= tick) break
+      fromIndex = index
     }
+    const from = frames[fromIndex]!, to = frames[toIndex]!
     const t = from.tick === to.tick ? 1 : Math.max(0, Math.min(1, (tick - from.tick) / (to.tick - from.tick)))
     let x = from.pose.x + (to.pose.x - from.pose.x) * t
     // Seat the rider on this viewer's rendered pad. Mole dips are per player.
-    // Project each grounded endpoint so landing and takeoff stay on the buffered timeline.
+    // Project the grounded endpoints onto the visible pad and ease airborne
+    // endpoints back to the server trajectory after takeoff.
     const fromPad = from.movingPadBlock === undefined ? undefined : padHeight?.(from.movingPadBlock)
     const toPad = to.movingPadBlock === from.movingPadBlock ? fromPad
       : to.movingPadBlock === undefined ? undefined : padHeight?.(to.movingPadBlock)
-    const fromY = fromPad ?? from.pose.y, toY = toPad ?? to.pose.y
+    const fromY = fromPad ?? (padHeight ? airborneHeight(frames, fromIndex, desiredTick, padHeight) : from.pose.y)
+    const toY = to === from ? fromY
+      : toPad ?? (padHeight ? airborneHeight(frames, toIndex, desiredTick, padHeight) : to.pose.y)
     let y = fromY + (toY - fromY) * t
     let z = from.pose.z + (to.pose.z - from.pose.z) * t
     const yaw = from.pose.yaw + angle(from.pose.yaw, to.pose.yaw) * t
