@@ -58,20 +58,23 @@ class SpotDifferenceService {
 
     SpotDifferenceService(List<Puzzle> puzzles, SpotDifferenceRewards rewards, Clock clock, BehaviorLog behaviorLog) {
         this.puzzles = List.copyOf(puzzles);
-        this.hardPuzzles = puzzles.stream().filter(puzzle -> !puzzle.hard().isEmpty()).toList();
         this.rewards = rewards;
         this.clock = clock;
         this.behaviorLog = behaviorLog;
-        if (puzzles.size() < ROUND_COUNT || hardPuzzles.size() < ROUND_COUNT
-                || puzzles.stream().map(Puzzle::id).distinct().count() != puzzles.size()
+        if (puzzles.size() < ROUND_COUNT || puzzles.stream().map(Puzzle::id).distinct().count() != puzzles.size()
                 || puzzles.stream().anyMatch(puzzle -> !valid(puzzle.normal())
-                        || (!puzzle.hard().isEmpty() && !valid(puzzle.hard())))) {
+                        || puzzle.hard() == null || (!puzzle.hard().isEmpty() && !valid(puzzle.hard())))) {
             throw new IllegalArgumentException("Invalid shooting pavilion puzzle catalog");
+        }
+        this.hardPuzzles = puzzles.stream().filter(puzzle -> !puzzle.hard().isEmpty()).toList();
+        if (hardPuzzles.size() < ROUND_COUNT) {
+            throw new IllegalArgumentException(
+                    "Shooting pavilion puzzle catalog requires at least " + ROUND_COUNT + " HARD scenes");
         }
     }
 
     private static boolean valid(List<Difference> differences) {
-        return differences.size() == 6 && differences.stream().allMatch(difference -> {
+        return differences != null && differences.size() == 6 && differences.stream().allMatch(difference -> {
             var box = difference.box();
             return box.size() == 4 && box.get(0) >= 0 && box.get(1) >= 0
                     && box.get(2) <= WIDTH && box.get(3) <= HEIGHT

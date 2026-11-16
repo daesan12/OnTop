@@ -36,6 +36,7 @@ import java.util.stream.IntStream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.web.server.ResponseStatusException;
 
 class SpotDifferenceServiceTests {
@@ -46,12 +47,33 @@ class SpotDifferenceServiceTests {
             IntStream.range(0, 50).mapToObj(i -> new Puzzle("p" + i, "장면 " + i, boxes(50), boxes(100))).toList(),
             rewards, clock);
 
-    @Test
-    void 배포할_그림_목록을_읽고_난이도별_여섯_정답을_검증한다() throws Exception {
+    @ParameterizedTest
+    @EnumSource(Difficulty.class)
+    void 배포_카탈로그에서_난이도별_다섯_장면을_고를_수_있다(Difficulty difficulty) throws Exception {
         var catalog = new SpotDifferenceService(new ObjectMapper(), rewards);
-        var view = catalog.start(PLAYER, new Start(Difficulty.NORMAL, UUID.randomUUID()));
-        assertThat(view.scene()).isNotBlank();
-        assertThat(view.answers()).isEmpty();
+
+        assertThat(catalog.selectScenes(difficulty)).hasSize(SpotDifferenceService.ROUND_COUNT)
+                .allSatisfy(scene -> assertThat(scene.answers(difficulty)).hasSize(6));
+    }
+
+    @Test
+    void 어려움_장면이_다섯_개_미만이면_카탈로그_로드에_실패한다() {
+        var catalog = IntStream.range(0, 6).mapToObj(index ->
+                new Puzzle("p" + index, "장면 " + index, boxes(50), index < 4 ? boxes(100) : List.of())).toList();
+
+        assertThatThrownBy(() -> new SpotDifferenceService(catalog, rewards, clock))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("requires at least 5 HARD scenes");
+    }
+
+    @Test
+    void 어려움_필드가_누락된_장면은_잘못된_카탈로그로_보고한다() {
+        var catalog = IntStream.range(0, 6).mapToObj(index ->
+                new Puzzle("p" + index, "장면 " + index, boxes(50), index == 5 ? null : boxes(100))).toList();
+
+        assertThatThrownBy(() -> new SpotDifferenceService(catalog, rewards, clock))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Invalid shooting pavilion puzzle catalog");
     }
 
     @ParameterizedTest
