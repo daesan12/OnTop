@@ -37,7 +37,7 @@ class SceneBoundary extends Component<{ children: ReactNode; onStatus: StoneScen
   componentDidCatch() { this.props.onStatus(false, '공원 파일을 불러오지 못했어요. 새로고침해 주세요.') }
   render() { return this.state.failed ? null : this.props.children }
 }
-export type StoneCamera = MutableRefObject<{ yaw: number; renderedYaw: number; orbit: number; pointerAiming: boolean }>
+export type StoneCamera = MutableRefObject<{ yaw: number; renderedYaw: number; manualOrbit: boolean; pointerAiming: boolean }>
 export type StoneInput = MutableRefObject<Omit<StoneControl, 'kind' | 'seq'>>
 
 type AvatarProps = { player: StonePlayer; index: number; own: boolean; time: number; gameId: string; feedback?: MutableRefObject<StoneFeedbackFrame> }
@@ -219,6 +219,11 @@ function Stage({ state, ownId, viewId, input, fire, feedback, localOnly, control
     const canvas = gl.domElement
     const tapSlop = 8
     let gesture: { id: number; x: number; y: number; orbiting: boolean; canTap: boolean } | null = null
+    const clearGesture = () => {
+      gesture = null
+      controls.current.manualOrbit = false
+    }
+    const blur = () => { clearGesture(); clickPending.current = false }
     const aim = (event: PointerEvent) => {
       const bounds = canvas.getBoundingClientRect()
       pointer.set((event.clientX - bounds.left) / bounds.width * 2 - 1,
@@ -234,12 +239,13 @@ function Stage({ state, ownId, viewId, input, fire, feedback, localOnly, control
       }
       if (gesture?.id === event.pointerId) {
         if (event.pointerType === 'mouse' && (event.buttons & 2) === 0) {
-          gesture = null
+          clearGesture()
           aim(event)
           return
         }
         if (!gesture.orbiting && Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) < tapSlop) return
         gesture.orbiting = true
+        controls.current.manualOrbit = true
         controls.current.pointerAiming = false
         controls.current.yaw = (controls.current.yaw - (event.clientX - gesture.x) * .008) % (2 * Math.PI)
         gesture.x = event.clientX
@@ -256,14 +262,17 @@ function Stage({ state, ownId, viewId, input, fire, feedback, localOnly, control
         event.preventDefault()
         if (gesture) return
         gesture = { id: event.pointerId, x: event.clientX, y: event.clientY, orbiting: !touch, canTap: touch }
-        if (!touch) controls.current.pointerAiming = false
+        if (!touch) {
+          controls.current.manualOrbit = true
+          controls.current.pointerAiming = false
+        }
         canvas.setPointerCapture(event.pointerId)
       } else if (event.button === 0) {
         aim(event)
         clickPending.current = true
       }
     }
-    const cancel = (event: PointerEvent) => { if (gesture?.id === event.pointerId) gesture = null }
+    const cancel = (event: PointerEvent) => { if (gesture?.id === event.pointerId) clearGesture() }
     const up = (event: PointerEvent) => {
       if (gesture?.id !== event.pointerId) return
       if (cameraEnabledRef.current && gesture.canTap && !gesture.orbiting
@@ -286,6 +295,7 @@ function Stage({ state, ownId, viewId, input, fire, feedback, localOnly, control
     canvas.addEventListener('lostpointercapture', cancel)
     canvas.addEventListener('contextmenu', context)
     canvas.addEventListener('wheel', wheel, { passive: false })
+    window.addEventListener('blur', blur)
     return () => {
       canvas.removeEventListener('pointermove', move)
       canvas.removeEventListener('pointerdown', down)
@@ -294,15 +304,13 @@ function Stage({ state, ownId, viewId, input, fire, feedback, localOnly, control
       canvas.removeEventListener('lostpointercapture', cancel)
       canvas.removeEventListener('contextmenu', context)
       canvas.removeEventListener('wheel', wheel)
+      window.removeEventListener('blur', blur)
+      clearGesture()
     }
   }, [gl, pointer, controls])
   useFrame((_, dt) => {
     const aspect = size.width / size.height
     const control = controls.current
-    if (cameraEnabled && control.orbit) {
-      control.yaw = (control.yaw + control.orbit * 3.2 * Math.min(dt, .05)) % (2 * Math.PI)
-      control.pointerAiming = false
-    }
     if (player?.alive || !cameraReady.current) {
       const x = player?.alive ? player.x : 0, y = player?.alive ? player.y : 24, z = player?.alive ? player.z : 0
       desiredFocus.set(x, y, z)

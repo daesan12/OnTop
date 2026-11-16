@@ -33,7 +33,8 @@ export function StoneRumbleGame({ state, ownId, connected, send, leave, children
     setSceneReady(ready); setSceneError(error ?? ''); onSceneStatus?.(ready, error)
   }, [onSceneStatus])
   const input = useRef({ x: 0, z: 0, aimX: 1, aimZ: 0, jump: false, fire: false, slide: false })
-  const controls = useRef({ yaw: 0, renderedYaw: 0, orbit: 0, pointerAiming: false })
+  const controls = useRef({ yaw: 0, renderedYaw: 0, manualOrbit: false, pointerAiming: false })
+  const movementYaw = useRef<number | null>(null)
   const keys = useRef(new Set<string>()), sequence = useRef(Date.now() * 1000)
   const sender = useRef(send)
   sender.current = send
@@ -64,8 +65,6 @@ export function StoneRumbleGame({ state, ownId, connected, send, leave, children
   }, [])
   const loading = !preparing && !finished && (state.phase === 'LOADING' || !sceneReady)
   const cameraEnabled = !preparing && !loading && !help && !confirmLeave && !chatOpen && !pendingElimination && !finished
-  const cameraEnabledRef = useRef(cameraEnabled)
-  cameraEnabledRef.current = cameraEnabled
   const active = !preparing && !loading && sceneReady && connected && inputReady && !!own?.alive && state.status === 'PLAYING' && state.serverTime >= state.landsAt && !help && !confirmLeave && !chatOpen
   const feedback = useStoneFeedback(state, connected && sceneReady && !preparing && (inputReady || spectating), viewingId ?? '', ownId)
   const canAttack = active && state.phase === 'RUNNING'
@@ -75,7 +74,7 @@ export function StoneRumbleGame({ state, ownId, connected, send, leave, children
   activeRef.current = active
   const stop = useCallback(() => {
     keys.current.clear()
-    controls.current.orbit = 0
+    movementYaw.current = null
     input.current.x = 0; input.current.z = 0; input.current.jump = false; input.current.fire = false; input.current.slide = false
     sender.current({ kind: 'control', seq: ++sequence.current, ...input.current }, true)
   }, [])
@@ -96,55 +95,58 @@ export function StoneRumbleGame({ state, ownId, connected, send, leave, children
     return () => window.removeEventListener('keydown', key)
   }, [chat, preparing, sceneReady, finished, pendingElimination, help, confirmLeave, chatOpen, changeChat])
   useEffect(() => {
-    controls.current = { yaw: 0, renderedYaw: 0, orbit: 0, pointerAiming: false }
+    controls.current = { yaw: 0, renderedYaw: 0, manualOrbit: false, pointerAiming: false }
     stop(); setHelp(false); setConfirmLeave(false); setResultOpen(true); setSelected(null); setChatOpen(false); setEliminationAcknowledged(false)
   }, [state.gameId, stop])
   useEffect(() => {
     if (!active) stop()
   }, [active, stop])
   useEffect(() => {
-    if (!cameraEnabled) {
-      keys.current.delete('KeyQ'); keys.current.delete('KeyR'); controls.current.orbit = 0
-    }
-  }, [cameraEnabled])
-  useEffect(() => {
     if (pendingElimination) { stop(); setHelp(false); setConfirmLeave(false); setChatOpen(false) }
   }, [pendingElimination, stop])
+  const updateMovement = useCallback(() => {
+    const pressed = keys.current
+    const x = Number(pressed.has('KeyD') || pressed.has('ArrowRight')) - Number(pressed.has('KeyA') || pressed.has('ArrowLeft'))
+    const z = Number(pressed.has('KeyS') || pressed.has('ArrowDown')) - Number(pressed.has('KeyW') || pressed.has('ArrowUp'))
+    const command = input.current
+    if (!x && !z) {
+      movementYaw.current = null
+      command.x = 0; command.z = 0
+      return
+    }
+    const camera = controls.current
+    // 이동 키를 누르는 동안 처음 보던 화면을 기준으로 삼는다. 카메라가 돌아도 이동 방향은 휘지 않는다.
+    const yaw = movementYaw.current ??= camera.renderedYaw
+    const sin = Math.sin(yaw), cos = Math.cos(yaw), length = Math.hypot(x, z)
+    const moveX = (x * cos + z * sin) / length, moveZ = (z * cos - x * sin) / length
+    if (!camera.manualOrbit && (command.x !== moveX || command.z !== moveZ)) {
+      camera.yaw = Math.atan2(-moveX, -moveZ)
+    }
+    command.x = moveX; command.z = moveZ
+    if (!camera.pointerAiming) {
+      command.aimX = moveX; command.aimZ = moveZ
+    }
+  }, [])
   useEffect(() => {
     const editable = (target: EventTarget | null) => target instanceof HTMLElement && !!target.closest('input,textarea,select,[contenteditable="true"],[role="dialog"],[role="alertdialog"]')
-    const updateOrbit = () => { controls.current.orbit = Number(keys.current.has('KeyQ')) - Number(keys.current.has('KeyR')) }
     const down = (event: KeyboardEvent) => {
-      if (event.code === 'KeyQ' || event.code === 'KeyR') {
-        if (!cameraEnabledRef.current || editable(event.target) || event.altKey || event.ctrlKey || event.metaKey || event.isComposing) return
-        event.preventDefault(); event.stopPropagation()
-        keys.current.add(event.code); updateOrbit()
-        return
-      }
       if (!activeRef.current || editable(event.target) || !['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'KeyE', 'ShiftLeft', 'ShiftRight'].includes(event.code)) return
       event.preventDefault(); event.stopPropagation()
+      if (event.repeat) return
       const shiftHeld = keys.current.has('ShiftLeft') || keys.current.has('ShiftRight')
       keys.current.add(event.code)
-      if (!event.repeat && event.code === 'Space') input.current.jump = true
-      if (!event.repeat && event.code === 'KeyE' && attackRef.current) input.current.fire = true
-      if (!event.repeat && !shiftHeld && ['ShiftLeft', 'ShiftRight'].includes(event.code)) input.current.slide = true
+      updateMovement()
+      if (event.code === 'Space') input.current.jump = true
+      if (event.code === 'KeyE' && attackRef.current) input.current.fire = true
+      if (!shiftHeld && ['ShiftLeft', 'ShiftRight'].includes(event.code)) input.current.slide = true
     }
-    const up = (event: KeyboardEvent) => { keys.current.delete(event.code); updateOrbit() }
+    const up = (event: KeyboardEvent) => { if (keys.current.delete(event.code)) updateMovement() }
     const hidden = () => { if (document.hidden) stop() }
     window.addEventListener('keydown', down); window.addEventListener('keyup', up); window.addEventListener('blur', stop)
     window.addEventListener('ontop-clear-input', stop); document.addEventListener('visibilitychange', hidden)
     const timer = window.setInterval(() => {
       if (!activeRef.current) return
-      const has = (...codes: string[]) => codes.some(code => keys.current.has(code))
-      const x = Number(has('KeyD', 'ArrowRight')) - Number(has('KeyA', 'ArrowLeft'))
-      const z = Number(has('KeyS', 'ArrowDown')) - Number(has('KeyW', 'ArrowUp'))
-      const { renderedYaw: yaw, pointerAiming } = controls.current
-      const sin = Math.sin(yaw), cos = Math.cos(yaw)
-      const length = Math.max(1, Math.hypot(x, z))
-      input.current.x = (x * cos + z * sin) / length
-      input.current.z = (z * cos - x * sin) / length
-      if (!pointerAiming && (x || z)) {
-        input.current.aimX = input.current.x; input.current.aimZ = input.current.z
-      }
+      updateMovement()
       sender.current({ kind: 'control', seq: ++sequence.current, ...input.current })
       input.current.jump = false; input.current.fire = false; input.current.slide = false
     }, 80)
@@ -153,7 +155,7 @@ export function StoneRumbleGame({ state, ownId, connected, send, leave, children
       window.removeEventListener('blur', stop); window.removeEventListener('ontop-clear-input', stop)
       document.removeEventListener('visibilitychange', hidden); stop()
     }
-  }, [stop])
+  }, [stop, updateMovement])
   const fire = useCallback(() => { if (activeRef.current && attackRef.current) input.current.fire = true }, [])
   const cooldown = state.serverTime < state.startsAt ? 0 : Math.max(0, ((own?.pigeonReadyAt ?? 0) - state.serverTime) / 1000)
   const slideCooldown = Math.max(0, ((own?.slideReadyAt ?? 0) - state.serverTime) / 1000)
@@ -168,8 +170,10 @@ export function StoneRumbleGame({ state, ownId, connected, send, leave, children
   const alive = state.players.filter(p => p.alive).length
   const nextRing = Math.min(...state.tiles.filter(t => !t.stepped && t.breakAt > state.serverTime).map(t => t.breakAt))
   const hold = (code: string) => ({
-    onPointerDown: (event: React.PointerEvent<HTMLButtonElement>) => { event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId); if (active) { controls.current.pointerAiming = false; keys.current.add(code) } },
-    onPointerUp: () => keys.current.delete(code), onPointerCancel: () => keys.current.delete(code), onLostPointerCapture: () => keys.current.delete(code),
+    onPointerDown: (event: React.PointerEvent<HTMLButtonElement>) => { event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId); if (active) { controls.current.pointerAiming = false; keys.current.add(code); updateMovement() } },
+    onPointerUp: () => { if (keys.current.delete(code)) updateMovement() },
+    onPointerCancel: () => { if (keys.current.delete(code)) updateMovement() },
+    onLostPointerCapture: () => { if (keys.current.delete(code)) updateMovement() },
   })
   return <section className="stone-rumble" data-phase={state.phase} data-loading={loading} data-preparing={preparing} data-scene-ready={sceneReady} data-spectating={spectating && !pendingElimination} data-eliminated={eliminated} data-awaiting-spectate={pendingElimination} aria-label="돌탑 생존전">
     <StoneRumbleScene state={state} localOnly={localOnly} ownId={ownId} viewId={viewingId ?? ''} input={input} fire={fire}
@@ -194,7 +198,7 @@ export function StoneRumbleGame({ state, ownId, connected, send, leave, children
         <button disabled={!sceneReady || !viewing || chatOpen} onClick={() => cycle(-1)} aria-label="이전 생존자">‹</button>
         <span title={viewing ? name(viewing.userId) : undefined}><small>생존자 관전 · Tab</small><b>{viewing ? name(viewing.userId) : '생존자 대기'}</b></span>
         <button disabled={!sceneReady || !viewing || chatOpen} onClick={() => cycle(1)} aria-label="다음 생존자">›</button>
-      </div> : <div className="stone-rumble-shortcuts"><span><kbd>WASD</kbd> 이동</span><span><kbd>Q/R</kbd> 시점</span><span><kbd>Space</kbd> 점프</span><span><kbd>E</kbd> 발사</span></div>}
+      </div> : <div className="stone-rumble-shortcuts"><span><kbd>WASD</kbd> 이동·시점</span><span><kbd>Space</kbd> 점프</span><span><kbd>E</kbd> 발사</span></div>}
       {!spectating && <button className="stone-rumble-slide" disabled={!active || knocked || slideCooldown > 0} onClick={slide} aria-label="슬라이딩" aria-keyshortcuts="Shift" title="Shift · 지상/공중 한 칸 다이빙 · 1초 재사용"><kbd>Shift</kbd><span>{slideCooldown > 0 ? `${slideCooldown.toFixed(1)}초` : '슬라이딩'}</span></button>}
       {chat && <button className="stone-rumble-chat-toggle" aria-label={chatOpen ? '채팅 닫기' : '채팅 열기'} aria-expanded={chatOpen} aria-keyshortcuts="Enter" onClick={() => changeChat(!chatOpen)}><img src={chatIcon} alt="" /><span>채팅</span><kbd>Enter</kbd></button>}
       {spectating && exit && <button className="stone-rumble-dock-exit" onClick={exit} aria-label="게임에서 나가기">나가기</button>}
@@ -229,8 +233,8 @@ export function StoneRumbleGame({ state, ownId, connected, send, leave, children
     {help && <PaperPopup title="돌탑 생존전" label="돌탑 조작 안내" onClose={() => setHelp(false)} closeLabel="조작 안내 닫기" className="stone-rumble-help">
       <h2>핵심 조작</h2>
       <dl className="stone-rumble-help-controls" aria-label="핵심 조작 키">
-        <div><dt>이동</dt><dd><kbd>WASD</kbd><span>/</span><kbd>방향키</kbd></dd></div>
-        <div><dt>시점</dt><dd><kbd>Q</kbd><span>/</span><kbd>R</kbd> 또는 우클릭 드래그 <small>휠 확대·축소 · 터치는 경기장 드래그</small></dd></div>
+        <div><dt>이동</dt><dd><kbd>WASD</kbd><span>/</span><kbd>방향키</kbd><small>시점도 이동 방향을 따라 돌아가요</small></dd></div>
+        <div><dt>시점</dt><dd>우클릭 드래그 <small>휠 확대·축소 · 터치는 경기장 드래그</small></dd></div>
         <div><dt>점프</dt><dd><kbd>Space</kbd></dd></div>
         <div><dt>슬라이딩</dt><dd><kbd>Shift</kbd><small>공중에서도 한 칸 이동</small></dd></div>
         <div><dt>비둘기 공격</dt><dd><kbd>클릭</kbd><span>/</span><kbd>E</kbd><small>터치는 상대를 탭 · 1.5초 충전</small></dd></div>
