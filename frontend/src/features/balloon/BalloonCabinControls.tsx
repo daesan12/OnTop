@@ -50,8 +50,8 @@ export function BalloonCabinControls({ local, pilot }: {
         <meshStandardMaterial color={brass} roughness={.57} metalness={.35} />
       </mesh>
       <group ref={stick} name="balloon-direction-handle">
-        <mesh position={[0, .113, 0]} castShadow>
-          <cylinderGeometry args={[.022, .034, .226, 8]} />
+        <mesh position={[0, .108, 0]} castShadow>
+          <cylinderGeometry args={[.022, .034, .236, 8]} />
           <meshStandardMaterial color={brass} roughness={.53} metalness={.35} />
         </mesh>
         <mesh position={[0, .225, 0]} castShadow>

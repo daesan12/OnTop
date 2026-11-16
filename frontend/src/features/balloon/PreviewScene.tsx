@@ -12,7 +12,6 @@ import { cameraDrag, isPassenger, occupancy, usePreview } from './previewStore'
 import { useBalloonModel } from './useBalloonModel'
 import { balloonCanLook, CABIN_LOOK_HEIGHT, dragCabinCamera, setBalloonOrbit } from './cabinCamera'
 import { CABIN_FLOOR_HEIGHT } from './cabin'
-import { BalloonCabinDeck } from './BalloonCabinDeck'
 
 const slots = [[-.65, -.65], [.65, -.65], [-.65, .65], [.65, .65]] as const
 function Riders() {
@@ -88,9 +87,7 @@ function ParkScene() {
     <directionalLight position={[-100, 190, 90]} intensity={2.2} color="#fff0d6" />
     <ScenicDetails />
     <Buildings showDockedBalloon={false} />
-    <group ref={balloonRef} scale={balloonScale} position={[flightMap.dock.x, flightMap.dock.y, flightMap.dock.z]}>
-      <BalloonCabinDeck />
-    </group>
+    <group ref={balloonRef} scale={balloonScale} position={[flightMap.dock.x, flightMap.dock.y, flightMap.dock.z]} />
     <Suspense fallback={null}><Riders /></Suspense>
   </>
 }
