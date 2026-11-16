@@ -20,6 +20,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpStatus;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -30,14 +31,13 @@ class SpotDifferenceDuelService {
     private static final Duration INTRO_TIME = Duration.ofSeconds(1);
     private static final Duration REVIEW_TIME = Duration.ofSeconds(4);
     private static final Duration DISCONNECT_TIME = Duration.ofSeconds(45);
-    private static final Duration CLEANUP_INTERVAL = Duration.ofMinutes(1);
+    private static final long CLEANUP_INTERVAL_MS = 60_000;
     private static final int REPLAY_WINDOW = 64;
 
     private final Map<UUID, Duel> duels = new HashMap<>();
     private final Map<Long, Duel> active = new HashMap<>();
     private final SpotDifferenceService games;
     private final Clock clock;
-    private Instant nextCleanup = Instant.MIN;
 
     @Autowired
     SpotDifferenceDuelService(SpotDifferenceService games) {
@@ -54,7 +54,6 @@ class SpotDifferenceDuelService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "난이도를 다시 선택해 주세요.");
         }
         var now = clock.instant();
-        removeExpired(now);
         var previous = active.get(userId);
         if (previous != null && now.isBefore(previous.expires)) {
             advance(previous, now);
@@ -70,7 +69,6 @@ class SpotDifferenceDuelService {
 
     synchronized DuelView join(long userId, UUID code) {
         var now = clock.instant();
-        removeExpired(now);
         var duel = required(code, now);
         advance(duel, now);
         if (duel.players.containsKey(userId)) {
@@ -92,14 +90,12 @@ class SpotDifferenceDuelService {
 
     synchronized Current current(long userId) {
         var now = clock.instant();
-        removeExpired(now);
         var duel = active.get(userId);
         return new Current(duel == null || !now.isBefore(duel.expires) ? null : observe(duel, userId, now));
     }
 
     synchronized DuelView act(long userId, UUID id, DuelAction action) {
         var now = clock.instant();
-        removeExpired(now);
         var duel = required(id, now);
         var player = duel.players.get(userId);
         if (player == null) {
@@ -242,11 +238,9 @@ class SpotDifferenceDuelService {
         return duel;
     }
 
-    private void removeExpired(Instant now) {
-        if (now.isBefore(nextCleanup)) {
-            return;
-        }
-        nextCleanup = now.plus(CLEANUP_INTERVAL);
+    @Scheduled(fixedDelay = CLEANUP_INTERVAL_MS, initialDelay = CLEANUP_INTERVAL_MS)
+    synchronized void removeExpired() {
+        var now = clock.instant();
         duels.values().removeIf(duel -> {
             if (now.isBefore(duel.expires)) {
                 return false;

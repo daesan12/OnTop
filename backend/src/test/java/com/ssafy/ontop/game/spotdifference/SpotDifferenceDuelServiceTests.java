@@ -1,5 +1,6 @@
 package com.ssafy.ontop.game.spotdifference;
 
+import com.ssafy.ontop.auth.config.OAuthConfiguration;
 import com.ssafy.ontop.game.spotdifference.SpotDifferenceDuelService.Command;
 import com.ssafy.ontop.game.spotdifference.SpotDifferenceDuelService.DuelAction;
 import com.ssafy.ontop.game.spotdifference.SpotDifferenceDuelService.End;
@@ -15,11 +16,17 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.stream.IntStream;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.util.TestPropertyValues;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+import org.springframework.scheduling.annotation.ScheduledAnnotationBeanPostProcessor;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.server.ResponseStatusException;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -179,6 +186,33 @@ class SpotDifferenceDuelServiceTests {
         assertThat(host.duel().end()).isEqualTo(End.DISCONNECTED);
         assertThat(host.duel().outcome()).isEqualTo(Outcome.WIN);
         assertThat(duels.current(GUEST).match().duel().outcome()).isEqualTo(Outcome.LOSS);
+    }
+
+    @Test
+    void 예약된_정리는_요청_없이_만료된_방을_지우고_같은_참가자의_새_방을_보존한다() {
+        try (var context = new AnnotationConfigApplicationContext()) {
+            context.getEnvironment().setActiveProfiles("dev", "db");
+            TestPropertyValues.of("ontop.minigames.enabled=true").applyTo(context);
+            context.register(OAuthConfiguration.class);
+            context.registerBean(SpotDifferenceDuelService.class, () -> duels);
+            context.refresh();
+            var tasks = context.getBean(ScheduledAnnotationBeanPostProcessor.class).getScheduledTasks();
+            assertThat(tasks).hasSize(1);
+            var cleanup = tasks.iterator().next().getTask().getRunnable();
+            var expired = open();
+            act(HOST, expired, Command.LEAVE, 1);
+            clock.advance(1);
+            var current = duels.create(HOST, Difficulty.HARD).board().id();
+            clock.advance(SpotDifferenceService.RUN_LIFETIME.toSeconds() - 1);
+
+            cleanup.run();
+
+            var rooms = (Map<?, ?>) ReflectionTestUtils.getField(duels, "duels");
+            var participants = (Map<?, ?>) ReflectionTestUtils.getField(duels, "active");
+            assertThat(rooms.keySet()).isEqualTo(Set.of(current));
+            assertThat(participants.keySet()).isEqualTo(Set.of(HOST));
+            assertThat(duels.current(HOST).match().board().id()).isEqualTo(current);
+        }
     }
 
     private UUID open() {
