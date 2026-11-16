@@ -5,6 +5,7 @@ import { clearRoamingInput, inputState } from '../../world/inputOwnership'
 import geomatePreview from './art/geomate-preview.webp'
 import oneStoreIcon from './art/one-store-icon.webp'
 import ontopPreview from './art/ontop-preview.webp'
+import phoneboothPreview from './art/phonebooth-preview.webp'
 import pickusPreview from './art/pickus-preview.webp'
 import './advertisements.css'
 
@@ -44,10 +45,26 @@ const advertisements = [
     description: ['도형을 직접 돌리고 펼치고 잘라 보며 스스로 이해하는 초등·중학 도형 학습 앱'],
     image: geomatePreview,
     alt: '도형 공부의 시작, 지오메이트. 눈으로 보고, 손으로 이해하는 도형 학습. 도형 캐릭터 다섯과 태블릿에 표시된 Geomate 앱 홈 화면',
-    preserveImage: true,
+    artworkMat: 'cool',
     link: 'https://m.onestore.co.kr/v2/ko-kr/app/0001012470',
     action: '원스토어 방문',
     actionIcon: oneStoreIcon,
+    notice: '온탑 외부 페이지로 이동합니다.',
+  },
+  {
+    title: 'PHONEBOOTH',
+    heading: '전화부스에서 함께 탈출해 보세요',
+    introduction: '1–4인 협동 공포 탈출 게임',
+    badge: '외부 팀 프로젝트',
+    description: [
+      '※싸피 최초의 고화질 3D 1인칭 공포게임! ! !※',
+      '※겁쟁이 팀원들과 함께 괴물을 피해 탈출해보세요※',
+    ],
+    image: phoneboothPreview,
+    alt: '붉은 전화부스 앞에 선 네 사람과 뒤에 숨은 괴물. 신규 괴물, 난이도 하향, 빠른 대전, 랭킹 이벤트와 배달의민족 상품권을 안내하는 PHONEBOOTH 포스터',
+    artworkMat: 'warm',
+    link: 'https://k15e107.p.ssafy.io/',
+    action: '게임 사이트 방문',
     notice: '온탑 외부 페이지로 이동합니다.',
   },
 ]
@@ -166,7 +183,10 @@ export function AdvertisementLink() {
       </header>
       <div className="park-advertisement-carousel">
         <AdvertisementArrow direction={-1} onClick={() => turnPage(-1)} />
-        <section id="advertisement-link-project" className={`park-advertisement-project${advertisement.preserveImage ? ' park-advertisement-project--framed' : ''}`} aria-labelledby="advertisement-project-name">
+        <section id="advertisement-link-project"
+          className={`park-advertisement-project${advertisement.artworkMat ? ' park-advertisement-project--framed' : ''}`}
+          data-artwork-mat={advertisement.artworkMat}
+          aria-labelledby="advertisement-project-name">
           <FrameCorners />
           <img className="park-advertisement-preview" src={advertisement.image} alt={advertisement.alt} width="1280" height="720" />
           <div className="park-advertisement-details">

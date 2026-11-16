@@ -88,6 +88,10 @@
   border-radius: clamp(5px, .6cqw, 9px);
   background: linear-gradient(140deg, #edf3f8, #e7ebe1);
 }
+.park-advertisement-project[data-artwork-mat='warm'] .park-advertisement-preview {
+  border-color: #b88b77;
+  background: linear-gradient(140deg, #f0e2d3, #dfc2ae);
+}
 .park-advertisement-project--framed h3 { font-size: clamp(25px, 3.7cqw, 48px); overflow-wrap: anywhere; }
 .park-advertisement-details p { margin: 0; color: #5b6251; font-size: 2.25cqw; line-height: 1.45; letter-spacing: -.04em; }
 .park-advertisement-project--framed .park-advertisement-details p { text-wrap: balance; word-break: keep-all; }
