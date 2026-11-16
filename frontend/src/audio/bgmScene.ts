@@ -24,10 +24,11 @@ export function parkPeriodTrack(hour: number): BgmTrack {
   return 'park-night'
 }
 
-const gameTrack = (g: Game): BgmTrack => g.alkkagi ? 'alkkagi-bgm' : g.omok ? 'omok' : g.dice || g.ledger ? 'dice' : g.onecard ? 'onecard' : 'bridge'
+const gameTrack = (g: Game): BgmTrack | null => g.stone ? null
+  : g.alkkagi ? 'alkkagi-bgm' : g.omok ? 'omok' : g.dice || g.ledger ? 'dice' : g.onecard ? 'onecard' : 'bridge'
 
 /** First match wins: a live game (played or watched), then the activity on screen, then the park. */
-export function parkTrack(m: ParkMoment): BgmTrack {
+export function parkTrack(m: ParkMoment): BgmTrack | null {
   if (m.game && gameState(m.game).status === 'PLAYING') return gameTrack(m.game)
   if (m.bungeoppang) return 'bungeoppang'
   if (m.arcade) return m.arcade

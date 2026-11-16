@@ -7,14 +7,20 @@ import { facilityMovementBlocked, useFacilityState } from '../features/facilitie
 import { panelOwnsKeys, textInputOwnsKeys } from './inputOwnership'
 import { useCameraPerspective } from './cameraPerspective'
 import { wardrobeView } from '../features/wardrobe/view'
+import { RENEWAL_PARK_ENABLED } from '../park/mapSelection'
+import { secretCorridorContains } from '../../park-renewal-preview/horrorPlan'
+import { inAnnex } from '../../park-renewal-preview/interiorAccess'
 
-export function canControlRoamingCamera() {
+export function canControlRoamingCamera(immersiveTelescopeId = '', immersiveBalloon = false) {
   const s = useSession.getState(), avatar = avatars.get(s.sessionId)
+  const ownFacility = useFacilityState.getState().occupancies[s.sessionId]
+  const usingXRTelescope = !!immersiveTelescopeId && (!ownFacility || ownFacility.facilityId === immersiveTelescopeId)
   return s.status === 'connected' && s.mapCompatible && !!avatar?.connected && !s.pending
-    && !s.tableId && !s.benchId && !s.fitnessId && !s.telescopeId && !useGame.getState().watchedGameId
-    && !useBenchState.getState().pending && !useFitnessState.getState().pending && !useTelescopeState.getState().pending
-    && !facilityMovementBlocked(s.sessionId) && !tableBusy() && !document.hidden
-    && !panelOwnsKeys() && !textInputOwnsKeys(document.activeElement)
+    && !s.tableId && !s.benchId && !s.fitnessId && (!s.telescopeId || usingXRTelescope && s.telescopeId === immersiveTelescopeId)
+    && !useGame.getState().watchedGameId && !useBenchState.getState().pending && !useFitnessState.getState().pending
+    && (usingXRTelescope || !useTelescopeState.getState().pending && !facilityMovementBlocked(s.sessionId))
+    && !tableBusy() && !document.hidden
+    && !panelOwnsKeys(immersiveBalloon ? 'localBalloon' : undefined) && !textInputOwnsKeys(document.activeElement)
 }
 
 export type LookOwner = 'park' | 'bench' | 'telescope' | 'fitness' | 'hold'
@@ -43,7 +49,9 @@ export function lookOwner(): LookOwner | null {
 
 /** A modal pauses controls without changing the chosen view. Facilities own their cameras;
  * the wardrobe shows the own avatar, so it borrows the third-person view while open. */
-export function roamingFirstPerson(avatar: { tableId: string; benchId: string; fitnessId: string; telescopeId: string }, watching: boolean) {
+export function roamingFirstPerson(avatar: { tableId: string; benchId: string; fitnessId: string; telescopeId: string;
+  current?: { x: number; y: number; z: number } }, watching: boolean) {
   return !watching && !avatar.tableId && !avatar.benchId && !avatar.fitnessId && !avatar.telescopeId
-    && !wardrobeView.active && useCameraPerspective.getState().perspective === 'first-person'
+    && !wardrobeView.active && ((RENEWAL_PARK_ENABLED && avatar.current && (secretCorridorContains(avatar.current) || inAnnex(avatar.current)))
+      || useCameraPerspective.getState().perspective === 'first-person')
 }

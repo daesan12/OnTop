@@ -11,7 +11,8 @@ class SceneBoundary extends Component<{children:ReactNode},{error:string}> {
 export function ParkScene({quality,active=true}:{quality:QualityPreset;active?:boolean}) {
   const [ready,setReady]=useState(false)
   const onReady=useCallback(()=>setReady(true),[])
-  return <div className="park-scene park-scene--live" aria-label="3D 공원">
+  const preparingGate = !ready
+  return <div className={`park-scene park-scene--live${preparingGate ? ' park-scene--preparing-gate' : ''}`} aria-label="3D 공원">
     <SceneBoundary><Suspense fallback={null}><WorldCanvas quality={quality} active={active} onReady={onReady}/></Suspense>
       {!ready&&<div className="park-scene-message" role="status">공원을 준비하고 있어요…</div>}
     </SceneBoundary>

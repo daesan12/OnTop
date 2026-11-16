@@ -26,13 +26,18 @@
 .welcome-tour-banner__place { margin: 0; color: #e8b451; font-size: 18px; font-weight: 700; }
 
 .welcome-tour {
+  /* Below the profile, inbox and event launchers in the top-right HUD. */
+  --tour-top: calc(var(--park-account-top, 20px) + 184px * var(--park-ui-scale, 1));
   position: absolute;
-  top: calc(var(--park-edge, 20px) + 84px * var(--park-ui-scale, 1));
+  top: var(--tour-top);
   right: var(--park-edge, 20px);
   z-index: 11;
   box-sizing: border-box;
   width: 300px;
   max-width: calc((100vw - 32px) / var(--park-ui-scale, 1));
+  max-height: calc((100dvh - var(--tour-top) - var(--park-edge, 20px)) / var(--park-ui-scale, 1));
+  overflow: auto;
+  scrollbar-width: none;
   padding: 14px 16px 12px;
   border: 1px solid rgba(247, 241, 229, 0.14);
   border-radius: 16px;
@@ -43,6 +48,14 @@
   pointer-events: auto;
   transform: scale(var(--park-ui-scale, 1));
   transform-origin: top right;
+}
+.welcome-tour::-webkit-scrollbar { display: none; }
+@media (max-height: 640px) {
+  .welcome-tour {
+    --tour-right: calc(var(--park-edge, 20px) + 96px * var(--park-ui-scale, 1));
+    right: var(--tour-right);
+    max-width: calc((100vw - var(--tour-right) - var(--park-edge, 20px)) / var(--park-ui-scale, 1));
+  }
 }
 .welcome-tour--collapsed { width: auto; padding: 0; border-radius: 999px; }
 .welcome-tour button { font: inherit; cursor: pointer; }

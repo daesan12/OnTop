@@ -1,9 +1,11 @@
+import { parkRankingRequest } from './park-ranking-request.mjs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const checkOnly = process.argv.includes('--check');
+const onlyOutput = process.argv.find(arg => arg.startsWith('--only='))?.slice(7);
 const variables = {
     baseUrl: 'http://127.0.0.1:8080',
     wsUrl: 'ws://127.0.0.1:8080/ws/tables',
@@ -814,7 +816,7 @@ function yaml(value, indent = 0) {
 }
 const outputs = new Map([
     ['OnTop-History.postman_collection.json', JSON.stringify({info:{...httpV21.info,name:'OnTop History',description:historyDescription},item:httpV21.item.slice(36,40)},null,2)+'\n'],
-    ['OnTop-Ranking.postman_collection.json', JSON.stringify({info:{...httpV21.info,name:'OnTop Ranking',description:rankingDescription},item:httpV21.item.slice(29,32)},null,2)+'\n'],
+    ['OnTop-Ranking.postman_collection.json', JSON.stringify({info:{...httpV21.info,name:'OnTop Ranking',description:rankingDescription},item:[...httpV21.item.slice(29,32),parkRankingRequest]},null,2)+'\n'],
     ['OnTop-Bungeoppang-Ranking.postman_collection.json', JSON.stringify({info:{...httpV21.info,name:'OnTop Bungeoppang Ranking',description:bungeoRankingDescription},item:httpV21.item.slice(32,36)},null,2)+'\n'],
     ['OnTop-Minigame.postman_collection.json', JSON.stringify({info:{...httpV21.info,name:'OnTop Minigame',description:'붕어빵 v2: 23시작화면조회→19시작→60초 플레이→21입력 검증·보상. 20본인판조회,22포기는 별도 새 판에서 확인. 15점당1냥·KST 하루100냥·랭킹 제외·탭 이동 시간 진행. 기존 API 경로 유지. docs/minigame-api.md.'},item:httpV21.item.slice(18,23)},null,2)+'\n'],
     ['OnTop-Shop.postman_collection.json', JSON.stringify({info: {...httpV21.info, name: 'OnTop Shop',
@@ -834,7 +836,9 @@ for (const collection of [httpV3, wsV3]) {
     outputs.set(`${base}/.resources/definition.yaml`, yaml(definition) + '\n');
     items.forEach((item, index) => outputs.set(`${base}/${String(index + 1).padStart(2, '0')}.request.yaml`, yaml(item) + '\n'));
 }
+if (onlyOutput && !outputs.has(onlyOutput)) throw new Error(`지원하지 않는 출력: ${onlyOutput}`);
 for (const [relative, content] of outputs) {
+    if (onlyOutput && relative !== onlyOutput) continue;
     const file = path.join(root, relative);
     if (checkOnly) {
         // Windows checkout의 CRLF는 허용하되 실제 예제 내용 차이는 계속 거절한다.
@@ -847,4 +851,4 @@ for (const [relative, content] of outputs) {
     }
 }
 console.log(`${checkOnly ? '검사' : '생성'}: ${httpItems.length} HTTP / ${wsItems.length} WebSocket 연결 / `
-    + `${wsItems.reduce((count, item) => count + item.messages.length, 0)} 저장 메시지 / ${outputs.size} 파일`);
+    + `${wsItems.reduce((count, item) => count + item.messages.length, 0)} 저장 메시지 / ${onlyOutput ? `1 선택 파일 (${onlyOutput})` : `${outputs.size} 파일`}`);

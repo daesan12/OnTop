@@ -1,6 +1,7 @@
 import { BUNGEOPPANG, bungeoppangV5Enabled } from "./config";
 import { MINI_PROPS } from "../../park/mapConfig";
 import { FISH_CART_GRILL } from '../../config/fishCart';
+import { cartPoint, renewalBreadShop } from './layoutV5';
 
 /** 현재 코드 기반 카트의 여섯 홈과 일치하는 개인 조리 표시. */
 const cart = MINI_PROPS.find((p) => p.id === "fish-bread")!;
@@ -10,11 +11,14 @@ const shopYaw = 'yaw' in cart ? cart.yaw : 0;
 const standDistance = cart.depth / 2 + 1;
 /** 뒷줄(Q W E), 앞줄(A S D). 플레이어는 +z 쪽에서 -z를 바라본다. */
 export const BUNG_GRILL = {
-  center: [cart.x + cx, layout.surfaceY, cart.z + cz] as const,
+  center: cartPoint(cx, layout.surfaceY, cz),
   /** 철판 윗면 높이. 붕어빵은 이 위에 놓인다. */
-  top: layout.surfaceY,
+  top: cartPoint(0, layout.surfaceY, 0)[1],
   slots: layout.rows.flatMap((z) =>
-    layout.columns.map((x) => [cart.x + cx + x, cart.z + cz + z] as const),
+    layout.columns.map((x) => {
+      const [worldX, , worldZ] = cartPoint(cx + x, 0, cz + z);
+      return [worldX, worldZ] as const;
+    }),
   ),
   breadLength: layout.breadLength,
   mouldScale: layout.mouldScale,
@@ -26,18 +30,23 @@ export const bungeoppangView = {
   /** 복귀 전환이 끝나는 시각(performance.now). 1인칭 복귀도 부드럽게 하기 위해 쓴다. */
   returningUntil: 0,
   // 약 45° 내려다보기. CodeFishBreadCart가 조리 중·복귀 전환 동안 차양과 상단 간판을 숨긴다.
-  position: (bungeoppangV5Enabled ? [cart.x + cx, layout.surfaceY + 1.10, cart.z + cz + 1.52]
-    : [cart.x + cx, layout.surfaceY + 1.2, cart.z + cz + 1.12]) as [number, number, number],
-  target: (bungeoppangV5Enabled ? [cart.x + cx, layout.surfaceY + .145, cart.z + cz - .02]
-    : [cart.x + cx, layout.surfaceY, cart.z + cz]) as [number, number, number],
+  position: bungeoppangV5Enabled ? cartPoint(cx, layout.surfaceY + 1.10, cz + 1.52)
+    : cartPoint(cx, layout.surfaceY + 1.2, cz + 1.12),
+  target: bungeoppangV5Enabled ? cartPoint(cx, layout.surfaceY + .145, cz - .02)
+    : cartPoint(cx, layout.surfaceY, cz),
   fov: bungeoppangV5Enabled ? 36 : 40,
-  standX: cart.x + Math.sin(shopYaw) * standDistance,
-  standZ: cart.z + Math.cos(shopYaw) * standDistance,
+  standX: renewalBreadShop?.reachPosition[0] ?? cart.x + Math.sin(shopYaw) * standDistance,
+  standZ: renewalBreadShop?.reachPosition[2] ?? cart.z + Math.cos(shopYaw) * standDistance,
 };
+
+/** Both scene groups use the render clock's frame timestamp for the handoff. */
+export function bungeoppangCookingView(now: number) {
+  return bungeoppangView.active || now < bungeoppangView.returningUntil;
+}
 
 /** Reveal only after the camera has cleared the local avatar; controls are already live. */
 export function bungeoppangReturnOpacity(now: number, reducedMotion = false) {
-  if (bungeoppangView.active || now < bungeoppangView.returningUntil) return 0;
+  if (bungeoppangCookingView(now)) return 0;
   if (!bungeoppangView.returningUntil || reducedMotion) return 1;
   const t = Math.min(1, Math.max(0, (now - bungeoppangView.returningUntil) / 320));
   return t * t * (3 - 2 * t);

@@ -1,0 +1,96 @@
+.stone-loading-tips {
+  --loading-ink: #f8efd9; --loading-muted: #d4d8d3; --loading-gold: #d7b66a;
+  --loading-gutter: clamp(28px, 4vw, 64px);
+  position: fixed; inset: 0; z-index: 50; isolation: isolate;
+  display: grid; grid-template-rows: auto minmax(120px, 1fr) auto;
+  overflow: auto; background: #182124; color: var(--loading-ink);
+  font: 14px/1.6 'Malgun Gothic', sans-serif; scrollbar-width: none;
+}
+.stone-loading-tips::-webkit-scrollbar { display: none; }
+.stone-loading-tips *, .stone-loading-tips *::before, .stone-loading-tips *::after { box-sizing: border-box; }
+.stone-loading-tips button { font: inherit; cursor: pointer; }
+.stone-loading-tips button:focus-visible { outline: 2px solid #f6cf77; outline-offset: 4px; }
+.stone-loading-tips > .stone-tip-picture { position: fixed; inset: 0; z-index: -2; display: block; pointer-events: none; }
+.stone-loading-tips .stone-tip-picture img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: 50% 45%; }
+.stone-loading-shade { position: fixed; inset: 0; z-index: -1; pointer-events: none; background: linear-gradient(0deg, #111a20fa 0%, #111a20e0 15%, #111a2070 32%, transparent 60%), linear-gradient(115deg, #111a20bd, transparent 43%); }
+.stone-loading-heading { display: flex; align-items: center; gap: 20px; padding: 36px var(--loading-gutter) 0; width: fit-content; color: var(--loading-ink); text-shadow: 0 3px 0 #1d2529, 0 6px 18px #0007; }
+.stone-loading-heading > svg { flex: 0 0 auto; width: 56px; height: 70px; filter: drop-shadow(0 3px 0 #1d2529); }
+.stone-loading-heading h1 { margin: 0; font: 700 clamp(44px, 5.4vw, 80px)/1.2 'BusanDandiMyeongjo', serif; letter-spacing: -.05em; }
+.stone-loading-footer { grid-row: 3; display: grid; grid-template-columns: minmax(0, 1.85fr) minmax(260px, 1fr); column-gap: 38px; row-gap: 16px; padding: 20px var(--loading-gutter) 28px; background: linear-gradient(0deg, #152025c7, #15202500); }
+.stone-tip-card { grid-column: 1; min-width: 0; padding-top: 17px; border-top: 1px solid #d7b66a99; }
+.stone-tip-copy > small { color: var(--loading-gold); font: 700 13px/1.4 'BusanDandiMyeongjo', serif; }
+.stone-tip-copy > small b { margin-left: 4px; font-size: 16px; }
+.stone-tip-copy > small span { font-weight: 400; color: #d9c492; }
+.stone-tip-copy h2 { margin: 8px 0; color: var(--loading-ink); font: 700 27px/1.45 'BusanDandiMyeongjo', serif; letter-spacing: -.03em; word-break: keep-all; }
+.stone-tip-copy p { margin: 0; color: #f0eadc; font-size: 14px; line-height: 1.8; word-break: keep-all; overflow-wrap: break-word; }
+.stone-tip-copy .stone-tip-detail { margin-top: 3px; color: var(--loading-muted); font-size: 12px; }
+.stone-tip-controls { display: flex; flex-wrap: wrap; gap: 10px 18px; margin-top: 13px; color: #eee8d9; font-size: 12px; }
+.stone-tip-controls > span { display: inline-flex; align-items: center; gap: 7px; }
+.stone-loading-tips .stone-tip-controls kbd { min-width: 28px; padding: 2px 9px; border: 1px solid #bdb89f; border-bottom: 3px solid #8a8a7e; border-radius: 3px; background: #e9e5d7; color: #293336; box-shadow: 0 2px 4px #0003; font: 700 12px/1.5 'Malgun Gothic', sans-serif; text-align: center; }
+.stone-loading-tips .stone-tip-nav { grid-column: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 20px; padding-top: 11px; border-top: 1px solid #b8a77555; }
+.stone-loading-tips .stone-tip-nav button { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 32px; padding: 2px 2px 9px; border: 0; border-radius: 0; background: none; color: #d0d1c6; box-shadow: none; font: 700 12px/1.5 'Malgun Gothic', sans-serif; }
+.stone-loading-tips .stone-tip-nav button > span { font-size: 11px; font-variant-numeric: tabular-nums; }
+.stone-loading-tips .stone-tip-nav button[aria-pressed='true'] { color: #f1c672; }
+.stone-loading-tips .stone-tip-nav button[aria-pressed='true']::after { position: absolute; inset: auto 0 0; height: 3px; background: #e9bd60; content: ''; }
+.stone-loading-tips .stone-tip-nav button:hover { color: #fff4d4; }
+.stone-loading-progress { grid-column: 2; grid-row: 1 / span 2; align-self: stretch; display: flex; flex-direction: column; justify-content: center; min-width: 0; padding-left: 32px; border-left: 1px solid #d7b66a55; }
+.stone-loading-ready { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; }
+.stone-loading-ready strong { font: 700 23px/1.5 'BusanDandiMyeongjo', serif; }
+.stone-loading-ready > span { flex-shrink: 0; color: var(--loading-gold); font-size: 40px; line-height: 1.2; font-weight: 800; font-variant-numeric: tabular-nums; }
+.stone-loading-ready small { color: #ece7db; font-size: 21px; font-weight: 400; }
+.stone-loading-stones { display: flex; gap: 6px; width: 100%; margin-top: 20px; }
+.stone-loading-stones span { flex: 1; height: 15px; border: 1px solid #979e97; border-bottom: 3px solid #6c7979; border-radius: 3px; background: #acb5ae; box-shadow: inset 0 1px #e6e9da88; }
+.stone-loading-stones span[data-ready='true'] { border-color: #c6a25a; border-bottom-color: #96743d; background: #d7b66a; box-shadow: inset 0 1px #fce6a3; }
+.stone-loading-progress p { margin: 18px 0 0; color: #e8e8dc; font-size: 12px; line-height: 1.8; word-break: keep-all; }
+.stone-loading-tips .stone-loading-retry { align-self: flex-start; margin-top: 12px; padding: 8px 18px; border: 1px solid #cfb66f; border-bottom-width: 3px; border-radius: 3px; background: #d4ba76; color: #182124; font-size: 13px; font-weight: 700; }
+@media (max-width: 1000px) {
+  .stone-loading-footer { grid-template-columns: minmax(0, 1.6fr) minmax(230px, 1fr); column-gap: 24px; }
+  .stone-loading-progress { padding-left: 24px; }
+  .stone-loading-ready strong { font-size: 19px; }
+  .stone-loading-ready > span { font-size: 31px; }
+  .stone-tip-copy h2 { font-size: 24px; }
+}
+@media (max-width: 700px) {
+  .stone-loading-tips { --loading-gutter: 22px; grid-template-rows: auto minmax(210px, 1fr) auto; }
+  .stone-loading-tips .stone-tip-picture img { object-position: 50% 42%; }
+  .stone-loading-shade { background: linear-gradient(0deg, #111a20fa 0%, #111a20d9 25%, #111a2044 47%, transparent 66%), linear-gradient(120deg, #111a20bd, transparent 53%); }
+  .stone-loading-heading { gap: 10px; padding-top: 24px; }
+  .stone-loading-heading > svg { width: 31px; height: 42px; }
+  .stone-loading-heading h1 { font-size: 38px; }
+  .stone-loading-footer { grid-template-columns: 1fr; row-gap: 13px; padding-top: 14px; padding-bottom: 20px; }
+  .stone-tip-card { padding-top: 12px; }
+  .stone-tip-copy > small { font-size: 11px; }
+  .stone-tip-copy > small b { font-size: 13px; }
+  .stone-tip-copy h2 { margin: 6px 0; font-size: 21px; }
+  .stone-tip-copy p { font-size: 12px; line-height: 1.7; }
+  .stone-tip-copy .stone-tip-detail { font-size: 11px; }
+  .stone-tip-controls { gap: 8px 14px; margin-top: 10px; font-size: 11px; }
+  .stone-loading-tips .stone-tip-controls kbd { font-size: 10px; padding: 2px 6px; min-width: 24px; }
+  .stone-loading-tips .stone-tip-nav { gap: 18px; padding-top: 7px; }
+  .stone-loading-tips .stone-tip-nav button { min-height: 29px; font-size: 11px; }
+  .stone-loading-progress { grid-column: 1; grid-row: auto; padding: 13px 0 0; border-left: 0; border-top: 1px solid #d7b66a55; }
+  .stone-loading-ready strong { font-size: 16px; }
+  .stone-loading-ready > span { font-size: 26px; }
+  .stone-loading-ready small { font-size: 16px; }
+  .stone-loading-stones { margin-top: 10px; gap: 4px; }
+  .stone-loading-stones span { height: 10px; }
+  .stone-loading-progress p { margin-top: 9px; font-size: 11px; line-height: 1.65; }
+}
+@media (max-height: 550px) and (min-width: 701px) {
+  .stone-loading-tips { --loading-gutter: 26px; grid-template-rows: auto minmax(100px, 1fr) auto; }
+  .stone-loading-heading { padding-top: 17px; gap: 12px; }
+  .stone-loading-heading h1 { font-size: 36px; }
+  .stone-loading-heading > svg { width: 30px; height: 40px; }
+  .stone-loading-footer { padding-top: 12px; padding-bottom: 16px; row-gap: 10px; }
+  .stone-tip-copy h2 { font-size: 20px; }
+  .stone-tip-copy p { font-size: 12px; line-height: 1.65; }
+  .stone-tip-copy .stone-tip-detail { font-size: 11px; }
+  .stone-tip-controls { margin-top: 8px; }
+  .stone-loading-ready strong { font-size: 16px; }
+  .stone-loading-ready > span { font-size: 28px; }
+  .stone-loading-progress p { font-size: 11px; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .stone-loading-tips > .stone-tip-picture { animation: stone-loading-reveal .3s ease-out; }
+  @keyframes stone-loading-reveal { from { opacity: .35; } to { opacity: 1; } }
+}

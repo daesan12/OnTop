@@ -63,13 +63,13 @@ export function avatarPoseKey(a: Avatar) {
 }
 
 /** Per-player mutable pose state; no React updates or per-frame vectors. */
-export function createAvatarMotion(model: Rig) {
+export function createAvatarMotion(model: Rig, fittedSeats = false) {
   const fitness = createFitnessMotion(), gait = createGait()
   const grip = createFitnessGrip(), hipFit = new Vector3(), clip = createClipPose()
   let phase = 0, swimPhase = 0, move = 0, run = 0, previousCarry = '', releaseAge = 1, throwAge = 0
   let releasingThrow = false, releaseYaw = 0, releaseTurn = 0, releaseDirectionKnown = false, launchX = 0, launchZ = 0
   return {
-    apply(avatar: Avatar, now: number, delta: number, pose: Pose, figure: Group, reaction?: DefeatReaction | null, seatedPose?: (model: Rig) => void, throwFlight?: Pick<AvatarSnapshot, 'current'> | null, carryThrowAge?: number) {
+    apply(avatar: Avatar, now: number, delta: number, pose: Pose, figure: Group, reaction?: DefeatReaction | null, seatedPose?: (model: Rig) => void, throwFlight?: Pick<AvatarSnapshot, 'current'> | null, carryThrowAge?: number, seatForward?: number) {
       const kind = avatarPoseKind(avatar)
       const seated = kind === 'seated'
       const age = avatarEmoteAge(avatar, now)
@@ -82,12 +82,13 @@ export function createAvatarMotion(model: Rig) {
       sampleGait(phase, move, run, gait)
       model.reset()
       const set = model.set
-      figure.position.set(0, 0, seated && avatar.benchId ? 0.18 : 0)
+      figure.position.set(0, 0, seated ? seatForward ?? (avatar.benchId ? .18 : 0) : 0)
       figure.rotation.set(0, 0, 0)
       set('upperLeg_L', seated ? -Math.PI / 2 : gait.thighL)
       set('upperLeg_R', seated ? -Math.PI / 2 : gait.thighR)
-      set('lowerLeg_L', seated ? Math.PI / 2 : gait.kneeL)
-      set('lowerLeg_R', seated ? Math.PI / 2 : gait.kneeR)
+      const seatedKnee = fittedSeats ? Math.PI * .37 : Math.PI / 2
+      set('lowerLeg_L', seated ? seatedKnee : gait.kneeL)
+      set('lowerLeg_R', seated ? seatedKnee : gait.kneeR)
       set('foot_L', seated ? 0 : gait.ankleL)
       set('foot_R', seated ? 0 : gait.ankleR)
       set('upperArm_L', seated ? -0.35 : gait.armL)

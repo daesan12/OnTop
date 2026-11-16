@@ -11,6 +11,9 @@ import { partImage } from '../wardrobe/itemArt'
 import { knownWholeSkin, resolveWholeSkin } from '../../world/art/wholeSkin'
 import { WARDROBE_OUTFITS_ENABLED } from '../wardrobe/feature'
 import { useSkinCatalog } from '../../world/art/skinCatalog'
+import { RENEWAL_GATE_STARTUP } from '../../park/mapSelection'
+import manPortrait from './portraits/man.webp'
+import girlPortrait from './portraits/girl.webp'
 
 const SIZE = 192
 const sources = new Map<string, Promise<GLTF>>()
@@ -59,9 +62,13 @@ export function useOwnPortrait() {
     skinKey: WARDROBE_OUTFITS_ENABLED ? resolveWholeSkin(s.profiles[s.sessionId]?.character === 'girl' ? 'girl' : 'man', s.equipment[s.sessionId] ?? emptyEquipment)?.imageKey : undefined,
   })))
   const key = `${character}|${outfit}|${skinKey ?? ''}`
+  // These default portraits use the same rig, pose and lighting as shoot().
+  const baked = RENEWAL_GATE_STARTUP && character && !skinKey
+    ? character === 'girl' ? girlPortrait : manPortrait
+    : undefined
   const [shot, setShot] = useState<{ key: string; url: string } | null>(null)
   useEffect(() => {
-    if (!character) return
+    if (!character || baked) return
     let live = true, portrait = portraits.get(key)
     if (!portrait) {
       portraits.set(key, portrait = shoot(character, skinKey))
@@ -69,6 +76,6 @@ export function useOwnPortrait() {
     }
     portrait.then(url => { if (live) setShot({ key, url }) }, () => {})
     return () => { live = false }
-  }, [key, character, skinKey])
-  return shot?.key === key ? shot.url : partImage(character ?? 'man', 'FACE')!
+  }, [key, character, skinKey, baked])
+  return baked ?? (shot?.key === key ? shot.url : partImage(character ?? 'man', 'FACE')!)
 }

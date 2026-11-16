@@ -9,18 +9,34 @@ import {disabledJumpmapStatus} from '../fixtures/jumpmap'
 import type {NoteTopic} from '../../src/features/notes/topics'
 
 export const identity={mapId:'park',schemaVersion:2,mapVersion:PARK_MAP_VERSION}
-const data=PARK_DATA
-const facilities:FacilityDefinition[]=[
+type FixtureMapData = Pick<typeof PARK_DATA, 'physics'> & {
+  interactions: {
+    [Kind in 'benches' | 'fitness' | 'telescopes']: Readonly<(typeof PARK_DATA.interactions)[Kind]>
+  }
+}
+function buildFacilities(data: FixtureMapData): FacilityDefinition[] {
+  return [
   ...data.interactions.benches.map(b=>({facilityId:b.id,kind:b.kind,center:{x:b.position[0],y:b.position[1]+.8,z:b.position[2],yaw:b.yaw},radius:b.radius,heightTolerance:b.heightTolerance,seats:b.seats.map(s=>s.use),exit:b.seats[0]!.exit})),
   ...[...data.interactions.fitness,...data.interactions.telescopes].map(b=>({facilityId:b.id,kind:b.kind,center:{x:b.position[0],y:b.position[1]+.8,z:b.position[2],yaw:b.yaw},radius:b.radius,heightTolerance:b.heightTolerance,seats:[b.use],exit:b.exit})),
-].sort((a,b)=>a.facilityId.localeCompare(b.facilityId))
+  ].sort((a,b)=>a.facilityId.localeCompare(b.facilityId))
+}
+const facilities = buildFacilities(PARK_DATA)
 export const generatedFacilityCatalog = { ...originalCatalog, mapVersion: PARK_MAP_VERSION, facilities }
 
+type FixtureMap = {
+  identity: MapIdentity
+  data: FixtureMapData
+  bindings: typeof bindingsFile.bindings
+}
+
 /** Browser-only wire simulation: production contains no mock login, physics or transport bypass. */
-export async function parkFixture(page:Page,options:{holdConfirmation?:boolean;serverMap?:MapIdentity;omitMap?:boolean;fitnessRewardsEnabled?:boolean;environmentEpochMs?:number;clientPositions?:boolean;carrySupported?:boolean;denyInteraction?:boolean}={}) {
-  // All 18 canonical IDs remain aligned with the latest generated bindings.
-  const bindings=bindingsFile.bindings.filter(b=>b.channelId==='channel-1')
-  await page.route('**/park-bindings.generated.frontend-test.json',route=>route.fulfill({json:{...bindingsFile,bindings}}))
+export async function parkFixture(page:Page,options:{holdConfirmation?:boolean;serverMap?:MapIdentity;omitMap?:boolean;fitnessRewardsEnabled?:boolean;environmentEpochMs?:number;clientPositions?:boolean;carrySupported?:boolean;denyInteraction?:boolean;balloonSupported?:boolean;vrMobilityAvailable?:boolean}={}, map?: FixtureMap) {
+  const mapIdentity = map?.identity ?? identity
+  const data = map?.data ?? PARK_DATA
+  const mapFacilities = map ? buildFacilities(data) : facilities
+  // Use the bindings packaged with the map under test.
+  const bindings=(map?.bindings ?? bindingsFile.bindings).filter(b=>b.channelId==='channel-1')
+  if (!map) await page.route('**/park-bindings.generated.frontend-test.json',route=>route.fulfill({json:{...bindingsFile,bindings}}))
   const requests:{type:string;payload:Record<string,unknown>;requestId:string}[]=[]
   const restRequests:{path:string;method:string;body:Record<string,unknown>}[]=[]
   const notes:{id:string;text:string;createdAt:string;category:NoteTopic}[]=[]
@@ -31,18 +47,22 @@ export async function parkFixture(page:Page,options:{holdConfirmation?:boolean;s
   const fourPlayerTables=new Set<string>()
   const position={x:data.physics.spawn.position[0],y:data.physics.spawn.position[1],z:data.physics.spawn.position[2],yaw:Math.PI,moving:false,running:false,swimming:false,lastInputSeq:0}
   const emit=(type:string,payload:object,id:string|null=null)=>socket.send(JSON.stringify({type,payload,requestId:id}))
-  const world=(id:string|null=null)=>emit('WORLD_STATE',{channelId:'channel-1',version:++version,mapVersion:identity.mapVersion,avatars:[{userId:'101',position:{...position},...(options.carrySupported?{carry:null,interactionBusy,vrActive}:{}),...(options.clientPositions?{motion:{epoch:motionEpoch,tick:++motionTick,appliedInputSeq:position.lastInputSeq,inputAgeMs:0,velocityY,grounded,inputActive:true,authority:'CLIENT_VALIDATED',profile:'PARK_V1'}}:{})}]},id)
-  const occupancy=(id:string|null=null)=>emit('WORLD_FACILITY_STATE',{channelId:'channel-1',version:++facilityVersion,mapVersion:identity.mapVersion,occupancies:lease?[lease]:[]},id)
+  const world=(id:string|null=null)=>emit('WORLD_STATE',{channelId:'channel-1',version:++version,mapVersion:mapIdentity.mapVersion,avatars:[{userId:'101',position:{...position},...(options.carrySupported?{carry:null,interactionBusy,vrActive}:{}),...(options.clientPositions?{motion:{epoch:motionEpoch,tick:++motionTick,appliedInputSeq:position.lastInputSeq,inputAgeMs:0,velocityY,grounded,inputActive:true,authority:'CLIENT_VALIDATED',profile:'PARK_V1'}}:{})}]},id)
+  const occupancy=(id:string|null=null)=>emit('WORLD_FACILITY_STATE',{channelId:'channel-1',version:++facilityVersion,mapVersion:mapIdentity.mapVersion,occupancies:lease?[lease]:[]},id)
   const table=(id:string,requestId:string|null,type='TABLE_STATE')=>emit(type,{tableId:id,version:++version,capacity:4,minimumPlayers:2,seats:Array.from({length:4},(_,n)=>({seatNumber:n+1,userId:n===0&&seated===id?'101':null,ready:false})),allReady:false,selectorUserId:seated?'101':null,gameCode:fourPlayerTables.has(id)?'DICE':null,targetScore:null,betAmountPerPlayer:null,gameId:null},requestId)
   await page.route('**/api/v1/**',async route=>{
     const url=new URL(route.request().url()),p=url.pathname
     const method=route.request().method(),requestBody=method==='POST'?(route.request().postDataJSON()??{}):{}
     restRequests.push({path:p,method,body:requestBody})
+    if (options.balloonSupported && p === '/api/v1/world/balloon/tickets' && method === 'POST') {
+      await route.fulfill({ json: { requestId: requestBody.requestId, fee: 100 } })
+      return
+    }
     if(p==='/api/v1/minigames/jumpmap/tips'&&method==='POST'){
       await route.fulfill({json:{seenTips:requestBody.tips??[]}});return
     }
     if(p==='/api/v1/minigames/jumpmap/status'&&method==='GET'){
-      await route.fulfill({json:disabledJumpmapStatus('channel-1',identity.mapVersion)});return
+      await route.fulfill({json:disabledJumpmapStatus('channel-1',mapIdentity.mapVersion)});return
     }
     if(p==='/api/v1/notes'&&method==='POST'){
       const note={id:String(notes.length+1),text:String(requestBody.text),createdAt:new Date().toISOString(),category:(requestBody.category??'free') as NoteTopic};notes.push(note)
@@ -63,6 +83,10 @@ export async function parkFixture(page:Page,options:{holdConfirmation?:boolean;s
           {rank:1,userId:'105',nickname:'스피드 고수',score:132,misses:3,completedAt:'2026-11-02T05:31:30Z'},
           {rank:1,userId:'107',nickname:'공동 고수',score:132,misses:3,completedAt:'2026-11-02T05:31:45Z'},
         ],
+        jumpRope:[
+          {rank:1,userId:'108',nickname:'줄넘기 고수',score:1250,misses:1,completedAt:'2026-11-02T05:31:50Z'},
+          {rank:2,userId:'109',nickname:'줄넘기 도전자',score:980,misses:2,completedAt:'2026-11-02T05:31:55Z'},
+        ],
         updatedAt:'2026-11-02T05:32:00Z',
       }});return
     }
@@ -76,10 +100,19 @@ export async function parkFixture(page:Page,options:{holdConfirmation?:boolean;s
     ws.onClose((code,reason)=>{clearInterval(tick);ws.close({code,reason})})
     ws.onMessage(raw=>{
       const r=JSON.parse(String(raw));requests.push(r)
+      if (options.balloonSupported && (r.type === 'WORLD_BALLOON_START' || r.type === 'WORLD_BALLOON_POSE')) {
+        const { x, y, z, cabin } = r.payload
+        emit('WORLD_BALLOON_STATE', { channelId: 'channel-1', pilotId: '101',
+          flight: { position: { x, y, z }, aboard: r.payload.aboard ?? true, cabin } }, r.requestId)
+      }
+      if (options.balloonSupported && r.type === 'WORLD_BALLOON_END') {
+        emit('WORLD_BALLOON_STATE', { channelId: 'channel-1', pilotId: '101', flight: null }, r.requestId)
+      }
       if(r.type==='WORLD_TIME_CHECK')emit('WORLD_TIME_STATE',{serverNow:Date.now(),cycleEpochMs:options.environmentEpochMs??0,cycleDurationMs:1200000,timeZone:'Asia/Seoul'},r.requestId)
-      if(r.type==='WORLD_MAP_CONFIRM'){confirmationId=r.requestId;if(!options.holdConfirmation)emit('WORLD_MAP_STATE',{map:options.serverMap??identity,verified:true},r.requestId)}
+      if(r.type==='WORLD_MAP_CONFIRM'){confirmationId=r.requestId;if(!options.holdConfirmation)emit('WORLD_MAP_STATE',{map:options.serverMap??mapIdentity,verified:true},r.requestId)}
       if(r.type==='CHANNEL_JOIN'){emit('CHANNEL_STATE',{channelId:'channel-1',name:'새 공원 검증',version:++channelVersion,capacity:16,currentUsers:1,userIds:['101']},r.requestId);world()}
       if(r.type==='WORLD_FOLLOW_CHECK')emit('WORLD_FOLLOW_STATE',{channelId:'channel-1',version:0,links:[]},r.requestId)
+      if(r.type==='WORLD_CHAT_SEND')emit('WORLD_CHAT_MESSAGE',{messageId:`park-chat-${requests.length}`,channelId:'channel-1',userId:'101',text:r.payload.text,sentAt:new Date().toISOString()},r.requestId)
       if(r.type==='WORLD_MOVE'){dx=r.payload.dx;dz=r.payload.dz;position.moving=!!(dx||dz);position.running=r.payload.run;position.lastInputSeq=r.payload.seq;world(r.requestId)}
       if(r.type==='WORLD_INTERACTION_SET'){
         if(options.denyInteraction)emit('ERROR',{code:'INTERACTION_UNAVAILABLE',message:'보호 상태를 확인하지 못했어요.'},r.requestId)
@@ -93,20 +126,24 @@ export async function parkFixture(page:Page,options:{holdConfirmation?:boolean;s
       if(r.type==='TABLE_LEAVE'){const id=seated;seated='';emit('TABLE_LEFT',{tableId:id},r.requestId);table(id,null);world()}
       if(r.type==='GAME_RECONNECT_CHECK')emit('GAME_CONNECTION_STATE',{status:'NONE',gameId:null,version:null,state:null,reconnectUntil:null,code:null},r.requestId)
       if(r.type==='WORLD_FACILITY_CATALOG') {
-        const offset=Number(r.payload.offset??0),end=Math.min(offset+10,facilities.length)
-        emit(r.type,{fitnessRewardsEnabled:options.fitnessRewardsEnabled??false,mapVersion:identity.mapVersion,offset,total:facilities.length,nextOffset:end<facilities.length?end:-1,aimIntervalMs:originalCatalog.aimIntervalMs,minPitch:originalCatalog.minPitch,maxPitch:originalCatalog.maxPitch,initialPitch:originalCatalog.initialPitch,facilities:facilities.slice(offset,end)},r.requestId)
+        const offset=Number(r.payload.offset??0),end=Math.min(offset+10,mapFacilities.length)
+        emit(r.type,{fitnessRewardsEnabled:options.fitnessRewardsEnabled??false,mapVersion:mapIdentity.mapVersion,offset,total:mapFacilities.length,nextOffset:end<mapFacilities.length?end:-1,aimIntervalMs:originalCatalog.aimIntervalMs,minPitch:originalCatalog.minPitch,maxPitch:originalCatalog.maxPitch,initialPitch:originalCatalog.initialPitch,facilities:mapFacilities.slice(offset,end)},r.requestId)
       }
       if(r.type==='WORLD_FACILITY_CHECK')occupancy(r.requestId)
       if(r.type==='WORLD_FACILITY_USE') {
-        const f=facilities.find(f=>f.facilityId===r.payload.facilityId)!,pose=f.seats[r.payload.seatIndex]!
-        lease={leaseId:'park-lease-'+facilityVersion,channelId:'channel-1',userId:'101',facilityId:f.facilityId,kind:f.kind,seatIndex:r.payload.seatIndex,startedAt:new Date().toISOString(),pose,exit:f.exit,yaw:pose.yaw,pitch:0,lastAimSeq:0}
+        const f=mapFacilities.find(f=>f.facilityId===r.payload.facilityId)!,pose=f.seats[r.payload.seatIndex]!
+        lease={leaseId:'park-lease-'+facilityVersion,channelId:'channel-1',userId:'101',facilityId:f.facilityId,kind:f.kind,seatIndex:r.payload.seatIndex,startedAt:new Date().toISOString(),pose,exit:f.exit,yaw:pose.yaw,pitch:f.kind==='TELESCOPE'?originalCatalog.initialPitch:0,lastAimSeq:0}
         Object.assign(position,pose);occupancy(r.requestId);world()
+      }
+      if(r.type==='WORLD_FACILITY_AIM'&&lease?.kind==='TELESCOPE'&&r.payload.leaseId===lease.leaseId){
+        lease={...lease,yaw:r.payload.yaw,pitch:r.payload.pitch,lastAimSeq:r.payload.seq};occupancy(r.requestId)
       }
       if(r.type==='WORLD_FACILITY_RELEASE'){Object.assign(position,lease!.exit);lease=undefined;occupancy(r.requestId);world()}
     })
-    emit('CONNECTED',{userId:'101',...(options.omitMap?{}:{map:options.serverMap??identity}),mapVerificationRequired:true})
+    emit('CONNECTED',{userId:'101',...(options.omitMap?{}:{map:options.serverMap??mapIdentity}),mapVerificationRequired:true,
+      ...(options.vrMobilityAvailable ? { mobilityAvailable: true, vrMobilityAvailable: true } : {})})
   })
   return {emit,requests,restRequests,
     addNote:(text:string,category:NoteTopic='free')=>{notes.push({id:String(notes.length+1),text,category,createdAt:new Date().toISOString()});emit('NOTES_CHANGED',{revision:String(++notesRevision)})},
-    resetGame:(anchorId:string)=>{const id=bindings.find(b=>b.anchorId===anchorId)!.tableId;fourPlayerTables.delete(id);table(id,null)},enableFourPlayers:(anchorId:string)=>{const id=bindings.find(b=>b.anchorId===anchorId)!.tableId;fourPlayerTables.add(id);table(id,null)},approve:()=>emit('WORLD_MAP_STATE',{map:identity,verified:true},confirmationId),place:(p:{x:number;y:number;z:number;yaw?:number},swimming=false,motion?:{grounded:boolean;velocityY:number})=>{Object.assign(position,p,{moving:false,running:false,swimming});if(options.clientPositions){motionEpoch++;grounded=motion?.grounded??true;velocityY=motion?.velocityY??0}world()},mismatch:()=>emit('ERROR',{code:'MAP_VERSION_MISMATCH',serverMap:{...identity,mapVersion:'f'.repeat(64)},message:'맵 버전 확인 필요'})}
+    resetGame:(anchorId:string)=>{const id=bindings.find(b=>b.anchorId===anchorId)!.tableId;fourPlayerTables.delete(id);table(id,null)},enableFourPlayers:(anchorId:string)=>{const id=bindings.find(b=>b.anchorId===anchorId)!.tableId;fourPlayerTables.add(id);table(id,null)},approve:()=>emit('WORLD_MAP_STATE',{map:mapIdentity,verified:true},confirmationId),place:(p:{x:number;y:number;z:number;yaw?:number},swimming=false,motion?:{grounded:boolean;velocityY:number})=>{Object.assign(position,p,{moving:false,running:false,swimming});if(options.clientPositions){motionEpoch++;grounded=motion?.grounded??true;velocityY=motion?.velocityY??0}world()},mismatch:()=>emit('ERROR',{code:'MAP_VERSION_MISMATCH',serverMap:{...mapIdentity,mapVersion:'f'.repeat(64)},message:'맵 버전 확인 필요'})}
 }

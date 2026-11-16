@@ -1,5 +1,6 @@
-import { GENERATED_PARK_ENABLED } from '../../park/mapSelection'
-import { RETURN_TO } from '../jumpmap/course'
+import { GENERATED_PARK_ENABLED, RENEWAL_PARK_ENABLED } from '../../park/mapSelection'
+import { renewalNavigationHeight, renewalNavigationLand, renewalNavigationRoad } from './renewalNavigation'
+import { RETURN_TO } from '../jumpmap/activeCourse'
 import { serviceWalkHeight,isOnLakeCrossing } from '../../park/mapConfig'
 import {
   WORLD_COLLIDERS,
@@ -16,7 +17,7 @@ import {
 } from '../../park/mapConfig';
 
 export type NavPoint = { x: number; z: number };
-export type Destination = NavPoint & { name: string };
+export type Destination = NavPoint & { name: string; arrivalRadius?: number };
 /** Arrival points are accessible approaches, rather than the centres of solid props. */
 const main = PARK_PAVILIONS[0];
 const cart=MINI_PROPS[0],cartYaw='yaw' in cart?cart.yaw:0;
@@ -85,6 +86,7 @@ function inside(
   );
 }
 export function navigationHeight(p: NavPoint): number {
+  if(RENEWAL_PARK_ENABLED)return renewalNavigationHeight(p);
   if(GENERATED_PARK_ENABLED)return serviceWalkHeight(p.x,p.z);
   let height = groundHeight(p.x, p.z);
   for (const pavilion of PARK_PAVILIONS) {
@@ -107,23 +109,24 @@ export function navigationHeight(p: NavPoint): number {
   }
   return height;
 }
-export function isNavigationWalkable(p: NavPoint): boolean {
+function walkableFloor(p: NavPoint): number | null {
   if (
     !Number.isFinite(p.x) ||
     !Number.isFinite(p.z) ||
     Math.max(Math.abs(p.x), Math.abs(p.z)) > WORLD.halfSize - 1
   )
-    return false;
+    return null;
   // Multi-storey tower ramps cannot be represented safely by a single ground plane.
-  if (navDistance(p, OBSERVATION_TOWER) < OBSERVATION_TOWER.outer + 0.5)
-    return false;
+  if (!RENEWAL_PARK_ENABLED && navDistance(p, OBSERVATION_TOWER) < OBSERVATION_TOWER.outer + 0.5)
+    return null;
   const bridge =
     p.x >= BRIDGE.startX &&
     p.x <= BRIDGE.endX &&
     Math.abs(p.z - BRIDGE.z) < BRIDGE.halfWidth - clearance;
-  if (lakeRadiusAt(p.x, p.z) < 1.01 && !(GENERATED_PARK_ENABLED?isOnLakeCrossing(p.x,p.z):bridge)) return false;
+  if (RENEWAL_PARK_ENABLED ? !renewalNavigationLand(p)
+    : lakeRadiusAt(p.x, p.z) < 1.01 && !(GENERATED_PARK_ENABLED?isOnLakeCrossing(p.x,p.z):bridge)) return null;
   const floor = navigationHeight(p);
-  return !nearby(p).some((box) => {
+  const blocked = nearby(p).some((box) => {
     const bottom = box.center[1] - box.half[1];
     const top = bottom + (box.movementHeight ?? box.half[1] * 2);
     return (
@@ -132,18 +135,23 @@ export function isNavigationWalkable(p: NavPoint): boolean {
       inside(p, box, clearance)
     );
   });
+  return blocked ? null : floor;
+}
+export function isNavigationWalkable(p: NavPoint): boolean {
+  return walkableFloor(p) !== null;
 }
 export function navigationSegmentClear(a: NavPoint, b: NavPoint): boolean {
   const steps = Math.max(1, Math.ceil(navDistance(a, b) / 0.16));
-  let previous = navigationHeight(a);
-  for (let i = 0; i <= steps; i++) {
+  let previous = walkableFloor(a);
+  if (previous === null) return false;
+  for (let i = 1; i <= steps; i++) {
     const p = {
       x: a.x + ((b.x - a.x) * i) / steps,
       z: a.z + ((b.z - a.z) * i) / steps,
     };
-    const y = navigationHeight(p);
+    const y = walkableFloor(p);
     if (
-      !isNavigationWalkable(p) ||
+      y === null ||
       Math.abs(y - previous) > MOVEMENT.stepHeight + 0.025
     )
       return false;
@@ -283,7 +291,7 @@ export function findParkRoute(
           costs[current] +
           Math.hypot(dx, dz) *
             step *
-            (onBridge || isOnParkWalkway(p.x, p.z) ? 1 : 1.8);
+            ((RENEWAL_PARK_ENABLED ? renewalNavigationRoad(p) : onBridge || isOnParkWalkway(p.x, p.z)) ? 1 : 1.8);
         if (cost >= costs[next]) continue;
         costs[next] = cost;
         parent[next] = current;

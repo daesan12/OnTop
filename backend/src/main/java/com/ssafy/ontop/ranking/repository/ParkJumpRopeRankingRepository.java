@@ -1,0 +1,73 @@
+package com.ssafy.ontop.ranking.repository;
+
+import jakarta.persistence.EntityManager;
+import com.ssafy.ontop.game.jumprope.JumpRopeRankingWindow;
+import java.time.Instant;
+import java.util.List;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Profile;
+import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
+
+/**
+ * 구구구 줄넘기 게임 안 랭킹(JumpRopeRepository)과 같은 리메이크 이벤트 기간을 적용한다.
+ * 규칙 버전은 게임 안 랭킹과 같은 설정({@code ontop.minigames.jump-rope-rules-version}, 기본 1)을 읽는다.
+ * 신규 판 규칙을 2로 바꾸면 랭킹판도 같은 버전의 기록만 보여 준다.
+ */
+@Repository
+@Profile("db")
+public class ParkJumpRopeRankingRepository {
+    static final String RANKING_SQL = """
+            WITH personal_best AS (
+                SELECT r.id AS round_id, r.user_id, u.nickname, r.score, r.miss_count, r.completed_at,
+                       ROW_NUMBER() OVER (PARTITION BY r.user_id
+                           ORDER BY r.score DESC, r.miss_count ASC, r.completed_at ASC, r.id ASC) AS choice
+                FROM jump_rope_rounds r
+                JOIN users u ON u.id = r.user_id
+                WHERE r.status = 'SETTLED' AND r.rules_version = :rulesVersion
+                  AND r.started_at >= FROM_UNIXTIME(:startedAtMillis / 1000)
+                  AND r.completed_at < FROM_UNIXTIME(:endsAtMillis / 1000)
+                  AND u.deleted_at IS NULL
+            ), ranked AS (
+                SELECT personal_best.*,
+                       RANK() OVER (ORDER BY score DESC, miss_count ASC) AS ranking
+                FROM personal_best
+                WHERE choice = 1
+            )
+            SELECT ranking, user_id, nickname, score, miss_count,
+                   CAST(UNIX_TIMESTAMP(completed_at) * 1000 AS SIGNED) AS completed_epoch_millis
+            FROM ranked
+            ORDER BY score DESC, miss_count ASC, completed_at ASC, round_id ASC
+            LIMIT 10
+            """;
+
+    private final EntityManager entities;
+    private final int rulesVersion;
+
+    public ParkJumpRopeRankingRepository(EntityManager entities,
+            @Value("${ontop.minigames.jump-rope-rules-version:1}") int rulesVersion) {
+        this.entities = entities;
+        this.rulesVersion = rulesVersion;
+    }
+
+    @Transactional(readOnly = true)
+    public List<JumpRopeRankingStanding> findTopTen(Instant parkStartedAt) {
+        return entities.createNativeQuery(RANKING_SQL, Object[].class)
+                .setParameter("rulesVersion", rulesVersion)
+                .setParameter("startedAtMillis", JumpRopeRankingWindow.START.toEpochMilli())
+                .setParameter("endsAtMillis", JumpRopeRankingWindow.END_EXCLUSIVE.toEpochMilli())
+                .getResultStream()
+                .map(value -> {
+                    Object[] row = (Object[]) value;
+                    return new JumpRopeRankingStanding(((Number) row[0]).longValue(),
+                            ((Number) row[1]).longValue(), (String) row[2],
+                            ((Number) row[3]).longValue(), ((Number) row[4]).longValue(),
+                            Instant.ofEpochMilli(((Number) row[5]).longValue()));
+                })
+                .toList();
+    }
+
+    public record JumpRopeRankingStanding(long rank, long userId, String nickname, long score, long misses,
+                                          Instant completedAt) {
+    }
+}

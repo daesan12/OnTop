@@ -19,6 +19,18 @@ async function enter(page: Page) {
   return server
 }
 
+test('VR 닉네임은 잠시 멀어지면 재사용하고 오래 벗어나면 자원을 해제한다', async ({ page }) => {
+  const server = await enter(page)
+  const [x, y, z] = PARK_DATA.physics.spawn.position
+  const position = { x, y, z, yaw: 0, lastInputSeq: 0, moving: false, running: false, swimming: false }
+  server.emit('WORLD_STATE', { channelId: 'channel-1', mapVersion: identity.mapVersion, version: 1000,
+    avatars: [{ userId: '101', position, carry: null }, { userId: '102', nickname: 'VR 체험자',
+      position: { ...position, x: x + 1.5 }, carry: null }] })
+  await expect.poll(() => page.evaluate(async path => (await import(path)).checkNicknamePanelLifetime('102'), xr)).toEqual({
+    hidden: true, reused: true, removed: true, recreated: true, disposed: ['geometry', 'material', 'texture'],
+  })
+})
+
 test('다른 유저 닉네임 옆 VR 배지를 표시하고 일반 팝업·종료·퇴장은 구분한다', async ({ page }, info) => {
   const errors: string[] = []
   page.on('pageerror', e => errors.push(e.message))

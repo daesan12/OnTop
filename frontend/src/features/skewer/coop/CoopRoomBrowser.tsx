@@ -12,7 +12,9 @@ function Lock() {
   return <svg width="16" height="18" viewBox="0 0 16 18" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><rect x="2" y="8" width="12" height="8" rx="2" /><path d="M4.5 8V5a3.5 3.5 0 0 1 7 0v3M8 11v2" /></svg>
 }
 
-export function CoopRoomBrowser({ client, onClose }: { client: CoopClient; onClose: () => void }) {
+export function CoopRoomBrowser({ client, onClose, onRanking, focusRanking }: {
+  client: CoopClient; onClose(): void; onRanking(): void; focusRanking: boolean
+}) {
   const state = useStore(client.store)
   const [creating, setCreating] = useState(false)
   const [selected, setSelected] = useState<CoopRoom | null>(null)
@@ -22,7 +24,14 @@ export function CoopRoomBrowser({ client, onClose }: { client: CoopClient; onClo
   const [query, setQuery] = useState('')
   const rooms = searchCoopRooms(state.rooms, query)
   const headingRef = useRef<HTMLHeadingElement>(null)
-  useEffect(() => { headingRef.current?.focus() }, [creating, selected, state.lobbyPage])
+  const rankingButton = useRef<HTMLButtonElement>(null)
+  const returning = useRef(focusRanking)
+  const home = !creating && !selected && state.lobbyPage === 'home'
+  useEffect(() => {
+    if (home && returning.current) rankingButton.current?.focus({ preventScroll: true })
+    else headingRef.current?.focus()
+    returning.current = false
+  }, [creating, selected, state.lobbyPage, home])
   const busy = state.pending || !state.connected
   const back = () => {
     if (state.pending) return
@@ -64,5 +73,6 @@ export function CoopRoomBrowser({ client, onClose }: { client: CoopClient; onClo
       </li>)}</ul> : query.trim() && state.rooms.length ? <div className="coop-room-no-results"><strong>검색한 가게를 찾지 못했어요</strong><p>가게 이름이나 방장 닉네임을 다시 확인해 주세요.</p><button className="paper-primary" onClick={() => setQuery('')}>전체 가게 보기</button></div> : <div className="coop-room-no-results"><strong>아직 문을 연 가게가 없어요</strong><p>먼저 방을 만들고 친구를 초대해 보세요.</p><button className="paper-primary" onClick={() => setCreating(true)}>방 만들기</button></div>}
       <p className="coop-room-footnote">참가한 뒤 역할을 고르고, 두 사람 모두 준비하면 영업을 시작해요.</p>
     </> : <div className="coop-room-home"><figure><img src={cover} alt="주문에 맞춰 꼬치를 만드는 온탑 꼬치왕" draggable={false} /><figcaption>한 장의 주문표, 두 사람의 호흡</figcaption></figure><div><div className="coop-room-badges"><span>2인 협동</span><span>무료 플레이</span></div><h2>함께 운영할<br />가게를 골라보세요</h2><p>새 가게를 열거나<br />친구가 만든 가게에 참가할 수 있어요.</p><button className="paper-primary" disabled={busy} onClick={() => setCreating(true)}>방 만들기 <span aria-hidden="true">＋</span></button><button className="coop-room-join" onClick={() => { client.store.setState({ lobbyPage: 'rooms', error: '' }); void client.refresh() }}>참가하기 <span aria-hidden="true">→</span></button></div></div>}
+    {home && <div className="paper-actions"><button ref={rankingButton} type="button" aria-haspopup="dialog" onClick={onRanking}>팀 랭킹 보기</button></div>}
   </PaperPopup>
 }

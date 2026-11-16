@@ -1,6 +1,6 @@
 import type { BufferGeometry, MeshStandardMaterial } from 'three'
 import { TessellateModifier } from 'three/addons/modifiers/TessellateModifier.js'
-import type { JumpTheme } from '../../layout-preview/jumpCourse'
+import type { JumpTheme } from '../../../park-renewal-preview/jump10Plan'
 
 // Visual displacement only. Landing surfaces and the accepted course stay fixed.
 // Fast pressure, a readable hold, then one damped release instead of an instant pop.
@@ -46,6 +46,9 @@ const bodies: Record<JumpTheme, string> = {
     q.y-=press*.075*(1.-rim*.6);
     q.y+=wave*rim*.09;
     q.xz*=1.+press*.055-spring*.02;`,
+  mole: 'q.xz*=1.+press*.04;',
+  pigeon: 'q.y-=press*.035; q.xz*=1.+spring*.03;',
+  duck: 'q.y-=press*.045; q.xz*=1.+press*.03;',
   gate: 'q.y-=press*.018;',
 }
 

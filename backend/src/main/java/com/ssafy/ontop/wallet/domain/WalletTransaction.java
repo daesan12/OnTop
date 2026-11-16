@@ -45,6 +45,10 @@ public class WalletTransaction {
         return balanceDelta;
     }
 
+    public Instant createdAt() {
+        return createdAt;
+    }
+
     public static WalletTransaction adminBulkGrant(long walletId, long batchId, long userId,
             long amount, Instant now) {
         if (walletId <= 0 || batchId <= 0 || userId <= 0 || amount <= 0) {
@@ -71,6 +75,45 @@ public class WalletTransaction {
         transaction.idempotencyKey = key;
         transaction.createdAt = Objects.requireNonNull(now).truncatedTo(ChronoUnit.MILLIS);
         return transaction;
+    }
+
+    public static WalletTransaction mobilityFee(long walletId, int fee, String key, Instant now) {
+        if (walletId <= 0 || fee <= 0 || key == null || !key.startsWith("mobility:")) {
+            throw new IllegalArgumentException("대여 요금 원장을 확인하세요.");
+        }
+        var entry = new WalletTransaction();
+        entry.walletId = walletId;
+        entry.transactionType = "MOBILITY_RENTAL_FEE";
+        entry.balanceDelta = -fee;
+        entry.idempotencyKey = key;
+        entry.createdAt = Objects.requireNonNull(now).truncatedTo(ChronoUnit.MILLIS);
+        return entry;
+    }
+
+    public static WalletTransaction duckBoatFee(long walletId, int fee, String key, Instant now) {
+        if (walletId <= 0 || fee <= 0 || key == null || !key.startsWith("duck-boat:")) {
+            throw new IllegalArgumentException("오리배 요금 원장을 확인하세요.");
+        }
+        var entry = new WalletTransaction();
+        entry.walletId = walletId;
+        entry.transactionType = "DUCK_BOAT_FEE";
+        entry.balanceDelta = -fee;
+        entry.idempotencyKey = key;
+        entry.createdAt = Objects.requireNonNull(now).truncatedTo(ChronoUnit.MILLIS);
+        return entry;
+    }
+
+    public static WalletTransaction balloonFare(long walletId, long fare, String key, Instant now) {
+        if (walletId <= 0 || fare <= 0 || key == null || !key.startsWith("balloon:") || key.length() > 120) {
+            throw new IllegalArgumentException("열기구 탑승료 원장을 확인하세요.");
+        }
+        var entry = new WalletTransaction();
+        entry.walletId = walletId;
+        entry.transactionType = "BALLOON_RIDE_FEE";
+        entry.balanceDelta = -fare;
+        entry.idempotencyKey = key;
+        entry.createdAt = Objects.requireNonNull(now).truncatedTo(ChronoUnit.MILLIS);
+        return entry;
     }
 
     public static WalletTransaction rafflePurchase(long walletId, long price, String key, Instant now) {
@@ -231,6 +274,11 @@ public class WalletTransaction {
     public static WalletTransaction gameTieBonus(long walletId, long gameId, long userId, long bonus, Instant now) {
         if (bonus <= 0) { throw new IllegalArgumentException("보너스를 확인하세요."); }
         return gameEntry(walletId, gameId, userId, "GAME_TIE_BONUS", bonus, 0, "bonus", now);
+    }
+
+    public static WalletTransaction gameRankReward(long walletId, long gameId, long userId, long reward, Instant now) {
+        if (reward <= 0 || reward > 80) { throw new IllegalArgumentException("순위 보상을 확인하세요."); }
+        return gameEntry(walletId, gameId, userId, "GAME_RANK_REWARD", reward, 0, "rank-reward", now);
     }
 
     private static WalletTransaction gameEntry(long walletId, long gameId, long userId, String type,

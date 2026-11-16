@@ -1,10 +1,12 @@
 import { filterChat } from '../features/chat/filterChat'
+import { setHorrorOpen } from '../../park-renewal-preview/horrorPlan'
 import { create } from 'zustand'
 import { acceptGacha } from '../features/gacha/events'
 import { acceptPolice, acceptPatrol, acceptPrivateNotice, resetWorldAi } from '../features/ai/worldAi'
 import { acceptCompanionActors } from '../features/ai/companions'
 import { acceptTyping, resetTyping } from '../features/chat/typingState'
-import { EnvironmentClock, NETWORK, OVERHEAD, TABLES, tableScale, tableSeats, type CharacterId } from '../park/mapConfig'
+import { estimatedServerTime, serverEventClock } from './serverEventClock'
+import { NETWORK, OVERHEAD, TABLES, tableScale, tableSeats, type CharacterId } from '../park/mapConfig'
 import { CHAT } from '../features/chat/settings'
 import { chatAuthorName } from '../features/chat/author'
 import {
@@ -29,7 +31,8 @@ import { resetBenchState, useBenchState } from '../features/interactions/benchSt
 import { clearRoamingInput } from '../world/inputOwnership'
 import { samePose, sampleMovement } from '../world/movementPresentation'
 import { localMovement } from './localMovementPrediction'
-import { remoteMovement } from './remoteMovement'
+import { RemoteMovement, remoteMovement } from './remoteMovement'
+import { vehicles, type Vehicle } from '../features/mobility/state'
 import { EmoteTimeline, parseEmoteEvent, parseEmoteCancellation, type EmoteEvent } from '../features/emotes/timeline'
 import { resetEmotes, retiredEmoteRequest, useEmoteState } from '../features/emotes/state'
 import type { EmoteId } from '../features/emotes/catalog'
@@ -42,14 +45,16 @@ import { resetNotesState, useNotesState } from '../features/notes/state'
 import { canReachNotes } from '../features/notes/validation'
 import { resetTableLobby } from '../features/tableLobby/state'
 import { publicMatchService } from '../features/tableLobby/publicMatch'
-import { resetFacilities } from '../features/facilities/state'
+import { resetFacilities, useFacilityState } from '../features/facilities/state'
+import { boatPlacement, sampleBoatRider } from '../features/duckBoat/model'
 import type { FacilityLease } from '../features/facilities/protocol'
 import { sameEquipment, type PublicEquipment } from './equipment'
 import { resetFollow } from '../features/follow/state'
 import { resetBenchSpectator } from '../features/interactions/benchSpectator'
 import { defeatTimeline, parseGameReaction } from '../game/presentation/defeat'
 import {acceptParkDebris,parseParkDebris,resetParkDebris} from '../features/parkDebris/state'
-import { receiveJumpmap, resetJumpmap } from '../features/jumpmap/state'
+import { receiveJumpmap, resetJumpmap, useJumpmap } from '../features/jumpmap/state'
+import { MOVEMENT_INPUT_INTERVAL_MS } from './movementInput'
 
 export interface Pose {
   x: number
@@ -82,6 +87,10 @@ export interface AvatarSnapshot {
   followTargetId: string
   carry?: import('./protocol').CarryState | null
   interactionBusy?: boolean
+  vehicle?: Vehicle
+  /** Duck-boat facility while queued or riding; riding also sets seatIndex and the trip departure time. */
+  boatId?: string
+  boatDepartedAt?: number
 }
 export interface ChatMessage {
   id: string
@@ -175,7 +184,10 @@ const initial = (): Session => ({
 })
 export const useSession = create<Session>(initial)
 export const avatars = new Map<string, AvatarSnapshot>()
-const worldPoses = new Map<string, Pose>()
+// A mounted local avatar is server-driven. Keep its render history on the same
+// tick clock as observers, with the shorter local display delay.
+const mountedLocalMovement = new RemoteMovement(NETWORK.interpolationMs)
+const worldPoses = new Map<string, Pose & { interiorExitReady?: boolean }>()
 // Public rendering only. Never grants table membership, readiness, or game access.
 const worldTableSeats = new Map<string, PublicTableSeat | null>()
 export const networkStats = {
@@ -190,7 +202,7 @@ let channelVersion = -1,
   worldVersion = -1
 const chatIds = new Set<string>()
 const emoteTimeline = new EmoteTimeline()
-const eventClock = new EnvironmentClock()
+
 let movementNoticeTimer: ReturnType<typeof setTimeout> | undefined
 export function clearMovementNotice(ackSequence = Infinity) {
   const notice = useSession.getState().movementNotice
@@ -209,13 +221,15 @@ export function showMovementNotice(message: string, sequence: number) {
   }, 3000)
 }
 export function resetWorld(status: Session['status'] = 'idle', error = '') {
+  setHorrorOpen(false)
   resetParkDebris()
   resetTyping()
   resetJumpmap()
   localMovement.reset()
   remoteMovement.reset()
+  mountedLocalMovement.reset()
   clearMovementNotice()
-  eventClock.reset()
+  serverEventClock.reset()
   defeatTimeline.clear()
   resetFollow()
   resetBenchSpectator()
@@ -240,10 +254,12 @@ export function resetWorld(status: Session['status'] = 'idle', error = '') {
   useSession.setState({ ...initial(), status, error })
 }
 export function clearChannel(keepFeedbackDraft = false, keepNotesDraft = false) {
+  setHorrorOpen(false)
   resetParkDebris()
   resetJumpmap()
   localMovement.reset()
   remoteMovement.reset()
+  mountedLocalMovement.reset()
   clearMovementNotice()
   defeatTimeline.clear()
   resetFollow()
@@ -312,25 +328,35 @@ export function sampleAvatar(
       return target
     }
   }
-  if (avatar === avatars.get(useSession.getState().sessionId)) {
-    if (!predictionAllowed()) localMovement.suspend()
+  if (avatar.boatId && avatar.boatDepartedAt && avatar.seatIndex >= 0
+    && sampleBoatRider(avatar.boatDepartedAt, avatar.seatIndex, estimatedServerTime(), target)) return target
+  const sessionId = useSession.getState().sessionId
+  if (avatar === avatars.get(sessionId)) {
+    if (avatar.vehicle) {
+      if (mountedLocalMovement.sample(sessionId, now, target, vehicles[avatar.vehicle].speed)) return target
+    } else if (!predictionAllowed()) localMovement.suspend()
     else if (localMovement.sample(now, target)) return target
   } else if (avatar.userId && !avatar.tableId && !avatar.benchId && !avatar.fitnessId && !avatar.telescopeId
-    && remoteMovement.sample(avatar.userId, now, target, avatar.carry?.role === 'THROWN' ? 14 : undefined)) {
+    && remoteMovement.sample(avatar.userId, now, target, avatar.vehicle === 'SCOOTER' || avatar.carry?.role === 'THROWN' ? 14 : avatar.vehicle === 'BICYCLE' ? 11 : undefined)) {
     return target
   }
-  return sampleMovement(avatar, now, NETWORK.interpolationMs, target)
+  // On server-owned course pads, follow the local player's confirmed poses
+  // over one input interval. The ordinary 120ms blend softens remote movement
+  // but visibly drags behind both jump takeoff and the moving platform here.
+  const course = useJumpmap.getState()
+  const ownCourseRun = avatar === avatars.get(sessionId) && course.owner === sessionId && !!course.run
+  return sampleMovement(avatar, now, ownCourseRun ? MOVEMENT_INPUT_INTERVAL_MS : NETWORK.interpolationMs, target)
 }
 
 function predictionAllowed() {
   const s = useSession.getState(), own = avatars.get(s.sessionId)
-  return !!own && s.status === 'connected' && s.mapCompatible && !own.tableId && !own.benchId
+  return !!own && !own.vehicle && s.status === 'connected' && s.mapCompatible && !own.tableId && !own.benchId
     && (!own.carry || own.carry.role === 'CARRIER')
-    && !own.fitnessId && !own.telescopeId && (!own.followTargetId || localMovement.motionProfile === 'PARK_V1')
+    && !own.fitnessId && !own.telescopeId && !own.boatId && (!own.followTargetId || localMovement.motionProfile === 'PARK_V1')
     && (!s.activities[s.sessionId] || s.activities[s.sessionId] === 'WATCHING')
 }
 // UTC event time advances on a monotonic clock after CONNECTED; world day rendering is separate.
-export const estimatedServerTime = () => eventClock.ready ? eventClock.now(performance.now()) : Date.now()
+export { estimatedServerTime } from './serverEventClock'
 export function cancelAvatarEmote(userId: string, reason: 'movement' | 'activity' = 'activity') {
   const state = useEmoteState.getState(), avatar = avatars.get(userId)
   const pendingOwn = userId === useSession.getState().sessionId && state.pending
@@ -366,7 +392,7 @@ export function presentEmote(event: EmoteEvent, motion: EmoteId, source: 'server
   }))
   return true
 }
-export const authoritativePose = (userId: string): Pose | undefined => {
+export const authoritativePose = (userId: string) => {
   const pose = worldPoses.get(userId)
   return pose ? { ...pose } : undefined
 }
@@ -403,6 +429,8 @@ export function refreshActivityPresentation() {
     a.fitnessStartedAt = 0
     a.telescopeId = ''
     a.telescopeYaw = a.telescopePitch = 0
+    a.boatId = ''
+    a.boatDepartedAt = 0
     a.seatIndex = -1
     const authoritative = worldPoses.get(id)
     if (authoritative) a.current = { ...authoritative }
@@ -420,7 +448,7 @@ export function refreshActivityPresentation() {
       )
       const anchor = TABLES.find((t) => t.id === binding?.anchorId)
       if (!seat || !anchor) continue
-      const position = tableSeats(anchor)[seat.seatNumber - 1]
+      const position = tableSeats(anchor, seat.seatNumber)[seat.seatNumber - 1]
       if (!position) continue
       a.tableId = anchor.id
       a.seatIndex = seat.seatNumber - 1
@@ -462,7 +490,18 @@ export function refreshActivityPresentation() {
       a.previous = { ...a.current }
       a.moving = a.running = false
     }
-    const activity = a.tableId || a.benchId || a.fitnessId || a.telescopeId
+    const facilities = useFacilityState.getState(), boatLease = facilities.occupancies[id]
+    const boat = boatPlacement(boatLease, facilities.boats)
+    if (!a.tableId && !a.benchId && !a.fitnessId && !a.telescopeId && boat && boatLease?.channelId === state.roomId) {
+      // Queued players stand at the server dock spot; riders are drawn on the boat from the trip clock.
+      a.boatId = boatLease.facilityId
+      a.boatDepartedAt = boat.phase === 'riding' ? boat.departedAt : 0
+      a.seatIndex = boat.phase === 'riding' ? boat.seat : -1
+      a.current = { ...(authoritative ?? a.current) }
+      a.previous = { ...a.current }
+      a.moving = a.running = a.swimming = false
+    }
+    const activity = a.tableId || a.benchId || a.fitnessId || a.telescopeId || a.boatId
     if (activity) remoteMovement.forget(id)
     if (activity && previousActivity !== activity) cancelAvatarEmote(id)
   }
@@ -508,7 +547,7 @@ export function receive(message: Envelope, expectedMapVersion: string = EXPECTED
       if (useFeedbackState.getState().ownerId && useFeedbackState.getState().ownerId !== p.userId) resetFeedbackState()
       if (useNotesState.getState().ownerId && useNotesState.getState().ownerId !== p.userId) resetNotesState()
       if (record(p.time) && integer(p.time.serverNow) && p.time.serverNow > 0)
-        eventClock.sync(p.time.serverNow, performance.now())
+        serverEventClock.sync(p.time.serverNow, performance.now())
       useSession.setState({ status: 'connected', sessionId: p.userId })
       break
     case 'CHANNEL_STATE': {
@@ -537,7 +576,11 @@ export function receive(message: Envelope, expectedMapVersion: string = EXPECTED
         return
       worldVersion = next.version
       const mapCompatible = next.mapVersion === expectedMapVersion
-      if (!mapCompatible || state.mapVersion && state.mapVersion !== next.mapVersion) remoteMovement.reset()
+      setHorrorOpen(mapCompatible && next.secretDoorsOpen === true)
+      if (!mapCompatible || state.mapVersion && state.mapVersion !== next.mapVersion) {
+        remoteMovement.reset()
+        mountedLocalMovement.reset()
+      }
       if (!mapCompatible) { defeatTimeline.clear(); resetParkDebris(); resetBenchState(); resetFitnessState(); resetTelescopeState(); resetFeedbackState(true); resetNotesState(true); clearRoamingInput() }
       const ids = next.avatars.map((a) => a.userId),
         now = performance.now()
@@ -618,6 +661,7 @@ export function receive(message: Envelope, expectedMapVersion: string = EXPECTED
           worldPoses.delete(id)
           worldTableSeats.delete(id)
           remoteMovement.forget(id)
+          if (id === state.sessionId) mountedLocalMovement.reset()
           emoteTimeline.forget(id)
           defeatTimeline.forget(id)
         }
@@ -629,6 +673,7 @@ export function receive(message: Envelope, expectedMapVersion: string = EXPECTED
           y: position.y,
           z: position.z,
           yaw: position.yaw,
+          interiorExitReady: position.interiorExitReady,
         })
         const old = avatars.get(userId),
           previous = {
@@ -637,6 +682,7 @@ export function receive(message: Envelope, expectedMapVersion: string = EXPECTED
             z: position.z,
             yaw: position.yaw,
           }
+        const vehicle = mapCompatible ? next.vehicles?.[userId] : undefined
         const unchanged = old && samePose(old.current, position)
         if (old) {
           if (unchanged) Object.assign(previous, old.previous)
@@ -668,10 +714,15 @@ export function receive(message: Envelope, expectedMapVersion: string = EXPECTED
           telescopePitch: 0,
           followTargetId: '',
           carry: mapCompatible ? carry ?? null : null,
+          vehicle,
           interactionBusy: interactionBusy === true,
         })
-        if (mapCompatible && userId !== state.sessionId)
+        if (userId === state.sessionId) {
+          if (old?.vehicle !== vehicle) mountedLocalMovement.reset()
+          if (vehicle) mountedLocalMovement.push(userId, position, motion, now)
+        } else if (mapCompatible) {
           remoteMovement.push(userId, position, motion, now)
+        }
         if (position.swimming) cancelAvatarEmote(userId)
         else if (position.moving || (old && Math.abs(position.y - old.current.y) > 0.08)) cancelAvatarEmote(userId, 'movement')
       }

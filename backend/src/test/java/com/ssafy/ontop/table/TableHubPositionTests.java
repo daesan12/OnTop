@@ -6,34 +6,49 @@ import com.ssafy.ontop.auth.security.TestLoginSessions;
 import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser;
 import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser.Provider;
 import com.ssafy.ontop.behavior.domain.BehaviorEvent;
+import com.ssafy.ontop.behavior.domain.BehaviorEventType;
 import com.ssafy.ontop.behavior.domain.PositionSample;
 import com.ssafy.ontop.behavior.service.BehaviorLog;
 import com.ssafy.ontop.table.service.TableHub;
+import com.ssafy.ontop.world.balloon.BalloonFlights;
 import com.ssafy.ontop.world.config.WorldChannelProperties;
 import com.ssafy.ontop.world.config.WorldChannelProperties.Channel;
+import com.ssafy.ontop.world.mobility.MobilityRentals;
+import com.ssafy.ontop.world.mobility.MobilityWallet;
+import com.ssafy.ontop.world.map.PreparedParkMap;
+import com.ssafy.ontop.world.map.WorldMapRuntime;
 import com.ssafy.ontop.world.movement.WorldPhysics;
 import com.ssafy.ontop.world.service.WorldChannelRegistry;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 class TableHubPositionTests {
@@ -45,10 +60,93 @@ class TableHubPositionTests {
     private final TableHub hub = new TableHub(mapper, Optional.empty(), false, Optional.empty(),
             Duration.ofSeconds(10), Duration.ofSeconds(10), registry);
     private final List<PositionSample> positions = new CopyOnWriteArrayList<>();
+    private final List<BehaviorEvent> events = new CopyOnWriteArrayList<>();
 
     @AfterEach
     void shutdown() {
         hub.shutdown();
+    }
+
+    @Test
+    void 같은_채널의_관찰자와_늦게_입장한_회원에게_열기구를_보내고_종료를_알린다() throws Exception {
+        var pilot = peer(101);
+        var observer = peer(102);
+        pilot.request("CHANNEL_JOIN", Map.of("channelId", "one"));
+        observer.request("CHANNEL_JOIN", Map.of("channelId", "one"));
+        var at = registry.positionOf("101");
+        var flights = balloonFlightsAt(at);
+        var ticket = UUID.randomUUID();
+        var now = Instant.now();
+        flights.authorize("101", ticket, now, now);
+
+        pilot.request("WORLD_BALLOON_START", Map.of("ticketId", ticket.toString(),
+                "x", at.x(), "y", at.y(), "z", at.z()));
+        var first = observer.awaitBalloon();
+        var lateObserver = peer(103);
+        lateObserver.request("CHANNEL_JOIN", Map.of("channelId", "one"));
+        var late = lateObserver.awaitBalloon();
+        pilot.request("WORLD_BALLOON_END", Map.of("ticketId", ticket.toString()));
+
+        assertThat(first.path("pilotId").asText()).isEqualTo("101");
+        assertThat(first.at("/flight/aboard").asBoolean()).isTrue();
+        assertThat(late).isEqualTo(first);
+        assertThat(observer.awaitBalloon().path("flight").isNull()).isTrue();
+        assertThat(lateObserver.awaitBalloon().path("flight").isNull()).isTrue();
+    }
+
+    @Test
+    void 다인_열기구의_합류와_출발을_참가자와_관찰자에게_전송한다() throws Exception {
+        var pilot = peer(101);
+        var passenger = peer(102);
+        var observer = peer(103);
+        for (var peer : List.of(pilot, passenger, observer)) peer.request("CHANNEL_JOIN", Map.of("channelId", "one"));
+        var at = registry.positionOf("101");
+        var flights = balloonFlightsAt(at);
+        var ticket = UUID.randomUUID();
+        var guestTicket = UUID.randomUUID();
+        var now = Instant.now();
+        flights.authorize("101", ticket, now, now);
+        flights.authorize("102", guestTicket, now, now);
+
+        pilot.request("WORLD_BALLOON_START", Map.of("ticketId", ticket.toString(),
+                "x", at.x(), "y", at.y(), "z", at.z(), "capacity", 4, "mode", "split"));
+        assertThat(observer.awaitBalloon().at("/party/capacity").asInt()).isEqualTo(4);
+        assertThat(flights.holdSeat("one", "101", "102", guestTicket, now, System.nanoTime())).isTrue();
+        var boarded = passenger.request("WORLD_BALLOON_START", Map.of("ticketId", guestTicket.toString(),
+                "x", at.x(), "y", at.y(), "z", at.z(), "leaderId", "101")).path("payload");
+        assertThat(boarded.at("/party/passengers/102/seatIndex").asInt(-1)).isEqualTo(2);
+        assertThat(observer.awaitBalloon()).isEqualTo(boarded);
+
+        pilot.request("WORLD_BALLOON_LAUNCH", Map.of("ticketId", ticket.toString(), "solo", false));
+        var launched = passenger.awaitBalloon();
+        assertThat(launched.at("/party/boarding").asBoolean(true)).isFalse();
+        assertThat(observer.awaitBalloon()).isEqualTo(launched);
+        pilot.request("WORLD_BALLOON_CONTROL", Map.of("ticketId", ticket.toString(),
+                "action", "offer", "role", "direction", "peer", "102"));
+        var offer = passenger.awaitBalloon().at("/party/controls/offer/id").asText();
+        passenger.request("WORLD_BALLOON_CONTROL", Map.of("ticketId", guestTicket.toString(),
+                "action", "accept", "role", "direction", "offerId", offer));
+        observer.awaitBalloon();
+        var swapped = observer.awaitBalloon().at("/party/controls");
+        assertThat(swapped.path("direction").asText()).isEqualTo("102");
+        assertThat(swapped.path("altitude").asText()).isEqualTo("101");
+        pilot.request("WORLD_BALLOON_END", Map.of("ticketId", ticket.toString()));
+        assertThat(passenger.awaitBalloon().path("flight").isNull()).isTrue();
+    }
+
+    private BalloonFlights balloonFlightsAt(WorldChannelRegistry.Position at) throws Exception {
+        WorldMapRuntime map = mock(WorldMapRuntime.class);
+        PreparedParkMap prepared = mock(PreparedParkMap.class);
+        when(map.prepared()).thenReturn(Optional.of(prepared));
+        when(prepared.constructionSites()).thenReturn(mapper.valueToTree(List.of(Map.of("id", "balloon",
+                "position", List.of(at.x(), at.y(), at.z()),
+                "reachPosition", List.of(at.x(), at.y(), at.z()), "radius", 3, "heightTolerance", .7))));
+        when(prepared.collisionData()).thenReturn(mapper.readTree("""
+                {"world":{"halfSize":110}}
+                """));
+        var flights = new BalloonFlights(map);
+        hub.configureBalloonFlights(flights);
+        return flights;
     }
 
     @Test
@@ -92,6 +190,282 @@ class TableHubPositionTests {
         assertThat(positions).isEmpty();
     }
 
+    @Test
+    void 같은_대여_요청은_한_번_결제하고_하차하면_공개_탈것을_제거한다() throws Exception {
+        var wallet = mock(MobilityWallet.class);
+        Peer user = peer(101);
+        user.request("CHANNEL_JOIN", Map.of("channelId", "one"));
+        Peer observer = peer(102);
+        observer.request("CHANNEL_JOIN", Map.of("channelId", "one"));
+        String lease = mobilityLease(wallet);
+        var entered = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        when(wallet.charge(eq(101L), eq(lease), eq(1L), eq(2), any(BooleanSupplier.class))).thenAnswer(call -> {
+            entered.countDown();
+            if (!release.await(4, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("테스트 결제 대기 시간 초과");
+            }
+            return ((BooleanSupplier) call.getArgument(4)).getAsBoolean()
+                    ? MobilityWallet.Payment.PAID : MobilityWallet.Payment.CANCELLED;
+        });
+        String first = user.send("WORLD_MOBILITY_START", mobilityStart(lease));
+        try {
+            assertThat(entered.await(2, TimeUnit.SECONDS)).isTrue();
+            String retry = user.send("WORLD_MOBILITY_START", mobilityStart(lease));
+            // A world tick and another connection's request can finish while the first DB call is pending.
+            tick(1);
+            observer.request("CHANNEL_JOIN", Map.of("channelId", "one"));
+            assertThat(registry.worldState("one").vehicles()).isEmpty();
+            release.countDown();
+            assertThat(user.awaitResponse(first).at("/payload/status").asText()).isEqualTo("RIDING");
+            assertThat(user.awaitResponse(retry).at("/payload/total").asLong()).isEqualTo(2);
+        } finally {
+            release.countDown();
+        }
+
+        long mountedVersion = registry.worldState("one").version();
+        observer.awaitPublicVehicle("101", "SCOOTER", mountedVersion);
+        assertThat(user.request("WORLD_MOBILITY_END", Map.of("leaseId", lease))
+                .at("/payload/total").asLong()).isEqualTo(2);
+        observer.awaitPublicVehicle("101", "", mountedVersion + 1);
+        verify(wallet).charge(eq(101L), eq(lease), eq(1L), eq(2), any(BooleanSupplier.class));
+        assertThat(registry.worldState("one").vehicles()).isEmpty();
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {1, 2})
+    void 하차가_먼저면_진행_중인_첫_결제와_갱신_결제를_취소한다(long second) throws Exception {
+        var wallet = mock(MobilityWallet.class);
+        Peer user = peer(101);
+        user.request("CHANNEL_JOIN", Map.of("channelId", "one"));
+        String lease = mobilityLease(wallet);
+        var entered = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        var authorized = new CompletableFuture<Boolean>();
+        when(wallet.charge(eq(101L), eq(lease), eq(second), eq(2), any(BooleanSupplier.class))).thenAnswer(call -> {
+            entered.countDown();
+            if (!release.await(5, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("테스트 결제 대기 시간 초과");
+            }
+            boolean commit = ((BooleanSupplier) call.getArgument(4)).getAsBoolean();
+            authorized.complete(commit);
+            return commit ? MobilityWallet.Payment.PAID : MobilityWallet.Payment.CANCELLED;
+        });
+        if (second == 2) {
+            assertThat(user.request("WORLD_MOBILITY_START", mobilityStart(lease)).at("/payload/total").asLong())
+                    .isEqualTo(2);
+        } else {
+            user.send("WORLD_MOBILITY_START", mobilityStart(lease));
+        }
+        try {
+            assertThat(entered.await(3, TimeUnit.SECONDS)).isTrue();
+            var ended = user.request("WORLD_MOBILITY_END", Map.of("leaseId", lease)).path("payload");
+            assertThat(ended.path("status").asText()).isEqualTo("ENDED");
+            assertThat(ended.path("total").asLong()).isEqualTo((second - 1) * 2);
+            assertThat(ended.has("receipt")).isFalse();
+            assertThat(registry.worldState("one").vehicles()).isEmpty();
+        } finally {
+            release.countDown();
+        }
+        assertThat(authorized.get(2, TimeUnit.SECONDS)).isFalse();
+        tick(2);
+        verify(wallet).charge(eq(101L), eq(lease), eq(1L), eq(2), any(BooleanSupplier.class));
+        if (second == 2) {
+            verify(wallet).charge(eq(101L), eq(lease), eq(2L), eq(2), any(BooleanSupplier.class));
+        }
+        verifyNoMoreInteractions(wallet);
+    }
+
+    @Test
+    void 이미_커밋_결정이_난_갱신은_최종_이용료에_한_번만_포함된다() throws Exception {
+        var wallet = mock(MobilityWallet.class);
+        Peer user = peer(101);
+        user.request("CHANNEL_JOIN", Map.of("channelId", "one"));
+        String lease = mobilityLease(wallet);
+        var authorized = new CompletableFuture<Boolean>();
+        var release = new CountDownLatch(1);
+        when(wallet.charge(eq(101L), eq(lease), eq(2L), eq(2), any(BooleanSupplier.class))).thenAnswer(call -> {
+            boolean commit = ((BooleanSupplier) call.getArgument(4)).getAsBoolean();
+            authorized.complete(commit);
+            if (!release.await(5, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("테스트 결제 대기 시간 초과");
+            }
+            return commit ? MobilityWallet.Payment.PAID : MobilityWallet.Payment.CANCELLED;
+        });
+        var started = user.request("WORLD_MOBILITY_START", mobilityStart(lease));
+        assertThat(started.at("/payload/receipt").asText()).isEqualTo(lease + ":1");
+        String end;
+        try {
+            assertThat(authorized.get(3, TimeUnit.SECONDS)).isTrue();
+            end = user.send("WORLD_MOBILITY_END", Map.of("leaseId", lease));
+            assertThat(registry.worldState("one").vehicles()).isEmpty();
+        } finally {
+            release.countDown();
+        }
+        var ended = user.awaitResponse(end).path("payload");
+        assertThat(ended.path("status").asText()).isEqualTo("ENDED");
+        assertThat(ended.path("total").asLong()).isEqualTo(4);
+        assertThat(ended.path("receipt").asText()).isEqualTo(lease + ":2");
+        verify(wallet).charge(eq(101L), eq(lease), eq(1L), eq(2), any(BooleanSupplier.class));
+        verify(wallet).charge(eq(101L), eq(lease), eq(2L), eq(2), any(BooleanSupplier.class));
+        verifyNoMoreInteractions(wallet);
+    }
+
+    @Test
+    void 갱신마다_영수증을_보내고_잔액이_부족하면_확정된_요금만_유지한다() throws Exception {
+        var wallet = mock(MobilityWallet.class);
+        Peer user = peer(101);
+        user.request("CHANNEL_JOIN", Map.of("channelId", "one"));
+        String lease = mobilityLease(wallet);
+        when(wallet.charge(eq(101L), eq(lease), eq(2L), eq(2), any(BooleanSupplier.class))).thenAnswer(call ->
+                ((BooleanSupplier) call.getArgument(4)).getAsBoolean()
+                        ? MobilityWallet.Payment.PAID : MobilityWallet.Payment.CANCELLED);
+        when(wallet.charge(eq(101L), eq(lease), eq(3L), eq(2), any(BooleanSupplier.class)))
+                .thenReturn(MobilityWallet.Payment.INSUFFICIENT);
+        assertThat(user.request("WORLD_MOBILITY_START", mobilityStart(lease)).at("/payload/total").asLong())
+                .isEqualTo(2);
+        var renewed = user.awaitMobilityUpdate("RIDING");
+        assertThat(renewed.path("total").asLong()).isEqualTo(4);
+        assertThat(renewed.path("receipt").asText()).isEqualTo(lease + ":2");
+        var ended = user.awaitMobilityUpdate("INSUFFICIENT");
+        assertThat(ended.path("total").asLong()).isEqualTo(4);
+        assertThat(ended.has("receipt")).isFalse();
+        assertThat(registry.worldState("one").vehicles()).isEmpty();
+    }
+
+    @Test
+    void 탈것은_실제로_탄_뒤_시작과_직접_하차를_시설_이용으로_한번씩_기록한다() throws Exception {
+        hub.configureBehaviorLog(new CapturingLog());
+        var wallet = mock(MobilityWallet.class);
+        Peer user = peer(101);
+        user.request("CHANNEL_JOIN", Map.of("channelId", "one"));
+        String lease = mobilityLease(wallet);
+
+        assertThat(user.request("WORLD_MOBILITY_START", mobilityStart(lease)).at("/payload/status").asText())
+                .isEqualTo("RIDING");
+        user.request("WORLD_MOBILITY_END", Map.of("leaseId", lease));
+
+        assertThat(facilityEvents()).extracting(BehaviorEvent::type)
+                .containsExactly(BehaviorEventType.FACILITY_USED, BehaviorEventType.FACILITY_RELEASED);
+        BehaviorEvent used = facilityEvents().getFirst();
+        assertThat(used.userId()).isEqualTo(101L);
+        assertThat(used.channelId()).isEqualTo("one");
+        assertThat(used.props()).containsOnlyKeys("leaseId", "facilityId", "kind")
+                .containsEntry("leaseId", lease).containsEntry("facilityId", "mobility-entry")
+                .containsEntry("kind", "SCOOTER");
+        BehaviorEvent released = facilityEvents().getLast();
+        assertThat(released.props()).containsEntry("leaseId", lease).containsEntry("endReason", "RELEASED");
+        // 이용 시간은 요금을 낸 초 수이고, 킥보드는 1초에 2냥이다.
+        long fee = (Long) released.props().get("fee");
+        assertThat(fee).isGreaterThanOrEqualTo(2);
+        assertThat(released.props()).containsEntry("durationMs", fee / 2 * 1000);
+    }
+
+    @Test
+    void 잔액이_부족해_내린_탈것은_확정된_요금과_함께_종료를_남긴다() throws Exception {
+        hub.configureBehaviorLog(new CapturingLog());
+        var wallet = mock(MobilityWallet.class);
+        Peer user = peer(101);
+        user.request("CHANNEL_JOIN", Map.of("channelId", "one"));
+        String lease = mobilityLease(wallet);
+        when(wallet.charge(eq(101L), eq(lease), eq(2L), eq(2), any(BooleanSupplier.class)))
+                .thenReturn(MobilityWallet.Payment.INSUFFICIENT);
+
+        user.request("WORLD_MOBILITY_START", mobilityStart(lease));
+        user.awaitMobilityUpdate("INSUFFICIENT");
+
+        assertThat(facilityEvents()).extracting(BehaviorEvent::type)
+                .containsExactly(BehaviorEventType.FACILITY_USED, BehaviorEventType.FACILITY_RELEASED);
+        assertThat(facilityEvents().getLast().props()).containsEntry("endReason", "INSUFFICIENT")
+                .containsEntry("durationMs", 1000L).containsEntry("fee", 2L);
+    }
+
+    @Test
+    void 첫_요금을_못_내_타지_못한_대여와_연결이_끊겨_내린_탈것을_구분한다() throws Exception {
+        hub.configureBehaviorLog(new CapturingLog());
+        var wallet = mock(MobilityWallet.class);
+        Peer user = peer(101);
+        user.request("CHANNEL_JOIN", Map.of("channelId", "one"));
+        String refused = mobilityLease(wallet);
+        when(wallet.charge(eq(101L), eq(refused), eq(1L), eq(2), any(BooleanSupplier.class)))
+                .thenReturn(MobilityWallet.Payment.INSUFFICIENT);
+        assertThat(user.request("WORLD_MOBILITY_START", mobilityStart(refused)).at("/payload/status").asText())
+                .isEqualTo("INSUFFICIENT");
+        assertThat(facilityEvents()).isEmpty();
+
+        String lease = mobilityLease(wallet);
+        user.request("WORLD_MOBILITY_START", mobilityStart(lease));
+        hub.disconnect(user.id);
+
+        assertThat(facilityEvents()).extracting(BehaviorEvent::type)
+                .containsExactly(BehaviorEventType.FACILITY_USED, BehaviorEventType.FACILITY_RELEASED);
+        assertThat(facilityEvents().getLast().props()).containsEntry("leaseId", lease)
+                .containsEntry("endReason", "DISCONNECTED");
+    }
+
+    @Test
+    void 열기구_이륙과_하차를_탑승권으로_짝지은_시설_이용으로_남긴다() throws Exception {
+        hub.configureBehaviorLog(new CapturingLog());
+        var map = mock(com.ssafy.ontop.world.map.WorldMapRuntime.class);
+        var prepared = mock(com.ssafy.ontop.world.map.PreparedParkMap.class);
+        when(map.prepared()).thenReturn(Optional.of(prepared));
+        when(prepared.constructionSites()).thenReturn(mapper.readTree("""
+                [{"id":"balloon","position":[-40,22.1,-76],"reachPosition":[-40,23.905,-61.952],
+                  "radius":3,"heightTolerance":0.7}]
+                """));
+        when(prepared.collisionData()).thenReturn(mapper.readTree("{\"world\":{\"halfSize\":110}}"));
+        var flights = new com.ssafy.ontop.world.balloon.BalloonFlights(map);
+        hub.configureBalloonFlights(flights);
+        var ticket = UUID.randomUUID();
+        var now = java.time.Instant.now();
+        var dock = new com.ssafy.ontop.world.balloon.BalloonFlights.Point(-33.608, 22.4, -76);
+        flights.authorize("101", ticket, now, now);
+        flights.start("one", "101", "socket", ticket,
+                new com.ssafy.ontop.world.service.WorldChannelRegistry.Position(1, -40, 23.905, -61.952, 0),
+                dock, now, 0);
+        flights.update("one", "101", "socket", ticket,
+                new com.ssafy.ontop.world.balloon.BalloonFlights.Flight(dock, true), Duration.ofMillis(200).toNanos());
+        flights.finish("101", "socket", ticket, Duration.ofSeconds(42).toNanos(), "ENDED");
+
+        synchronized (hub) {
+            ReflectionTestUtils.invokeMethod(hub, "recordBalloonUsage");
+        }
+
+        assertThat(facilityEvents()).extracting(BehaviorEvent::type)
+                .containsExactly(BehaviorEventType.FACILITY_USED, BehaviorEventType.FACILITY_RELEASED);
+        BehaviorEvent used = facilityEvents().getFirst();
+        assertThat(used.userId()).isEqualTo(101L);
+        assertThat(used.channelId()).isEqualTo("one");
+        assertThat(used.props()).containsOnlyKeys("leaseId", "facilityId", "kind", "role", "riders", "mode")
+                .containsEntry("leaseId", ticket.toString()).containsEntry("facilityId", "balloon")
+                .containsEntry("kind", "BALLOON").containsEntry("role", "PILOT").containsEntry("riders", 1)
+                .containsEntry("mode", "single");
+        assertThat(facilityEvents().getLast().props()).containsEntry("leaseId", ticket.toString())
+                .containsEntry("endReason", "ENDED").containsEntry("durationMs", 41_800L).containsEntry("fee", 100L);
+    }
+
+    private List<BehaviorEvent> facilityEvents() {
+        return events.stream().filter(event -> event.type().name().startsWith("FACILITY_")).toList();
+    }
+
+    private String mobilityLease(MobilityWallet wallet) {
+        var at = registry.positionOf("101");
+        var stations = mapper.valueToTree(List.of(Map.of("id", "mobility-entry", "yaw", 0,
+                "reachPosition", List.of(at.x(), at.y(), at.z()), "radius", 3, "heightTolerance", .7)));
+        synchronized (hub) {
+            ReflectionTestUtils.setField(hub, "rentals", new MobilityRentals(wallet, stations));
+        }
+        String lease = UUID.randomUUID().toString();
+        when(wallet.charge(eq(101L), eq(lease), eq(1L), eq(2), any(BooleanSupplier.class))).thenAnswer(call ->
+                ((BooleanSupplier) call.getArgument(4)).getAsBoolean()
+                        ? MobilityWallet.Payment.PAID : MobilityWallet.Payment.CANCELLED);
+        return lease;
+    }
+
+    private Map<String, String> mobilityStart(String lease) {
+        return Map.of("stationId", "mobility-entry", "vehicle", "SCOOTER", "leaseId", lease);
+    }
+
     private void tick(int count) {
         synchronized (hub) {
             for (int tick = 0; tick < count; tick++) {
@@ -119,6 +493,7 @@ class TableHubPositionTests {
     private final class CapturingLog implements BehaviorLog {
         @Override
         public void record(Supplier<BehaviorEvent> event) {
+            events.add(event.get());
         }
 
         @Override
@@ -131,9 +506,42 @@ class TableHubPositionTests {
         private final String id = UUID.randomUUID().toString();
         private final BlockingQueue<JsonNode> messages = new LinkedBlockingQueue<>();
 
+        private JsonNode awaitBalloon() throws Exception {
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(4);
+            while (System.nanoTime() < deadline) {
+                var message = messages.poll(200, TimeUnit.MILLISECONDS);
+                if (message != null && "WORLD_BALLOON_STATE".equals(message.path("type").asText())) {
+                    assertThat(message.path("requestId").isNull()).isTrue();
+                    return message.path("payload");
+                }
+            }
+            throw new AssertionError("열기구 상태를 받지 못했습니다.");
+        }
+
+        private void awaitPublicVehicle(String avatarId, String expected, long minimumVersion) throws Exception {
+            long endsAt = System.nanoTime() + TimeUnit.SECONDS.toNanos(4);
+            while (System.nanoTime() < endsAt) {
+                JsonNode event = messages.poll(200, TimeUnit.MILLISECONDS);
+                if (event != null && event.path("type").asText().equals("WORLD_STATE")
+                        && event.path("payload").path("version").asLong() >= minimumVersion
+                        && event.path("payload").path("vehicles").path(avatarId).asText().equals(expected)) {
+                    return;
+                }
+            }
+            throw new AssertionError("상대 연결에서 탈것 상태를 받지 못했습니다: " + expected);
+        }
+
         private JsonNode request(String type, Object payload) throws Exception {
+            return awaitResponse(send(type, payload));
+        }
+
+        private String send(String type, Object payload) throws Exception {
             String requestId = UUID.randomUUID().toString();
             hub.receive(id, mapper.writeValueAsString(Map.of("requestId", requestId, "type", type, "payload", payload)));
+            return requestId;
+        }
+
+        private JsonNode awaitResponse(String requestId) throws Exception {
             while (true) {
                 JsonNode response = messages.poll(5, TimeUnit.SECONDS);
                 assertThat(response).isNotNull();
@@ -142,6 +550,19 @@ class TableHubPositionTests {
                     return response;
                 }
             }
+        }
+
+        private JsonNode awaitMobilityUpdate(String status) throws Exception {
+            long expires = System.nanoTime() + TimeUnit.SECONDS.toNanos(4);
+            while (System.nanoTime() < expires) {
+                JsonNode response = messages.poll(200, TimeUnit.MILLISECONDS);
+                if (response != null && response.path("type").asText().equals("WORLD_MOBILITY_STATE")
+                        && response.path("payload").path("status").asText().equals(status)) {
+                    assertThat(response.path("requestId").isNull()).isTrue();
+                    return response.path("payload");
+                }
+            }
+            throw new AssertionError("대여 상태를 받지 못했습니다: " + status);
         }
     }
 }

@@ -69,7 +69,28 @@ public final class TableProtocol {
             case "WORLD_MYROOM_SET" -> fields(payload, Set.of("open")) && payload.path("open").isBoolean();
             case "WORLD_EMOTE_SEND" -> fields(payload, Set.of("emoteCode")) && validEmoteCode(payload.get("emoteCode"));
             case "WORLD_MOVE" -> validMove(payload);
+            case "WORLD_BALLOON_START" -> validBalloonStart(payload);
+            case "WORLD_BALLOON_POSE" -> (fields(payload, Set.of("ticketId", "x", "y", "z", "aboard"))
+                    || ((fields(payload, Set.of("ticketId", "x", "y", "z", "aboard", "cabin"))
+                    || fields(payload, Set.of("ticketId", "x", "y", "z", "aboard", "cabin", "input"))
+                    && (!payload.has("input") || validBalloonInput(payload.path("input"))))
+                    && validBalloonCabin(payload.path("cabin"))))
+                    && validBalloonPosition(payload) && payload.path("aboard").isBoolean();
+            case "WORLD_BALLOON_END" -> fields(payload, Set.of("ticketId")) && prankUuid(payload.path("ticketId"));
+            case "WORLD_BALLOON_LAUNCH" -> (fields(payload, Set.of("ticketId"))
+                    || fields(payload, Set.of("ticketId", "solo")) && payload.path("solo").isBoolean())
+                    && prankUuid(payload.path("ticketId"));
+            case "WORLD_BALLOON_CONTROL" -> validBalloonControl(payload);
+            case "WORLD_MOBILITY_START" -> fields(payload, Set.of("stationId", "vehicle", "leaseId"))
+                    && payload.path("stationId").asText().matches("mobility-[a-z]+")
+                    && Set.of("BICYCLE", "SCOOTER").contains(payload.path("vehicle").asText())
+                    && prankUuid(payload.path("leaseId"));
+            case "WORLD_MOBILITY_END" -> fields(payload, Set.of("leaseId")) && prankUuid(payload.path("leaseId"));
             case "WORLD_POSITION" -> validPosition(payload);
+            case "WORLD_SECRET_DOORS_SET" -> fields(payload, Set.of("open")) && payload.path("open").isBoolean();
+            case "WORLD_INTERIOR_ACCESS" -> fields(payload, Set.of("access"))
+                    && payload.path("access").isTextual()
+                    && Set.of("vestibule", "surface", "passage", "entry", "exit").contains(payload.path("access").asText());
             case "WORLD_POSITION_FALLBACK" -> fields(payload, Set.of("epoch"))
                     && payload.path("epoch").isIntegralNumber() && payload.path("epoch").canConvertToLong()
                     && payload.path("epoch").asLong() >= 0 && payload.path("epoch").asLong() <= 9_007_199_254_740_991L;
@@ -88,8 +109,7 @@ public final class TableProtocol {
                     && payload.path("carryId").asText().matches("[0-9a-f-]{36}");
             case "WORLD_INTERACTION_SET" -> (fields(payload, Set.of("busy"))
                     || fields(payload, Set.of("busy", "vrActive"))) && payload.path("busy").isBoolean()
-                    && (!payload.has("vrActive") || payload.path("vrActive").isBoolean())
-                    && (!payload.path("vrActive").asBoolean() || payload.path("busy").asBoolean());
+                    && (!payload.has("vrActive") || payload.path("vrActive").isBoolean());
             case "WORLD_FOLLOW_START" -> fields(payload, Set.of("targetId"))
                     && payload.path("targetId").isTextual()
                     && payload.path("targetId").asText().matches("[A-Za-z0-9_-]{1,80}");
@@ -107,6 +127,13 @@ public final class TableProtocol {
                     && payload.path("seatIndex").isIntegralNumber() && payload.path("seatIndex").canConvertToInt()
                     && payload.path("seatIndex").asInt() >= 0 && payload.path("seatIndex").asInt() <= 1;
             case "WORLD_FACILITY_RELEASE" -> fields(payload, Set.of("leaseId")) && validLease(payload);
+            case "WORLD_BOAT_JOIN" -> fields(payload, Set.of())
+                    || fields(payload, Set.of("partnerId")) && validUserId(payload.path("partnerId"));
+            case "WORLD_BOAT_REPLY" -> fields(payload, Set.of("inviterId", "accept"))
+                    && validUserId(payload.path("inviterId")) && payload.path("accept").isBoolean();
+            case "WORLD_BOAT_TEAM" -> fields(payload, Set.of("action")) && payload.path("action").asText().equals("SOLO")
+                    || fields(payload, Set.of("action", "partnerId")) && payload.path("action").asText().equals("INVITE")
+                            && validUserId(payload.path("partnerId"));
             case "WORLD_FACILITY_AIM" -> fields(payload, Set.of("leaseId", "seq", "yaw", "pitch"))
                     && validLease(payload) && payload.path("seq").isIntegralNumber()
                     && payload.path("seq").canConvertToLong() && payload.path("seq").asLong() > 0
@@ -207,6 +234,57 @@ public final class TableProtocol {
         return new Request(requestId, type, payload);
     }
 
+    private static boolean validBalloonPosition(JsonNode payload) {
+        return prankUuid(payload.path("ticketId")) && finitePoint(payload.path("x"))
+                && finitePoint(payload.path("y")) && finitePoint(payload.path("z"));
+    }
+
+    private boolean validBalloonInput(JsonNode input) {
+        return fields(input, Set.of("x", "z", "lift"))
+                && Set.of("x", "z", "lift").stream().allMatch(axis -> {
+                    var value = input.path(axis);
+                    return value.isNumber() && Math.abs(value.asDouble()) <= 1;
+                });
+    }
+
+    private boolean validBalloonStart(JsonNode payload) {
+        if (!validBalloonPosition(payload)) return false;
+        if (fields(payload, Set.of("ticketId", "x", "y", "z"))) return true;
+        if (fields(payload, Set.of("ticketId", "x", "y", "z", "leaderId"))) {
+            return validBalloonMember(payload.path("leaderId"));
+        }
+        var capacity = payload.path("capacity");
+        if (!capacity.isIntegralNumber() || !capacity.canConvertToInt() || capacity.asInt() < 1
+                || capacity.asInt() > com.ssafy.ontop.world.balloon.BalloonFlights.MAX_CAPACITY) return false;
+        if (fields(payload, Set.of("ticketId", "x", "y", "z", "capacity"))) return true;
+        String mode = payload.path("mode").asText();
+        return fields(payload, Set.of("ticketId", "x", "y", "z", "capacity", "mode"))
+                && (mode.equals("solo") || mode.equals("split") && capacity.asInt() >= 2);
+    }
+
+    private static boolean validBalloonMember(JsonNode id) {
+        return id.isTextual() && id.asText().matches("[1-9][0-9]{0,18}");
+    }
+
+    private boolean validBalloonControl(JsonNode payload) {
+        String action = payload.path("action").asText();
+        return prankUuid(payload.path("ticketId"))
+                && Set.of("direction", "altitude").contains(payload.path("role").asText())
+                && (Set.of("claim", "leave", "return").contains(action)
+                        && fields(payload, Set.of("ticketId", "action", "role"))
+                || action.equals("accept") && fields(payload, Set.of("ticketId", "action", "role", "offerId"))
+                        && prankUuid(payload.path("offerId"))
+                || action.equals("offer") && fields(payload, Set.of("ticketId", "action", "role", "peer"))
+                        && validBalloonMember(payload.path("peer")));
+    }
+
+    private boolean validBalloonCabin(JsonNode cabin) {
+        return fields(cabin, Set.of("x", "z", "yaw", "seatIndex", "moving")) && finitePoint(cabin.path("x"))
+                && finitePoint(cabin.path("z")) && finitePoint(cabin.path("yaw"))
+                && cabin.path("seatIndex").isIntegralNumber() && cabin.path("seatIndex").canConvertToInt()
+                && cabin.path("moving").isBoolean();
+    }
+
     private static boolean prankUuid(JsonNode value) {
         return value.isTextual() && value.asText().matches("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}");
     }
@@ -290,7 +368,8 @@ public final class TableProtocol {
                 : Set.of("gameCode", "selectedPlayers", "betAmountPerPlayer", "expectedVersion");
         if (!fields(payload, keys) || !payload.path("selectedPlayers").isIntegralNumber()
                 || !payload.path("selectedPlayers").canConvertToInt()
-                || payload.path("selectedPlayers").asInt() < 2 || payload.path("selectedPlayers").asInt() > 4
+                || payload.path("selectedPlayers").asInt() < 2
+                || payload.path("selectedPlayers").asInt() > ("STONE_RUMBLE".equals(payload.path("gameCode").asText()) ? 8 : 4)
                 || !payload.path("expectedVersion").isIntegralNumber() || !payload.path("expectedVersion").canConvertToLong()
                 || payload.path("expectedVersion").asLong() < 0 || payload.path("expectedVersion").asLong() > 9_007_199_254_740_991L) {
             return false;
@@ -326,6 +405,10 @@ public final class TableProtocol {
         } catch (IllegalArgumentException exception) {
             return false;
         }
+    }
+
+    private static boolean validUserId(JsonNode node) {
+        return node.isTextual() && node.asText().matches("[A-Za-z0-9_-]{1,80}");
     }
 
     private boolean fields(JsonNode node, Set<String> expected) {

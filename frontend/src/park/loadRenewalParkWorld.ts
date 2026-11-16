@@ -1,0 +1,31 @@
+import { preloadRenewalTerrain } from '../../park-renewal-preview/static/terrainRequest'
+
+let pending: Promise<typeof import('../../park-renewal-preview/live/RenewalWorld')> | undefined
+
+export function loadRenewalParkWorld() {
+  return pending ??= (async () => {
+    // Give the terrain request a head start before the scene import queues its dependencies.
+    void preloadRenewalTerrain().catch(() => {})
+    performance.mark('park-world-module-start')
+    const worldModule = import('../../park-renewal-preview/live/RenewalWorld')
+    void import('../../park-renewal-preview/static/store').catch(() => {})
+    // The first frame needs this pavilion. Its URL does not depend on map admission.
+    const entranceModels = import('../../park-renewal-preview/live/preloadEntranceModels')
+    void entranceModels.then(module => module.preloadEntranceModels()).catch(() => {})
+    const facilities = fetch(new URL('../../park-renewal-preview/static/facilities.bin.gz', import.meta.url), {
+      cache: 'force-cache', priority: 'low', signal: AbortSignal.timeout(10000),
+    })
+    void Promise.all([import('../../park-renewal-preview/static/facilities'), facilities])
+      .then(([{ loadBakedFacilities }, response]) => loadBakedFacilities(response))
+      .catch(error => {
+        performance.mark('park-static-facilities-fallback')
+        console.warn('[park-static] Using procedural facilities', error)
+      })
+    const world = await worldModule
+    performance.mark('park-world-module-ready')
+    return world
+  })().catch(error => {
+    pending = undefined
+    throw error
+  })
+}

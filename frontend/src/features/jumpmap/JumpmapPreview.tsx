@@ -2,7 +2,7 @@ import { createRoot } from 'react-dom/client'
 import { useEffect, useState } from 'react'
 import { JumpmapOverlay } from './JumpmapOverlay'
 import { acceptJumpEvent, applyJumpStatus, bindJumpmap, resetJumpmap, showTip, useJumpmap } from './state'
-import { COURSE_VERSION, MAP_VERSION, RULES_VERSION, REWARDS, kstDate } from './course'
+import { COURSE_VERSION, MAP_VERSION, RULES_VERSION, REWARDS, kstDate } from './activeCourse'
 import { JumpmapGuideDialog } from './JumpmapGuide'
 import './jumpmapPreview.css'
 

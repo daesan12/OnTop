@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSession } from '../../network/worldClient'
-import { MAX_TICKET_PURCHASE, refreshGacha, resetGacha, useGacha } from './state'
+import { MAX_TICKET_PURCHASE, refreshGacha, useGacha } from './state'
 import { useGachaEvents } from './events'
 import { money } from './contracts'
 import { closeConstructionNotice } from '../construction/model'
@@ -30,7 +30,7 @@ export function GachaPanel() {
   const sceneLoaded=useCallback(()=>setSceneReady(true),[])
   useEffect(()=>{if(!connected)setSceneReady(false)},[connected])
   const motion=useCapsuleDraw(connected,owner??'',reduced)
-  useEffect(()=>{useGachaOverlay.setState({open:connected});return()=>{useGachaOverlay.setState({open:false})}},[connected])
+  useEffect(()=>{useGachaOverlay.setState({surface:connected?'machine':null});return()=>{useGachaOverlay.setState({surface:null})}},[connected])
   const drawing=motion.busy
   const dialog=useRef<HTMLDialogElement>(null)
   useEffect(()=>{const media=matchMedia('(prefers-reduced-motion: reduce)');const update=()=>setReduced(media.matches)
@@ -161,19 +161,4 @@ export function GachaPanel() {
           <button data-space-key onClick={motion.dismiss}>확인 <kbd>Space</kbd></button></div></div>}
     </div>
   </dialog>
-}
-
-export function GachaLifecycle() {
-  const owner=useSession(s=>s.sessionId),connected=useSession(s=>s.status==='connected')
-  useEffect(()=>{
-    resetGacha()
-    if(connected&&owner)void refreshGacha()
-  },[owner,connected])
-  useEffect(()=>{
-    const refresh=()=>{const state=useGacha.getState();if(connected&&state.owner===owner&&state.state)void refreshGacha()}
-    window.addEventListener('ontop:gacha-inventory-changed',refresh)
-    window.addEventListener('ontop:notifications-changed',refresh)
-    return()=>{window.removeEventListener('ontop:gacha-inventory-changed',refresh);window.removeEventListener('ontop:notifications-changed',refresh)}
-  },[owner,connected])
-  return null
 }

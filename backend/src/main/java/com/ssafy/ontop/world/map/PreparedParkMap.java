@@ -6,7 +6,10 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ssafy.ontop.table.domain.TableRoom;
 import com.ssafy.ontop.world.config.WorldProximityProperties;
 import com.ssafy.ontop.world.dto.WorldMapMetadata;
+import com.ssafy.ontop.world.boat.DuckBoatRoute;
+import com.ssafy.ontop.world.boat.DuckBoatSchedule;
 import com.ssafy.ontop.world.movement.ParkScene;
+import com.ssafy.ontop.world.service.WorldFacilityService;
 import com.ssafy.ontop.world.service.WorldFacilityService.Catalog;
 import com.ssafy.ontop.world.service.WorldFacilityService.Definition;
 import com.ssafy.ontop.world.service.WorldFacilityService.Pose;
@@ -24,14 +27,20 @@ import java.util.UUID;
 
 /** 새 맵의 테이블·좌표·물리 입력을 조립한다. 런타임 선택과 기본 맵 유지 여부는 WorldMapRuntime이 담당한다. */
 public final class PreparedParkMap {
+    public static final String STONE_RUMBLE_ANCHOR_ID = "table-17";
     private final JsonNode collisionData;
+    private final JsonNode constructionSites;
+    private final JsonNode jumpCourse;
     private final WorldMapMetadata metadata;
     private final List<Binding> bindings;
     private final WorldProximityProperties proximity;
     private final Catalog facilities;
+    private final DuckBoatRoute boatRoute;
     private final Reach notes;
     private final Reach feedback;
     private final Reach vrEntrance;
+    private final List<Reach> stoneRumbleEntrances;
+    private final List<Pose> stoneRumbleExits;
 
     private PreparedParkMap(GeneratedParkMapLoader.ValidatedMap map, Set<String> channels) throws IOException {
         JsonNode data = map.document().path("data");
@@ -40,11 +49,53 @@ public final class PreparedParkMap {
         require(!channels.isEmpty() && channels.stream().noneMatch(String::isBlank), "채널 목록이 필요합니다.");
         Map<String, JsonNode> anchors = indexed(data.path("tables"));
         require(!anchors.isEmpty(), "게임 테이블 앵커가 필요합니다.");
+        if (data.has("tableAnchorIds")) {
+            var declared = new HashSet<String>();
+            JsonNode ids = data.path("tableAnchorIds");
+            require(ids.isArray(), "테이블 앵커 목록은 배열이어야 합니다.");
+            for (JsonNode id : ids) {
+                require(id.isTextual() && declared.add(id.asText()), "테이블 앵커 목록을 확인해주세요.");
+            }
+            require(declared.equals(anchors.keySet()), "테이블 앵커 목록과 좌표가 다릅니다.");
+        } else {
+            for (int i = 1; i <= anchors.size(); i++) {
+                require(anchors.containsKey("table-" + i), "테이블 앵커가 누락되었습니다: table-" + i);
+            }
+        }
+        var anchorNumbers = new ArrayList<Integer>();
+        for (String id : anchors.keySet()) {
+            require(id.matches("table-[1-9][0-9]{0,8}"), "테이블 앵커 형식이 올바르지 않습니다: " + id);
+            anchorNumbers.add(Integer.parseInt(id.substring("table-".length())));
+        }
+        var stoneRumble = anchors.get(STONE_RUMBLE_ANCHOR_ID);
+        var entrances = new ArrayList<Reach>();
+        // Older generated maps use table-17 as an ordinary table.
+        if (stoneRumble != null && (data.has("tableAnchorIds") || stoneRumble.has("interactionPoints"))) {
+            var points = stoneRumble.path("interactionPoints");
+            require(points.isArray() && !points.isEmpty(), "돌탑 생존전 입구가 필요합니다.");
+            double radius = stoneRumble.path("interactionRadius").asDouble(1.35);
+            require(Double.isFinite(radius) && radius > 0, "돌탑 생존전 입구 반경을 확인해주세요.");
+            for (JsonNode point : points) {
+                Pose floor = position(point, 0);
+                entrances.add(new Reach(new Pose(floor.x(), floor.y() + .8, floor.z(), 0), radius, .65, true));
+            }
+        }
+        stoneRumbleEntrances = List.copyOf(entrances);
+        var exits = new ArrayList<Pose>();
+        if (stoneRumble != null && stoneRumble.has("exitPoints")) {
+            var points = stoneRumble.path("exitPoints");
+            require(points.isArray() && points.size() == 8, "돌탑 생존전 복귀 위치 8곳이 필요합니다.");
+            for (JsonNode point : points) {
+                exits.add(position(point, 0));
+            }
+            require(Set.copyOf(exits).size() == exits.size(), "돌탑 생존전 복귀 위치가 중복됩니다.");
+        }
+        stoneRumbleExits = List.copyOf(exits);
+        anchorNumbers.sort(Integer::compareTo);
         for (String channel : channels.stream().sorted().toList()) {
-            for (int number = 1; number <= anchors.size(); number++) {
+            for (int number : anchorNumbers) {
                 String anchorId = "table-" + number;
                 JsonNode anchor = anchors.get(anchorId);
-                require(anchor != null, "테이블 앵커가 누락되었습니다: " + anchorId);
                 Pose position = position(anchor.path("position"), 0);
                 String tableId = serverTableId(channel, number);
                 entries.add(new Binding(channel, tableId, anchorId));
@@ -54,6 +105,8 @@ public final class PreparedParkMap {
         bindings = List.copyOf(entries);
         proximity = new WorldProximityProperties(null, null, tablePoints);
         facilities = facilities(data.path("interactions"), map);
+        boatRoute = boatRoute(data.path("interactions").path("boats"));
+        constructionSites = data.path("interactions").path("construction").deepCopy();
         JsonNode notesNode = data.path("interactions").path("notes");
         require("legacy-avatar-origin".equals(notesNode.path("heightReference").asText())
                         && "less-than-or-equal".equals(notesNode.path("radiusComparison").asText())
@@ -66,12 +119,14 @@ public final class PreparedParkMap {
         Pose base = position(mailbox.path("position"), 0);
         feedback = new Reach(new Pose(base.x(), base.y() + 0.8, base.z(), 0),
                 positive(mailbox.path("radius")), 0.7, false);
-        vrEntrance = java.util.stream.StreamSupport.stream(data.path("facilities").spliterator(), false)
+        JsonNode entrance = data.path("interactions").path("vrEntrance");
+        vrEntrance = entrance.isMissingNode() ? java.util.stream.StreamSupport.stream(data.path("facilities").spliterator(), false)
                 .filter(node -> "vr-experience-hall".equals(node.path("id").asText())).findFirst().map(vr -> {
                     Pose site = position(vr.path("position"), vr.path("yaw").asDouble());
                     return new Reach(new Pose(site.x() + Math.sin(site.yaw()) * 7.7, 0.8,
                             site.z() + Math.cos(site.yaw()) * 7.7, site.yaw()), 2.8, 0.9, false);
-                }).orElse(null);
+                }).orElse(null) : new Reach(pose(entrance), positive(entrance.path("radius")), 0.9, false);
+        jumpCourse = data.path("jumpCourse");
         collisionData = physicsData(map);
         metadata = map.metadata();
     }
@@ -80,13 +135,22 @@ public final class PreparedParkMap {
         return new PreparedParkMap(new GeneratedParkMapLoader().load(mapFile, manifestFile), Set.copyOf(channelIds));
     }
 
+    public JsonNode jumpCourse() { return jumpCourse.deepCopy(); }
+    public JsonNode constructionSites() { return constructionSites.deepCopy(); }
     public JsonNode collisionData() { return collisionData.deepCopy(); }
     public WorldMapMetadata metadata() { return metadata; }
     public List<Binding> bindings() { return bindings; }
     public WorldProximityProperties proximity() { return proximity; }
     public Catalog facilities() { return facilities; }
+    public DuckBoatRoute boatRoute() { return boatRoute; }
     public Reach notes() { return notes; }
     public Reach feedback() { return feedback; }
+    public boolean hasStoneRumbleEntrance() { return !stoneRumbleEntrances.isEmpty(); }
+
+    public boolean canEnterStoneRumble(double x, double y, double z) {
+        return stoneRumbleEntrances.stream().anyMatch(entrance -> entrance.contains(x, y, z));
+    }
+    public List<Pose> stoneRumbleExits() { return stoneRumbleExits; }
     public java.util.Optional<Reach> vrEntrance() { return java.util.Optional.ofNullable(vrEntrance); }
 
     /** 명시적으로 선택한 별도 장면을 생성하며 ParkScene.load()의 기본 장면을 교체하지 않는다. */
@@ -156,10 +220,24 @@ public final class PreparedParkMap {
         root.put("sourceSha256", map.metadata().mapVersion());
         root.set("boxes", physics.path("boxes").deepCopy());
         root.set("hulls", physics.path("hulls").deepCopy());
-        for (String key : List.of("furniturePolicy", "fountainPolicy", "pavilionJumpSpeed", "pavilionTunedJumpSpeed")) {
+        for (String key : List.of("furniturePolicy", "fountainPolicy", "pavilionJumpSpeed", "pavilionTunedJumpSpeed", "secretCorridor", "interiorAccess")) {
             if (physics.has(key)) root.set(key, physics.path(key).deepCopy());
         }
         if (data.has("pavilions")) root.set("pavilions", data.path("pavilions").deepCopy());
+        JsonNode duck = physics.path("duckBoat");
+        if (duck.isObject()) {
+            for (String key : List.of("x", "y", "z")) {
+                number(duck.path(key));
+            }
+            for (String key : List.of("rx", "rz", "period")) {
+                positive(duck.path(key));
+            }
+            require(duck.path("half").isArray() && duck.path("half").size() == 3, "오리배 충돌 크기를 확인해주세요.");
+            for (JsonNode size : duck.path("half")) {
+                positive(size);
+            }
+            root.set("duckBoat", duck.deepCopy());
+        }
         JsonNode terrain = physics.path("terrain");
         Map<String, JsonNode> meshes = indexed(physics.path("meshes"));
         JsonNode ground = meshes.get(terrain.path("meshId").asText());
@@ -194,7 +272,21 @@ public final class PreparedParkMap {
             }
         }
         var ordered = root.putArray("meshes");
-        ordered.add(ground.deepCopy());
+        ObjectNode collisionGround = ground.deepCopy();
+        if (physics.has("secretTerrainCuts")) {
+            JsonNode cuts = physics.path("secretTerrainCuts");
+            require(cuts.isArray(), "비밀통로 지형 절개 목록이 필요합니다.");
+            Set<Integer> skipped = new HashSet<>();
+            for (JsonNode cut : cuts) {
+                int face = integer(cut);
+                require(face >= 0 && face < indices.size() / 3 && skipped.add(face), "비밀통로 지형 절개가 올바르지 않습니다.");
+            }
+            var kept = collisionGround.putArray("indices");
+            for (int i = 0; i < indices.size(); i++) {
+                if (!skipped.contains(i / 3)) kept.add(indices.get(i));
+            }
+        }
+        ordered.add(collisionGround);
         meshes.values().stream().filter(mesh -> mesh != ground).forEach(mesh -> ordered.add(mesh.deepCopy()));
         ((ObjectNode) root.path("world")).put("halfSize", half);
         var spawn = root.putObject("spawn");
@@ -289,10 +381,57 @@ public final class PreparedParkMap {
                         positive(item.path("heightTolerance")), List.copyOf(seats), exit));
             }
         }
+        DuckBoatRoute route = boatRoute(interactions.path("boats"));
+        for (JsonNode item : route == null ? List.<JsonNode>of() : List.of(interactions.path("boats").get(0))) {
+            String id = item.path("id").asText();
+            require(!id.isBlank() && ids.add(id), "시설 ID가 비었거나 중복되었습니다.");
+            require(WorldFacilityService.BOAT.equals(item.path("kind").asText()), "시설 종류가 일치하지 않습니다.");
+            Pose center = position(item.path("position"), number(item.path("yaw")));
+            center = new Pose(center.x(), center.y() + 0.8, center.z(), center.yaw());
+            JsonNode queue = item.path("queue");
+            require(queue.isArray() && queue.size() == DuckBoatSchedule.QUEUE_SEATS, "오리배 대기 자리를 확인해주세요.");
+            var seats = new ArrayList<Pose>();
+            for (JsonNode spot : queue) {
+                seats.add(pose(spot));
+            }
+            // 대기 자리 뒤에 배마다 두 좌석을 둔다. 탑승 좌석의 실제 자세는 경로와 출발 시각으로 계산한다.
+            for (int boat = 0; boat < DuckBoatSchedule.BOATS; boat++) {
+                for (int seat = 0; seat < DuckBoatSchedule.CAPACITY; seat++) {
+                    seats.add(route.seatPose(0, seat));
+                }
+            }
+            definitions.add(new Definition(id, WorldFacilityService.BOAT, center, positive(item.path("radius")),
+                    positive(item.path("heightTolerance")), List.copyOf(seats), pose(item.path("exit"))));
+        }
         require(!definitions.isEmpty(), "이용 가능한 시설이 없습니다.");
         definitions.sort(Comparator.comparing(Definition::facilityId));
         return new Catalog(map.metadata().mapVersion(), map.fileSha256(), previous.aimIntervalMs(),
                 previous.minPitch(), previous.maxPitch(), previous.initialPitch(), List.copyOf(definitions), List.of());
+    }
+
+    /** 오리배는 맵마다 최대 한 곳이다. 없으면 null. */
+    static DuckBoatRoute boatRoute(JsonNode boats) {
+        if (boats.isMissingNode() || boats.isNull() || boats.isArray() && boats.isEmpty()) {
+            return null;
+        }
+        require(boats.isArray() && boats.size() == 1, "오리배 시설은 하나만 둘 수 있습니다.");
+        JsonNode route = boats.get(0).path("route");
+        var points = new ArrayList<double[]>();
+        for (JsonNode point : route.path("points")) {
+            require(point.isArray() && point.size() == 2, "오리배 경로 점을 확인해주세요.");
+            points.add(new double[] {number(point.get(0)), number(point.get(1))});
+        }
+        var seats = new ArrayList<double[]>();
+        for (JsonNode seat : route.path("seats")) {
+            require(seat.isArray() && seat.size() == 3, "오리배 좌석을 확인해주세요.");
+            seats.add(new double[] {number(seat.get(0)), number(seat.get(1)), number(seat.get(2))});
+        }
+        try {
+            return new DuckBoatRoute(positive(route.path("seconds")), number(route.path("y")), points, seats,
+                    number(route.path("laneSeconds")));
+        } catch (IllegalArgumentException invalid) {
+            throw new IllegalStateException(invalid.getMessage(), invalid);
+        }
     }
 
     private static Map<String, JsonNode> indexed(JsonNode items) {

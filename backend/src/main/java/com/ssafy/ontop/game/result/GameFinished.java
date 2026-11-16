@@ -10,7 +10,11 @@ public record GameFinished(String eventId, String gameId, String tableId, String
         participants = List.copyOf(participants);
     }
 
-    public record Participant(long userId, Result result, GameDepartureReason leaveReason, Instant leftAt) {
+    public record Participant(long userId, Result result, GameDepartureReason leaveReason, Instant leftAt,
+            Integer finishRank, Long rankReward) {
+        public Participant(long userId, Result result, GameDepartureReason leaveReason, Instant leftAt) {
+            this(userId, result, leaveReason, leftAt, null, null);
+        }
     }
 
     public enum Result { WIN, LOSE, DRAW, FORFEIT }

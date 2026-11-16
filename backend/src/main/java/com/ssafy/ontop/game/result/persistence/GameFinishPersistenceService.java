@@ -56,8 +56,14 @@ public class GameFinishPersistenceService {
             game.recordInvalidFinish(event.eventId(), hash, event.version(), event.endReason(),
                     VerifiedGameFinish.millis(event.endedAt()));
         } else {
-            GameSettlementCalculation.calculate(game.betAmountPerPlayer(), players.stream()
-                    .map(p -> outcomes.get(p.userId()).result()).toList());
+            var ordered = players.stream().map(p -> outcomes.get(p.userId())).toList();
+            if ("STONE_RUMBLE".equals(game.gameCode())) {
+                GameSettlementCalculation.stoneRumble(game.betAmountPerPlayer(),
+                        ordered.stream().map(GameFinished.Participant::result).toList(),
+                        ordered.stream().map(GameFinished.Participant::finishRank).toList());
+            } else {
+                GameSettlementCalculation.calculate(game.betAmountPerPlayer(), ordered.stream().map(GameFinished.Participant::result).toList());
+            }
             game.recordFinish(event.eventId(), hash, event.version(), event.endReason(),
                     VerifiedGameFinish.millis(event.endedAt()));
         }

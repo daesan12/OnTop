@@ -9,6 +9,7 @@ import com.ssafy.ontop.minigame.service.MinigameRewardBudget;
 import com.ssafy.ontop.minigame.service.MoleTargets;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -16,6 +17,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 
@@ -28,10 +30,14 @@ class MoleAuditService {
     private static final int SEARCH_LIMIT = 40;
     private static final int MEMBER_LIMIT = 12;
     private static final int REFERENCE_LIMIT = 40;
+    private static final int DETECTION_DAYS = 30;
+    private static final int DETECTION_LIMIT = 100;
+    private static final int DETECTION_CACHE_SECONDS = 30;
 
     private final MoleAuditStore store;
     private final BehaviorLog log;
     private final BehaviorLogProperties properties;
+    private final ConcurrentHashMap<MoleAuditGame, MoleAuditDtos.Detections> detectionCache = new ConcurrentHashMap<>();
     // 접근 순서가 바뀌는 get을 포함해 모든 접근을 synchronized takeQuota에서 처리한다.
     private final LinkedHashMap<Long, BatchQuota> quotas = new LinkedHashMap<>(16, 0.75f, true);
 
@@ -46,7 +52,7 @@ class MoleAuditService {
                 || !takeQuota(userId, receivedAt.getEpochSecond()) || taps.stream().anyMatch(tap -> !valid(game, tap))) {
             return;
         }
-        var round = store.find(game, roundId, userId);
+        var round = store.findOwnedRound(game, roundId, userId);
         if (round == null || round.status().equals("EXPIRED") || receivedAt.isBefore(round.startedAt())
                 || receivedAt.isAfter(round.startedAt().plusMillis(game.durationMs + 30_000L))) {
             return;
@@ -66,11 +72,24 @@ class MoleAuditService {
         return captures(game, rounds).stream().map(Capture::summary).toList();
     }
 
+    MoleAuditDtos.Detections detections(MoleAuditGame game, Instant until) {
+        // 같은 게임에 대한 동시 요청은 한 번의 집계를 공유한다.
+        return detectionCache.compute(game, (key, cached) -> {
+            if (cached != null && until.isBefore(cached.until().plusSeconds(DETECTION_CACHE_SECONDS))) {
+                return cached;
+            }
+            Instant from = until.minus(DETECTION_DAYS, ChronoUnit.DAYS);
+            var items = List.copyOf(store.detections(key, from, until, DETECTION_LIMIT));
+            return new MoleAuditDtos.Detections(items, from, until, DETECTION_LIMIT);
+        });
+    }
+
     MoleAuditDtos.Detail detail(MoleAuditGame game, long id, MoleAuditDtos.Input input) {
-        var selected = store.find(game, id, null);
-        if (selected == null) {
+        var roundWithMember = store.findRoundWithMember(game, id);
+        if (roundWithMember == null) {
             return null;
         }
+        var selected = roundWithMember.round();
         var day = selected.startedAt().atZone(MinigameRewardBudget.KST).toLocalDate();
         Instant from = start(day);
         Instant until = start(day.plusDays(1));
@@ -89,8 +108,9 @@ class MoleAuditService {
                 .findFirst().orElseThrow();
         var timeline = target.timeline().stream().sorted(Comparator.comparing(MoleAuditDtos.Entry::receivedAt)
                 .thenComparingInt(MoleAuditDtos.Entry::sequence)).toList();
-        return new MoleAuditDtos.Detail(target.summary(), timeline, member.stream().map(Capture::summary).toList(),
-                compare(member, input), compare(reference, input));
+        return new MoleAuditDtos.Detail(target.summary(), roundWithMember.nickname(), roundWithMember.withdrawn(),
+                timeline, member.stream().map(Capture::summary).toList(), compare(member, input),
+                compare(reference, input));
     }
 
     private List<Capture> captures(MoleAuditGame game, List<MoleAuditStore.RoundData> rounds) {

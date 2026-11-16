@@ -6,11 +6,14 @@ import { TABLET } from '../features/tableLobby/tabletProjection'
 import { renderedTableAnchors } from '../features/tableLobby/tabletAnchors'
 import { TABLET_ENABLED } from '../features/tableLobby/tabletFeature'
 import { useEffect, useMemo, useRef } from 'react'
+import { localBalloonRider, useLocalBalloon } from '../features/balloon/localRide'
+import { cabinCamera } from '../features/balloon/cabinCamera'
 import { useFrame, useThree } from '@react-three/fiber'
 import { Matrix4, PerspectiveCamera, Quaternion, Raycaster, SkinnedMesh, Vector3, type Object3D } from 'three'
 import { bungeoppangView } from '../features/bungeoppang/bungeoppangView'
 import { CAMERA, CHARACTER, GOMOKU, PARK_SIZE, TABLES, TELESCOPE, TELESCOPES, telescopeFov, groundHeight, tableScale, tableSeats } from '../park/mapConfig'
 import { WELCOME_FLIGHT_MS, welcomeFlight, welcomeFlightPose } from '../features/welcomeTour/flight'
+import { RENEWAL_PARK_ENABLED } from '../park/mapSelection'
 import { telescopeView } from '../features/telescopeView'
 import { interactionAim, setInteractionCamera } from '../features/interactions/interactionAim'
 import { useDisplayGame as useGame } from '../game/displayGame'
@@ -20,7 +23,7 @@ import { avatars, sampleAvatar, useSession,estimatedServerTime } from '../networ
 import {activeParkDebris} from '../features/parkDebris/state'
 import { cameraOcclusion, CameraOcclusionFader } from './cameraOcclusion'
 import { installRoamingInput, viewControls } from './input'
-import { constrainRoamingCamera } from './cameraCollision'
+import { constrainMonumentStairCamera, constrainRoamingCamera } from './cameraCollision'
 import { seatScope, seatedLook, resetSeatedLook, useTableLobby, SEATED_LOOK } from '../features/tableLobby/state'
 import { useDiceUI, diceCamera, holdBustCamera } from '../game/farkle/controls'
 import { DICE_CAMERA, DICE_SPECTATOR_CAMERA, diceFocusActive, diceSpectatorCameraPose } from '../game/farkle/camera'
@@ -28,6 +31,7 @@ import { LEDGER_CAMERA, ledgerCameraPose, ledgerFocusActive } from '../game/ledg
 import { HALLI_CAMERA, halliCameraPose, halliPlayerViewActive, halliSpectatorCameraPose, halliSpectatorViewActive } from '../game/halligalli/camera'
 import { roamingFirstPerson } from './roamingCamera'
 import { rememberRoamingView, restoreRoamingView } from './cameraReturn'
+import { inputState } from './inputOwnership'
 import { useFacilityState } from '../features/facilities/state'
 import { useBenchState } from '../features/interactions/benchState'
 import { useFitnessState } from '../features/fitness/state'
@@ -42,6 +46,7 @@ import { parkXRView } from './xrView'
 
 /** Whole-figure framing used by the wardrobe zoom (the avatar plus a little headroom). */
 const WARDROBE_FRAME = { height: CHARACTER.height * 1.08, minDistance: 1.4, maxDistance: 5 }
+const indoorCameraRooms = [['facility-arcade', 5.05, 3.5, 4.1], ['facility-vr', 6.2, 4.3, 4.6]] as const
 const turnToward = (from: number, to: number, t: number) => from + (Math.atan2(Math.sin(to - from), Math.cos(to - from))) * t
 const sightline = new Raycaster(), sightFrom = new Vector3(), sightTo = new Vector3()
 /** Front first, then gradually round the avatar: the first angle whose camera sees feet, waist and head unblocked
@@ -70,6 +75,7 @@ function wardrobeFrame(camera: PerspectiveCamera) {
 
 export function CameraRig() {
   const { gl, camera: mountedCamera, raycaster } = useThree()
+  const roomNodes = useRef<(Object3D | undefined)[]>([])
   const reducedMotion=useMemo(()=>window.matchMedia('(prefers-reduced-motion: reduce)'),[])
   const state = useMemo(
     () => ({
@@ -101,6 +107,7 @@ export function CameraRig() {
   useEffect(() => installRoamingInput(gl.domElement), [gl])
   useEffect(
     () => () => {
+      if (cameraOcclusion.scenery === occlusion) cameraOcclusion.scenery = null
       occlusion.dispose()
       interactionAim.ready = false
       setInteractionCamera(null)
@@ -116,6 +123,7 @@ export function CameraRig() {
       omokCamera.anchorId = ''
       omokFocusLighting.requested = false
       mountedCamera.layers.set(0)
+      delete mountedCamera.userData.showConstellationLines
       raycaster.layers.set(0)
       resetSeatedLook()
       if (state.bungeoppangFov !== null && mountedCamera instanceof PerspectiveCamera) {
@@ -125,6 +133,7 @@ export function CameraRig() {
     [occlusion, state, mountedCamera, raycaster],
   )
   useFrame(({ camera, scene }, delta) => {
+    camera.userData.showConstellationLines = false
     diceCamera.ready = false
     omokCamera.ready = false
     omokFocusLighting.requested = false
@@ -136,12 +145,43 @@ export function CameraRig() {
       occlusion.reset()
       return
     }
+    const balloonRider = localBalloonRider(useSession.getState().sessionId)
+    if (balloonRider) {
+      interactionAim.ready = false
+      cameraOcclusion.strength.value = 0
+      occlusion.reset()
+      const { walkingInside, cabinFirstPerson, flight } = useLocalBalloon.getState()
+      if (walkingInside && flight?.phase === 'flying') {
+        const { yaw, pitch } = cabinCamera
+        if (cabinFirstPerson) {
+          const eye = balloonRider.y + (balloonRider.seatIndex >= 0 ? .95 : 1.45)
+          camera.position.set(balloonRider.x, eye, balloonRider.z)
+          const lookPitch = pitch - .57
+          camera.lookAt(balloonRider.x - Math.sin(yaw) * Math.cos(lookPitch), eye - Math.sin(lookPitch),
+            balloonRider.z - Math.cos(yaw) * Math.cos(lookPitch))
+          return
+        }
+        const { x, y, z } = flight.position
+        const angle = Math.min(1.1, Math.max(.3, pitch))
+        const radius = 6.3 * Math.cos(angle)
+        camera.position.set(x + Math.sin(yaw) * radius, y + .95 + 6.3 * Math.sin(angle), z + Math.cos(yaw) * radius)
+        camera.lookAt(x, y + .95, z)
+        return
+      }
+      camera.position.set(balloonRider.x + 6, balloonRider.y + 5, balloonRider.z + 9)
+      camera.lookAt(balloonRider.x, balloonRider.y + .6, balloonRider.z - 4)
+      return
+    }
     scan.current += delta
     wardrobeView.blend += (Number(wardrobeView.active) - wardrobeView.blend) * (1 - Math.exp(-5 * Math.min(delta, 0.1)))
     if (Math.abs(Number(wardrobeView.active) - wardrobeView.blend) < 0.001) wardrobeView.blend = Number(wardrobeView.active)
     if (scan.current >= 0.5) {
-      const park = scene.getObjectByName('placeholder-park')
-      if (park) occlusion.refresh(park)
+      const park = scene.getObjectByName(RENEWAL_PARK_ENABLED ? 'detail-220-buildings' : 'placeholder-park')
+      if (park) {
+        occlusion.refresh(park)
+        cameraOcclusion.scenery = occlusion
+      }
+      if (RENEWAL_PARK_ENABLED) roomNodes.current = indoorCameraRooms.map(([name]) => scene.getObjectByName(name))
       scan.current = 0
     }
     const session = useSession.getState(),
@@ -151,7 +191,7 @@ export function CameraRig() {
       || session.tableId || session.focusedAnchorId || useTableLobby.getState().joiningAnchorId || useGame.getState().watchedGameId || bungeoppangView.active
       || useFeedbackState.getState().open || useNotesState.getState().open)
     if (temporaryView) rememberRoamingView(session.sessionId, session.roomId)
-    restoreRoamingView(session.sessionId, session.roomId, temporaryView || session.status !== 'connected'
+    restoreRoamingView(session.sessionId, session.roomId, temporaryView || inputState.minigameOpen || session.status !== 'connected'
       || facilities.pending || facilities.awaitingWorld || facilities.uncertain
       || useBenchState.getState().pending || useFitnessState.getState().pending || useTelescopeState.getState().pending)
     const telescope = session.status === 'connected' && session.mapCompatible
@@ -245,11 +285,12 @@ export function CameraRig() {
     }
     sampleAvatar(avatar, performance.now(), state.pose)
     if (telescope) {
+      camera.userData.showConstellationLines = true
       state.omokTransition = false
       state.diceTransition = false
       state.alkkagiTransition = false
       const { yaw, pitch } = telescopeView
-      camera.position.set(telescope.position[0], telescope.position[1] + TELESCOPE.eyeHeight, telescope.position[2])
+      camera.position.set(telescope.position[0], telescope.position[1] + TELESCOPE.eyeHeight + (RENEWAL_PARK_ENABLED ? .44 : 0), telescope.position[2])
       state.look.set(camera.position.x + Math.sin(yaw) * Math.cos(pitch), camera.position.y + Math.sin(pitch),
         camera.position.z + Math.cos(yaw) * Math.cos(pitch))
       camera.lookAt(state.look)
@@ -335,11 +376,11 @@ export function CameraRig() {
     } else if (tablet) {
       const anchor = renderedTableAnchors.get(avatar.tableId) ?? TABLES.find(t => t.id === avatar.tableId)
       if (anchor) {
-        const seat = tableSeats(anchor)[session.seatIndex] ?? tableSeats(anchor)[0]!
+        const seat = tableSeats(anchor, session.seatIndex + 1)[session.seatIndex] ?? tableSeats(anchor)[0]!
         const yaw = Math.atan2(seat.x, seat.z), scale = tableScale(anchor)
         const aspect = camera instanceof PerspectiveCamera ? camera.aspect : 1.6
         const distance = 1.65 * scale * Math.max(1, 1.6 / aspect)
-        const centerY = anchor.position[1] + 1.06 + (TABLET.y - 1.06) * scale
+        const centerY = anchor.position[1] + (anchor.boardOffsetY ?? 0) + 1.06 + (TABLET.y - 1.06) * scale
         state.look.set(anchor.position[0], centerY, anchor.position[2])
         state.desired.set(anchor.position[0] + Math.sin(yaw) * distance,
           centerY + .19 * scale, anchor.position[2] + Math.cos(yaw) * distance)
@@ -347,7 +388,7 @@ export function CameraRig() {
     } else if (gathering) {
       const anchor = TABLES.find(t => t.id === avatar.tableId)
       if (anchor) {
-        const seat = tableSeats(anchor)[session.seatIndex] ?? tableSeats(anchor)[0]!
+        const seat = tableSeats(anchor, session.seatIndex + 1)[session.seatIndex] ?? tableSeats(anchor)[0]!
         const yaw = Math.atan2(seat.x, seat.z) + Math.PI / 4
         const radius = 2.7 + Math.hypot(seat.x, seat.z)
         state.look.set(anchor.position[0], anchor.position[1] + 1.35, anchor.position[2])
@@ -391,7 +432,7 @@ export function CameraRig() {
       state.desired.set(...pose.position); state.look.set(...pose.target)
     } else if (focusedOmok && camera instanceof PerspectiveCamera) {
       const anchor = spectatorOmok ? (closeAnchor ?? watchedAnchor)! : TABLES.find(t => t.id === avatar.tableId)!
-      state.look.set(anchor.position[0], anchor.position[1] + OMOK_BOARD_Y + .017, anchor.position[2])
+      state.look.set(anchor.position[0], anchor.position[1] + (anchor.boardOffsetY ?? 0) + OMOK_BOARD_Y + .017, anchor.position[2])
       if (omokSpectatorViewport.gameId === game?.gameId) {
         const frame = omokSpectatorFrame(gl.domElement.clientWidth, gl.domElement.clientHeight, tableScale(anchor), omokSpectatorViewport.insets)
         const orientation = !spectatorOmok && avatar.seatIndex === 1 ? -1 : 1
@@ -404,14 +445,14 @@ export function CameraRig() {
       state.targetUp.set(0, 0, spectatorOmok || avatar.seatIndex === 0 ? -1 : 1)
     } else if (diceFocus) {
       const anchor = TABLES.find(t => t.id === avatar.tableId)!
-      const seat = tableSeats(anchor)[session.seatIndex] ?? tableSeats(anchor)[0]!
+      const seat = tableSeats(anchor, session.seatIndex + 1)[session.seatIndex] ?? tableSeats(anchor)[0]!
       const scale = tableScale(anchor)
       state.look.set(anchor.position[0], anchor.position[1] + GOMOKU.boardY + .017, anchor.position[2])
       state.desired.set(anchor.position[0], anchor.position[1] + DICE_CAMERA.tableHeight + DICE_CAMERA.height * scale,
         anchor.position[2] + Math.sign(seat.z) * DICE_CAMERA.seatOffset * scale)
     } else if (ledgerFocus) {
       const anchor = TABLES.find(t => t.id === avatar.tableId)!
-      const seat = tableSeats(anchor)[session.seatIndex] ?? tableSeats(anchor)[0]!
+      const seat = tableSeats(anchor, session.seatIndex + 1)[session.seatIndex] ?? tableSeats(anchor)[0]!
       const scale = tableScale(anchor), pose = ledgerCameraPose(anchor.position, seat.x * scale, seat.z * scale, scale)
       state.desired.set(...pose.position)
       state.look.set(...pose.target)
@@ -452,7 +493,7 @@ export function CameraRig() {
       )
     } else if (seated) {
       const anchor = TABLES.find((t) => t.id === avatar.tableId)
-      const seat = anchor ? tableSeats(anchor)[session.seatIndex] : undefined
+      const seat = anchor ? tableSeats(anchor, session.seatIndex + 1)[session.seatIndex] : undefined
       state.desired.set(anchor && seat ? anchor.position[0] + seat.x : pose.x,
         anchor ? anchor.position[1] + SEATED_LOOK.eyeHeight : pose.y + 0.55,
         anchor && seat ? anchor.position[2] + seat.z : pose.z)
@@ -526,7 +567,25 @@ export function CameraRig() {
         state.desired.y,
         groundHeight(state.desired.x, state.desired.z) + 0.3,
       )
+      if (RENEWAL_PARK_ENABLED && !wardrobeView.active) {
+        for (const [index, [, halfWidth, halfDepth, height]] of indoorCameraRooms.entries()) {
+          const room = roomNodes.current[index]
+          if (!room) continue
+          const building = room.position, base = building.y
+          const cos = Math.cos(room.rotation.y), sin = Math.sin(room.rotation.y)
+          const dx = pose.x - building.x, dz = pose.z - building.z
+          if (pose.y < base || pose.y > base + height || Math.abs(dx * cos - dz * sin) >= halfWidth
+            || Math.abs(dx * sin + dz * cos) >= halfDepth) continue
+          const camX = state.desired.x - building.x, camZ = state.desired.z - building.z
+          const x = Math.max(-halfWidth + .34, Math.min(halfWidth - .34, camX * cos - camZ * sin))
+          const z = Math.max(-halfDepth + .34, Math.min(halfDepth - .34, camX * sin + camZ * cos))
+          state.desired.set(building.x + x * cos + z * sin, Math.min(state.desired.y, base + height - .4), building.z - x * sin + z * cos)
+          if (state.desired.distanceToSquared(center) < .55 ** 2) state.desired.y = center.y + .7
+          break
+        }
+      }
       state.look.copy(center)
+      if (RENEWAL_PARK_ENABLED) constrainMonumentStairCamera(state.desired, state.look)
     }
     const targetFov = debrisAnchor ? 55 : tablet ? 43 : focusedAlkkagi ? ALKKAGI_FOV : gathering ? ownOmok ? 60 : CAMERA.fov : seated && oneCardPlayerViewActive(game) ? ONECARD_CAMERA.fov : diceFocus ? DICE_CAMERA.fov : ledgerFocus ? LEDGER_CAMERA.fov : diceSpectator ? DICE_SPECTATOR_CAMERA.fov : boardFocus || spectatorBoard ? GOMOKU.topDownFov : seated ? GOMOKU.seatedFov : CAMERA.fov
     const smoothingOmok = focusedOmok || ownOmok || state.omokTransition
@@ -549,6 +608,9 @@ export function CameraRig() {
       else camera.position.lerp(state.desired, 1 - Math.exp(-(performance.now() < bungeoppangView.returningUntil ? 24 : 12) * Math.min(delta, 0.1)))
     }
     if (!firstPerson && !seated && !watchedAnchor) constrainRoamingCamera(camera.position)
+    // Position smoothing can cross a stair edge even when the desired orbit is clear.
+    if (RENEWAL_PARK_ENABLED && !firstPerson && !temporaryView && !watchedAnchor && !smoothingBoard)
+      constrainMonumentStairCamera(camera.position, state.look)
     if (!smoothingBoard) {
       if (performance.now() < bungeoppangView.returningUntil) {
         state.rotation.copy(camera.quaternion)

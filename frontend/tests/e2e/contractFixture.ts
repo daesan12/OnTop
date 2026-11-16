@@ -58,6 +58,7 @@ export async function fixture(
     chatDelayMs?: number
     publicProfiles?: Record<string, { nickname?: string | null; characterGender?: 'MALE' | 'FEMALE' | null }>
     position?: { x: number; y: number; z: number; yaw: number }
+    firstWorldStateGate?: Promise<void>
     anchorId?: string
     publicSpectator?: boolean
     forfeit?: boolean
@@ -327,7 +328,7 @@ export async function fixture(
       })
     }
     if (url.pathname === '/api/v1/rankings/park') {
-      return route.fulfill({ json: { balance: [], mole: [], speedMole: [], updatedAt: new Date().toISOString() } })
+      return route.fulfill({ json: { balance: [], mole: [], speedMole: [], jumpRope: [], updatedAt: new Date().toISOString() } })
     }
     if (url.pathname === '/api/v1/wallets/me') {
       walletReads++
@@ -460,7 +461,7 @@ export async function fixture(
     emit: (type, payload, id = null) => emit(sockets.at(-1)!, type, payload, id),
     world: () => world(sockets.at(-1)!), position, userId: ownId,
     remotePosition: pose => { remotePosition = pose },
-    ...(options.generatedPark ? { catalog: generatedFacilityCatalog } : {}),
+    ...(options.generatedPark ? { catalog: { ...generatedFacilityCatalog, mapVersion: expectedMapVersion } } : {}),
   })
   // Explicit public/private test snapshots for the BE contract, not a local game engine.
   const scriptedForfeitState = () => {
@@ -648,7 +649,8 @@ export async function fixture(
             },
           }),
         )
-        world(ws)
+        if (options.firstWorldStateGate) void options.firstWorldStateGate.then(() => world(ws))
+        else world(ws)
         if(options.parkDebris)emit(ws,'WORLD_PARK_DEBRIS_STATE',{channelId:'fixture-channel',mapVersion:expectedMapVersion,version:debrisVersion,items:debrisItems})
       }
       if (type === 'WORLD_MOVE') {

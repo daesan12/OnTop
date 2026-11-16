@@ -4,7 +4,7 @@ import { TABLE_GAMES } from './model'
 import { omokEndReason } from '../../game/omokPresentation'
 import { LEDGER_END_REASON } from '../../game/ledger/protocol'
 
-export const GAME_MANUAL = { OMOK: 'gomoku', DICE: 'farkle', ONE_CARD: 'onecard', LIAR_BRIDGE: 'bridge', DICE_LEDGER: 'ledger', HALLI_GALLI: 'halligalli' } as const
+export const GAME_MANUAL = { STONE_RUMBLE: 'stone-rumble', OMOK: 'gomoku', DICE: 'farkle', ONE_CARD: 'onecard', LIAR_BRIDGE: 'bridge', DICE_LEDGER: 'ledger', HALLI_GALLI: 'halligalli' } as const
 
 interface Context {
   table: TableState; ownId: string; game: Game | null; result: Result | null
@@ -15,6 +15,12 @@ export function participantResultLabel(status: Result['status'], outcome: string
   return ({ WIN: '승리', LOSE: '패배', DRAW: '무승부', FORFEIT: '기권', ELIMINATED: '탈락' } as Record<string, string>)[outcome ?? ''] ?? '경기 종료'
 }
 export function resultSettlement(result: Result) {
+  if (result.gameCode === 'STONE_RUMBLE' && result.betAmountPerPlayer === 0) {
+    if (result.status === 'INVALID') return '무효 경기 · 지급된 보상 없음'
+    if (result.settlementStatus !== 'SETTLED') return '보상 확인 중'
+    return result.myCoinDelta === 0 ? '일일 보상 상한에 도달했어요'
+      : `내 순위 보상 +${result.myCoinDelta}냥`
+  }
   if (result.status === 'INVALID') return result.settlementStatus === 'SETTLED'
     ? `예약 해제 완료 · 참가비 ${result.betAmountPerPlayer} 코인 · 잔액 변화 0`
     : `무효 경기 · 참가비 ${result.betAmountPerPlayer} 코인 예약금 반환 대기`
@@ -34,15 +40,17 @@ export function gatheringModel({ table, ownId, game, result, start, nickname }: 
   }
   const winners = !finished || invalid ? [] : result
     ? result.participants.filter(p => p.result === 'WIN').map(p => p.userId)
-    : game?.onecard?.winnerUserIds ?? game?.bridge?.winnerUserIds ?? game?.ledger?.winnerUserIds ?? game?.halli?.winnerUserIds ?? (game?.omok?.winnerUserId || game?.dice?.winnerUserId ? [game.omok?.winnerUserId ?? game.dice?.winnerUserId ?? ''] : [])
+    : game?.stone?.winnerUserIds ?? game?.onecard?.winnerUserIds ?? game?.bridge?.winnerUserIds ?? game?.ledger?.winnerUserIds ?? game?.halli?.winnerUserIds ?? (game?.omok?.winnerUserId || game?.dice?.winnerUserId ? [game.omok?.winnerUserId ?? game.dice?.winnerUserId ?? ''] : [])
   const rows = result ? result.participants.map((p, i) => ({
     playerId: p.userId, nickname: nickname(p.userId), seat: i, winner: !invalid && p.result === 'WIN', ready: false,
     label: participantResultLabel(result.status, p.result), score: invalid ? '' : score(p.userId),
+    rank: p.rank ?? null, rewardCoins: result.settlementStatus === 'SETTLED' ? p.rewardCoins ?? null : null,
   })) : table.seats.map((s, i) => ({ playerId: s.userId ?? '', nickname: s.userId ? nickname(s.userId) : `${s.seatNumber}번 빈자리`, seat: i,
     winner: !!s.userId && winners.includes(s.userId), ready: s.ready,
     label: finished ? draw ? '무승부' : s.userId && winners.includes(s.userId) ? '승리' : '경기 종료' : !s.userId ? '참가 대기' : s.ready ? '준비 완료' : '준비 중',
-    score: finished && s.userId ? score(s.userId) : '',
+    score: finished && s.userId ? score(s.userId) : '', rank: null, rewardCoins: null,
   }))
+  if (result?.gameCode === 'STONE_RUMBLE') rows.sort((a, b) => (a.rank ?? 9) - (b.rank ?? 9))
   const own = table.seats.find(s => s.userId === ownId), code = result?.gameCode ?? publicState?.gameCode ?? table.gameCode
   const endReason = result?.endReason ?? publicState?.endReason
   const settled = result?.settlementStatus === 'SETTLED'

@@ -46,6 +46,7 @@ class LocalWorldAiPositionTests {
         when(navigation.spawn()).thenReturn(new Point(0,.8,0));
         when(navigation.wholePark()).thenReturn(new ParkNavigation.Area(-90,90,-90,90));
         when(navigation.groundPoint(anyDouble(),anyDouble())).thenAnswer(call->new Point(call.getArgument(0),.8,call.getArgument(1)));
+        when(navigation.policeApproach(any(Point.class))).thenAnswer(call -> call.getArgument(0));
         when(navigation.lineClear(any(),any())).thenReturn(true);
         try(var ai=new LocalWorldAi(new ObjectMapper(),directory,new OfflineDecisions(),AiNotifier.local(),hub,()->navigation,true)) {
             ai.chat(missing("rule","씨발"));ai.step();

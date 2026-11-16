@@ -1,11 +1,18 @@
 import { acceptAlkkagiSocial, resetAlkkagiSocial, syncAlkkagiSocial } from '../../game/alkkagi/spectatorEvents'
+import { notifyOwnBalloonEnd, receiveRemoteBalloon } from '../../features/balloon/remoteRide'
+import type { BalloonBoarding, Input as BalloonInput, Point as BalloonPoint } from '../../features/balloon/flight'
+import type { ControlAction } from '../../features/balloon/controls'
+import type { CabinPose } from '../../features/balloon/cabin'
+import { BALLOON_RIDE_ENABLED } from '../mapSelection'
 import { acquireVRProtection, vrCarryProtection } from '../../features/vrSession/protection'
 import {
   clearAuthSession,
   getAuthSession,
   restoreAuthSession,
 } from '../../auth/authFlow'
+import { acceptRental, rentalNotice, rentalCapability, useMobility, type RentalTarget } from '../../features/mobility/state'
 import { SharedSocket, ServerError } from '../../network/socketClient'
+import { StoneControlQueue } from '../../game/stone-rumble/controlQueue'
 import { routeCoopMessage, subscribeCoop } from '../../features/skewer/coop/contracts'
 import { OmokSpectatorEvents } from '../../game/omok/spectatorEvents'
 import { chatAuthorName } from '../../features/chat/author'
@@ -15,12 +22,13 @@ import { BUNGEOPPANG_RANKINGS_ENABLED } from '../../features/bungeoppang/ranking
 import { handScope, useOneCardUI } from '../../game/onecard/uiState'
 import { WorldTimeClient } from '../../network/worldTimeClient'
 import {MapAdmission,MAP_UPDATE_MESSAGE,type MapIdentity} from '../../network/mapContract'
-import { FacilityClient } from '../../network/facilityClient'
+import { FacilityClient, type BoatCommand } from '../../network/facilityClient'
 import { facilityMovementBlocked, FacilityUseBlockedError, showFacilityUseNotice, serverFacilities } from '../../features/facilities/state'
 import { RestError } from '../../network/restError'
 import { jokeBusinessMessage, jokeSubmissionPath } from '../../features/ai/jokeSubmissionError'
 import { clearRoamingInput, inputState, focusParkCanvas } from '../../world/inputOwnership'
 import { rememberRoamingView } from '../../world/cameraReturn'
+import { useMouseLook } from '../../world/mouseLook'
 import { benchTable, benchViewScope, resetBenchSpectator } from '../../features/interactions/benchSpectator'
 import { gameChatScope } from '../../features/chat/gameChat'
 import {useCompanions,acceptCompanions} from '../../features/ai/companions'
@@ -29,7 +37,8 @@ import {observedNpcPractice,syncPracticeSpectator} from '../../features/ai/pract
 import { gamePlayers, gameState } from '../../game/protocol'
 import { useBenchState } from '../../features/interactions/benchState'
 import { useFacilityState } from '../../features/facilities/state'
-import { receiveWalletSettlement } from '../../features/wallet/settlementRefresh'
+import { closeBoatInvite, receiveBoatInvite, showBoatNotice } from '../../features/duckBoat/model'
+import { receiveWalletSettlement, refreshWalletAfterSettlement } from '../../features/wallet/settlementRefresh'
 import {
   channel,
   record,
@@ -41,6 +50,7 @@ import { bindAnchor, parseBindings } from '../../network/tableBindings'
 import { setDisplayProfiles } from '../../network/profileBridge'
 import { canPlace, canPlayDice, receiveGame, tableBusy, useGame } from '../../game/store'
 import { canUndoAction, type OmokUndoInput } from '../../game/omok/undo'
+import { parkXRView } from '../../world/xrView'
 import { canDrawAction, type OmokDrawInput } from '../../game/omok/draw'
 import { forgetTabGames, keepTabGame, latestEndedGame, readTabGame } from '../../game/resultRecovery'
 import { canStartForfeit, canRetryForfeit, definiteForfeitRejection, forfeitError, interruptForfeit, parseForfeitResult, resetForfeit, useForfeit } from '../../game/forfeit'
@@ -126,6 +136,19 @@ export class ParkRuntime implements ParkRuntimePort {
   subscribeNotesChanged = (changed: () => void) => this.notesChanges.subscribe(changed)
   private actionBusy = false
   private movementRequests = new Map<string, number>()
+  private stoneControlRequests = new Map<string, string>()
+  private stoneControls = new StoneControlQueue((scope, input) =>
+    useGame.getState().game?.gameId === scope ? this.sendStoneAction(input) : Promise.resolve(false))
+  private stoneRecoveryRequests = new Map<string, string>()
+  private stoneRecoveryGameId = ''
+  private stoneRecoveryFlight: { gameId: string; promise: Promise<Envelope> } | null = null
+  private resetStoneRecovery() {
+    this.stoneControls.reset()
+    this.stoneControlRequests.clear()
+    this.stoneRecoveryRequests.clear()
+    this.stoneRecoveryGameId = ''
+    this.stoneRecoveryFlight = null
+  }
   private inspection = 0
   private tableWatchRequestId = ''
   private obsoleteWatchRequests = new Set<string>()
@@ -330,6 +353,7 @@ export class ParkRuntime implements ParkRuntimePort {
     return this.facilities.use(id, seat, signal)
   }
   releaseFacility = (id: string, signal: AbortSignal) => this.facilities.release(id, signal)
+  boatCommand = (type: BoatCommand, payload: Record<string, unknown>, signal: AbortSignal) => this.facilities.boat(type, payload, signal)
   aimFacility = (id: string, aim: { yaw: number; pitch: number }, signal: AbortSignal) => this.facilities.aim(id, aim, signal)
   addAuthListener(listener: AuthEnded) {
     this.authListeners.add(listener)
@@ -363,6 +387,7 @@ export class ParkRuntime implements ParkRuntimePort {
     }, 3000)
   }
   private authEnded() {
+    this.resetStoneRecovery()
     this.notesChanges.reset()
     this.tablet.end()
     this.mapReady = false
@@ -449,10 +474,10 @@ export class ParkRuntime implements ParkRuntimePort {
       && /^\/api\/v1\/minigames\/bungeoppang\/rankings\?period=ALL_TIME&rulesVersion=v[45]&limit=20(?:&durationMs=[1-9]\d{0,8})?(?:&cursor=[A-Za-z0-9%+_.~-]{1,1536})?$/.test(path)
     const parkRankingRequest = method === 'GET' && path === '/api/v1/rankings/park'
     const fitnessRewardRequest = method === 'GET' && path === '/api/v1/world/fitness/rewards/status'
-    const skewerAdmission = method === 'POST' && path === '/api/v1/minigames/skewer/admissions'
+    const balloonFareRequest = method === 'POST' && path === '/api/v1/world/balloon/tickets'
     const skewerCoop = method === 'GET' && /^\/api\/v1\/minigames\/skewer\/coop\/rooms\?channelId=[^&#?]+$/.test(path)
       || method === 'GET' && /^\/api\/v1\/minigames\/skewer\/coop\/result\?gameId=skewer-coop-[a-f0-9-]{36}$/.test(path)
-      || method === 'GET' && /^\/api\/v1\/minigames\/skewer\/coop\/rankings(?:\?mode=(?:PC|VR))?$/.test(path)
+      || method === 'GET' && /^\/api\/v1\/minigames\/skewer\/coop\/rankings(?:\?mode=(?:PC|VR|ALL))?$/.test(path)
       || method === 'POST' && ['/api/v1/minigames/skewer/coop/rooms', '/api/v1/minigames/skewer/coop/leave'].includes(path)
     const rpsRouletteRequest = (method === 'GET' && path === '/api/v1/minigames/rps-roulette/status')
       || (method === 'POST' && /^\/api\/v1\/minigames\/rps-roulette\/rounds(?:\/[1-9]\d{0,18}\/(?:hands|challenge|stop))?$/.test(path))
@@ -465,6 +490,8 @@ export class ParkRuntime implements ParkRuntimePort {
       || (method === 'POST' && /^\/api\/v1\/minigames\/speed-mole\/rounds(?:\/[1-9]\d{0,18}\/complete)?$/.test(path))
     const jumpRopeRequest = (method === 'GET' && path === '/api/v1/minigames/jump-rope/rankings')
       || (method === 'POST' && /^\/api\/v1\/minigames\/jump-rope\/rounds(?:\/[1-9]\d{0,18}\/complete)?$/.test(path))
+    const spotDifferenceRequest = (method === 'GET' && path === '/api/v1/minigames/spot-difference/status')
+      || (method === 'POST' && /^\/api\/v1\/minigames\/spot-difference\/runs(?:\/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\/actions)?$/.test(path))
     const raffleRequest = (method === 'GET' && path === '/api/v1/raffles/current')
       || (method === 'POST' && path === '/api/v1/raffles/current/tickets')
     const gachaRequest = (method === 'GET' && (path === '/api/v1/gacha'
@@ -483,8 +510,9 @@ export class ParkRuntime implements ParkRuntimePort {
         || (method === 'GET' && path === '/local/ai/companions/status')
         || (method === 'POST' && /^\/local\/ai\/companions\/(?:invite|action|talk)$/.test(path)))
     if (!this.active || (!serviceAiRequest && !localAiRequest && !notesRead && !notesWrite && !shopRequest && !profileRequest
-      && !historyRequest && !minigameRequest && !jumpmapRequest && !rankingRequest && !parkRankingRequest && !skewerAdmission && !skewerCoop
-      && !rpsRouletteRequest && !plusMinusRequest && !moleRequest && !speedMoleRequest && !jumpRopeRequest && !raffleRequest && !gachaRequest && !fitnessRewardRequest
+      && !historyRequest && !minigameRequest && !jumpmapRequest && !rankingRequest && !parkRankingRequest && !skewerCoop
+      && !rpsRouletteRequest && !plusMinusRequest && !moleRequest && !speedMoleRequest && !jumpRopeRequest
+      && !spotDifferenceRequest && !raffleRequest && !gachaRequest && !fitnessRewardRequest && !balloonFareRequest
       && !/^\/api\/v1\/(?:wallets\/me|feedback)$/.test(path))
       || (path === '/api/v1/feedback' && init.method !== 'POST'))
       throw new Error('현재 공원에서 사용할 수 없는 요청입니다.')
@@ -502,6 +530,9 @@ export class ParkRuntime implements ParkRuntimePort {
       if(next.practiceChat!==previous.practiceChat || next.practice!==previous.practice)this.omokEvents.sync()
     })
     this.untrackTabGame = useGame.subscribe((next, prev) => {
+      if (next.game?.gameId !== prev.game?.gameId || next.recovery !== 'RESTORED'
+        || next.game?.stone?.status !== 'PLAYING' || next.game.role !== 'PLAYER'
+        || !next.game.stone.players.find(player => player.userId === useSession.getState().sessionId)?.alive) this.stoneControls.reset()
       const owner = useSession.getState().sessionId
       if (next.permittedGameId && next.permittedGameId !== prev.permittedGameId) keepTabGame(owner, next.permittedGameId)
       // A result the player already closed is not shown again after a refresh.
@@ -524,6 +555,7 @@ export class ParkRuntime implements ParkRuntimePort {
     this.facilityMapInvalid = false
     this.movement.clear()
     const generation = ++this.generation
+    this.resetStoneRecovery()
     this.initialStates = []
     this.actionBusy = false
     this.bootAbort?.abort()
@@ -577,6 +609,7 @@ export class ParkRuntime implements ParkRuntimePort {
     this.movement.clear()
     this.active = false
     ++this.generation
+    this.resetStoneRecovery()
     this.initialStates = null
     this.actionBusy = false
     clearTimeout(this.timer)
@@ -650,6 +683,18 @@ export class ParkRuntime implements ParkRuntimePort {
   }
   private message(message: Envelope) {
     if (!this.active) return
+    const stoneRecovery = message.requestId && this.stoneRecoveryRequests.get(message.requestId)
+    if (stoneRecovery) {
+      const state = useGame.getState()
+      if ((state.permittedGameId || state.completedGameId) !== stoneRecovery
+        || this.stoneSettledInLobby(stoneRecovery)) return
+      if (message.type === 'GAME_CONNECTION_STATE' && message.payload.status === 'LOBBY'
+        && state.permittedGameId === stoneRecovery) {
+        // The server already left the engine, but its terminal result can still be in flight.
+        // Remember only the round identity; its result/settlement must still come from the server.
+        useGame.setState({ completedGameId: stoneRecovery })
+      }
+    }
     const moveSeq = message.requestId ? this.movementRequests.get(message.requestId) : undefined
     if (message.type === 'WORLD_STATE' && moveSeq !== undefined) localMovement.receivedInput(moveSeq)
     if (message.type === 'ERROR' && message.requestId
@@ -677,7 +722,17 @@ export class ParkRuntime implements ParkRuntimePort {
       }
       return
     }
+    if (message.type === 'WORLD_BALLOON_STATE') {
+      if (!BALLOON_RIDE_ENABLED) return
+      const { roomId, sessionId } = useSession.getState()
+      if (message.payload.channelId === roomId && message.payload.pilotId === sessionId
+        && message.payload.flight === null && message.requestId === null) notifyOwnBalloonEnd()
+      receiveRemoteBalloon(message.payload, roomId, sessionId)
+      return
+    }
     if(message.type==='CONNECTED') {
+      rentalCapability.available = message.payload.mobilityAvailable === true
+      rentalCapability.xrAvailable = rentalCapability.available && message.payload.vrMobilityAvailable === true
       clearTimeout(this.timer)
       if(message.payload.map===undefined&&message.payload.mapVerificationRequired===true){this.rejectMap(undefined);return}
       if(!this.mapAdmission.connected(message.payload.map)){this.rejectMap(message.payload.map);return}
@@ -695,6 +750,23 @@ export class ParkRuntime implements ParkRuntimePort {
       if (this.mapReady && this.mapAdmission.allowed && session.status === 'connected'
         && session.mapCompatible && session.roomId && !session.pending)
         this.notesChanges.accept(message)
+      return
+    }
+    if (message.type === 'WORLD_BOAT_INVITE') { receiveBoatInvite(message.payload); return }
+    if (message.type === 'WORLD_BOAT_INVITE_CLOSED') { closeBoatInvite(message.payload.inviterId); return }
+    if (message.type === 'WORLD_BOAT_NOTICE') {
+      const { status, fare, leaseId } = message.payload
+      showBoatNotice(status, fare)
+      if (status === 'PAID' && typeof leaseId === 'string')
+        refreshWalletAfterSettlement(useSession.getState().sessionId, 'duck-boat:' + leaseId)
+      return
+    }
+    if (message.type === 'WORLD_MOBILITY_STATE') {
+      const { receipt } = message.payload
+      acceptRental(message.payload)
+      if (typeof receipt === 'string') {
+        refreshWalletAfterSettlement(useSession.getState().sessionId, 'mobility:' + receipt)
+      }
       return
     }
     if (routeCoopMessage(message)) {
@@ -736,6 +808,20 @@ export class ParkRuntime implements ParkRuntimePort {
       if (!['loading', 'ready'].includes(q.status) || message.payload.tableId !== q.tableId ||
         (message.requestId !== null && message.requestId !== this.tableWatchRequestId)) return
     }
+    // Only the originating stone round owns its in-flight input errors.
+    const stoneRound = message.requestId && this.stoneControlRequests.get(message.requestId)
+    if (message.type === 'ERROR' && stoneRound) {
+      if (message.payload.code === 'GAME_ACTION_GAME_FINISHED') return
+      if (message.payload.code === 'GAME_RECOVERY_REQUIRED') {
+        const state = useGame.getState()
+        if (state.permittedGameId !== stoneRound || state.game?.stone?.status === 'FINISHED'
+          || state.result?.gameSessionId === stoneRound || state.lastResult?.gameSessionId === stoneRound) return
+        useGame.setState({ recovery: 'PENDING', uncertain: true })
+        this.stoneRecoveryGameId = stoneRound
+        void this.recoverStoneInput(stoneRound).catch(() => { /* The scoped retry remains available in the UI. */ })
+        return
+      }
+    }
     receive(message,this.mapAdmission.expected.mapVersion)
     if (message.type === 'ERROR') this.expireActionError()
     if (serverFacilities) {
@@ -756,6 +842,13 @@ export class ParkRuntime implements ParkRuntimePort {
     const session = useSession.getState()
     try {
       receiveGame(message, session.sessionId, session.tableId)
+      const recoveringStone = this.stoneRecoveryGameId
+      if (recoveringStone && this.stoneSettledInLobby(recoveringStone)) {
+        // Both authorities must agree: the own result is settled and this table is WAITING.
+        // This clears only our earlier input-recovery wait, never an unsettled/new round.
+        useGame.setState({ recovery: 'LOBBY', uncertain: false, error: '' })
+        this.stoneRecoveryGameId = ''
+      }
       receiveWalletSettlement(message, session.sessionId)
       const alkkagi = useGame.getState().game?.alkkagi
       syncAlkkagiSocial(alkkagi?.gameId ?? '', alkkagi?.version ?? -1, alkkagi?.stage === 'AIMING')
@@ -829,6 +922,7 @@ export class ParkRuntime implements ParkRuntimePort {
     this.follow.reset()
     this.resetSpectator()
     ++this.generation
+    this.resetStoneRecovery()
     this.bootAbort?.abort()
     clearTimeout(this.timer)
     this.facilities.reset()
@@ -992,13 +1086,38 @@ export class ParkRuntime implements ParkRuntimePort {
         'WORLD_CHAT_MESSAGE',
       ])
       // Only server echoes enter the message list. No optimistic duplicate or automatic replay.
-    }, { blockControls: !avatars.get(useSession.getState().sessionId)?.carry })
+    }, { blockControls: !parkXRView.active && !avatars.get(useSession.getState().sessionId)?.carry })
   move = (dx: number, dz: number, run: boolean, jump = false) => {
     const intent = normalizedMove(dx, dz, run, jump)
     if (!intent || !this.canSendMovement(intent)) return
     localMovement.intend(intent)
     if (!stoppedIntent(intent)) cancelAvatarEmote(useSession.getState().sessionId, 'movement')
     this.movement.enqueue(intent, this.movementScope())
+  }
+  startBalloon = async (ticketId: string, position: BalloonPoint, boarding: BalloonBoarding) => {
+    const { roomId, sessionId } = useSession.getState()
+    const { payload } = await this.socket.request('WORLD_BALLOON_START', { ticketId, ...position, ...boarding }, ['WORLD_BALLOON_STATE'])
+    const leader = 'leaderId' in boarding ? boarding.leaderId : sessionId
+    if (payload.channelId !== roomId || payload.pilotId !== leader || !payload.flight) {
+      throw new Error('열기구 탑승 상태를 확인해주세요.')
+    }
+    return payload.party != null
+  }
+  launchBalloon = async (ticketId: string, solo: boolean) => {
+    await this.socket.request('WORLD_BALLOON_LAUNCH', { ticketId, solo }, ['WORLD_BALLOON_STATE'])
+  }
+  controlBalloon = async (ticketId: string, action: ControlAction) => {
+    await this.socket.request('WORLD_BALLOON_CONTROL', { ticketId, ...action }, ['WORLD_BALLOON_STATE'])
+  }
+  sendBalloonPose = (ticketId: string, position: BalloonPoint, aboard: boolean, cabin: CabinPose, input: BalloonInput) => {
+    if (!this.socket.connected) return
+    try { this.socket.send('WORLD_BALLOON_POSE', { ticketId, ...position, aboard, cabin, input }) }
+    catch { /* The next update or the flight expiry handles a transport interruption. */ }
+  }
+  endBalloon = (ticketId: string) => {
+    if (!this.socket.connected) return
+    try { this.socket.send('WORLD_BALLOON_END', { ticketId }) }
+    catch { /* The server also removes the balloon when the connection closes or expires. */ }
   }
   stopMovement = () => {
     this.movement.clear(false)
@@ -1043,15 +1162,18 @@ export class ParkRuntime implements ParkRuntimePort {
     const s = useSession.getState()
     return JSON.stringify([this.generation, s.sessionId, s.roomId, localMovement.epoch])
   }
-  private interactionStatus = { scope: '', busy: false, vrActive: false, desired: false, pending: null as Promise<boolean> | null, retryAt: 0 }
-  setInteractionBusy = (busy: boolean, confirm = false) => {
+  private interactionStatus = { scope: '', busy: false, vrActive: false, minigame: false, desired: false, desiredMinigame: false, pending: null as Promise<boolean> | null, retryAt: 0, requestId: '' }
+  setInteractionBusy = (busy: boolean, confirm = false, minigame?: boolean) => {
     const session = useSession.getState(), scope = JSON.stringify([this.generation, session.sessionId, session.roomId])
     if (!this.active || session.status !== 'connected' || !session.roomId || !session.mapCompatible
       || !this.socket.connected) return Promise.resolve(false)
     if (!session.carrySupported) return Promise.resolve(!confirm)
-    if (this.interactionStatus.scope !== scope) this.interactionStatus = { scope, busy: false, vrActive: false, desired: false, pending: null, retryAt: 0 }
+    // A confirmed seat already blocks carry. Lobby presence requests are rejected during a real game.
+    if (session.tableId || tableBusy()) return Promise.resolve(!confirm)
+    if (this.interactionStatus.scope !== scope) this.interactionStatus = { scope, busy: false, vrActive: false, minigame: false, desired: false, desiredMinigame: false, pending: null, retryAt: 0, requestId: '' }
     const status = this.interactionStatus
     status.desired = busy
+    if (minigame !== undefined) status.desiredMinigame = minigame
     let confirmNeeded = confirm
     const generation = this.generation
     const current = () => this.active && this.generation === generation && this.interactionStatus === status
@@ -1059,18 +1181,23 @@ export class ParkRuntime implements ParkRuntimePort {
     const sync = (): Promise<boolean> => {
       if (!current()) return Promise.resolve(false)
       if (status.pending) return status.pending.then(ok => ok ? sync() : false)
-      const vrActive = vrCarryProtection.active, desired = status.desired || vrActive
-      if (status.busy === desired && status.vrActive === vrActive && !confirmNeeded) return Promise.resolve(true)
+      const vrActive = vrCarryProtection.active, playing = status.desiredMinigame
+      // Older servers require busy=true whenever VR protection is active.
+      const desired = status.desired || (vrActive && !rentalCapability.xrAvailable)
+      if (status.busy === desired && status.vrActive === vrActive && status.minigame === playing && !confirmNeeded) return Promise.resolve(true)
       if (performance.now() < status.retryAt) return Promise.resolve(false)
       confirmNeeded = false
-      const payload = { busy: desired, ...(vrActive || status.vrActive ? { vrActive } : {}) }
+      const payload = { busy: desired, ...(vrActive || status.vrActive ? { vrActive } : {}),
+        ...(playing || status.minigame ? { minigame: playing } : {}) }
       status.pending = this.socket.request('WORLD_INTERACTION_SET', payload, ['WORLD_INTERACTION_STATE']).then(response => {
-        if (response.payload.channelId !== session.roomId || response.payload.busy !== desired
+        if (response.payload.channelId !== session.roomId || response.payload.busy !== (desired || vrActive)
           || (response.payload.vrActive === true) !== vrActive)
           throw new Error('창 점유 응답을 확인해주세요.')
         if (!current()) return false
-        status.busy = desired; status.vrActive = vrActive; return true
+        status.busy = desired; status.vrActive = vrActive; status.minigame = playing; return true
       }).catch(error => {
+        // A presence request sent before seating cannot revoke an already restored game's input.
+        if ((useSession.getState().tableId || tableBusy()) && error instanceof ServerError && error.code === 'GAME_RECOVERY_REQUIRED') return false
         if (current()) { status.retryAt = performance.now() + 1000; this.report(error) }
         return false
       }).finally(() => { status.pending = null })
@@ -1088,13 +1215,39 @@ export class ParkRuntime implements ParkRuntimePort {
   releaseAvatar = (carryId: string) => this.action(async () => {
     await this.socket.request('WORLD_CARRY_RELEASE', { carryId }, ['WORLD_STATE'])
   }, { blockControls: false })
+  async rentVehicle(target: RentalTarget, leaseId: string) {
+    const payload = { stationId: target.stationId, vehicle: target.vehicle, leaseId }
+    try {
+      await this.socket.request('WORLD_MOBILITY_START', payload, ['WORLD_MOBILITY_STATE'])
+    } catch (error) {
+      if (useMobility.getState().leaseId !== leaseId || useMobility.getState().phase !== 'starting') return
+      if (!(error instanceof ServerError)) {
+        // The server may have committed before the reply timed out. End the same lease.
+        await this.endVehicleRental(leaseId)
+        if (useMobility.getState().leaseId !== leaseId || this.socket.connected) return
+      }
+      useMobility.setState({ phase: 'idle', leaseId: '', vehicle: null })
+      rentalNotice(error instanceof ServerError ? error.message : '탑승 요청을 확인할 수 없어요.')
+    }
+  }
+  async endVehicleRental(leaseId: string) {
+    try {
+      await this.socket.request('WORLD_MOBILITY_END', { leaseId }, ['WORLD_MOBILITY_STATE'])
+    } catch {
+      const state = useMobility.getState()
+      if (state.leaseId !== leaseId) return
+      useMobility.setState({ phase: 'riding' })
+      rentalNotice('하차 요청을 확인할 수 없어요. 다시 시도해 주세요.')
+    }
+  }
+
   private canSendMovement(intent: MovementIntent) {
     const s = useSession.getState()
     return this.active && s.status === 'connected' && !!s.roomId && s.mapCompatible && avatars.has(s.sessionId)
       && !facilityMovementBlocked(s.sessionId)
       && (!avatars.get(s.sessionId)?.carry || avatars.get(s.sessionId)?.carry?.role === 'CARRIER')
       && !tableBusy() && !s.tableId && (!useGame.getState().watchedGameId || stoppedIntent(intent))
-      && (!inputState.minigameOpen || stoppedIntent(intent))
+      && (!(inputState.minigameOpen || inputState.localBalloon) || stoppedIntent(intent))
       && (!useTableLobby.getState().joiningAnchorId || stoppedIntent(intent))
       && (!(benchBusy(s.sessionId) || fitnessBusy(s.sessionId) || telescopeBusy(s.sessionId)) || stoppedIntent(intent)) && this.socket.connected
   }
@@ -1105,27 +1258,29 @@ export class ParkRuntime implements ParkRuntimePort {
   }
   private async sendMovement(intent: MovementIntent, scope: string) {
     if (scope !== this.movementScope() || !this.canSendMovement(intent)) return
-    if (localMovement.positionUnavailable) {
+    const riding = !!avatars.get(useSession.getState().sessionId)?.vehicle
+    if (!riding && localMovement.positionUnavailable) {
       const message = '이동 엔진을 준비하지 못했습니다. 새로고침 후 다시 접속해주세요.'
       if (useSession.getState().error !== message) this.report(message)
       return
     }
-    const fallback = localMovement.positionFallback()
+    const fallback = riding ? null : localMovement.positionFallback()
     if (fallback) {
       try { await this.socket.request('WORLD_POSITION_FALLBACK', fallback, ['WORLD_STATE']) }
       catch (error) { if (scope === this.movementScope() && this.active) this.report(error) }
       return
     }
-    if (localMovement.positionPreparing) return
+    if (!riding && localMovement.positionPreparing) return
     const sequence = ++this.inputSequence
     localMovement.sentInput(sequence, performance.now(), intent)
     let requestId = ''
     try {
-      const report = localMovement.positionReport(sequence, intent)
+      const report = riding ? null : localMovement.positionReport(sequence, intent)
+      const reportedSequence = report?.seq ?? sequence
       await this.socket.request(report ? 'WORLD_POSITION' : 'WORLD_MOVE', report ?? {
         seq: sequence,
         ...intent,
-      }, ['WORLD_STATE'], id => { requestId = id; this.movementRequests.set(id, sequence) })
+      }, ['WORLD_STATE'], id => { requestId = id; this.movementRequests.set(id, reportedSequence) })
       if (scope === this.movementScope() && this.active) clearMovementNotice(sequence)
     } catch (error) {
       if (scope !== this.movementScope() || !this.active) return
@@ -1215,8 +1370,14 @@ export class ParkRuntime implements ParkRuntimePort {
     })
     return ok && current() && useTableLobby.getState().status === 'ready'
   }
-  joinTable = (anchorId?: string) =>
-    this.action(async () => {
+  setSecretDoors = (open: boolean) =>
+    this.action(() => this.socket.request('WORLD_SECRET_DOORS_SET', { open }, ['WORLD_STATE']), { blockControls: false })
+  useInteriorAccess = (access: string) =>
+    this.action(() => this.socket.request('WORLD_INTERIOR_ACCESS', { access }, ['WORLD_STATE']), { blockControls: false })
+  joinTable = (anchorId?: string) => {
+    // The pending action releases pointer lock before the join checks run.
+    const mouseLook = useMouseLook.getState().active
+    return this.action(async () => {
       const joinGeneration = this.generation
       if (facilityMovementBlocked(useSession.getState().sessionId)) throw new FacilityUseBlockedError()
       if (inputState.minigameOpen) throw new Error('먼저 미니게임을 마쳐주세요.')
@@ -1239,7 +1400,7 @@ export class ParkRuntime implements ParkRuntimePort {
       if (s.tableId) throw new Error('먼저 현재 테이블에서 일어나주세요.')
       if (anchorId !== undefined) {
         if (!canReachTable(avatars.get(s.sessionId)?.current, anchorId)) throw new Error('테이블 의자 가까이에서 앉기를 눌러주세요.')
-        rememberRoamingView(s.sessionId, s.roomId)
+        rememberRoamingView(s.sessionId, s.roomId, mouseLook)
         useTableLobby.setState({ panelOpen: false, joiningAnchorId: anchorId })
         useSession.setState({ focusedAnchorId: '' })
         clearRoamingInput()
@@ -1260,6 +1421,7 @@ export class ParkRuntime implements ParkRuntimePort {
         }
       }
     })
+  }
   leaveTable = () =>
     this.action(async () => {
       // Only a naturally eliminated HALLI_GALLI player sends the same TABLE_LEAVE mid-game; the server re-checks the engine.
@@ -1284,7 +1446,7 @@ export class ParkRuntime implements ParkRuntimePort {
   setReady = (ready: boolean) =>
     this.action(async () => {
       const s = useSession.getState()
-      if (tableBusy() || !['OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE', 'DICE_LEDGER', 'ALKKAGI', 'HALLI_GALLI'].includes(s.tableStates[s.tableId]?.gameCode ?? ''))
+      if (tableBusy() || !['OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE', 'DICE_LEDGER', 'ALKKAGI', 'HALLI_GALLI', 'STONE_RUMBLE'].includes(s.tableStates[s.tableId]?.gameCode ?? ''))
         throw new Error('플레이 가능한 게임을 선택한 대기 테이블에서 준비해주세요.')
       const table = s.tableStates[s.tableId]
       if (ready && !isTableGamePlayable(table.gameCode)) throw new Error(GAME_CONSTRUCTION_NOTICE)
@@ -1297,12 +1459,31 @@ export class ParkRuntime implements ParkRuntimePort {
     this.action(() =>
       this.socket.request('GAME_START_CHECK', {}, ['GAME_START_STATE']),
     )
-  checkRecovery = () =>
-    this.action(() =>
-      this.socket.request('GAME_RECONNECT_CHECK', {}, [
-        'GAME_CONNECTION_STATE',
-      ]),
-    )
+  private stoneSettledInLobby(gameId: string) {
+    const state = useGame.getState(), session = useSession.getState()
+    return !!session.tableId && waitingForRound(state.start, session.tableId)
+      && !state.permittedGameId && state.completedGameId === gameId
+      && [state.result, state.lastResult].some(result => result?.gameSessionId === gameId && result.settlementStatus === 'SETTLED')
+  }
+  private recoverStoneInput(gameId: string): Promise<Envelope> {
+    if (this.stoneRecoveryFlight?.gameId === gameId) return this.stoneRecoveryFlight.promise
+    let requestId = ''
+    const request = this.socket.request('GAME_RECONNECT_CHECK', {}, ['GAME_CONNECTION_STATE'], id => {
+      requestId = id; this.stoneRecoveryRequests.set(id, gameId)
+    })
+    const flight = { gameId, promise: request.finally(() => {
+      this.stoneRecoveryRequests.delete(requestId)
+      if (this.stoneRecoveryFlight === flight) this.stoneRecoveryFlight = null
+    }) }
+    this.stoneRecoveryFlight = flight
+    return flight.promise
+  }
+  checkRecovery = () => this.action(() => {
+    const gameId = this.stoneRecoveryGameId, state = useGame.getState()
+    return gameId && (state.permittedGameId || state.completedGameId) === gameId
+      ? this.recoverStoneInput(gameId)
+      : this.socket.request('GAME_RECONNECT_CHECK', {}, ['GAME_CONNECTION_STATE'])
+  })
   checkGame = () =>
     this.action(async () => {
       const s = useGame.getState(),
@@ -1544,6 +1725,33 @@ export class ParkRuntime implements ParkRuntimePort {
       return true
     } catch { return false }
     finally { this.alkkagiSocialRequests.delete(requestId); if (cursor) this.alkkagiCursorPending = false }
+  }
+  actStoneRumble = (input: import('../../game/stone-rumble/protocol').StoneAction, clearQueuedActions = false): Promise<boolean> => {
+    if (input.kind !== 'control') return this.sendStoneAction(input)
+    const state = useGame.getState(), game = state.game
+    if (!game?.stone || game.role !== 'PLAYER' || useSession.getState().status !== 'connected'
+      || game.gameId !== state.permittedGameId || state.recovery !== 'RESTORED'
+      || game.stone.status !== 'PLAYING' || game.stone.phase === 'LOADING'
+      || !game.stone.players.find(player => player.userId === useSession.getState().sessionId)?.alive) {
+      this.stoneControls.reset()
+      return Promise.resolve(false)
+    }
+    return this.stoneControls.send(game.gameId, input, clearQueuedActions)
+  }
+  private sendStoneAction = async (input: import('../../game/stone-rumble/protocol').StoneAction): Promise<boolean> => {
+    const session = useSession.getState(), state = useGame.getState(), game = state.game
+    if (!game?.stone || game.role !== 'PLAYER' || session.status !== 'connected'
+      || game.gameId !== state.permittedGameId || state.recovery !== 'RESTORED' || game.stone.status !== 'PLAYING') return false
+    if (input.kind === 'control' && (game.stone.phase === 'LOADING'
+      || !game.stone.players.find(player => player.userId === session.sessionId)?.alive)
+      || input.kind === 'scene_ready' && game.stone.phase !== 'LOADING') return false
+    let requestId = ''
+    try {
+      await this.socket.request('GAME_ACTION_SEND', { gameId: game.gameId, actionId: crypto.randomUUID(), expectedVersion: game.version, input: { ...input } }, ['GAME_ACTION_RESULT'],
+        id => { requestId = id; this.stoneControlRequests.set(id, game.gameId) })
+      return true
+    } catch { return false }
+    finally { this.stoneControlRequests.delete(requestId) }
   }
   actAlkkagi = (input: Record<string, unknown>) => this.action(async () => {
     const own = useSession.getState(), s = useGame.getState(), g = s.game

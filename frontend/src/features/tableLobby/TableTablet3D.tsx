@@ -9,6 +9,7 @@ import { screenTransform, TABLET, tabletProjection } from './tabletProjection'
 import { SurfaceMaterial } from '../../world/art/SurfaceMaterial'
 import { BeveledBox } from '../../world/art/BeveledBox'
 import { renderedTableAnchors } from './tabletAnchors'
+import { STONE_RUMBLE_ANCHOR_ID } from '../../game/stone-rumble/entrance'
 
 const caseGeometry = new RoundedBoxGeometry(TABLET.width + .14, TABLET.height + .14, .08, 2, .025)
 const inlayGeometry = new RoundedBoxGeometry(TABLET.width + .108, TABLET.height + .108, .012, 2, .006)
@@ -19,7 +20,7 @@ export function TableTablet3D() {
   const own = useSession(s => s.tableId), seatIndex = useSession(s => s.seatIndex)
   const binding = useSession(s => s.bindings.find(b => b.channelId === s.roomId && b.tableId === own))
   const anchor = binding && (renderedTableAnchors.get(binding.anchorId) ?? TABLES.find(t => t.id === binding.anchorId))
-  if (!anchor || seatIndex < 0) return null
+  if (!anchor || anchor.id === STONE_RUMBLE_ANCHOR_ID || seatIndex < 0) return null
   return <TabletAsset key={`${own}/${seatIndex}`} anchor={anchor} seatIndex={seatIndex} />
 }
 function TabletAsset({ anchor, seatIndex }: { anchor: typeof TABLES[number]; seatIndex: number }) {
@@ -31,7 +32,7 @@ function TabletAsset({ anchor, seatIndex }: { anchor: typeof TABLES[number]; sea
     change(); media.addEventListener('change', change)
     return () => media.removeEventListener('change', change)
   }, [])
-  const seat = tableSeats(anchor)[seatIndex] ?? tableSeats(anchor)[0]!
+  const seat = tableSeats(anchor, seatIndex + 1)[seatIndex] ?? tableSeats(anchor)[0]!
   const yaw = Math.atan2(seat.x, seat.z), scale = tableScale(anchor)
   const points = useMemo(() => [new Vector3(), new Vector3(), new Vector3(), new Vector3()], [])
   const projected = useMemo(() => Array.from({ length: 4 }, () => ({ x: 0, y: 0 })), [])
@@ -43,7 +44,7 @@ function TabletAsset({ anchor, seatIndex }: { anchor: typeof TABLES[number]; sea
     const amount = power.current
     tabletProjection.amount = amount
     root.current.visible = amount > .005
-    root.current.position.y = anchor.position[1] + 1.06 + (TABLET.y - 1.06) * scale - (1 - amount) * .58
+    root.current.position.y = anchor.position[1] + (anchor.boardOffsetY ?? 0) + 1.06 + (TABLET.y - 1.06) * scale - (1 - amount) * .58
     root.current.scale.setScalar(scale * Math.max(.02, amount))
     root.current.updateWorldMatrix(true, true)
     camera.updateMatrixWorld()

@@ -2,6 +2,8 @@ import { CAMERA, TELESCOPE } from '../config'
 import { parkXRView } from './xrView'
 import { avatars, useSession } from '../network/worldClient'
 import { parkRuntime } from '../park/runtime/runtime'
+import { aimAtRental, canReachRental } from '../features/mobility/targets'
+import { HOLD_MS, rentalCapability, rentalNotice, resetMobility, sameTarget, useMobility } from '../features/mobility/state'
 import { createCarryEscape } from '../features/carry/escape'
 
 import { getParkInteraction, interactWithPark } from '../features/interactions/parkInteraction'
@@ -53,7 +55,8 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     benchDragging = '',
     benchExitKey = false,
     jump = false,
-    hadMovement = false
+    hadMovement = false,
+    rotatedIntentFrame = 0
   const intent: MovementIntent = { dx: 0, dz: 0, run: false, jump: false }
   const blocked = () =>
     parkXRView.ownsInput ||
@@ -66,10 +69,40 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     !!useGame.getState().watchedGameId ||
     !!(avatars.get(useSession.getState().sessionId)?.carry && avatars.get(useSession.getState().sessionId)?.carry?.role !== 'CARRIER') ||
     !!useSession.getState().tableId
+  let rentalTimer: ReturnType<typeof setTimeout> | undefined
+  const cancelRentalHold = () => {
+    clearTimeout(rentalTimer)
+    rentalTimer = undefined
+    if (useMobility.getState().holdAt !== null) useMobility.setState({ holdAt: null })
+  }
+  const rentalAvatar = () => {
+    const session = useSession.getState()
+    const avatar = avatars.get(session.sessionId)
+    return !blocked() && !panelOwnsKeys() && !session.pending && !session.benchId && !session.fitnessId
+      && !session.telescopeId && !avatar?.swimming && !avatar?.carry ? avatar : undefined
+  }
+  const updateRentalTarget = () => {
+    const state = useMobility.getState()
+    const avatar = rentalAvatar()
+    const inHold = state.holdAt !== null
+    const inReach = avatar && state.target && canReachRental(avatar.current, state.target)
+    const target = avatar && state.phase === 'idle' && !avatar.vehicle
+      ? inHold ? inReach ? state.target : null : aimAtRental(avatar.current)
+      : null
+    if (!sameTarget(state.target, target)) {
+      cancelRentalHold()
+      useMobility.setState({ target })
+    }
+    return target
+  }
   const stop = () => {
+    if (rotatedIntentFrame) cancelAnimationFrame(rotatedIntentFrame)
+    rotatedIntentFrame = 0
+    cancelRentalHold()
     carryEscape.reset()
     keys.clear()
     drag = jump = hadMovement = false
+    roamingInput.draggingCamera = false
     seatDragging = ''
     benchDragging = ''
     benchExitKey = false
@@ -88,7 +121,12 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     const scale = lookScale()
     viewControls.yaw -= x * 0.004 * scale
     viewControls.pitch = Math.max(-0.2, Math.min(1.1, viewControls.pitch + y * 0.003 * scale))
-    if (hadMovement) sendIntent()
+    // A mouse can dispatch several updates before a frame is rendered. Keep
+    // the latest aim, and update prediction once with the final heading.
+    if (hadMovement && !rotatedIntentFrame) rotatedIntentFrame = requestAnimationFrame(() => {
+      rotatedIntentFrame = 0
+      if (hadMovement && !blocked()) sendIntent()
+    })
   }
   // Shared by drag and mouse look; zoom slows the aim and the server sync keeps its own interval.
   const turnTelescope = (x: number, y: number) => {
@@ -161,7 +199,9 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     if (lookOwner() === null || next.roomId !== previous.roomId || next.sessionId !== previous.sessionId) {
       mouseLook.release()
     }
-    if (next.roomId !== previous.roomId || next.sessionId !== previous.sessionId) { resetCameraReturn(); stop() }
+    if (next.roomId !== previous.roomId || next.sessionId !== previous.sessionId || next.status !== previous.status) {
+      resetCameraReturn(); stop(); resetMobility()
+    }
   })
   const focus = (event: FocusEvent) => {
     if (event.target === canvas) return
@@ -221,6 +261,18 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
       blocked()
     )
       return
+    const rental = useMobility.getState()
+    if ((event.code === 'Space' || event.code === 'Escape') && !panelOwnsKeys()
+      && !(event.code === 'Escape' && document.querySelector('[aria-haspopup="menu"][aria-expanded="true"]'))
+      && rental.phase !== 'idle') {
+      event.preventDefault()
+      if (!event.repeat && (rental.phase === 'riding' || rental.phase === 'starting' && !!rental.vehicle)) {
+        stop()
+        useMobility.setState({ phase: 'ending' })
+        void parkRuntime.endVehicleRental?.(rental.leaseId)
+      }
+      return
+    }
     if (event.code === 'KeyV' && !event.repeat && !event.shiftKey && canControlRoamingCamera()) {
       event.preventDefault()
       changePerspective()
@@ -240,13 +292,14 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     }
     if (movement.has(event.code)) {
       event.preventDefault()
+      // A key held through a stop (such as dismounting) can still auto-repeat.
+      // Only a new press may register that key again.
+      if (event.repeat) return
       if (useSession.getState().benchId) {
-        if (!event.repeat && event.code !== 'ShiftLeft' && event.code !== 'ShiftRight') void standBench()
-        if (event.repeat) return
+        if (!event.code.startsWith('Shift')) void standBench()
       }
       if (useSession.getState().fitnessId) {
-        if (!event.repeat && event.code !== 'ShiftLeft' && event.code !== 'ShiftRight') void leaveFitness()
-        if (event.repeat) return
+        if (!event.code.startsWith('Shift')) void leaveFitness()
       }
       const changed = !keys.has(event.code)
       keys.add(event.code)
@@ -264,6 +317,39 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
       }
     }
     if (event.code === 'KeyE' && !event.repeat && !inputState.wardrobeOpen) {
+      const target = updateRentalTarget()
+      if (target && !event.shiftKey && parkRuntime.rentVehicle) {
+        event.preventDefault()
+        if (!rentalCapability.available) {
+          rentalNotice('현재 채널에서는 탈것을 대여할 수 없어요.')
+          return
+        }
+        const holdAt = performance.now()
+        useMobility.setState({ holdAt, notice: '' })
+        const prepareVehicle = () => {
+          if (useMobility.getState().holdAt !== holdAt || document.hidden) return
+          void import('../features/mobility/mountedVehicle').then(({ prepareMountedVehicle }) => {
+            if (useMobility.getState().holdAt === holdAt && !document.hidden) prepareMountedVehicle(target.vehicle)
+          }).catch(error => console.warn('탑승 모델을 미리 준비하지 못했습니다.', error))
+        }
+        // Use the hold period to build geometry outside the first mounted frame.
+        if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(prepareVehicle, { timeout: 250 })
+        else setTimeout(prepareVehicle, 0)
+        rentalTimer = setTimeout(() => {
+          rentalTimer = undefined
+          const state = useMobility.getState(), avatar = rentalAvatar()
+          if (!rentalCapability.available || state.holdAt !== holdAt || !avatar || !canReachRental(avatar.current, target)) {
+            cancelRentalHold()
+            return
+          }
+          const leaseId = crypto.randomUUID()
+          stop()
+          useMobility.setState({ phase: 'starting', holdAt: null, target: null, leaseId, total: 0 })
+          void parkRuntime.rentVehicle?.(target, leaseId)
+        }, HOLD_MS)
+        return
+      }
+      if (rental.phase !== 'idle') { event.preventDefault(); return }
       if (interactWithPark()) {
         event.preventDefault()
         canvas.focus({ preventScroll: true })
@@ -272,6 +358,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     }
   }
   const up = (event: KeyboardEvent) => {
+    if (event.code === 'KeyE') cancelRentalHold()
     const changed = keys.delete(event.code)
     if (changed && movement.has(event.code) && !blocked() && !useSession.getState().telescopeId) sendIntent()
   }
@@ -296,11 +383,14 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     }
     if (event.button === 0 && !panelOwnsMovement()) {
       drag = true
+      roamingInput.draggingCamera = !session.telescopeId && !session.tableId && !session.benchId
       canvas.focus({ preventScroll: true })
     }
   }
   const pointerMove = (event: PointerEvent) => {
-    if (scenePointerOwners.has(event.pointerId)) { benchDragging = ''; seatDragging = ''; drag = false; return }
+    if (scenePointerOwners.has(event.pointerId)) {
+      benchDragging = ''; seatDragging = ''; drag = false; roamingInput.draggingCamera = false; return
+    }
     if (mouseLook.locked()) return
     if (benchDragging) {
       const benchView = useBenchSpectator.getState()
@@ -327,6 +417,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
   const pointerUp = (event: PointerEvent) => {
     scenePointerOwners.delete(event.pointerId)
     drag = false
+    roamingInput.draggingCamera = false
     seatDragging = ''
     benchDragging = ''
   }
@@ -348,6 +439,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
     )
   }
   const interval = setInterval(() => {
+    updateRentalTarget()
     // XR owns both intent and the idle position heartbeat until its session ends.
     if (parkXRView.ownsInput) { carryEscape.reset(); return }
     if (avatars.get(useSession.getState().sessionId)?.carry?.role !== 'CARRIED' || panelOwnsKeys()
@@ -392,6 +484,8 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
   return () => {
     scenePointerOwners.clear()
     roamingInput.ready = false
+    cancelRentalHold()
+    resetMobility()
     clearInterval(interval)
     clearInterval(aiming)
     if (telescopeFrame) cancelAnimationFrame(telescopeFrame)

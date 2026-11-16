@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#294739">
+    <title>온탑 · 220m 숲과 호수 공원</title>
+  </head>
+  <body class="park-renewal-preview">
+    <header class="park-header">
+      <div>
+        <h1>숲과 호수 공원</h1>
+        <p>220 × 220m · 지형과 시설 배치</p>
+      </div>
+      <div class="park-controls">
+        <div class="park-views" role="group" aria-label="보기 방식">
+          <button type="button" data-park-view="overview" aria-pressed="true">전체 전경</button>
+          <button type="button" data-park-view="plan" aria-pressed="false">평면도</button>
+        </div>
+        <label class="park-facilities">
+          <span>시설 보기</span>
+          <select id="park-facility">
+            <option value="">공원 전체</option>
+          </select>
+        </label>
+        <label id="park-stair-flight-control" class="park-facilities" hidden>
+          <span>이동로 왕복</span>
+          <select id="park-stair-flight"></select>
+        </label>
+        <button id="park-fence-jump" type="button" hidden>울타리 점프</button>
+      </div>
+    </header>
+    <main id="park-viewport" aria-label="220m 공원 3D 배치">
+      <p id="park-loading" role="status">공원 지형을 불러오는 중…</p>
+      <details class="park-render-profile" data-render-profile="rental-profile" open hidden>
+        <summary>대여소 8곳 최적화 비교</summary>
+        <p>전체 전경 · 1440 × 900 · 동일 카메라</p>
+        <table aria-label="최적화 전후 렌더링 수치">
+          <thead><tr><th scope="col">항목</th><th scope="col">전</th><th scope="col">후</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">대여소 드로우콜</th><td>440</td><td>184</td></tr>
+            <tr><th scope="row">대여소 삼각형</th><td>399,040</td><td>399,040</td></tr>
+            <tr><th scope="row">공원 드로우콜</th><td>1,442</td><td>1,186</td></tr>
+            <tr><th scope="row">공원 삼각형</th><td>3,203,398</td><td>3,203,398</td></tr>
+          </tbody>
+        </table>
+        <nav aria-label="최적화 전후 보기">
+          <a href="?rental-profile=before" data-profile-view="before">최적화 전</a>
+          <a href="?rental-profile=after" data-profile-view="after">최적화 후</a>
+        </nav>
+      </details>
+      <details class="park-render-profile" data-render-profile="tree-profile" open hidden>
+        <summary>일반 수목 664그루 최적화 비교</summary>
+        <p>전체 전경 · 1440 × 900 · 동일 카메라</p>
+        <table aria-label="수목 최적화 전후 렌더링 수치">
+          <thead><tr><th scope="col">항목</th><th scope="col">전</th><th scope="col">후</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">수목 드로우콜</th><td>207</td><td>80</td></tr>
+            <tr><th scope="row">수목 삼각형</th><td>167,240</td><td>167,240</td></tr>
+            <tr><th scope="row">공원 드로우콜</th><td>1,186</td><td>1,059</td></tr>
+            <tr><th scope="row">공원 삼각형</th><td>3,203,398</td><td>3,203,398</td></tr>
+          </tbody>
+        </table>
+        <nav aria-label="수목 최적화 전후 보기">
+          <a href="?tree-profile=before" data-profile-view="before">최적화 전</a>
+          <a href="?tree-profile=after" data-profile-view="after">최적화 후</a>
+        </nav>
+      </details>
+      <details class="park-render-profile" data-render-profile="skewer-profile" data-profile-facility="vr" open hidden>
+        <summary>VR 꼬치왕 체험관 최적화 비교</summary>
+        <p>체험관 근접 보기 · 1440 × 900 · 동일 카메라</p>
+        <table aria-label="VR 꼬치왕 체험관 전후 렌더링 수치">
+          <thead><tr><th scope="col">항목</th><th scope="col">전</th><th scope="col">후</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">체험관 드로우콜</th><td>22</td><td>22</td></tr>
+            <tr><th scope="row">체험관 삼각형</th><td>231,004</td><td>147,900</td></tr>
+          </tbody>
+        </table>
+        <nav aria-label="VR 꼬치왕 최적화 전후 보기">
+          <a href="?skewer-profile=before" data-profile-view="before">최적화 전</a>
+          <a href="?skewer-profile=after" data-profile-view="after">최적화 후</a>
+        </nav>
+      </details>
+      <details class="park-render-profile" data-render-profile="pavilion-profile" data-profile-facility="pavilion" open hidden>
+        <summary>메인 팔각정 최적화 비교</summary>
+        <p>팔각정 근접 보기 · 1440 × 900 · 동일 카메라</p>
+        <table aria-label="메인 팔각정 최적화 전후 수치">
+          <thead><tr><th scope="col">항목</th><th scope="col">전</th><th scope="col">후</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">드로우콜</th><td>14</td><td>14</td></tr>
+            <tr><th scope="row">삼각형</th><td>194,804</td><td>119,062</td></tr>
+            <tr><th scope="row">GLB 용량</th><td>20.04 MiB</td><td>2.49 MiB</td></tr>
+          </tbody>
+        </table>
+        <nav aria-label="메인 팔각정 최적화 전후 보기">
+          <a href="?pavilion-profile=before" data-profile-view="before">최적화 전</a>
+          <a href="?pavilion-profile=after" data-profile-view="after">최적화 후</a>
+        </nav>
+      </details>
+      <details class="park-render-profile" data-render-profile="cafe-profile" data-profile-facility="cafe" open hidden>
+        <summary>한정선 카페 최적화 비교</summary>
+        <p>시설 근접 보기 · 1440 × 900 · 동일 카메라</p>
+        <table aria-label="한정선 카페 최적화 전후 수치">
+          <thead><tr><th scope="col">항목</th><th scope="col">전</th><th scope="col">후</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">드로우콜</th><td>19</td><td>19</td></tr>
+            <tr><th scope="row">삼각형</th><td>100,924</td><td>48,091</td></tr>
+            <tr><th scope="row">GLB 용량</th><td>10.40 MiB</td><td>1.13 MiB</td></tr>
+          </tbody>
+        </table>
+        <nav aria-label="한정선 카페 최적화 전후 보기">
+          <a href="?cafe-profile=before" data-profile-view="before">최적화 전</a>
+          <a href="?cafe-profile=after" data-profile-view="after">최적화 후</a>
+          <a href="?pigeon-profile=after">비둘기 가게</a>
+        </nav>
+      </details>
+      <details class="park-render-profile" data-render-profile="pigeon-profile" data-profile-facility="pigeon" open hidden>
+        <summary>비둘기 가게 최적화 비교</summary>
+        <p>시설 근접 보기 · 1440 × 900 · 동일 카메라</p>
+        <table aria-label="비둘기 가게 최적화 전후 수치">
+          <thead><tr><th scope="col">항목</th><th scope="col">전</th><th scope="col">후</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">드로우콜</th><td>35</td><td>35</td></tr>
+            <tr><th scope="row">삼각형</th><td>94,984</td><td>62,594</td></tr>
+            <tr><th scope="row">GLB 용량</th><td>9.82 MiB</td><td>1.41 MiB</td></tr>
+          </tbody>
+        </table>
+        <nav aria-label="비둘기 가게 최적화 전후 보기">
+          <a href="?pigeon-profile=before" data-profile-view="before">최적화 전</a>
+          <a href="?pigeon-profile=after" data-profile-view="after">최적화 후</a>
+          <a href="?cafe-profile=after">한정선 카페</a>
+        </nav>
+      </details>
+      <details class="park-render-profile" data-render-profile="glb-profile" open hidden>
+        <summary>공원 GLB 6종 최적화 비교</summary>
+        <label>
+          <span>비교할 에셋</span>
+          <select>
+            <option value="bread">붕어빵 가게</option>
+            <option value="fortune">오늘의 운세</option>
+            <option value="lottery">온탑 복권방</option>
+            <option value="dock">오리배 선착장</option>
+            <option value="boat">오리배</option>
+            <option value="stele">점프맵 안내 비석</option>
+          </select>
+        </label>
+        <p>시설 근접 보기 · 1440 × 900 · 동일 카메라</p>
+        <table aria-label="선택한 에셋의 최적화 전후 수치">
+          <thead><tr><th scope="col">항목</th><th scope="col">전</th><th scope="col">후</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">드로우콜</th><td></td><td></td></tr>
+            <tr><th scope="row">삼각형</th><td></td><td></td></tr>
+            <tr><th scope="row">GLB 용량</th><td></td><td></td></tr>
+          </tbody>
+        </table>
+        <nav aria-label="에셋 최적화 전후 보기">
+          <a href="?glb-profile=before" data-profile-view="before">최적화 전</a>
+          <a href="?glb-profile=after" data-profile-view="after">최적화 후</a>
+        </nav>
+      </details>
+      <details class="park-render-profile" data-render-profile="station-profile" data-profile-facility="balloon" open hidden>
+        <summary>열기구 승강장 최적화 비교</summary>
+        <p>동일 카메라 · 승강장과 계단 집계</p>
+        <table aria-label="열기구 승강장 최적화 전후 수치">
+          <thead><tr><th scope="col">항목</th><th scope="col">전</th><th scope="col">후</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">드로우콜</th><td>3</td><td>3</td></tr>
+            <tr><th scope="row">삼각형</th><td>5,052</td><td>4,372</td></tr>
+            <tr><th scope="row">GLB 용량</th><td>570.15 KiB</td><td>55.18 KiB</td></tr>
+          </tbody>
+        </table>
+        <p>최적화 전 용량은 기존 모델을 GLB로 내보낸 기준입니다.</p>
+        <nav aria-label="승강장 최적화 전후 보기">
+          <a href="?station-profile=before" data-profile-view="before">최적화 전</a>
+          <a href="?station-profile=after" data-profile-view="after">최적화 후</a>
+          <a href="?sub-pavilion-profile=after">기본 팔각정</a>
+        </nav>
+      </details>
+      <details class="park-render-profile" data-render-profile="sub-pavilion-profile" data-profile-facility="island-pavilion" open hidden>
+        <summary>기본 팔각정 5곳 최적화 비교</summary>
+        <p>동일 카메라 · 팔각정 한 곳 기준</p>
+        <table aria-label="기본 팔각정 최적화 전후 수치">
+          <thead><tr><th scope="col">항목</th><th scope="col">전</th><th scope="col">후</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">드로우콜</th><td>8</td><td>8</td></tr>
+            <tr><th scope="row">삼각형</th><td>24,176</td><td>18,690</td></tr>
+            <tr><th scope="row">공유 GLB 용량</th><td>2.50 MiB</td><td>0.47 MiB</td></tr>
+          </tbody>
+        </table>
+        <p>최적화 전 용량은 기존 모델을 GLB로 내보낸 기준입니다.</p>
+        <nav aria-label="기본 팔각정 최적화 전후 보기">
+          <a href="?sub-pavilion-profile=before" data-profile-view="before">최적화 전</a>
+          <a href="?sub-pavilion-profile=after" data-profile-view="after">최적화 후</a>
+          <a href="?station-profile=after">열기구 승강장</a>
+        </nav>
+      </details>
+      <details class="park-render-profile" data-render-profile="facility-profile" open hidden>
+        <summary>공원 시설 5곳 최적화 비교</summary>
+        <label>
+          <span>비교할 시설</span>
+          <select>
+            <option value="tower">40m 전망대</option>
+            <option value="mole">두더지 가게</option>
+            <option value="shooting">사격장</option>
+            <option value="folk">전통놀이존</option>
+            <option value="arcade">오락실</option>
+          </select>
+        </label>
+        <p>동일 카메라</p>
+        <table aria-label="선택한 시설의 최적화 전후 수치">
+          <thead><tr><th scope="col">항목</th><th scope="col">전</th><th scope="col">후</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">드로우콜</th><td></td><td></td></tr>
+            <tr><th scope="row">삼각형</th><td></td><td></td></tr>
+            <tr><th scope="row">GLB 용량</th><td></td><td></td></tr>
+          </tbody>
+        </table>
+        <p>정적 메시만 집계 · 전 용량은 GLB 내보내기 기준</p>
+        <nav aria-label="시설 최적화 전후 보기">
+          <a href="?facility-profile=before" data-profile-view="before">최적화 전</a>
+          <a href="?facility-profile=after" data-profile-view="after">최적화 후</a>
+        </nav>
+      </details>
+      <details class="park-render-profile" data-render-profile="details-profile" open hidden>
+        <summary>공원 시설·소품 16종 최적화 비교</summary>
+        <label>
+          <span>비교할 에셋</span>
+          <select>
+            <option value="jump">돌탑 점프맵 10단계</option>
+            <option value="pagoda">대석탑 정원</option>
+            <option value="fountain">분수대</option>
+            <option value="bench">벤치</option>
+            <option value="lamp">가로등</option>
+            <option value="mailbox">소리함</option>
+            <option value="ranking">랭킹보드판</option>
+            <option value="notes">메모함</option>
+            <option value="telescope">전망대 망원경</option>
+            <option value="table">돌테이블</option>
+            <option value="gacha">뽑기기계</option>
+            <option value="fence">울타리</option>
+            <option value="fortress">성벽</option>
+            <option value="boundary">외벽</option>
+            <option value="city">외곽건물</option>
+            <option value="stairs">석탑 앞 긴 계단</option>
+          </select>
+        </label>
+        <p>동일 카메라</p>
+        <table aria-label="선택한 에셋의 최적화 전후 수치">
+          <thead><tr><th scope="col">항목</th><th scope="col">전</th><th scope="col">후</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">드로우콜</th><td></td><td></td></tr>
+            <tr><th scope="row">삼각형</th><td></td><td></td></tr>
+            <tr><th scope="row">GLB 용량</th><td></td><td></td></tr>
+          </tbody>
+        </table>
+        <p>정적 메시 집계 · 전 용량은 GLB 내보내기 기준</p>
+        <nav aria-label="시설·소품 최적화 전후 보기">
+          <a href="?details-profile=before" data-profile-view="before">최적화 전</a>
+          <a href="?details-profile=after" data-profile-view="after">최적화 후</a>
+        </nav>
+      </details>
+    </main>
+    <footer class="park-footer">
+      <span id="park-selection" aria-live="polite">전체 배치</span>
+      <span id="park-hint" aria-live="polite">드래그로 회전 · 휠 또는 두 손가락으로 확대</span>
+    </footer>
+    <script type="module" src="/park-renewal-preview/main.ts"></script>
+  </body>
+</html>

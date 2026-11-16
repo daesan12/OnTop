@@ -3,7 +3,9 @@ package com.ssafy.ontop.world.movement;
 import static org.assertj.core.api.Assertions.*;
 import static com.ssafy.ontop.world.movement.ClientPositionValidator.*;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.jme3.math.Vector3f;
 import com.ssafy.ontop.world.dto.WorldMapMetadata;
+import com.ssafy.ontop.world.map.PreparedParkMap;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.Set;
@@ -12,6 +14,72 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 
 class ParkMovementPolicyTests {
     private long now;
+
+    @Test
+    void 활성_테이블에_완전히_포함된_장식만_복구_경로에서_중복으로_취급한다() {
+        ObjectNode data = scene().data.deepCopy();
+        var boxes = (com.fasterxml.jackson.databind.node.ArrayNode) data.path("boxes");
+        box(boxes, "park-prop-1", 0, 1, 0, .7, .25, .7);
+        box(boxes, "park-prop-2", .8, 1, 0, .25, .25, .25);
+        var policy = ParkScene.fromPreparedData(data, new WorldMapMetadata("park", 2, "d".repeat(64))).policy;
+
+        assertThat(policy.managesCorrectionShape("park-prop-1", id -> true)).isTrue();
+        assertThat(policy.managesCorrectionShape("park-prop-1", id -> !id.equals("table-1-top"))).isFalse();
+        assertThat(policy.managesCorrectionShape("park-prop-2", id -> true)).isFalse();
+    }
+
+    @Test
+    void 중앙광장_가구_앞에서_정지하고_옆이나_뒤로_움직일_수_있다() throws Exception {
+        Path dir = Path.of("../frontend/generated/park-renewal");
+        var map = PreparedParkMap.load(dir.resolve("server-map.json"), dir.resolve("manifest.json"), Set.of("channel-1"));
+        var policy = map.createScene().policy;
+        var start = new Vector3f(8.4f, 4.885f, 27);
+        java.util.function.Predicate<String> active = id -> !id.matches("table-\\d+-chair-[2-7]");
+
+        var forward = new Vector3f(.5f, 0, 0);
+        var contact = start.add(policy.limitFurnitureTravel(start, forward, active));
+        assertThat(contact.x).isBetween(8.60f, 8.65f);
+        assertThat(policy.slide(contact, active)).isEqualTo(contact);
+        assertThat(policy.limitFurnitureTravel(contact, forward, active)).isEqualTo(Vector3f.ZERO);
+
+        var sideways = new Vector3f(0, 0, .5f);
+        var backward = new Vector3f(-.5f, 0, 0);
+        assertThat(policy.limitFurnitureTravel(contact, sideways, active)).isEqualTo(sideways);
+        assertThat(policy.limitFurnitureTravel(contact, backward, active)).isEqualTo(backward);
+    }
+
+    @Test
+    void 도착점이_가구를_벗어나도_경로에서_처음_만나는_활성_가구를_막는다() {
+        var policy = scene().policy;
+        var start = new Vector3f(3.5f, .8f, 0);
+        var step = new Vector3f(3, 0, 0);
+        assertThat(start.add(policy.limitFurnitureTravel(start, step, id -> true)).x).isBetween(4.25f, 4.30f);
+        assertThat(policy.limitFurnitureTravel(start, step, id -> !id.equals("table-1-chair-2"))).isEqualTo(step);
+    }
+
+    @Test
+    void 돌테이블_모서리의_밀어낼_자리가_막혀도_충돌_직전_위치를_유지한다() {
+        ObjectNode data = scene().data.deepCopy();
+        ((ObjectNode) data.path("furniturePolicy")).put("exitGap", .18);
+        box((com.fasterxml.jackson.databind.node.ArrayNode) data.path("boxes"),
+                "wall", -1.75, 1.25, -1, .1, 1.25, 1);
+        var blockedExit = ParkScene.fromPreparedData(data, new WorldMapMetadata("park", 2, "e".repeat(64)));
+        try (var world = new WorldPhysics(blockedExit, false, () -> now, false)) {
+            world.add("a");
+            world.place("a", -1.32, .8, -1.31);
+            var before = world.snapshot("a");
+            assertThat(world.canStand(before.x(), before.y(), before.z())).isTrue();
+
+            now += WorldPhysics.STEP_NANOS;
+            world.input("a", new MoveInput(1, .45, .89, false, false), now);
+            world.step(now, Set.of());
+
+            var after = world.snapshot("a");
+            assertThat(after.motion().epoch()).isGreaterThan(before.motion().epoch());
+            assertThat(after.x()).isCloseTo(before.x(), within(.001));
+            assertThat(after.z()).isCloseTo(before.z(), within(.001));
+        }
+    }
     @Test void 가구_내부와_분수_중심의_복구는_서버가_바깥으로_확정하고_착석은_유지한다() {
         try (var world = new WorldPhysics(scene(), true, () -> now, true)) {
             world.add("a"); world.place("a", 0, 1.5, 0);

@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { COURSE_VERSION, MAP_VERSION, RULES_VERSION, expectedCoins, kstDate, COURSE } from './course'
+import { COURSE_VERSION, MAP_VERSION, RULES_VERSION, STAGE_COUNT, expectedCoins, kstDate, COURSE } from './activeCourse'
 import { parseJumpEvent, type JumpEvent, type JumpStatus, type RunView, type TipKey, type EndReason } from './protocol'
 
 /** recovered: 끊긴 동안 끝나 status lastRun으로 늦게 받은 결과. 팁·효과음을 다시 내지 않는다. */
@@ -13,6 +13,7 @@ const initial = () => ({ owner: '', channelId: '', mapVersion: '', available: fa
 export const useJumpmap = create(initial)
 export const hits = new Map<number, { at: number; power: number }>()
 export const standing = new Map<string, number>()
+export const moleLandings = new Map<number, number>()
 const lastSteps = new Map<string, number>(), closed = new Set<string>()
 // 재연결하면 closed가 비므로, 이미 보여 준 결과 runId는 탭 단위로 남겨 같은 결과를 두 번 띄우지 않는다.
 const SHOWN_KEY = 'ontop.jumpmap.shownResults'
@@ -34,7 +35,7 @@ export function presentStep(block: number, player: string, power: number, now = 
   if (!previous || now - previous.at >= 150) hits.set(block, { at: now, power })
   stepListeners.forEach(fn => fn(block, player, power))
 }
-export function resetJumpmap() { hits.clear(); standing.clear(); lastSteps.clear(); closed.clear(); useJumpmap.setState(initial(), true) }
+export function resetJumpmap() { hits.clear(); standing.clear(); moleLandings.clear(); lastSteps.clear(); closed.clear(); useJumpmap.setState(initial(), true) }
 export function closeJumpCompletion() { useJumpmap.setState({ completion: null }) }
 export function bindJumpmap(owner: string, channelId: string, mapVersion: string) {
   const s = useJumpmap.getState()
@@ -74,13 +75,22 @@ export function receiveJumpmap(type: string, payload: unknown, owner: string, ch
 export function acceptJumpEvent(e: JumpEvent, now = performance.now()) {
   const s = useJumpmap.getState()
   if (!s.owner || e.channelId !== s.channelId || e.mapVersion !== s.mapVersion) return
-  if (e.type === 'JUMPMAP_STEP') { if (s.available) presentStep(e.block, e.playerId, e.playerId === s.owner ? 1 : .65, now); return }
+  if (e.type === 'JUMPMAP_STEP') {
+    if (s.available) {
+      if (s.run && e.playerId === s.owner && COURSE[e.block]?.theme === 'mole' && e.serverTime !== undefined) {
+        moleLandings.set(e.block, e.serverTime / 1000)
+      }
+      presentStep(e.block, e.playerId, e.playerId === s.owner ? 1 : .65, now)
+    }
+    return
+  }
   if (e.revision <= s.revision) return
   if (e.type === 'JUMPMAP_STARTED') {
     if (closed.has(e.runId)) return
     const available = e.courseVersion === COURSE_VERSION && e.rulesVersion === RULES_VERSION && e.mapVersion === MAP_VERSION
     if (!available) { useJumpmap.setState({ available: false, checked: true, error: '점프맵 버전이 달라요. 새로고침해 주세요.' }); return }
     const same = s.run?.runId === e.runId
+    if (!same) moleLandings.clear()
     useJumpmap.setState({ available: true, checked: true, revision: e.revision, ...moneyPatch(e), result: null, recovering: false, completion: null,
       run: same ? s.run : { runId: e.runId, elapsedMs: 0, gatesPassed: 0, finalReached: false, maxHeight: 0, runCoins: 0, startedAt: now },
       ...(same ? {} : { popup: null, banner: null }) }); return
@@ -118,7 +128,7 @@ export function anticipateGate(gate: number, now = performance.now()) {
   if (!s.run || gate !== s.run.gatesPassed + 1 || s.popup?.gate === gate) return
   useJumpmap.setState({ popup: { gate, amount: s.todayEarned === null ? null : expectedCoins(gate, s.todayEarned), label: '확인 중…', at: now, anticipated: true } })
 }
-const tips: Record<TipKey, string> = { START_SPOT: '첫 발판을 밟으면 시작해요. 세이브 포인트는 없어요', RUN_STARTED: '구간 문을 지나면 엽전을 받아요', FIRST_GATE: '떨어져도 받은 엽전은 그대로예요', FIRST_FALL: '걸어서 돌탑으로 돌아가요. 돌탑 길 안내를 켜 보세요', FINAL_PAD: '앞의 엽전을 향해 호수로 뛰어드세요' }
+const tips: Record<TipKey, string> = { START_SPOT: '첫 발판을 밟으면 시작해요. 세이브 포인트는 없어요', RUN_STARTED: '구간 문을 지나면 엽전을 받아요', FIRST_GATE: '떨어져도 받은 엽전은 그대로예요', FIRST_FALL: '걸어서 돌탑으로 돌아가요. 돌탑 길 안내를 켜 보세요', FINAL_PAD: STAGE_COUNT===10?'오리를 따라 호수섬으로 내려오세요':'앞의 엽전을 향해 호수로 뛰어드세요' }
 export function showTip(key: TipKey, now = performance.now()) {
   const s = useJumpmap.getState(); if (s.seenTips.includes(key)) return false
   useJumpmap.setState({ seenTips: [...s.seenTips, key], tip: { key, text: tips[key], until: now + 1200 } }); return true

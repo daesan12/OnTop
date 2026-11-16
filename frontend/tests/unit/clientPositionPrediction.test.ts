@@ -40,6 +40,12 @@ it('reports an actual buffered takeoff and its preceding landing even when the r
   expect(takeoff).toBeGreaterThan(0)
   expect(report.path![takeoff - 1]?.y).toBe(.84)
   expect(report.path?.every(point => !('supported' in point))).toBe(true)
+  expect(prediction.positionReport(2, stop, 120)).toEqual(report)
+  prediction.reconcile('path', origin, { ...tuned, tick: 4 }, true, 120)
+  expect(prediction.positionReport(3, stop, 180)).toEqual(report)
+  prediction.reconcile('path', report, { ...tuned, tick: 6, appliedInputSeq: 1 }, true, 180)
+  expect(prediction.positionReport(4, stop, 180)?.seq).toBe(4)
+  expect(prediction.positionReport(5, stop, 180)?.path?.some(point => point.jump)).toBe(false)
   prediction.reset()
 })
 
@@ -56,6 +62,7 @@ it('retains all 64 samples and holds before overflow, then resumes without catch
   expect(report.path).toHaveLength(64)
   expect(report.path![30]?.jump).toBe(true)
   expect(report.path!.at(-1)).toMatchObject({ x: report.x, y: report.y, z: report.z })
+  prediction.reconcile('path', report, { ...tuned, tick: 1, appliedInputSeq: 1 }, true, 1000)
   const held = report.x
   const resumed = prediction.positionReport(2, stop, 1060)!
   expect(resumed.path!.length).toBeLessThanOrEqual(4)
@@ -81,6 +88,31 @@ it('bounds a delayed straight batch by physical duration even when it compresses
   expect(resumed.x - held.x).toBeCloseTo(.36)
   prediction.reset()
 })
+it('holds unconfirmed travel across multiple sent reports and resumes on a fresh approval', async () => {
+  let p = { ...origin }
+  const simulation: PredictionSimulation = {
+    reset(pose) { p = { ...pose } },
+    step(input, seconds) { p.x += input.dx * 6 * seconds },
+    pose: () => ({ ...p }),
+    stepJumped: () => false, stepSupported: () => true, setChairs() {}, dispose() {},
+  }
+  const prediction = new LocalMovementPrediction(async () => simulation, () => 0)
+  prediction.reconcile('path', origin, tuned, true, 0)
+  await prediction.prepare()
+  const walk = { ...stop, dx: 1 }
+  prediction.intend(walk, 0)
+  let held = origin.x
+  for (let seq = 1; seq <= 15; seq++) {
+    held = prediction.positionReport(seq, walk, seq * 60)!.x
+  }
+  expect(held).toBeCloseTo(1.68)
+  prediction.reconcile('path', origin, { ...tuned, tick: 28 }, true, 900)
+  expect(prediction.positionReport(16, walk, 960)?.x).toBeCloseTo(held)
+  prediction.reconcile('path', { ...origin, x: held }, { ...tuned, tick: 29, appliedInputSeq: 16 }, true, 960)
+  expect(prediction.positionReport(17, walk, 1020)?.x).toBeCloseTo(held + .36)
+  prediction.reset()
+})
+
 it('approved old position only renews the lease; it never resets/replays newer local physics', async () => {
   let resets = 0, p = { ...origin }
   const simulation: PredictionSimulation = {

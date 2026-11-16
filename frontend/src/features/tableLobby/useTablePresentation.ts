@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import type { TableAnchor } from '../../park/mapConfig'
+import { RENEWAL_PARK_ENABLED } from '../../park/mapSelection'
 import { useSession } from '../../network/worldClient'
 import { renderedTableAnchors } from './tabletAnchors'
 import { presentedChairCount, usePreparationPort } from './tabletModel'
@@ -20,7 +21,7 @@ export function usePresentedChairCount(anchor: TableAnchor) {
       const published = tableId ? s.publicTables[tableId] : undefined
       return published?.anchorId === anchor.id ? published.chairCount : 2
     }
-    if (!TABLET_ENABLED) return 4
+    if (!TABLET_ENABLED && !RENEWAL_PARK_ENABLED) return 4
     if (!s.mapCompatible) return 2
     if (!tableId) return 2
     const table = s.tableStates[tableId]

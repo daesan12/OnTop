@@ -369,6 +369,33 @@ class RestSecurityTests {
     }
 
     @Test
+    void 점프맵_적발_목록은_조회_권한이_있는_회원에게만_반환한다() throws Exception {
+        String path = "/api/v1/admin/macro-analysis/jumpmap";
+
+        mvc.perform(get(path)).andExpect(status().isUnauthorized());
+        mvc.perform(authAs(44, get(path))).andExpect(status().isForbidden());
+        mvc.perform(auth(get(path))).andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(jsonPath("$.limit").value(200))
+                .andExpect(jsonPath("$.items").isArray());
+        mvc.perform(auth(post(path))).andExpect(status().isForbidden());
+    }
+
+    @Test
+    void 줄넘기_매크로_기록은_조회_권한이_있는_회원에게만_반환한다() throws Exception {
+        String path = "/api/v1/admin/macro-analysis/jump-rope";
+
+        mvc.perform(get(path)).andExpect(status().isUnauthorized());
+        mvc.perform(authAs(44, get(path))).andExpect(status().isForbidden());
+        mvc.perform(auth(get(path))).andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(jsonPath("$.limit").value(200))
+                .andExpect(jsonPath("$.suspects").isArray())
+                .andExpect(jsonPath("$.duplicateLogs").isArray());
+        mvc.perform(auth(post(path))).andExpect(status().isForbidden());
+    }
+
+    @Test
     void 허용하지_않은_관리자_경로와_HTTP_메서드는_관리자도_접근할_수_없다() throws Exception {
         mvc.perform(auth(get("/api/v1/admin/unknown"))).andExpect(status().isForbidden());
         mvc.perform(auth(post("/api/v1/admin/feedback"))).andExpect(status().isForbidden());
@@ -502,6 +529,8 @@ class RestSecurityTests {
                 "DELETE /api/v1/users/me",
                 "GET /api/v1/admin/me", "GET /api/v1/admin/analytics/summary",
                 "GET /api/v1/admin/macro-analysis/mole", "GET /api/v1/admin/macro-analysis/mole/{id}",
+                "GET /api/v1/admin/macro-analysis/mole/detections",
+                "GET /api/v1/admin/macro-analysis/jumpmap", "GET /api/v1/admin/macro-analysis/jump-rope",
                 "POST /api/v1/admin/wallet-grants/preview", "POST /api/v1/admin/wallet-grants",
                 "GET /api/v1/operations/status", "GET /api/v1/admin/operations/status",
                 "PUT /api/v1/admin/operations/status",
@@ -542,7 +571,6 @@ class RestSecurityTests {
                 "POST /api/v1/gacha/tickets", "POST /api/v1/gacha/draws", "POST /api/v1/gacha/boxes/open",
                 "GET /api/v1/users/me/items", "PATCH /api/v1/users/me/equipment",
                 "POST /api/v1/minigames/sessions", "GET /api/v1/minigames/sessions",
-                "POST /api/v1/minigames/skewer/admissions",
                 "GET /api/v1/minigames/rps-roulette/status", "POST /api/v1/minigames/rps-roulette/rounds",
                 "POST /api/v1/minigames/rps-roulette/rounds/{roundId}/hands",
                 "POST /api/v1/minigames/rps-roulette/rounds/{roundId}/challenge",

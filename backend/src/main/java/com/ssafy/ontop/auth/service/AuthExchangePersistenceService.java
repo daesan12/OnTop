@@ -14,8 +14,8 @@ import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.UUID;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
@@ -33,21 +33,18 @@ public class AuthExchangePersistenceService {
     private final AccessJwtService jwt;
     private final Clock clock;
     private final BehaviorLog behaviorLog;
+    private final AuthenticationRevocations revocations;
     private final SecureRandom random = new SecureRandom();
 
     public AuthExchangePersistenceService(UserRepository users, RefreshTokenRepository refreshTokens,
-            AccessJwtService jwt, Clock clock) {
-        this(users, refreshTokens, jwt, clock, BehaviorLog.disabled());
-    }
-
-    @Autowired
-    public AuthExchangePersistenceService(UserRepository users, RefreshTokenRepository refreshTokens,
-            AccessJwtService jwt, @Qualifier("oauthClock") Clock clock, BehaviorLog behaviorLog) {
+            AccessJwtService jwt, @Qualifier("oauthClock") Clock clock, BehaviorLog behaviorLog,
+            AuthenticationRevocations revocations) {
         this.users = users;
         this.refreshTokens = refreshTokens;
         this.jwt = jwt;
         this.clock = clock;
         this.behaviorLog = behaviorLog;
+        this.revocations = revocations;
     }
 
     @Transactional
@@ -67,10 +64,19 @@ public class AuthExchangePersistenceService {
         if (user.getDeletedAt() != null || user.getLoginProvider() != outcome.provider().loginProvider()) {
             throw changed();
         }
+        long userId = user.getId();
+        // 로그인·회전·로그아웃은 회원 행 잠금을 공유한다. 새 발급에 실패하면 이전 세션도 유지된다.
+        List<String> previousSessions = refreshTokens.findUnrevokedSessionIds(userId);
+        if (!previousSessions.isEmpty()) {
+            refreshTokens.revokeAllForUser(userId, clock.instant().truncatedTo(ChronoUnit.MILLIS));
+        }
         String sessionId = UUID.randomUUID().toString();
         Credentials issued = issueCredentials(user, sessionId);
+        for (String previousSession : previousSessions) {
+            revocations.sessionRevoked(userId, previousSession);
+        }
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            recordLoginAfterCommit(user.getId(), sessionId, outcome);
+            recordLoginAfterCommit(userId, sessionId, outcome);
         }
         return issued;
     }

@@ -1,13 +1,16 @@
-import { COURSE, START } from './course'
+import { COURSE, START } from './activeCourse'
+import { canReachJumpmapGuide } from './guideState'
 
 type Position = { x: number; y: number; z: number }
 export const nearJumpmapStart = (p: Position) => Math.hypot(p.x - START.x, p.z - START.z) < 4
   && Math.abs(p.y - .8 - START.y) < 2
 
-/** Course-local VR, including the launch area and room to jump between adjacent pads. */
+export const canStartJumpmapXR = (p: Position) => nearJumpmapStart(p) || canReachJumpmapGuide(p)
+
+/** Course-local VR, including the guide, launch area and room between adjacent pads. */
 export function inJumpmapXRRegion(p: Position) {
   if (![p.x, p.y, p.z].every(Number.isFinite) || p.y < .3) return false
-  if (nearJumpmapStart(p)) return true
+  if (canStartJumpmapXR(p)) return true
   return COURSE.some((pad, i) => {
     if (Math.abs(p.y - .8 - pad.top) > 6) return false
     const next = COURSE[Math.min(COURSE.length - 1, i + 1)]!

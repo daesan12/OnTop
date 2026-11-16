@@ -23,6 +23,8 @@ ontop:
   minigames:
     enabled: ${MINIGAMES_ENABLED:false}
     bungeoppang-v5-enabled: ${BUNGEOPPANG_V5_ENABLED:false}
+    # 숙이기 구간을 기록하는 FE 배포 후에만 2로 전환한다. 이미 시작한 판은 시작 시 버전으로 판정한다.
+    jump-rope-rules-version: ${JUMP_ROPE_RULES_VERSION:1}
   shop:
     enabled: ${SHOP_ENABLED:false}
   raffle:

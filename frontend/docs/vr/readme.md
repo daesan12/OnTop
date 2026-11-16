@@ -2,9 +2,8 @@
 
 - 브랜치: `feat/quest-vr`
 - 작업 위치: `C:\Users\SSAFY\Desktop\OnTop\quest-vr`
-- 기준: `origin/dev@12bc82c1` (2026-11-04)
-- 현재 범위: 공원 이동·달리기·A 점프·스냅 회전, 돌탑 점프맵의 VR 안내·결과·랭킹.
-- 다음 목표: Quest VR 요리사 + PC 서빙 담당의 꼬치왕 협동 연결 검수.
+- 220m 공원 검수 기준: `origin/dev@1fefc795` (2026-11-15, 충돌 없이 fast-forward).
+- 현재 범위: 공원 이동·달리기·A 점프·회전, 10구간 돌탑 점프맵, 공원에서 꼬치왕 협동 진입.
 
 ## 실행
 
@@ -15,13 +14,19 @@ Set-Location 'C:\Users\SSAFY\Desktop\OnTop\quest-vr\frontend'
 .\scripts\start-park-xr.ps1 -ConnectQuest -AdbPath 'C:\Users\SSAFY\Desktop\platform-tools\adb.exe'
 ```
 
-Quest 기본 브라우저에서 **http://localhost:5288/park** 접속 → 로그인·채널 입장 → **공원 VR 시작**.
+Quest 기본 브라우저에서 **http://localhost:5288/park** 접속 → 로그인·채널 입장 → **공원 VR 시작**. 돌탑 안내 비석이나 출발점 근처에서는 **돌탑 점프맵 VR 시작**을 선택합니다.
 
-백엔드 기본값은 `http://127.0.0.1:8080`입니다. `-ApiProxyTarget`으로 개발 API를 지정할 수 있지만 localhost 로그인·쿠키·허용 Origin·WS 준비가 먼저 필요합니다. 서버가 이미 켜져 있으면 `-ConnectQuestOnly`로 USB만 연결합니다. 실제 개발 사이트는 https://dev.on-top.world/park 이며 이 로컬 변경은 아직 배포하지 않았습니다.
+실행 스크립트는 기본으로 `park-renewal-integration` 모드를 사용합니다. 220m 검수에는 `frontend/generated/park-renewal`의 `server-map.json`과 `manifest.json`을 사용하는 백엔드가 필요합니다. 이전 맵을 쓰는 테스트 백엔드에는 `-LegacyMap`을 지정합니다.
+
+백엔드 기본값은 `http://127.0.0.1:8080`입니다. `-ApiProxyTarget`을 지정할 경우에도 같은 맵 버전과 localhost 로그인·쿠키·허용 Origin·WS가 필요합니다. 서버가 이미 켜져 있으면 `-ConnectQuestOnly`로 USB만 연결합니다.
 
 ## 조작
 
-왼쪽 스틱 이동 / 왼손 그립 달리기 / 오른손 A 점프 / 오른쪽 스틱 30도 회전 / X 돌탑 안내 / 레이저+트리거 패널 선택 / B 공원 VR 종료.
+왼쪽 스틱 이동 / 왼손 그립 달리기 / 오른손 A 점프 / 오른쪽 스틱 회전 / X 조작 안내 / Y 주변 채팅 / 검지 트리거 선택 / B VR 종료.
+
+- 공원에서는 근처 플레이어의 닉네임이 머리 위에 표시됩니다. 왼손 Y로 주변 채팅을 열고, 검지 트리거로 한글 또는 영문 자판과 보내기 버튼을 선택합니다. 채팅을 닫을 때는 Y 또는 닫기 버튼을 누릅니다.
+- 오목은 Quest 브라우저의 일반 화면에서 테이블에 앉아 대국을 시작한 후 **오목 VR 시작**을 선택합니다. VR에서 교차점을 검지 트리거로 선택해 돌을 놓습니다. B로 일반 화면에 돌아가 이어 두거나 무르기·무승부 요청에 응답할 수 있습니다.
+- 꼬치왕에서는 재료 중심을 꼬치 끝에 맞추고 고리가 초록색일 때 검지 트리거를 놓습니다. VR 조리대를 낮추고 꼬치를 짧게 조정했습니다. 협동 요리사의 전달대 제출과 1인 모드의 그립 서빙은 각 게임 안내를 따릅니다.
 
 ## 검증 명령
 
@@ -31,9 +36,17 @@ Quest 기본 브라우저에서 **http://localhost:5288/park** 접속 → 로그
 node node_modules/typescript/bin/tsc --project tsconfig.park-xr.json --noEmit
 node node_modules/vitest/vitest.mjs run tests/unit/parkXRMovement.test.ts tests/unit/jumpmapXR.test.ts --maxWorkers=4
 node node_modules/@playwright/test/cli.js test --config playwright.park-xr.config.ts
+
+$env:PARK_XR_MAP = 'renewal'
+node node_modules/@playwright/test/cli.js test --config playwright.park-xr.config.ts
+Remove-Item Env:PARK_XR_MAP
 ```
 
-브라우저 검증은 5289 포트의 모의 XR/서버 상태를 사용합니다. 실제 Quest·로그인·서버 정산 검수와 구분합니다. 실행 포트는 strictPort이므로 다른 서버를 종료하거나 포트를 자동 변경하지 않습니다.
+브라우저 검증은 이전 맵에서 5289, 220m 맵에서 5290 포트를 사용하며 XR과 서버 응답은 테스트에서 재현합니다. 실제 Quest·로그인·서버 정산은 별도 검수 항목입니다.
+
+2026-11-15에는 VR 타입 검사, 관련 단위 테스트 69개, 220m 브라우저 테스트 5개와 이전 맵의 회전·꼬치왕 회귀 테스트 4개를 통과했습니다. 220m 테스트에서 돌탑 비석 진입, 10구간 안내·호수섬 완주·일반 공원 복귀, 꼬치왕 협동방 선택·취소를 확인했습니다. 일부 220m 최적화 지오메트리는 경고와 함께 원본 지오메트리를 사용했습니다. Quest 실기기, 실제 로그인과 서버 정산은 미검수입니다.
+
+추가 피드백 작업에도 `origin/dev@1fefc795`가 포함돼 있어 통합 충돌이 없었습니다. 타입 검사와 단위 테스트 95개, 220m 공원 VR 7개, 이전 맵 오목 VR 1개, 협동 주방 모의 XR 3개, 주방 PC·VR 미리보기 7개를 통과했습니다. 오목은 기존 착석·준비·착수 및 서버 판정 계약을 사용합니다. 실제 Quest의 컨트롤러 추적·재료 끼우기와 착석 눈높이는 실기기 검수 항목입니다.
 
 ## 문서
 

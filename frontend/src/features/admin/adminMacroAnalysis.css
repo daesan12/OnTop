@@ -23,3 +23,14 @@
 .admin-macro [data-signal] { background: #ffedcb; color: #633d16; }
 @media (max-width: 860px) { .admin-macro-layout { grid-template-columns: minmax(0, 1fr); } .admin-macro-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 520px) { .admin-macro-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.admin-macro .admin-mole-game-filter { grid-template-columns: minmax(0, 15rem); }
+.admin-mole-game-control { display: grid; gap: 7px; }
+.admin-mole-detections-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.admin-mole-detections-table table { min-width: 38rem; }
+.admin-mole-detections-table th { overflow-wrap: anywhere; }
+.admin-mole-detections-table thead { z-index: 1; }
+.admin-mole-detections-table small { display: block; font-weight: 400; }
+.admin-mole-round-identity { display: flex; flex-wrap: wrap; gap: 12px 28px; margin: 0; }
+.admin-mole-round-identity dt { color: #535f51; font-size: .85rem; }
+.admin-mole-round-identity dd { margin: 4px 0 0; overflow-wrap: anywhere; }
+@media (min-width: 861px) { .admin-macro .admin-mole-search-filters { grid-template-columns: repeat(4, minmax(0, 1fr)) auto; } }

@@ -30,7 +30,7 @@ function ArcadeArt({ game }: { game: ArcadeGame }) {
 }
 
 export function ArcadePicker() {
-  const open = useArcade(s => s.open)
+  const open = useArcade(s => s.open && s.scope === 'all')
   return open ? <ArcadeDialog /> : null
 }
 

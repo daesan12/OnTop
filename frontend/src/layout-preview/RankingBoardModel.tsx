@@ -1,22 +1,28 @@
 import { Color,DoubleSide, MeshBasicMaterial, MeshLambertMaterial } from 'three'
-import type { BufferGeometry } from 'three'
+import type { BufferGeometry, Mesh } from 'three'
+import { useFrame } from '@react-three/fiber'
 import { PropBuilder, hipRoof, type PropFinish } from '../world/art/propGeometry'
 import { PropSign } from '../world/art/CraftedProp'
 import { closeSurface } from '../world/art/closedSurface'
 import { createRankingRoofSeats } from './rankingBoardRoofSeats'
 import { KIOSKS,SETTINGS } from './layout'
-import { useMemo } from 'react'
-import { formatRankingUpdatedAt, rankingColumns, type RankingDisplayColumn } from '../features/rankingBoard/service'
+import { useMemo, useRef } from 'react'
+import { rankingPage, RANKING_PAGE_MS, useRankingPages } from '../features/rankingBoard/pages'
+import { formatRankingUpdatedAt, rankingColumns } from '../features/rankingBoard/service'
 import { useRankingBoardFeed } from '../features/rankingBoard/state'
+import { drawRankingBoardPanel, drawRankingTitle } from '../features/rankingBoard/rankingBoardCanvas'
+export { drawRankingBoardPanel } from '../features/rankingBoard/rankingBoardCanvas'
 
 const wood = '#694725'
 const cream = '#f1e7cf'
-const green = '#254d3c'
 const signFont = '700 32px "Malgun Gothic"'
 const titleSize = { width: 3.02, height: .44 }
 
 // Structure and lettering are separate. Later ranking data can redraw each of
-// the three planes without rebuilding any roof, post, or panel geometry.
+// the display planes without rebuilding any roof, post, or panel geometry.
+// The timber frame still has three bays; the four paper planes hang in front of
+// it (and of the two inner posts), so adding a column never changes the baked
+// structure or the server collision map.
 export function buildRankingBoard() {
   const b = new PropBuilder([8, 6], 'ranking-board-structure-v3')
 
@@ -70,83 +76,57 @@ export const rankingBoardModelMetrics = {
   triangleCount: entries.reduce((total, [, geometry]) =>
     total + (geometry.index?.count ?? geometry.getAttribute('position').count) / 3, 0),
   structureTextureCount: 0,
-  displayPlaneCount: 3,
+  displayPlaneCount: 4,
 } as const
 
+// Four planes across the 7.91m the three old planes spanned, 7cm apart.
+const panelSize = { width: 1.925, height: 2.98 }
 const columns = [
-  { title: '보유량', x: -2.77 },
-  { title: '두더지 잡기', x: 0 },
-  { title: '스피드 두더지 잡기', x: 2.77 },
+  { title: '총자산', x: -2.9925 },
+  { title: '두더지 잡기', x: -.9975 },
+  { title: '스피드 두더지 잡기', x: .9975 },
+  { title: '구구구 줄넘기', x: 2.9925 },
 ] as const
 
-type BoardPanelState = { title: string; column: RankingDisplayColumn | null; message: string; updatedAt: string; stale: boolean }
-
-export const drawRankingBoardPanel = ({ title, column, message, updatedAt, stale }: BoardPanelState) =>
-  (c: CanvasRenderingContext2D, w: number, h: number) => {
-  c.fillStyle = cream
-  c.fillRect(0, 0, w, h)
-  const pad=w*.035,header=h*.17
-  c.strokeStyle='#cfbf9e';c.lineWidth=w*.004
-  c.strokeRect(pad/2,pad/2,w-pad,h-pad)
-  c.fillStyle = green
-  c.fillRect(pad,pad,w-pad*2,header-pad)
-  c.fillStyle = '#fff9e9'
-  c.font = `700 ${header * 0.42}px "Malgun Gothic", sans-serif`
-  c.textAlign = 'center'
-  c.textBaseline = 'middle'
-  c.fillText(column?.title ?? title, w / 2, (header+pad) / 2)
-  c.fillStyle='#c5a266';c.fillRect(pad,header,w-pad*2,h*.004)
-  if (!column || !column.rows.length) {
-    c.fillStyle='#726957';c.font=`600 ${h*.038}px "Malgun Gothic", sans-serif`;c.textAlign='center'
-    c.fillText(column ? '아직 기록이 없습니다' : message, w/2, h*.52, w*.82)
-  } else {
-    c.font = `600 ${h * 0.031}px "Malgun Gothic", sans-serif`
-    for (let i = 0; i < column.rows.length; i++) {
-      const row=(h-header-pad*2.6)/10,top=header+pad*.55+i*row,y=top+row/2
-      if(i%2===0){c.fillStyle='#eae2d0';c.fillRect(pad,top,w-pad*2,row)}
-      const item=column.rows[i]!
-      c.textAlign='left';c.fillStyle=i<3?'#7c5522':'#827967';c.font=`700 ${h*.034}px "Malgun Gothic", sans-serif`
-      c.fillText(String(item.rank),w*.075,y,w*.08)
-      c.fillStyle='#4f4a40';c.font=`600 ${h*.029}px "Malgun Gothic", sans-serif`
-      c.fillText(item.nickname,w*.18,y,w*.42)
-      c.textAlign='right';c.font=`600 ${h*.027}px "Malgun Gothic", sans-serif`
-      c.fillText(item.value,w*.92,y,w*.29)
-      c.fillStyle = '#d4cbb7';c.fillRect(w*.18,top+row*.86,w*.74,h*.002)
-    }
-  }
-  c.textAlign='center';c.fillStyle=stale?'#9a5f26':'#776f60';c.font=`500 ${h*.021}px "Malgun Gothic", sans-serif`
-  c.fillText(stale?'이전 집계 표시 중':updatedAt?`집계 ${updatedAt}`:'',w/2,h*.965,w*.88)
+function RankingPageBar({ back = false }: { back?: boolean }) {
+  const bar = useRef<Mesh>(null)
+  useFrame(() => {
+    const deadline = useRankingPages.getState().deadline
+    const remaining = deadline === null ? 0 : Math.max(0, Math.min(1, (deadline - performance.now()) / RANKING_PAGE_MS))
+    if (bar.current) { bar.current.scale.x = remaining; bar.current.position.x = -3.94 * (1 - remaining) }
+  })
+  return <group position={[0,.66,back?-.28:.28]} rotation={[0,back?Math.PI:0,0]}>
+    <mesh position={[0,0,-.003]}><planeGeometry args={[7.88,.045]} /><meshBasicMaterial color="#345040" /></mesh>
+    <mesh ref={bar}><planeGeometry args={[7.88,.045]} /><meshBasicMaterial color="#d7b66d" /></mesh>
+  </group>
 }
 
-const drawTitle = (c: CanvasRenderingContext2D, w: number, h: number) => {
-  c.fillStyle = cream
-  c.fillRect(0, 0, w, h)
-  c.strokeStyle='#b79b68';c.lineWidth=h*.025
-  c.strokeRect(w*.018,h*.09,w*.964,h*.82)
-  c.fillStyle = green
-  c.font = `700 ${h * 0.58}px "Malgun Gothic", sans-serif`
-  c.textAlign = 'center'
-  c.textBaseline = 'middle'
-  // PropSign's minimum canvas height otherwise stretches this wide plaque's text.
-  c.save();c.translate(w/2,h/2);c.scale(w/h/(titleSize.width/titleSize.height),1)
-  c.fillText('온탑 랭킹', 0, 0);c.restore()
-  for(const x of [w*.09,w*.91]){c.save();c.translate(x,h/2);c.rotate(Math.PI/4);c.fillRect(-h*.045,-h*.045,h*.09,h*.09);c.restore()}
-}
-
-export function RankingBoardModel({onInteract}:{onInteract?:()=>void}={}) {
-  const site = KIOSKS.find(kiosk => kiosk.kind === 'photo')!
+export function RankingBoardPanels({ bothSides = false }: { bothSides?: boolean } = {}) {
   const snapshot=useRankingBoardFeed(state=>state.snapshot)
-  // Background polling must not recreate three canvas textures every 15 seconds.
+  // Background polling must not recreate the canvas textures every 15 seconds.
   // Only the first-load/error presentation changes while no snapshot exists.
   const loading=useRankingBoardFeed(state=>!state.snapshot&&state.loading)
   const error=useRankingBoardFeed(state=>state.snapshot?'':state.error)
   const stale=useRankingBoardFeed(state=>state.stale)
+  const page=useRankingPages(state=>state.boardPage)
+  const definitions = page === 0 ? columns : [
+    { title: '점프맵', x: -2.66 }, { title: '붕어빵 굽기', x: 0 }, { title: '온탑 꼬치왕', x: 2.66 },
+  ]
   const panelDraws=useMemo(()=>{
-    const data=snapshot?rankingColumns(snapshot):[]
+    const data=snapshot?rankingPage(rankingColumns(snapshot),page):[]
     const message=loading?'랭킹 불러오는 중':error||'랭킹 준비 중'
     const time=snapshot?formatRankingUpdatedAt(snapshot.updatedAt):''
-    return columns.map((definition,index)=>drawRankingBoardPanel({title:definition.title,column:data[index]??null,message,updatedAt:time,stale}))
-  },[snapshot,loading,error,stale])
+    const titles=page===0?columns.map(c=>c.title):['점프맵','붕어빵 굽기','온탑 꼬치왕']
+    return titles.map((title,index)=>drawRankingBoardPanel({title,column:data[index]??null,message,updatedAt:time,stale,page}))
+  },[snapshot,loading,error,stale,page])
+  return <><PropSign position={[0,4.06,.859]} width={titleSize.width} height={titleSize.height} draw={drawRankingTitle} font={signFont}/>{definitions.map((column, index) => <PropSign key={column.title} position={[column.x, 2.19, .241]}
+    backPosition={bothSides ? [-column.x, 2.19, -.25] : undefined}
+    width={page===0?panelSize.width:2.59} height={panelSize.height} draw={panelDraws[index]!} font={signFont}/>)}
+    <RankingPageBar />{bothSides&&<RankingPageBar back />}</>
+}
+
+export function RankingBoardModel({onInteract}:{onInteract?:()=>void}={}) {
+  const site = KIOSKS.find(kiosk => kiosk.kind === 'photo')!
   return <group name="ranking-board-preview" position={[site.x, 0, site.z]} rotation={[0, site.yaw, 0]} scale={SETTINGS.rankingBoard.scale}
     userData={{ assetId: 'procedural/ranking-board', previewRole: 'ranking-board' }} onClick={event=>{
       event.stopPropagation()
@@ -155,8 +135,6 @@ export function RankingBoardModel({onInteract}:{onInteract?:()=>void}={}) {
     {entries.map(([kind, geometry]) => <mesh key={kind} geometry={geometry} dispose={null} castShadow={kind !== 'glow'} receiveShadow>
       <primitive object={kind === 'glow' ? lanternMaterial : flatMaterial} attach="material" dispose={null} />
     </mesh>)}
-    <PropSign position={[0,4.06,.859]} width={titleSize.width} height={titleSize.height} draw={drawTitle} font={signFont}/>
-    {columns.map((column, index) => <PropSign key={column.title} position={[column.x, 2.19, .241]}
-      width={2.37} height={2.98} draw={panelDraws[index]!} font={signFont}/>)}
+    <RankingBoardPanels />
   </group>
 }

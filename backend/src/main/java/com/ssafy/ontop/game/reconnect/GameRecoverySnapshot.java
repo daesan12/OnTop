@@ -8,7 +8,10 @@ public record GameRecoverySnapshot(long userId, String gameId, int participantCo
         Phase phase, JsonNode state) {
 
     public GameRecoverySnapshot {
-        if (userId <= 0 || gameId == null || gameId.isBlank() || participantCount < 2 || participantCount > 4
+        int maximumPlayers = state != null
+                && "STONE_RUMBLE".equals(state.path("publicState").path("gameCode").asText()) ? 8 : 4;
+        if (userId <= 0 || gameId == null || gameId.isBlank() || participantCount < 2
+                || participantCount > maximumPlayers
                 || version < 0 || state == null || !state.isObject()) {
             throw new IllegalArgumentException("경기 복구 상태를 확인해주세요.");
         }

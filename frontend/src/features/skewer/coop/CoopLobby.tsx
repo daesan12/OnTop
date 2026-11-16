@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useStore } from 'zustand'
 import { PaperPopup } from '../../tableLobby/PaperPopup'
 import cover from '../../vrZone/art/skewer-cover-lowpoly.png'
@@ -9,6 +9,7 @@ import serverRoleArt from './art/server-role-illustration.png'
 import serviceHallPreview from './art/service-hall-preview.png'
 import type { CoopClient } from './client'
 import { CoopRoomBrowser } from './CoopRoomBrowser'
+import { CoopRankingDialog } from './CoopRankingDialog'
 import { SKEWER_CHEF_VR_ENABLED } from './availability'
 import { CHEF_VR_STEPS } from '../chef/vrGuide'
 import { TouchControllerGuide } from '../../vrGuide/TouchControllerDiagram'
@@ -37,6 +38,9 @@ export function CoopLobby({ client, onClose, onEquipment, chefMode, onChefMode }
   const player = pub?.players.find(p => p.userId === owner)
   const [acting, setActing] = useState(false)
   const [changingRole, setChangingRole] = useState(false)
+  const [rankingOpen, setRankingOpen] = useState(false)
+  const rankingButton = useRef<HTMLButtonElement>(null)
+  const returning = useRef(false)
   const act = async (input: Record<string, unknown>) => {
     if (acting) return
     setActing(true)
@@ -60,9 +64,13 @@ export function CoopLobby({ client, onClose, onEquipment, chefMode, onChefMode }
   const subtitle = !pub ? '각자의 기기에서 만나, 하나의 가게를 운영해요.'
     : waiting ? '친구도 같은 공원의 VR 존에서 이 가게에 참가하면 돼요.'
       : role ? '내 역할을 확인하고, 함께 영업을 시작해요.' : '한 명은 주방에서, 한 명은 홀에서. 서로 다른 역할을 골라요.'
-  if (!pub) return <CoopRoomBrowser client={client} onClose={onClose} />
+  const openRanking = () => setRankingOpen(true)
+  if (rankingOpen) return <CoopRankingDialog client={client} initialMode={vr ? 'VR' : 'PC'}
+    onClose={() => { returning.current = true; setRankingOpen(false) }} backLabel="대기 화면으로 돌아가기" />
+  if (!pub) return <CoopRoomBrowser client={client} onClose={onClose} onRanking={openRanking} focusRanking={returning.current} />
   return <PaperPopup title="VR 체험관 · 2인 협동 미니게임" label={!pub ? '꼬치왕 협동 방' : '역할 선택과 준비'}
-    className={`coop-welcome-paper${pub ? ' is-preparing' : ''}${picking ? ' is-picking' : ''}`} onClose={onClose} closeLabel="방 나가기 · 다른 방 선택">
+    className={`coop-welcome-paper${pub ? ' is-preparing' : ''}${picking ? ' is-picking' : ''}`} onClose={onClose}
+    closeLabel="방 나가기 · 다른 방 선택" initialFocusRef={returning.current ? rankingButton : undefined}>
     <section aria-label={!pub ? '꼬치왕 협동 방' : '역할 선택과 준비'}>
       <header className="coop-welcome-heading">
         {!picking ? <p className="coop-section-label">{!pub ? '둘이 함께 여는 작은 가게' : waiting ? '친구와 만나기' : '영업 준비'}</p> : null}
@@ -110,13 +118,14 @@ export function CoopLobby({ client, onClose, onEquipment, chefMode, onChefMode }
           </div>
         </div>
         {role === 'chef' && vr ? <TouchControllerGuide mode="chef" /> : null}
-        <div className={`coop-ranking-notice${vr ? ' is-vr' : ''}`}><b>{vr ? 'VR 팀 랭킹 도전' : 'PC 팀 랭킹 도전'}</b><span>PC·VR 기록은 따로 집계해요. 경기 중 방식을 바꾸면 랭킹에서 제외돼요. 엽전 보상은 동일해요.</span></div>
+        <div className={`coop-ranking-notice${vr ? ' is-vr' : ''}`}><b>{vr ? 'VR 팀 랭킹 도전' : 'PC 팀 랭킹 도전'}</b><span>PC·VR 기록을 함께 집계해요. VR 최고 기록에는 VR 표시가 붙어요. 경기 중 방식을 바꾸면 랭킹에서 제외돼요. 엽전 보상은 동일해요.</span></div>
         <footer className="coop-ready-footer"><div className="coop-team-status" aria-label="참가자 준비 상태">{pub.players.map(p => <div key={p.userId} data-ready={p.ready}><span className="coop-status-dot" /><span><b>{p.userId === owner ? '나' : '친구'}</b> · {p.role === 'chef' ? '요리사' : p.role === 'server' ? '서빙 담당' : '역할 선택 중'}<small>{!p.connected ? '연결 확인 중' : p.ready ? '준비 완료' : '준비 전'}</small></span></div>)}</div>
           <div className="coop-ready-action"><button className="paper-primary" disabled={(!ready && !player?.ready) || acting} onClick={() => void act({ type: 'READY', ready: !player?.ready })}>{acting ? '변경 중…' : player?.ready ? '준비 취소' : '준비 완료'}</button>{readyHint ? <small>{readyHint}</small> : null}</div>
         </footer>
         </> : null}
       </>}
       {!pub || waiting ? <p className="coop-entry-reward">입장료 없이 즐겨요 <span>·</span> 팀 점수 20점당 각자 1냥 <span>·</span> 모든 미니게임 합산 하루 최대 1000냥</p> : null}
+      <div className="paper-actions"><button ref={rankingButton} type="button" aria-haspopup="dialog" onClick={openRanking}>팀 랭킹 보기</button></div>
     </section>
   </PaperPopup>
 }

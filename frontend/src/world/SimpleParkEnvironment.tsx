@@ -5,6 +5,7 @@ import { sampleDay } from '../config'
 import { environmentFrame as frame, updateEnvironmentFrame } from './environmentState'
 import { simpleEnvironmentPalette } from './simpleEnvironmentPalette'
 import { SimpleSkyClouds } from './SimpleSkyClouds'
+import { ParkSky } from './ParkSky'
 
 export function SimpleParkEnvironment({ fixedTime }: { fixedTime?: number }) {
   const scene = useThree(s => s.scene)
@@ -30,6 +31,7 @@ export function SimpleParkEnvironment({ fixedTime }: { fixedTime?: number }) {
     }
   }, -100)
   return <>
+    <ParkSky simple />
     <SimpleSkyClouds />
     <hemisphereLight ref={light} color="#e5edf3" groundColor="#858772" layers-mask={3}/>
   </>

@@ -1,0 +1,437 @@
+.park-balloon-paper,
+.park-balloon-hud {
+  --balloon-ink: #3d2d1c;
+  --balloon-pine: #203d29;
+  --balloon-brass: #a68851;
+  --balloon-cream: #fff1d4;
+  --balloon-line: #92723f55;
+}
+.park-balloon-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.park-page .table-paper-popup.park-balloon-paper {
+  box-sizing: border-box;
+  width: min(548px, calc(100vw - 36px));
+  padding: 14px 24px 23px;
+  scrollbar-width: none;
+  color: var(--balloon-ink);
+  text-align: left;
+  border: 4px double var(--balloon-brass);
+  border-radius: 18px;
+  background-color: #f6e8ca;
+  background-image: linear-gradient(#fff4db78, #fff4dbb3), url('/art/tablet/hanji.webp');
+  box-shadow: 0 18px 52px #151e174d, inset 0 0 0 4px #fff6e1a6;
+}
+.park-balloon-paper::-webkit-scrollbar,
+.park-balloon-hud::-webkit-scrollbar { display: none; }
+.park-balloon-paper .paper-caption {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-height: 148px;
+  margin: -9px -17px 11px;
+  padding: 29px 16px 36px;
+  box-sizing: border-box;
+  color: var(--balloon-ink);
+  background: url('./balloon-ticket.webp') right bottom / contain no-repeat;
+  font: 700 clamp(31px, 4vw, 43px)/1.05 BusanDandiMyeongjo, serif;
+  letter-spacing: -.035em;
+}
+.park-balloon-paper .paper-caption strong { font-weight: inherit; }
+.park-balloon-paper .paper-caption small { margin-top: 8px; font-size: .57em; letter-spacing: 0; }
+.park-balloon-paper .paper-close {
+  z-index: 1;
+  top: 8px;
+  right: 8px;
+  border-radius: 50%;
+  color: var(--balloon-ink);
+}
+.park-balloon-paper .paper-close:hover { background: #fff5dbb0; }
+.park-balloon-paper.park-balloon-guide .paper-caption {
+  min-height: 94px;
+  padding-block: 18px;
+  background-size: 75% auto;
+  background-position: right bottom;
+}
+.park-balloon-capacity,
+.park-balloon-mode {
+  min-width: 0;
+  margin: 0 0 14px;
+  padding: 0;
+  border: 0;
+}
+.park-balloon-capacity {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  padding-inline-start: 90px;
+}
+.park-balloon-capacity legend {
+  position: absolute;
+  inset: 9px auto auto 0;
+  padding: 0;
+  font: 700 22px/1.1 BusanDandiMyeongjo, serif;
+}
+.park-balloon-capacity label,
+.park-balloon-mode label {
+  position: relative;
+  min-width: 0;
+  background: #fbf2dc88;
+  border: 1px solid var(--balloon-line);
+  cursor: pointer;
+}
+.park-balloon-capacity label {
+  min-height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  font: 700 20px/1 BusanDandiMyeongjo, serif;
+}
+.park-balloon-mode { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+.park-balloon-mode label {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  grid-template-rows: auto 1fr;
+  align-items: start;
+  gap: 4px 9px;
+  padding: 13px 11px;
+  border-radius: 10px;
+}
+.park-balloon-mode label::before {
+  content: '';
+  grid-area: 1 / 1;
+  box-sizing: border-box;
+  align-self: center;
+  width: 17px;
+  height: 17px;
+  border: 1.5px solid #876d47;
+  border-radius: 50%;
+}
+.park-balloon-mode label:has(:checked)::before {
+  background: var(--balloon-pine);
+  border-color: var(--balloon-pine);
+  box-shadow: inset 0 0 0 3px #ece8cf;
+}
+.park-balloon-mode strong { grid-column: 2; font: 700 22px/1.12 BusanDandiMyeongjo, serif; }
+.park-balloon-mode label span {
+  grid-column: 2;
+  color: #534631;
+  font-size: 13px;
+  line-height: 1.45;
+  word-break: keep-all;
+}
+.park-balloon-capacity label:has(:checked),
+.park-balloon-mode label:has(:checked) {
+  color: var(--balloon-pine);
+  background: #e5e5c8;
+  border-color: var(--balloon-pine);
+  box-shadow: inset 0 0 0 1px var(--balloon-pine);
+}
+.park-balloon-capacity label:has(:focus-visible),
+.park-balloon-mode label:has(:focus-visible) {
+  outline: 2px solid #47713f;
+  outline-offset: 2px;
+}
+.park-balloon-capacity input,
+.park-balloon-mode input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: inherit;
+}
+.park-balloon-paper fieldset:disabled label { opacity: .6; cursor: wait; }
+.park-balloon-key-guide {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px 13px;
+  font-size: 13px;
+  line-height: 1.3;
+}
+.park-balloon-key-guide span { display: inline-flex; align-items: center; gap: 5px; }
+.park-balloon-paper .park-balloon-key-guide {
+  padding: 10px 11px;
+  background: #c0a06623;
+  border-radius: 8px;
+  color: #4f3b27;
+}
+.park-balloon-key-guide kbd,
+.park-balloon-paper .park-balloon-manual kbd {
+  padding: 3px 5px;
+  border: 1px solid #a18453;
+  border-radius: 4px;
+  white-space: nowrap;
+  font: 700 12px/1.15 'Malgun Gothic', sans-serif;
+}
+.park-balloon-warning {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 11px;
+  background: #e6cca064;
+  border-radius: 8px;
+  color: #5c3b18;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.park-balloon-paper .park-balloon-warning { margin-top: 9px; }
+.park-balloon-warning-icon {
+  display: grid;
+  flex: 0 0 19px;
+  min-height: 18px;
+  place-items: end center;
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+  padding-bottom: 1px;
+  background: #8f5718;
+  color: #fff2d5;
+  font: 800 12px/1 'Malgun Gothic', sans-serif;
+}
+.park-balloon-paper .park-balloon-ticket-actions {
+  grid-template-columns: minmax(87px, 1fr) minmax(0, 2.55fr);
+  gap: 8px;
+}
+.park-balloon-paper .park-balloon-ticket-actions button,
+.park-balloon-guide .paper-actions button {
+  min-height: 46px;
+  padding: 8px;
+  border-radius: 9px;
+  border: 1px solid #9b7d4d;
+  background: #faf0d7b0;
+  font: 700 20px/1.18 BusanDandiMyeongjo, serif;
+}
+.park-balloon-paper .paper-actions .paper-primary {
+  background: linear-gradient(#315239, #1e3a2a);
+  color: var(--balloon-cream);
+  border-color: #23422c;
+}
+.park-balloon-paper .paper-actions button:not(:disabled):hover { filter: brightness(1.075); }
+.park-balloon-dialog-error { margin: 0 0 12px; color: #862d20; font-size: 14px; }
+.park-balloon-manual { padding-inline-start: 24px; line-height: 1.65; }
+.park-balloon-manual li + li { margin-top: 10px; }
+.park-balloon-manual li::marker { color: #846236; }
+.park-balloon-joining {
+  display: grid;
+  gap: 7px;
+  margin-top: 17px;
+  padding-top: 12px;
+  border-top: 1px solid var(--balloon-line);
+}
+.park-balloon-joining h3 { margin: 0; font: 700 20px/1.2 BusanDandiMyeongjo, serif; }
+.park-balloon-paper .park-balloon-joining button {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 5px 10px;
+  padding: 9px 11px;
+  border-color: var(--balloon-line);
+  border-radius: 8px;
+  text-align: left;
+  font-size: 13px;
+}
+.park-balloon-joining button > span:first-child { min-width: 0; overflow-wrap: anywhere; }
+.park-balloon-joining small { display: block; margin-top: 3px; color: #594b32; }
+.park-balloon-joining-fare { font-weight: 700; color: #254731; }
+.park-balloon-hud {
+  position: fixed;
+  z-index: 57;
+  left: 50%;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  display: grid;
+  gap: 6px;
+  width: max-content;
+  max-width: min(530px, calc(100vw - 24px));
+  max-height: calc(100dvh - 30px);
+  overflow: auto;
+  color: var(--balloon-cream);
+  scrollbar-width: none;
+  pointer-events: auto;
+  font: 500 13px/1.4 'Malgun Gothic', sans-serif;
+}
+.park-balloon-hud-panel {
+  display: grid;
+  gap: 9px;
+  min-width: min(250px, calc(100vw - 24px));
+  padding: 11px 14px;
+  text-align: center;
+  background: linear-gradient(145deg, #304f34, #182f23 88%);
+  border: 2px solid #b89b65;
+  border-radius: 14px;
+  box-shadow: inset 0 0 0 2px #f5d3a029, 0 5px 18px #101f1280;
+}
+.park-balloon-hud-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 28px;
+  min-height: 30px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e4c99557;
+}
+.park-balloon-hud-heading strong {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font: 700 24px/1.1 BusanDandiMyeongjo, serif;
+}
+.park-balloon-hud-heading span { color: #ede0bb; font-size: 12px; white-space: nowrap; }
+.park-balloon-hud-heading b {
+  margin-inline-start: 5px;
+  color: #fff1d4;
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+.park-balloon-compass {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  box-sizing: border-box;
+  width: 19px;
+  height: 19px;
+  flex: 0 0 19px;
+  border: 1.5px solid #f5dba7;
+  border-radius: 50%;
+}
+.park-balloon-compass::after {
+  content: '';
+  width: 6px;
+  height: 13px;
+  background: #f5dba7;
+  clip-path: polygon(50% 0, 100% 100%, 50% 74%, 0 100%);
+  transform: rotate(29deg);
+}
+.park-balloon-hud .park-balloon-key-guide { color: #f3e6c8; }
+.park-balloon-hud .park-balloon-key-guide kbd {
+  color: #253c2d;
+  border-color: #dcc28f;
+  background: #f8e6bc;
+}
+.park-balloon-direction-guide,
+.park-balloon-direction-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.park-balloon-direction-guide {
+  justify-content: space-between;
+  gap: 7px 18px;
+  padding: 6px 9px;
+  background: #142b206e;
+  border-radius: 7px;
+  text-align: left;
+}
+.park-balloon-direction-label { font-weight: 700; }
+.park-balloon-direction-options { gap: 5px 9px; color: #ede0bb; font-size: 11px; }
+.park-balloon-direction-pad {
+  display: grid;
+  grid-template-columns: repeat(3, 21px);
+  gap: 2px;
+}
+.park-balloon-direction-pad kbd {
+  display: grid;
+  place-items: center;
+  height: 18px;
+  border-radius: 3px;
+  background: #f8e6bc;
+  color: #253c2d;
+  font: 700 12px/1 'Malgun Gothic', sans-serif;
+}
+.park-balloon-direction-pad kbd:first-child { grid-area: 1 / 2; }
+.park-balloon-direction-pad kbd:nth-child(2) { grid-area: 2 / 1; }
+.park-balloon-direction-pad kbd:nth-child(3) { grid-area: 2 / 2; }
+.park-balloon-direction-pad kbd:last-child { grid-area: 2 / 3; }
+.park-balloon-hud[data-direction-seat] .park-balloon-exchange {
+  background: #f6dfaa30;
+  border-color: #f6dfaa;
+}
+.park-balloon-hud[data-direction-seat] .park-balloon-exchange:not(:disabled):hover { background: #f6dfaa52; }
+.park-balloon-hud-note {
+  overflow-wrap: anywhere;
+}
+.park-balloon-hud > .park-balloon-warning {
+  justify-self: center;
+  padding: 6px 12px;
+  border: 1px solid #dbb269;
+  color: #ffe2a3;
+  background: #593612;
+  box-shadow: 0 3px 12px #18211773;
+}
+.park-balloon-hud .park-balloon-warning-icon { background: #f5ca7f; color: #583615; }
+.park-balloon-hud-note { display: block; margin: 1px 0; color: #f5e1ad; }
+.park-balloon-hud-note[role='alert'] { color: #ffdba5; }
+.park-balloon-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.park-balloon-hud-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid #e4c99557;
+}
+.park-balloon-hud-controls .park-balloon-actions { display: contents; }
+.park-balloon-hud-controls .park-balloon-hud-note { flex: 1 0 100%; text-align: left; }
+.park-balloon-hud button {
+  min-height: 34px;
+  padding: 5px 9px;
+  border-radius: 7px;
+  color: #fff0cc;
+  background: #1b362649;
+  border: 1px solid #e0c5937e;
+  white-space: normal;
+  cursor: pointer;
+  font: 600 12px/1.3 'Malgun Gothic', sans-serif;
+}
+.park-balloon-hud button:not(:disabled):hover { background: #f5dba72b; }
+.park-balloon-hud button:disabled { cursor: default; opacity: .5; }
+.park-balloon-hud button:focus-visible { outline: 2px solid #ffe1a3; outline-offset: 1px; }
+.park-balloon-hud button.park-balloon-action-primary { color: #253629; background: #f6dfaa; border-color: #f6dfaa; }
+.park-balloon-hud button.park-balloon-action-primary:not(:disabled):hover { background: #fff0cc; }
+.park-balloon-hud button kbd { margin-inline-end: 2px; padding: 1px 4px; border: 1px solid currentColor; border-radius: 3px; font: inherit; }
+.park-balloon-fade {
+  position: fixed;
+  inset: 0;
+  z-index: 58;
+  background: #151c17;
+  pointer-events: none;
+}
+.park-page:has(.park-balloon-hud) .park-shortcuts { display: none; }
+@media (min-width: 721px) and (max-width: 1279px) {
+  .park-balloon-hud { left: auto; right: 70px; transform: none; max-width: min(510px, calc(100vw - 380px)); }
+  .park-page:has(.park-balloon-hud) .park-chat { max-width: 286px; }
+}
+@media (max-width: 720px) {
+  .park-balloon-hud { bottom: calc(69px + min(12dvh, 88px)); max-height: calc(100dvh - 77px - min(12dvh, 88px)); }
+  .park-page:has(.park-balloon-hud) .park-chat { bottom: 12px; }
+  .park-page:has(.park-balloon-hud) .park-chat__messages { max-height: min(12dvh, 88px); }
+}
+@media (max-width: 460px) {
+  .park-page .table-paper-popup.park-balloon-paper { padding: 8px 14px 15px; }
+  .park-balloon-paper .paper-caption { min-height: 109px; margin: -5px -8px 10px; padding: 24px 10px; font-size: 30px; }
+  .park-balloon-paper .paper-caption small { margin-top: 6px; }
+  .park-balloon-capacity { gap: 5px; padding-inline-start: 75px; }
+  .park-balloon-capacity legend { font-size: 19px; }
+  .park-balloon-capacity label { min-height: 36px; font-size: 18px; }
+  .park-balloon-mode { gap: 6px; }
+  .park-balloon-mode label { grid-template-columns: 14px minmax(0, 1fr); gap: 4px 6px; padding: 9px 6px; }
+  .park-balloon-mode label::before { width: 14px; height: 14px; }
+  .park-balloon-mode strong { font-size: 17px; overflow-wrap: anywhere; }
+  .park-balloon-mode label span { font-size: 12px; }
+  .park-balloon-paper .park-balloon-ticket-actions button { font-size: 17px; }
+  .park-balloon-hud-heading strong { font-size: 21px; }
+}

@@ -130696,10 +130696,10 @@
   "hashAlgorithm": "sha256",
   "hashes": {
     "dataHash": "f1390f7571782e1e8ebf22d9b0f17da1a394d41658a12542519deb45ae5da7b3",
-    "sourceHash": "4c5d86eb9ad41ed04040bf6dc699fef81ba63d66585a536921dcf8300bc8ed93"
+    "sourceHash": "5a9827eccc7406d40244609a5dab222c604b08fbab32283b2380064195438ab9"
   },
   "mapId": "park",
-  "mapVersion": "c05d8ada8b12d4e509f50c7e807949bd976811e1c69a628232520b88c15a0d07",
+  "mapVersion": "de8b51d784c4960691068d278af61d9955d4f493e8104ac5ece8652a6ae08eae",
   "schemaVersion": 2,
   "semantics": {
     "additionalPlayerInflation": "server-capsule-only",

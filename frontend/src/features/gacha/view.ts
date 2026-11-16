@@ -1,4 +1,4 @@
 import { create } from 'zustand'
 
-/** Pause only the obscured park renderer while the gacha's own scene is visible. */
-export const useGachaOverlay=create(()=>({open:false}))
+/** The machine leaves the park visible. The capsule screen covers it. */
+export const useGachaOverlay = create<{ surface: 'machine' | 'boxes' | null }>(() => ({ surface: null }))

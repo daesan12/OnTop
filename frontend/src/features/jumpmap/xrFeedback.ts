@@ -1,7 +1,7 @@
 import { effectsOutput } from '../../audio/bgm'
 import { moverSfx, type MoverState } from '../../audio/sfxEvents'
 import type { AvatarSnapshot } from '../../network/worldClient'
-import { blockAtFeet, START } from './course'
+import { blockAtFeet, START } from './activeCourse'
 import { nearJumpmapStart } from './xrEntry'
 import { playJumpMotionSound, playJumpSound, preloadJumpMotionSounds } from './audio'
 

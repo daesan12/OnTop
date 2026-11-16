@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import { Quaternion, Vector3, WebGLRenderer } from 'three'
+import { Mesh, MeshBasicMaterial, Quaternion, Vector3, WebGLRenderer } from 'three'
 import type { Camera, Scene } from 'three'
 import CoopHost from '../../../src/features/skewer/coop/CoopHost'
 import { ChefPreview } from '../../../src/features/skewer/chef/model'
@@ -110,6 +110,26 @@ async function select(action: string) {
   controller.dispatchEvent({ type: 'selectstart', data: right })
   return { pick: hit?.object.userData.pick, targetVisible: target.visible, parentVisible: target.parent?.visible }
 }
+
+async function measureAssembly() {
+  await new Promise(resolve => setTimeout(resolve, 80))
+  if (!renderer || !scene || !kitchen) throw new Error('주방 준비 전')
+  const assembly = kitchen as unknown as { skewer: import('three').Group; kitchen: import('three').Group; marker: Mesh<import('three').BufferGeometry, MeshBasicMaterial> }
+  const controller = renderer.xr.getController(0)
+  controller.visible = true; controller.position.set(-.25, 1.13, -.15)
+  const aim = assembly.skewer.getWorldPosition(new Vector3())
+  controller.parent!.worldToLocal(aim)
+  controller.quaternion.setFromUnitVectors(new Vector3(0, 0, -1), aim.sub(controller.position).normalize())
+  controller.updateMatrix(); controller.updateWorldMatrix(true, true)
+  const length = () => assembly.skewer.localToWorld(new Vector3(-1.51, 0, 0)).distanceTo(assembly.marker.getWorldPosition(new Vector3()))
+  const restingLength = length()
+  controller.dispatchEvent({ type: 'squeezestart', data: right })
+  const heldLength = length(), held = assembly.skewer.parent === controller
+  controller.dispatchEvent({ type: 'squeezeend', data: right })
+  return { restingLength, heldLength, held, returned: assembly.skewer.parent === assembly.kitchen,
+    counterHeight: assembly.kitchen.localToWorld(new Vector3(0, 1.02, 0)).y,
+    markerOccluded: assembly.marker.material.depthTest, markerRenderOrder: assembly.marker.renderOrder }
+}
 const showModal = HTMLDialogElement.prototype.showModal
 let modalCalls = 0
 HTMLDialogElement.prototype.showModal = function () { if (session) modalCalls++; showModal.call(this) }
@@ -121,6 +141,7 @@ Reflect.set(window, 'vrPauseQA', {
   dispatch: (action: ChefAction) => { if (!kitchen) throw new Error('주방 준비 전'); (kitchen as unknown as { action(action: ChefAction): void }).action(action) },
   b: (pressed: boolean) => Object.assign(right.gamepad!.buttons[5], { pressed }),
   select, hold: (value: boolean) => { hold = value }, fail: () => { fail = true }, failLeave: () => { failLeave = true },
+  measureAssembly,
   failProtection: () => { failProtection = true }, rejectSession: () => { rejectSession = true },
   endSession: () => session?.end(),
   release: () => { hold = false; release?.(); release = undefined },

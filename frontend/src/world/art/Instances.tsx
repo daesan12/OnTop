@@ -52,15 +52,20 @@ export function Instances({
   children,
   shadow = true,
   material,
+  name,
+  capacity = parts.length,
 }: {
   parts: readonly Part[]
   children: ReactNode
   shadow?: boolean
+  name?: string
+  capacity?: number
   material?: ReactNode
 }) {
   const ref = useRef<InstancedMesh>(null)
   useLayoutEffect(() => {
     const mesh = ref.current!
+    mesh.count = parts.length
     const object = new Object3D()
     const color = new Color()
     parts.forEach((part, i) => {
@@ -78,9 +83,10 @@ export function Instances({
   return (
     <instancedMesh
       ref={ref}
+      name={name}
       // The batch itself has an identity transform; only its instance matrices vary.
       matrixAutoUpdate={false}
-      args={[undefined, undefined, parts.length]}
+      args={[undefined, undefined, capacity]}
       castShadow={shadow}
       receiveShadow
     >

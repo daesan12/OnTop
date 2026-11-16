@@ -11,7 +11,7 @@ record GameResultOutboxPayload(int schemaVersion, String tableId, List<MemberRes
             throw new IllegalArgumentException("결과 알림 스냅샷을 확인하세요.");
         }
         results = List.copyOf(results);
-        if (results.isEmpty() || results.size() > 4) {
+        if (results.isEmpty() || results.size() > 8) {
             throw new IllegalArgumentException("결과 수신자를 확인하세요.");
         }
         var first = results.getFirst().view();

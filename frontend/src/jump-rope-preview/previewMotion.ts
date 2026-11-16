@@ -2,6 +2,7 @@ import { advanceRope, judgePass, jumpPrepareMs, sampleFlightHeight } from './jum
 import type { JudgementSettings, JumpTiming, PassJudgement } from './jumpRopeJudgement'
 import { defaultRopeAcceleration, ropeTempo, type RopeAccelerationClock } from './ropeAcceleration'
 import { roundDurationMs } from './jumpRopeRules'
+import type { RankedV2State } from './rankedGrandpa'
 
 const landMs = 45
 const recoveryMs = 65
@@ -10,9 +11,13 @@ export const rankedDurationUs = roundDurationMs * 1000
 const rankedTempo = ropeTempo(1, { profile: defaultRopeAcceleration, playedMs: 0 })
 export const rankedPassageUs = (turn: number) => Math.round(rankedTempo.timeForTurns(turn) * 1000)
 
-export type RankedClock = { startsAt: number; segmentAt: number; segmentUs: number; offsets: number[] }
+export type RankedClock = {
+  startsAt: number; segmentAt: number; segmentUs: number; offsets: number[]
+  /** Story 430: present only on a server round with rulesVersion 2 (grandpa raid, duck and stun). */
+  v2?: RankedV2State
+}
 
-function activeUs(clock: RankedClock, now: number) {
+export function activeUs(clock: RankedClock, now: number) {
   return clock.segmentUs + Math.round((now - clock.segmentAt) * 1000)
 }
 
@@ -115,7 +120,7 @@ export function advancePreviewMotion(
   return results
 }
 
-function sampleJumpFrame(jump: Jump, now: number): JumpFrame {
+export function sampleJumpFrame(jump: Jump, now: number): JumpFrame {
   const elapsed = Math.max(0, now - jump.startedAt)
   const airTime = elapsed - jumpPrepareMs
   const landTime = airTime - jump.flightMs
@@ -137,7 +142,7 @@ function sampleJumpFrame(jump: Jump, now: number): JumpFrame {
   return ready
 }
 
-type Pose = {
+export type Pose = {
   thigh: number; knee: number; toe: number; shoulder: number; elbow: number; spread: number; lean: number
 }
 
@@ -148,7 +153,7 @@ const tucked: Pose = { thigh: -0.26, knee: 0.67, toe: 0.12, shoulder: -0.23, elb
 const contact: Pose = { thigh: -0.083, knee: 0.17, toe: 0, shoulder: -0.09, elbow: -0.38, spread: 0.11, lean: 0.1 }
 const absorbed: Pose = { thigh: -0.43, knee: 0.84, toe: 0, shoulder: -0.15, elbow: -0.5, spread: 0.13, lean: 0.25 }
 
-function blendPose(from: Pose, to: Pose, progress: number): Pose {
+export function blendPose(from: Pose, to: Pose, progress: number): Pose {
   const weight = progress * progress * (3 - 2 * progress)
   return {
     thigh: from.thigh + (to.thigh - from.thigh) * weight,

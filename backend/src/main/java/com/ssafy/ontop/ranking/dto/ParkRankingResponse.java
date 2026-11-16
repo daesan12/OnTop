@@ -7,11 +7,37 @@ import java.util.List;
 public record ParkRankingResponse(@Size(max = 10) List<BalanceItem> balance,
                                   @Size(max = 10) List<MoleItem> mole,
                                   @Size(max = 10) List<SpeedMoleItem> speedMole,
-                                  Instant updatedAt) {
+                                  @Size(max = 10) List<JumpRopeItem> jumpRope,
+                                  Instant updatedAt,
+                                  List<JumpmapItem> jumpmap, List<MoleItem> bungeoppang, List<SkewerItem> skewer,
+                                  Instant jumpRopeStartsAt, Instant jumpRopeEndsAtExclusive) {
     public ParkRankingResponse {
         balance = List.copyOf(balance);
         mole = List.copyOf(mole);
         speedMole = List.copyOf(speedMole);
+        jumpRope = List.copyOf(jumpRope);
+        jumpmap = List.copyOf(jumpmap);
+        bungeoppang = List.copyOf(bungeoppang);
+        skewer = List.copyOf(skewer);
+    }
+
+    public ParkRankingResponse(List<BalanceItem> balance, List<MoleItem> mole, List<SpeedMoleItem> speedMole,
+            List<JumpRopeItem> jumpRope, Instant updatedAt) {
+        this(balance, mole, speedMole, jumpRope, updatedAt, List.of(), List.of(), List.of(),
+                com.ssafy.ontop.game.jumprope.JumpRopeRankingWindow.START,
+                com.ssafy.ontop.game.jumprope.JumpRopeRankingWindow.END_EXCLUSIVE);
+    }
+
+    public record JumpmapItem(long rank, String userId, String nickname, long finishMs,
+            Instant completedAt, boolean gameMaster) { }
+    public record SkewerItem(long rank, String gameId, String chefUserId, String chefNickname,
+            String serverUserId, String serverNickname, long score, String playMode, Instant completedAt,
+            boolean chefGameMaster, boolean serverGameMaster) { }
+
+    /** 줄넘기 열이 없던 호출부용. 줄넘기는 빈 목록이다. */
+    public ParkRankingResponse(List<BalanceItem> balance, List<MoleItem> mole, List<SpeedMoleItem> speedMole,
+            Instant updatedAt) {
+        this(balance, mole, speedMole, List.of(), updatedAt);
     }
 
     public record BalanceItem(long rank, String userId, String nickname, long coinBalance, boolean gameMaster,
@@ -37,5 +63,9 @@ public record ParkRankingResponse(@Size(max = 10) List<BalanceItem> balance,
                 Instant completedAt) {
             this(rank, userId, nickname, score, misses, completedAt, false);
         }
+    }
+
+    public record JumpRopeItem(long rank, String userId, String nickname, long score, long misses,
+                               Instant completedAt, boolean gameMaster) {
     }
 }

@@ -3,7 +3,6 @@ param(
   [ValidateRange(1,65535)][int]$Port = 5202,
   [switch]$ConnectQuest,
   [switch]$ConnectQuestOnly,
-  [switch]$UseTestAdmission,
   [string]$AdbPath = 'adb',
   [string]$QuestSerial
 )
@@ -30,13 +29,10 @@ $parkViteScript = Join-Path $parkFrontendDirectory 'node_modules/vite/bin/vite.j
 if (!(Test-Path -LiteralPath $parkViteScript)) { throw 'frontend/node_modules가 없습니다. 기존 프로젝트 의존성을 준비해 주세요.' }
 if ($ConnectQuest) { Connect-QuestLocalPort -Port $Port -AdbPath $AdbPath -QuestSerial $QuestSerial }
 $parkPreviousProxyTarget = $env:API_PROXY_TARGET
-$parkPreviousVrPreview = $env:VITE_VR_ZONE_PREVIEW
 Push-Location -LiteralPath $parkFrontendDirectory
 try {
   $env:API_PROXY_TARGET = $parkBackendAddress
-  $env:VITE_VR_ZONE_PREVIEW = if ($UseTestAdmission) { 'true' } else { 'false' }
-  Write-Host "실제 공원 진입: http://localhost:$Port/park"
-  Write-Host $(if ($UseTestAdmission) { '실제 로그인·공원 통신 + 별도 테스트 이용권 100냥입니다.' } else { '실제 로그인·공원 통신·지갑을 사용하며 새 판마다 10냥이 차감됩니다.' })
+  Write-Host "실제 공원 진입: http://localhost:$Port/park · 꼬치왕 무료 2인 협동"
   Write-Host '서버의 허용 Origin과 OAuth 콜백이 이 localhost 주소를 허용해야 합니다.'
   Write-Host "서버 실행 후 Quest만 추가 연결: .\scripts\start-skewer-park.ps1 -ConnectQuestOnly -Port $Port"
   & $parkNodeExecutable $parkViteScript --mode park-integration --host localhost --port $Port --strictPort
@@ -44,5 +40,4 @@ try {
 } finally {
   Pop-Location
   $env:API_PROXY_TARGET = $parkPreviousProxyTarget
-  $env:VITE_VR_ZONE_PREVIEW = $parkPreviousVrPreview
 }

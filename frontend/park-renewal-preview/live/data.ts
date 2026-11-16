@@ -1,0 +1,93 @@
+import { SITES as originalSites } from '../../src/layout-preview/layout'
+import { PARK_DATA } from '../../src/map/park'
+import type { MapPose, Point3 } from '../../src/map/park/interactionData'
+import { facilityBase, facilityYaw } from '../facilityPlacement'
+import { groundSurfaceHeight } from '../groundSurface'
+import { FACILITY_TARGETS } from '../mapping/identities'
+import { LAKE, heightAt, facilityGroundY, site } from '../plan'
+import { TOWER_TOP, telescopeYaw } from '../towerFurniturePlan'
+import { buildRenewalPhysics, RENEWAL_HALF_SIZE, RENEWAL_SPAWN } from './physics'
+import { buildRenewalTables } from './tableLayout'
+import { buildRenewalRecreation } from './recreation'
+import { buildRenewalJumpCourse } from './jumpCourseData'
+import { buildRenewalConstructionSites } from './construction'
+import { buildRenewalBenches } from './benches'
+import { buildRenewalBoats } from './boats'
+
+function offset(position: Point3, x: number, y: number, z: number): Point3 {
+  return [position[0] + x, position[1] + y, position[2] + z]
+}
+
+function shift(pose: MapPose, x: number, y: number, z: number): MapPose {
+  return { x: pose.x + x, y: pose.y + y, z: pose.z + z, yaw: pose.yaw }
+}
+
+function kioskPlacement(id: 'lottery' | 'ranking', distance: number) {
+  const s = site(id), yaw = facilityYaw(s)
+  // The lottery GLB's front is -Z. The procedural ranking board faces +Z.
+  const direction = id === 'lottery' ? -distance : distance
+  const x = s.x + Math.sin(yaw) * direction, z = s.z + Math.cos(yaw) * direction
+  return {
+    position: [s.x, facilityBase(id), s.z] as Point3,
+    reachPosition: [x, groundSurfaceHeight(x, z) + .8, z] as Point3,
+    yaw,
+  }
+}
+
+export function buildRenewalMapData() {
+  const tables = buildRenewalTables()
+  const { physics, pavilions } = buildRenewalPhysics(tables)
+  const facilities = PARK_DATA.facilities.flatMap(facility => {
+    const id = FACILITY_TARGETS[facility.id]
+    if (!id) return []
+    const s = site(id)
+    return [{ ...facility, position: [s.x, heightAt(s.x, s.z), s.z] as Point3, yaw: facilityYaw(s) }]
+  })
+  const gacha = site('gacha')
+  facilities.push({ id: 'layout-shop', kind: 'shop',
+    position: [gacha.x, facilityBase('gacha'), gacha.z], yaw: facilityYaw(gacha) })
+  const gym = site('fitness'), tower = site('tower'), mailbox = site('mailbox')
+  const gx = gym.x - originalSites.fitness.x, gy = heightAt(gym.x, gym.z), gz = gym.z - originalSites.fitness.z
+  const deckY = facilityGroundY(tower) + TOWER_TOP.floor + .015
+  const old = PARK_DATA.interactions
+  const fitness = old.fitness.map(f => ({
+    ...f, position: offset(f.position, gx, gy, gz),
+    use: shift(f.use, gx, gy, gz), exit: shift(f.exit, gx, gy, gz),
+  }))
+  const telescopes = old.telescopes.map((t, i) => {
+    const [lx, lz] = TOWER_TOP.telescopes[i]!
+    const x = tower.x + lx, z = tower.z + lz, yaw = telescopeYaw(x, z)
+    const pose = (source: MapPose) => {
+      const d = Math.hypot(source.x - t.position[0], source.z - t.position[2])
+      return { x: x - Math.sin(yaw) * d, y: deckY + .8, z: z - Math.cos(yaw) * d, yaw }
+    }
+    return { ...t, yaw, position: [x, deckY, z] as Point3, use: pose(t.use), exit: pose(t.exit) }
+  })
+  const [nx, nz] = TOWER_TOP.notes
+  const notesPosition: Point3 = [tower.x + nx, deckY, tower.z + nz]
+  const rankingBoard = { ...old.rankingBoard, ...kioskPlacement('ranking', 2.7), radius: 3.5 }
+  const [rankingX, , rankingZ] = rankingBoard.reachPosition
+  const { yaw } = rankingBoard
+  const judgeX = rankingX - 5 * Math.cos(yaw) + 3 * Math.sin(yaw)
+  const judgeZ = rankingZ + 5 * Math.sin(yaw) + 3 * Math.cos(yaw)
+  const jokeJudge: Point3 = [judgeX, groundSurfaceHeight(judgeX, judgeZ) + .8, judgeZ]
+  return {
+    ...PARK_DATA,
+    world: { ...PARK_DATA.world, size: RENEWAL_HALF_SIZE * 2, half: RENEWAL_HALF_SIZE, spawn: RENEWAL_SPAWN },
+    tableAnchorIds: tables.map(t => t.id),
+    tables, facilities, pavilions, physics, jumpCourse: buildRenewalJumpCourse(),
+    interactions: {
+      ...old, benches: buildRenewalBenches(), fitness, telescopes, boats: buildRenewalBoats(), ...buildRenewalRecreation(),
+      construction: [
+        ...old.construction.filter(s => s.id === 'layout-drink').map(s => ({ ...s, ...kioskPlacement('lottery', 3.25) })),
+        ...buildRenewalConstructionSites(),
+      ],
+      rankingBoard, jokeJudge,
+      notes: { ...old.notes, position: notesPosition, reachPosition: offset(notesPosition, 0, .8, 0) },
+      mailbox: { ...old.mailbox, position: [mailbox.x, heightAt(mailbox.x, mailbox.z) + .1, mailbox.z] as Point3 },
+      tableSeats: tables.map(t => ({ tableId: t.id, position: t.position, localSeats: t.seatAnchors })),
+    },
+    surfaces: { ...PARK_DATA.surfaces, lake: { ...PARK_DATA.surfaces.lake,
+      x: LAKE.x, z: LAKE.z, rx: LAKE.rx, rz: LAKE.rz, surfaceY: LAKE.y, depth: 3 } },
+  }
+}

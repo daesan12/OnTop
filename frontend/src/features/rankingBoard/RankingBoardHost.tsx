@@ -3,12 +3,15 @@ import { useParkRuntime } from '../../park/runtime/ParkRuntime'
 import { RankingBoardDialog } from './RankingBoardDialog'
 import { fetchParkRanking, parkRankingError } from './service'
 import { beginRankingRefresh, completeRankingRefresh, failRankingRefresh } from './state'
+import { useRankingBoardEntry } from './model'
+import { useRankingPageCycle } from './pageCycle'
 
 const POLL_INTERVAL_MS = 15_000
 export const canPollParkRanking = (visibility: DocumentVisibilityState) => visibility === 'visible'
 
 export function RankingBoardHost() {
   const runtime = useParkRuntime()
+  const open = useRankingBoardEntry(state => state.open)
   const inFlight = useRef<AbortController | null>(null)
   const refresh = useCallback(() => {
     if (!canPollParkRanking(document.visibilityState) || inFlight.current) return
@@ -20,6 +23,10 @@ export function RankingBoardHost() {
       .catch(error => { if (!controller.signal.aborted) failRankingRefresh(parkRankingError(error)) })
       .finally(() => { if (inFlight.current === controller) inFlight.current = null })
   }, [runtime])
+
+  useEffect(() => { if (open) refresh() }, [open, refresh])
+
+  useRankingPageCycle(open)
 
   useEffect(() => {
     // The provider starts the runtime in its own effect. Defer the first read by

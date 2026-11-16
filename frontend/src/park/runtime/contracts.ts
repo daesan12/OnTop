@@ -10,9 +10,17 @@ export interface ParkRuntimePort {
   subscribeNotesChanged(changed: () => void): () => void
   reconnect(): void
   requestJSON(path: string, init?: RequestInit): Promise<unknown>
+  startBalloon(ticketId: string, position: import('../../features/balloon/flight').Point,
+    boarding: import('../../features/balloon/flight').BalloonBoarding): Promise<boolean>
+  launchBalloon(ticketId: string, solo: boolean): Promise<void>
+  controlBalloon(ticketId: string, action: import('../../features/balloon/controls').ControlAction): Promise<void>
+  sendBalloonPose(ticketId: string, position: import('../../features/balloon/flight').Point, aboard: boolean,
+    cabin: import('../../features/balloon/cabin').CabinPose, input: import('../../features/balloon/flight').Input): void
+  endBalloon(ticketId: string): void
   checkFacilities(reloadCatalog?: boolean): Promise<void>
   useFacility(facilityId: string, seatIndex: number, signal: AbortSignal): Promise<import('../../features/facilities/protocol').FacilityLease>
   releaseFacility(leaseId: string, signal: AbortSignal): Promise<void>
+  boatCommand?(type: import('../../network/facilityClient').BoatCommand, payload: Record<string, unknown>, signal: AbortSignal): Promise<void>
   aimFacility(leaseId: string, aim: { yaw: number; pitch: number }, signal: AbortSignal): Promise<{ yaw: number; pitch: number }>
   selectChannel(channelId: string): Promise<boolean>
   enterRecommendedChannel(): Promise<boolean>
@@ -27,9 +35,13 @@ export interface ParkRuntimePort {
   pickupAvatar?(targetId: string): Promise<boolean>
   throwAvatar?(carryId: string, direction: { dx: number; dy: number; dz: number }): Promise<boolean>
   releaseAvatar?(carryId: string): Promise<boolean>
-  setInteractionBusy?(busy: boolean, confirm?: boolean): Promise<boolean>
+  setInteractionBusy?(busy: boolean, confirm?: boolean, minigame?: boolean): Promise<boolean>
   move(dx: number, dz: number, run: boolean, jump?: boolean): void
   stopMovement(): void
+  setSecretDoors?(open: boolean): Promise<boolean>
+  useInteriorAccess?(access: string): Promise<boolean>
+  rentVehicle?(target: import('../../features/mobility/state').RentalTarget, leaseId: string): Promise<void>
+  endVehicleRental?(leaseId: string): Promise<void>
   inspectTable(anchorId: string, watch?: boolean): void
   closeTable(): void
   joinTable(anchorId?: string): Promise<boolean>
@@ -51,6 +63,7 @@ export interface ParkRuntimePort {
   restoreOneCardHand?(): Promise<boolean>
   hitOneCardHand?(attemptId: string): Promise<boolean>
   sendAlkkagiSpectator?(input: Record<string, unknown>): Promise<boolean>
+  actStoneRumble?(input: import('../../game/stone-rumble/protocol').StoneAction, clearQueuedActions?: boolean): Promise<boolean>
   actAlkkagi?(input: Record<string, unknown>): Promise<boolean>
   actBridge(input: import('../../game/bridge/protocol').BridgeInput): Promise<boolean>
   actLedger(input: import('../../game/ledger/protocol').LedgerInput): Promise<boolean>

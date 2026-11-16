@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ssafy.ontop.game.mole.controller.MoleController;
 import com.ssafy.ontop.game.plusminus.controller.PlusMinusController;
 import com.ssafy.ontop.game.rpsroulette.controller.RpsRouletteController;
-import com.ssafy.ontop.game.skewer.controller.SkewerAdmissionController;
 import com.ssafy.ontop.game.skewer.coop.controller.SkewerCoopController;
 import com.ssafy.ontop.minigame.controller.MinigameController;
 import com.ssafy.ontop.operation.domain.ServiceOperationMode;
@@ -82,7 +81,6 @@ class NewActivityGateInterceptorTests {
         assertNewActivity(MoleController.class, "start");
         assertNewActivity(PlusMinusController.class, "start");
         assertNewActivity(RpsRouletteController.class, "start");
-        assertNewActivity(SkewerAdmissionController.class, "start");
         assertNewActivity(SkewerCoopController.class, "enter");
     }
 

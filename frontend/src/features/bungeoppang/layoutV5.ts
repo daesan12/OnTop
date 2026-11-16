@@ -1,7 +1,10 @@
 import { MINI_PROPS } from '../../park/mapConfig';
+import { renewalMap } from '../../park/renewalMap';
 const cart = MINI_PROPS.find(p => p.id === 'fish-bread')!;
 export type Point3 = [number, number, number];
-export const cartPoint = (x: number, y: number, z: number): Point3 => [cart.x + x, y, cart.z + z];
+export const renewalBreadShop = renewalMap?.data.interactions.recreation?.find(anchor => anchor.id === 'fish-bread');
+const [cartX, cartY, cartZ] = renewalBreadShop?.position ?? [cart.x, 0, cart.z];
+export const cartPoint = (x: number, y: number, z: number): Point3 => [cartX + x, cartY + y, cartZ + z];
 /** Two staggered shelves keep both rows readable from the cooking camera. */
 export const trayPoint = (index: number): Point3 => cartPoint(.47 + (index % 5) * .205, index < 5 ? 1.265 : 1.56, index < 5 ? .16 : -.15);
 export const customerPoint = (slot: number): Point3 => cartPoint(-1.16 + slot * .50, -.045, -1.02);

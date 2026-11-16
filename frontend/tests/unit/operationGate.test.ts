@@ -29,11 +29,10 @@ describe('park operation gate', () => {
   })
 
   it('1인 꼬치구이는 주문 결과까지 진행 중이고 최종 결과부터 종료로 본다', () => {
-    expect(soloSkewerGameplayActive('ready', false)).toBe(false)
-    expect(soloSkewerGameplayActive('countdown', false)).toBe(true)
-    expect(soloSkewerGameplayActive('result', false)).toBe(true)
-    expect(soloSkewerGameplayActive('finished', false)).toBe(false)
-    expect(soloSkewerGameplayActive('ready', true)).toBe(true)
+    expect(soloSkewerGameplayActive('ready')).toBe(false)
+    expect(soloSkewerGameplayActive('countdown')).toBe(true)
+    expect(soloSkewerGameplayActive('result')).toBe(true)
+    expect(soloSkewerGameplayActive('finished')).toBe(false)
   })
 
   it('협동 꼬치구이 대기실은 진행 중 판이 아니고 카운트다운부터 진행 중이다', () => {

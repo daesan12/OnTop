@@ -32,18 +32,29 @@ class MoleAuditStore {
     record RoundData(long id, long userId, long seed, int version, Instant startedAt, String status) {
     }
 
+    record RoundWithMember(RoundData round, String nickname, boolean withdrawn) {
+    }
+
     record Event(Instant receivedAt, JsonNode props, boolean settlement) {
     }
 
-    RoundData find(MoleAuditGame game, long id, Long owner) {
-        var args = new HashMap<String, Object>();
-        args.put("id", id);
-        String sql = select(game) + " WHERE id = :id";
-        if (owner != null) {
-            sql += " AND user_id = :owner";
-            args.put("owner", owner);
-        }
-        return jdbc.query(sql, args, (row, index) -> round(row)).stream().findFirst().orElse(null);
+    RoundData findOwnedRound(MoleAuditGame game, long id, long owner) {
+        String sql = select(game) + " WHERE id = :id AND user_id = :owner";
+        return jdbc.query(sql, Map.of("id", id, "owner", owner), (row, index) -> round(row))
+                .stream().findFirst().orElse(null);
+    }
+
+    RoundWithMember findRoundWithMember(MoleAuditGame game, long id) {
+        String sql = """
+                SELECT r.id, r.user_id, r.seed, r.rules_version, r.started_at, r.status,
+                       u.nickname, u.deleted_at IS NOT NULL AS withdrawn
+                FROM %s r
+                LEFT JOIN users u ON u.id = r.user_id
+                WHERE r.id = :id
+                """.formatted(game.table);
+        return jdbc.query(sql, Map.of("id", id), (row, index) -> new RoundWithMember(
+                round(row), row.getString("nickname"), row.getBoolean("withdrawn")))
+                .stream().findFirst().orElse(null);
     }
 
     List<RoundData> list(MoleAuditGame game, Long user, Long id, Instant from, Instant until, Integer version,
@@ -61,6 +72,51 @@ class MoleAuditStore {
         }
         args.put("limit", limit);
         return jdbc.query(sql.append(" ORDER BY id DESC LIMIT :limit").toString(), args, (row, index) -> round(row));
+    }
+
+    List<MoleAuditDtos.DetectedMember> detections(MoleAuditGame game, Instant from, Instant until, int limit) {
+        // 판 중 묶음 재전송이나 완료 제출에 같은 신호가 있어도 적발 판은 한 번만 센다.
+        String sql = """
+                WITH detected_rounds AS (
+                    SELECT r.user_id, r.id AS round_id, MAX(e.occurred_at) AS detected_at,
+                           MAX(e.event_type = 'MOLE_TAP_BATCH') AS live_hit,
+                           MAX(e.event_type = 'MOLE_ROUND_HONEYPOT') AS completion_hit
+                    FROM behavior_events e
+                    JOIN %s r ON r.id = CAST(SUBSTRING_INDEX(e.game_id, ':', -1) AS UNSIGNED)
+                        AND e.game_id = CONCAT(:prefix, r.id) AND e.user_id = r.user_id
+                    WHERE e.source = 'SERVER' AND e.game_id LIKE :gameKey
+                      AND e.occurred_at >= :from AND e.occurred_at < :until
+                      AND e.occurred_at >= r.started_at
+                      AND e.occurred_at <= TIMESTAMPADD(MICROSECOND, :windowMicros, r.started_at)
+                      AND e.event_type IN ('MOLE_TAP_BATCH', 'MOLE_ROUND_HONEYPOT')
+                      AND (
+                          (e.event_type = 'MOLE_TAP_BATCH'
+                              AND JSON_SEARCH(e.props, 'one', '%%:HONEYPOT:%%', NULL, '$.taps[*]') IS NOT NULL)
+                          OR (e.event_type = 'MOLE_ROUND_HONEYPOT'
+                              AND JSON_EXTRACT(e.props, '$.hits') > 0)
+                      )
+                    GROUP BY r.user_id, r.id
+                ), ranked AS (
+                    SELECT *, ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY detected_at DESC, round_id DESC) AS recency
+                    FROM detected_rounds
+                )
+                SELECT d.user_id, u.nickname, u.deleted_at IS NOT NULL AS withdrawn,
+                       COUNT(*) AS flagged_rounds, SUM(d.live_hit) AS live_rounds,
+                       SUM(d.completion_hit) AS completion_rounds,
+                       MAX(CASE WHEN d.recency = 1 THEN d.round_id END) AS latest_round_id,
+                       MAX(d.detected_at) AS last_detected_at
+                FROM ranked d
+                LEFT JOIN users u ON u.id = d.user_id
+                GROUP BY d.user_id, u.nickname, u.deleted_at
+                ORDER BY flagged_rounds DESC, last_detected_at DESC, d.user_id
+                LIMIT :limit
+                """.formatted(game.table);
+        return jdbc.query(sql, Map.of("prefix", game.path + ":", "gameKey", game.path + ":%",
+                "from", utc(from), "until", utc(until), "windowMicros", (game.durationMs + 30_000L) * 1000,
+                "limit", limit), (row, index) -> new MoleAuditDtos.DetectedMember(
+                        row.getString("user_id"), row.getString("nickname"), row.getBoolean("withdrawn"),
+                        row.getInt("flagged_rounds"), row.getInt("live_rounds"), row.getInt("completion_rounds"),
+                        row.getString("latest_round_id"), instant(row, "last_detected_at")));
     }
 
     Map<Long, List<Event>> events(MoleAuditGame game, List<RoundData> rounds) {

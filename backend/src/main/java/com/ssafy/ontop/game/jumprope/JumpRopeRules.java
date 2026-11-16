@@ -14,11 +14,11 @@ public final class JumpRopeRules {
     private static final int END_PERIOD_MS = 800;
     private static final double PERIOD_SLOPE = (START_PERIOD_MS - END_PERIOD_MS) / (double) DURATION_MS;
     private static final double TURNS_AT_DEADLINE = -Math.log1p(-PERIOD_SLOPE * DURATION_MS / START_PERIOD_MS) / PERIOD_SLOPE;
-    private static final int PREPARE_US = 70_000;
-    private static final int FLIGHT_US = 400_000;
-    private static final int NEXT_JUMP_US = PREPARE_US + FLIGHT_US + 45_000;
-    private static final int READY_US = NEXT_JUMP_US + 65_000;
-    private static final int REACTION_US = 1_350_000;
+    static final int PREPARE_US = 70_000;
+    static final int FLIGHT_US = 400_000;
+    static final int NEXT_JUMP_US = PREPARE_US + FLIGHT_US + 45_000;
+    static final int READY_US = NEXT_JUMP_US + 65_000;
+    static final int REACTION_US = 1_350_000;
     private static final int PERFECT_WINDOW_US = 50_000;
     private static final double PEAK = 0.6;
     private static final double REQUIRED_HEIGHT = 0.017 + 0.035 + 0.03;
@@ -91,9 +91,13 @@ public final class JumpRopeRules {
 
     /** Canonical play-clock passage: inverse integral of 1 / period, rounded once like Math.round(ms * 1000) in JS. */
     static int passageUs(int turn) {
-        double elapsedMs = turn >= TURNS_AT_DEADLINE ? DURATION_MS + (turn - TURNS_AT_DEADLINE) * END_PERIOD_MS
+        return (int) Math.round(passageMs(turn) * 1_000);
+    }
+
+    /** The FE ropeTempo(...).timeForTurns(turn) in IEEE 754 doubles, with the same operation order. */
+    static double passageMs(int turn) {
+        return turn >= TURNS_AT_DEADLINE ? DURATION_MS + (turn - TURNS_AT_DEADLINE) * END_PERIOD_MS
                 : -START_PERIOD_MS * Math.expm1(-PERIOD_SLOPE * turn) / PERIOD_SLOPE;
-        return (int) Math.round(elapsedMs * 1_000);
     }
 
     static Judgement judgePass(int passage, int jump) {
@@ -106,7 +110,7 @@ public final class JumpRopeRules {
         return Math.abs(lead - PREPARE_US - FLIGHT_US / 2) <= PERFECT_WINDOW_US ? Judgement.PERFECT : Judgement.GOOD;
     }
 
-    private static JumpRopeException invalidInputs() {
+    static JumpRopeException invalidInputs() {
         return new JumpRopeException(400, "JUMP_ROPE_INVALID_INPUTS", "점프 기록의 시간과 순서를 확인해 주세요.");
     }
 }

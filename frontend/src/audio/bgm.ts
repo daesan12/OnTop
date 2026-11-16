@@ -45,6 +45,21 @@ type Voice = { track: BgmTrack; source: AudioBufferSourceNode; gain: GainNode; s
 let audio: AudioContext | undefined, master: GainNode | undefined, music: GainNode | undefined, effects: GainNode | undefined
 let jumpEffects: GainNode | undefined
 let jumpmapFocused = false
+let fountainFocus = 0
+let firepitFocus = 0
+
+export function setFirepitAudioFocus(focus: number) {
+  if (firepitFocus === focus || (focus !== 0 && Math.abs(firepitFocus - focus) < .015)) return
+  firepitFocus = focus
+  applyVolume()
+}
+
+export function setFountainAudioFocus(focus: number) {
+  if (Math.abs(fountainFocus - focus) < .015 && focus !== 0) return
+  if (fountainFocus === focus) return
+  fountainFocus = focus
+  applyVolume()
+}
 
 /** Temporary mix only: never overwrite the player's saved volume or mute choices. */
 export function setJumpmapAudioFocus(focused: boolean) {
@@ -52,6 +67,7 @@ export function setJumpmapAudioFocus(focused: boolean) {
   applyVolume()
 }
 let current: Voice | undefined
+let duckUntil = 0
 let wanted: BgmTrack | null = null
 let armed = false
 const buffers = new Map<string, Promise<AudioBuffer | null>>()
@@ -75,7 +91,8 @@ export function loadSound(context: AudioContext, name: string) {
 
 function applyVolume() {
   if (!audio || !master || !effects) return
-  for (const [node, { volume, muted }, focus] of [[master, useBgmSettings.getState(), jumpmapFocused ? .25 : 1], [effects, useSfxSettings.getState(), jumpmapFocused ? .2 : 1]] as const)
+  const ambience = Math.max(fountainFocus, firepitFocus)
+  for (const [node, { volume, muted }, focus] of [[master, useBgmSettings.getState(), jumpmapFocused ? .25 : 1 - .66 * ambience], [effects, useSfxSettings.getState(), jumpmapFocused ? .2 : 1]] as const)
     node.gain.setTargetAtTime(muted ? 0 : (volume / 100) ** 2 * focus, audio.currentTime, 0.05)
   const sfx = useSfxSettings.getState()
   jumpEffects?.gain.setTargetAtTime(sfx.muted ? 0 : (sfx.volume / 100) ** 2, audio.currentTime, .05)
@@ -149,8 +166,13 @@ function crossfade(context: AudioContext, bus: GainNode, track: BgmTrack, buffer
 }
 
 /** Loops the track seamlessly; asking for the track already playing changes nothing. */
-export function playBgm(track: BgmTrack) {
+export function playBgm(track: BgmTrack | null) {
   wanted = track
+  if (track === null) {
+    if (audio && current) release(current, audio.currentTime, FADE_S)
+    current = undefined
+    return
+  }
   if (!audio) return armUnlock()
   const context = audio, bus = music
   if (!context || !bus || current?.track === track) return
@@ -171,6 +193,7 @@ export function playSting(name: BgmSting) {
     source.connect(out)
     source.onended = () => source.disconnect()
     source.start(now)
+    duckUntil = now + buffer.duration
     bus.gain.cancelScheduledValues(now)
     bus.gain.setValueAtTime(bus.gain.value, now)
     bus.gain.linearRampToValueAtTime(DUCK, now + 0.3)
@@ -179,6 +202,19 @@ export function playSting(name: BgmSting) {
   })
 }
 
-export function useBgmTrack(track: BgmTrack) {
+/** 게임의 중요한 효과음 동안 음악만 잠깐 낮춘다. 저장된 볼륨/음소거와 효과음 bus는 유지한다. */
+export function duckBgm(seconds: number, level = .45) {
+  if (!audio || !music || audio.state !== 'running' || !Number.isFinite(seconds) || !Number.isFinite(level)) return
+  const now = audio.currentTime
+  duckUntil = Math.max(duckUntil, now + Math.min(2, Math.max(0, seconds)))
+  const target = Math.min(music.gain.value, Math.min(1, Math.max(.15, level)))
+  music.gain.cancelScheduledValues(now)
+  music.gain.setValueAtTime(music.gain.value, now)
+  music.gain.linearRampToValueAtTime(target, now + .025)
+  music.gain.setValueAtTime(target, duckUntil)
+  music.gain.linearRampToValueAtTime(1, duckUntil + .25)
+}
+
+export function useBgmTrack(track: BgmTrack | null) {
   useEffect(() => playBgm(track), [track])
 }

@@ -4,7 +4,7 @@ import { useSession } from '../network/worldClient'
 import { acceptPolice } from '../features/ai/worldAi'
 import { jokeSubmissionError } from '../features/ai/jokeSubmissionError'
 import { jokeContestPath, closeJokeContest, jokeJudgePosition, useJokeContest } from '../features/ai/jokeContest'
-import './jokeContest.css'
+import { NpcDialogueFrame } from '../features/ai/NpcDialogueFrame'
 import './jokeRanking.css'
 
 type Submission = { id: string; question: string; answer: string; status: string; scoreX10: number | null; reaction: string; reactionSource: string; reason: string }
@@ -16,10 +16,6 @@ const labels: Record<string, string> = { PENDING: '심사 중', SCORED: '심사 
 async function read<T>(path: string, body?: object): Promise<T> {
   return await parkRuntime.requestJSON(jokeContestPath(path), body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : undefined) as T
 }
-function Knot({ className }: { className: string }) {
-  return <svg className={className} viewBox="0 0 64 24" fill="none" aria-hidden="true"><path d="M2 12h13L27 2l12 10-12 10-12-10L27 2M62 12H49L37 2 25 12l12 10 12-10L37 2M19 12l13-8 13 8-13 8z" stroke="currentColor" strokeWidth="1.6" /></svg>
-}
-
 export function JokeContestPanel() {
   const { open, tab } = useJokeContest()
   const session = useSession(s => s.sessionId), channel = useSession(s => s.roomId)
@@ -179,11 +175,7 @@ export function JokeContestPanel() {
           <footer className="joke-ledger-footer"><p><strong>{attemptsLabel}</strong><span> · 기발한 한마디로 아재왕에 도전하세요.</span></p><button disabled={exhausted && !pending} onClick={begin}>{pending ? '내 심사 확인하기' : exhausted ? '오늘 도전 완료' : '김부장에게 도전하기'}</button></footer>
         </div>
       </div>}
-      {tab === 'submit' && <><div className="joke-dialogue-frame">
-        <Knot className="joke-knot joke-knot-top" /><Knot className="joke-knot joke-knot-bottom" />
-        <span className="joke-corner joke-corner-tl" aria-hidden="true" /><span className="joke-corner joke-corner-tr" aria-hidden="true" /><span className="joke-corner joke-corner-bl" aria-hidden="true" /><span className="joke-corner joke-corner-br" aria-hidden="true" />
-        <svg className="joke-ink-landscape" viewBox="0 0 400 160" aria-hidden="true"><path d="m0 160 95-73 52 35 77-63 176 101z" /><path d="M277 160 282 53l-37 30 27-48 21-25 23 26-13-5 35 31-36-12 42 33-47-14-1 91zM345 160l-5-47-36-8 33-6-16-20 27 12 17-35 3 33 29-14-24 27 27 9-34 2-5 47z" /></svg>
-        <div className="joke-dialogue-copy">
+      {tab === 'submit' && <NpcDialogueFrame portrait="/art/ai-joke/judge-portrait-v2.png" portraitAlt="안경과 노란 넥타이를 착용한 김부장">
           <header className="joke-dialogue-heading">
             <div className="joke-nameplate"><span aria-hidden="true">✥</span> 김부장 <span aria-hidden="true">✥</span></div>
             <button className="joke-close" onClick={closeJokeContest} aria-label="아재왕 창 닫기"><kbd>ESC</kbd> 닫기 <span aria-hidden="true">×</span></button>
@@ -201,9 +193,7 @@ export function JokeContestPanel() {
             {tab === 'submit' && stage === 'confirm' && <><button disabled={busy} onClick={() => { setStage('question'); setError('') }}>아니, 고칠게</button><button className="joke-consent-choice" disabled={!canSubmit} onClick={() => void submit(true)}>{busy ? '접수 중…' : mine?.unlimitedAttempts ? '공개에 동의하고 심사받기' : '공개에 동의하고 심사받기 · 1회'}</button></>}
             {tab === 'submit' && (stage === 'greeting' || stage === 'result') && <><button onClick={() => useJokeContest.setState({ tab: 'ranking' })}>오늘의 아재왕</button><button className="joke-next" onClick={begin}><kbd>Enter</kbd> {nextLabel}<span aria-hidden="true"> ▾</span></button></>}
           </footer>
-        </div>
-      </div>
-      <img className="joke-portrait" src="/art/ai-joke/judge-portrait-v2.png" alt="안경과 노란 넥타이를 착용한 김부장" width="440" height="440" /></>}
+      </NpcDialogueFrame>}
     </section></div>}
   </>
 }

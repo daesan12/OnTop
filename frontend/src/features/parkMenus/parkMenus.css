@@ -364,7 +364,6 @@
 }
 /* Keep the account entry usable when the channel card leaves no width for its trigger. */
 @media (max-width: 500px) {
-  .park-page .park-account { top: 108px; }
   .park-page .park-account__summary { max-width: calc(100vw - 32px); }
   .park-account-dropdown { width: min(320px, calc(100vw - 32px)); box-sizing: border-box; }
 }

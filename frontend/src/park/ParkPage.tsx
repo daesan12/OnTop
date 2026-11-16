@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useState, type CSSProperties } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useState, type CSSProperties } from 'react'
 import { installBrowserShortcutGuard } from './browserShortcuts'
 import { NotificationCenter } from '../features/notifications/NotificationCenter'
 import { SkinCatalogLifecycle } from '../features/skins/SkinCatalogLifecycle'
@@ -13,10 +13,16 @@ import { useSession } from '../network/worldClient'
 import { ParkRuntimeProvider } from './runtime/ParkRuntime'
 import { ParkTools } from './ParkTools'
 import type { QualityPreset } from '../config'
+import { useMobility } from '../features/mobility/state'
+import { MobilityHud } from '../features/mobility/MobilityHud'
 import { ParkInteractionHint } from '../features/interactions/ParkInteractionHint'
+import { BALLOON_RIDE_ENABLED } from './mapSelection'
 import { ConstructionNotice } from '../features/construction/ConstructionNotice'
+import { FortunePanel } from '../features/fortune/FortunePanel'
 import { EmoteWheel } from '../features/emotes/EmoteWheel'
 import { TelescopePanel } from '../features/telescopes/TelescopePanel'
+import { DuckBoatPanel } from '../features/duckBoat/DuckBoatPanel'
+import { DUCK_BOAT } from './mapConfig'
 import { FeedbackPanel } from '../features/feedback/FeedbackPanel'
 import { PolicePrivateNotice } from '../features/ai/PolicePrivateNotice'
 import { AnonymousNotes } from '../features/notes/AnonymousNotes'
@@ -26,8 +32,8 @@ import { ManualWorldActions } from '../features/manual/ManualWorldActions'
 import { SettingsLauncher } from '../performance/GraphicsSettings'
 import { ParkMap } from '../features/navigation/ParkMap'
 import { ParkNavigation } from '../features/navigation/NavigationHud'
-import { BungeoppangHud } from '../features/bungeoppang/BungeoppangHud'
-import { useBungeoppang } from '../features/bungeoppang/store'
+import { useBungeoppang, watchBungeoppangRecovery } from '../features/bungeoppang/store'
+import { getPreloadedBungeoppangHud, loadBungeoppangHud } from '../features/bungeoppang/loadBungeoppangView'
 import { ShopHost } from '../features/shop/ShopHost'
 import { WardrobeLauncher, WardrobeHost } from '../features/wardrobe/WardrobeHost'
 import { AdvertisementLink } from '../features/advertisements/AdvertisementLink'
@@ -44,18 +50,16 @@ import { RewardCoinFlight } from '../features/wallet/RewardCoinFlight'
 import { useWalletSync } from '../features/wallet/useWalletSync'
 import { LocationChip } from '../features/parkMenus/LocationChip'
 import { JumpmapHud } from '../features/jumpmap/JumpmapHud'
+import { StoneRumbleGuide } from '../game/stone-rumble/StoneRumbleGuide'
 import { useJumpmapController } from '../features/jumpmap/useJumpmapController'
 import { useStore } from 'zustand'
 import { ParkVrZone } from '../features/vrZone/ParkVrZone'
 import { parkVrZone } from '../features/vrZone/parkBridge'
 import { RankingBoardHost } from '../features/rankingBoard/RankingBoardHost'
-import { RpsRoulettePanel } from '../features/rpsRoulette/RpsRoulettePanel'
-import { PlusMinusPanel } from '../features/plusMinus/PlusMinusPanel'
-import { MolePanel } from '../features/mole/MolePanel'
-import { ArcadePicker } from '../features/arcade/ArcadePicker'
 import { SpeedMoleHost } from '../features/speedMole/SpeedMoleHost'
 import { JumpRopeHost } from '../features/jumpRope/JumpRopeHost'
 import { jumpRopeSettlementActive, useJumpRope } from '../features/jumpRope/store'
+import { ParkWelcomeStory } from '../features/welcomeStory/ParkWelcomeStory'
 import { WelcomeTour } from '../features/welcomeTour/WelcomeTour'
 import { BehaviorReporter } from '../features/behaviorLog/BehaviorReporter'
 import { EntryNewsPopup } from '../features/announcements/EntryNewsPopup'
@@ -63,15 +67,31 @@ import { AiResidentsHost } from '../features/ai/AiResidentsHost'
 import { AnnouncementBanner } from '../features/announcements/AnnouncementBanner'
 import { WinnerContactsHost } from '../features/winnerContacts/WinnerContactsHost'
 import { useArcade } from '../features/arcade/store'
+import { MoleModePicker } from '../features/arcade/MoleModePicker'
+import { closeSpotDifference, useSpotDifference } from '../features/spotDifference/store'
 import { useMole } from '../features/mole/store'
 import { usePlusMinus } from '../features/plusMinus/store'
 import { useRpsRoulette } from '../features/rpsRoulette/store'
 import { useSpeedMole } from '../features/speedMole/store'
-import { GachaLifecycle } from '../features/gacha/GachaPanel'
+import { GachaLifecycle } from '../features/gacha/GachaLifecycle'
 import { useGachaOverlay } from '../features/gacha/view'
 import { useParkGameplayActive } from '../features/operation/parkGameplay'
 import { useParkOperationGate } from '../features/operation/useParkOperationGate'
 import type { ServiceOperationStatus } from '../features/operation/serviceOperation'
+
+
+const LocalBalloonHud = lazy(() => import('../features/balloon/LocalBalloonHud'))
+const ArcadePicker = lazy(() => import('../features/arcade/ArcadePicker').then(module => ({ default: module.ArcadePicker })))
+const SpotDifferencePanel = lazy(() => import('../features/spotDifference/SpotDifferencePanel').then(module => ({ default: module.SpotDifferencePanel })))
+const LazyBungeoppangHud = lazy(loadBungeoppangHud)
+function BungeoppangHud() {
+  // Reuse a HUD already loaded on approach without re-entering the lazy fallback.
+  const [Hud] = useState(() => getPreloadedBungeoppangHud() ?? LazyBungeoppangHud)
+  return <Hud />
+}
+const MolePanel = lazy(() => import('../features/mole/MolePanel').then(module => ({ default: module.MolePanel })))
+const PlusMinusPanel = lazy(() => import('../features/plusMinus/PlusMinusPanel').then(module => ({ default: module.PlusMinusPanel })))
+const RpsRoulettePanel = lazy(() => import('../features/rpsRoulette/RpsRoulettePanel').then(module => ({ default: module.RpsRoulettePanel })))
 
 const shortcuts = [
   { key: 'WASD', action: '이동' },
@@ -94,6 +114,8 @@ type ParkProps = {
   exitError: string
   onAuthEnded: () => void
   onOperationBlocked: (status: ServiceOperationStatus) => void
+  welcomeStoryDeadline?: number | null
+  onWelcomeStoryComplete?: () => void
 }
 export function ParkPage(props: ParkProps) {
   useLayoutEffect(() => {
@@ -103,26 +125,40 @@ export function ParkPage(props: ParkProps) {
   }, [])
   return <ParkRuntimeProvider onAuthEnded={props.onAuthEnded}><ParkContent {...props}/></ParkRuntimeProvider>
 }
-function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: ParkProps) {
+function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked, welcomeStoryDeadline, onWelcomeStoryComplete }: ParkProps) {
+  const riding = useMobility(s => s.phase === 'riding' || s.phase === 'ending')
   useWalletSync()
   useJumpmapController()
+  useEffect(watchBungeoppangRecovery, [])
   const [entryNewsHost,setEntryNewsHost]=useState<HTMLDivElement|null>(null)
   const gameplayActive = useParkGameplayActive()
   const jumpRopeSaving = useJumpRope(jumpRopeSettlementActive)
   useParkOperationGate(gameplayActive || jumpRopeSaving, onOperationBlocked)
   const vrPhase = useStore(parkVrZone.store, state => state.phase)
   const bungeoppang = useBungeoppang(s => s.phase !== 'idle')
-  const arcadeOpen = useArcade(s => s.open)
+  const breadRecovery = useBungeoppang(s => s.recoveryDeferred)
+  const arcadeScope = useArcade(s => s.open ? s.scope : null)
+  const arcadeOpen = arcadeScope === 'all'
+  const spotDifferenceOpen = useSpotDifference(s => s.open)
+  useEffect(() => closeSpotDifference, [])
   const moleOpen = useMole(s => s.open)
   const plusMinusOpen = usePlusMinus(s => s.open)
   const rpsOpen = useRpsRoulette(s => s.open)
   const speedMoleOpen = useSpeedMole(s => s.open)
   const jumpRopeOpen = useJumpRope(s => s.open)
-  const gachaOpen = useGachaOverlay(s => s.open)
+  const gachaOpen = useGachaOverlay(s => s.surface !== null)
   const hideAnnouncements = gameplayActive || bungeoppang || vrPhase !== 'closed'
-    || arcadeOpen || moleOpen || plusMinusOpen || rpsOpen || speedMoleOpen || jumpRopeOpen || gachaOpen
+    || !!arcadeScope || moleOpen || plusMinusOpen || rpsOpen || speedMoleOpen || jumpRopeOpen || spotDifferenceOpen || gachaOpen
   const omokFocus = useGame(s => (s.game?.omok?.status === 'PLAYING' || s.game?.alkkagi?.status === 'PLAYING') && !s.lastResult)
   const omokChat = useGame(s => (s.game?.omok?.status === 'PLAYING' || s.game?.alkkagi?.status === 'PLAYING') && !s.lastResult)
+  const stoneOverlay = useGame(s => {
+    if (!s.game?.stone && !(s.start?.gameCode === 'STONE_RUMBLE' && ['PLAYING', 'SETTLING'].includes(s.start.phase))) return 'none'
+    return s.game?.role === 'PLAYER' && (s.game.stone?.status === 'FINISHED' || s.result || s.lastResult) ? 'result' : 'game'
+  })
+  const seated = useSession(s => !!s.tableId && s.seatIndex >= 0
+    && !!s.tableStates[s.tableId]?.seats.some(seat => seat.userId === s.sessionId))
+  // GamePanel의 돌탑 전체 화면/결과가 덮는 동안만 공원 렌더를 멈춘다. 퇴장 후 잔여 결과는 공원을 가리지 않는다.
+  const stoneFocus = stoneOverlay === 'game' || stoneOverlay === 'result' && seated
   const session = useSession(useShallow(s=>({ sessionId:s.sessionId,roomId:s.roomId })))
   // Everyone plays on the Low preset; the graphics choice is not offered.
   const quality: QualityPreset = 'low'
@@ -152,14 +188,16 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: Par
       '--park-ui-scale': hudScale,
       '--park-edge': `${20 * hudScale}px`,
     } as CSSProperties}>
-      <ParkScene quality={quality} active={vrPhase !== 'game'} />
+      <ParkScene quality={quality} active={!jumpRopeOpen && !stoneFocus} />
       <ParkBgm />
       <ParkSfx />
       <RewardCoinFlight />
       <ChannelEntryGate />
       <AiResidentsHost />
       <AnnouncementBanner hidden={hideAnnouncements} />
-      <EntryNewsPopup hidden={hideAnnouncements} launcherHost={entryNewsHost} />
+      <EntryNewsPopup hidden={hideAnnouncements || welcomeStoryDeadline != null} launcherHost={entryNewsHost} />
+      {welcomeStoryDeadline != null && onWelcomeStoryComplete &&
+        <ParkWelcomeStory blocked={hideAnnouncements} deadline={welcomeStoryDeadline} onComplete={onWelcomeStoryComplete} />}
       <GachaLifecycle />
       <SkinCatalogLifecycle />
       <NotificationCenter key={session.sessionId} hidden={gameplayActive} newsHostRef={setEntryNewsHost}
@@ -184,7 +222,7 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: Par
 
         {!omokFocus && <aside className="park-shortcuts" aria-label="조작 방법">
           {shortcuts.map(({ key, action }) => (
-            <div className="park-shortcuts__item" key={key}><kbd>{key}</kbd><span>{action}</span></div>
+            <div className="park-shortcuts__item" key={key}><kbd>{key}</kbd><span>{riding && key === 'Space' ? '하차' : action}</span></div>
           ))}
         </aside>}
       </div>
@@ -192,36 +230,47 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked }: Par
       <div className="park-roaming-ui" hidden={bungeoppang} inert={bungeoppang}>
         <ParkTools />
         <ParkInteractionHint />
+        <MobilityHud />
         <PolicePrivateNotice />
         <div hidden={omokFocus} inert={omokFocus}>
         <WelcomeTour />
         <ConstructionNotice />
-        <RpsRoulettePanel />
-        <ArcadePicker />
-        <PlusMinusPanel />
-        <MolePanel />
+        {BALLOON_RIDE_ENABLED && <Suspense fallback={null}><LocalBalloonHud /></Suspense>}
+        <FortunePanel />
+        {arcadeScope === 'mole' && <MoleModePicker />}
+        {(rpsOpen || arcadeOpen || plusMinusOpen || moleOpen) && <Suspense fallback={<p role="status">게임을 불러오는 중입니다.</p>}>
+          {rpsOpen && <RpsRoulettePanel />}
+          {arcadeOpen && <ArcadePicker />}
+          {plusMinusOpen && <PlusMinusPanel />}
+          {moleOpen && <MolePanel />}
+        </Suspense>}
         <SpeedMoleHost />
         <JumpRopeHost />
+        {spotDifferenceOpen && <Suspense fallback={<p role="status">사격장을 불러오는 중입니다.</p>}>
+          <SpotDifferencePanel />
+        </Suspense>}
         <FacilityStatus />
         <EmoteWheel />
         <TelescopePanel />
+        {DUCK_BOAT && <DuckBoatPanel />}
         <FeedbackPanel />
         <AnonymousNotes />
         <ShopHost />
         <WardrobeHost />
         <AdvertisementLink />
         <CameraControls />
-        <ParkXRControls />
         <FollowMenu />
         <ParkMap />
         <ParkNavigation />
         <JumpmapHud />
         </div>
       </div>
+      <ParkXRControls omokOnly={omokFocus} />
       <ParkVrZone />
-      <BungeoppangHud />
+      {(bungeoppang || breadRecovery) && <Suspense fallback={<p role="status">붕어빵 가게를 불러오는 중입니다.</p>}><BungeoppangHud /></Suspense>}
       <OmokFeedback />
       <RankingBoardHost />
+      <StoneRumbleGuide />
       <ManualHost showLauncher={!omokFocus} worldActions={bungeoppang || omokFocus ? undefined : <ManualWorldActions />} />
       <WinnerContactsHost open={winningsOpen} refreshKey={winningsRefresh} selectedWeek={winningsWeek}
         onAutoOpen={autoOpenWinnings} onClose={() => setWinningsOpen(false)} />

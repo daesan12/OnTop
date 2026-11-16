@@ -24,6 +24,7 @@
 .jm-guide-ranking svg { display:block; width:42px; height:36px; }
 .jm-guide-ranking h3 { font-size:18px; margin:0 0 6px; }
 .jm-guide-ranking p { font-size:13px; line-height:1.7; color:#746544; margin:0; }
+.jm-guide-ranking button { margin-top:8px; }
 .jm-guide-optional { color:#807356; font-size:12px; line-height:1.9; margin:12px 0 16px; }
 .jm-guide-optional strong { font-weight:600; color:#3b5c42; }
 .jm-guide-paper .jm-guide-depart { width:min(380px,100%); border-radius:14px; }

@@ -35,9 +35,15 @@ type IntentFrame = { at: number; intent: MovementIntent }
 type SentFrame = { seq: number; at: number; jumpAt: number }
 type PositionSample = { x: number; y: number; z: number; jump: boolean }
 type PathPoint = PositionSample & { supported: boolean }
+type PositionReport = Pose & {
+  seq: number; epoch: number; run: boolean; jump: boolean; manual: boolean; path?: PositionSample[]
+}
 const MAX_PATH_SAMPLES = 64
 // One unsent batch must also fit the existing bounded server movement budget.
 const MAX_PENDING_PHYSICS_MS = 100
+// Keep unconfirmed motion inside the server's 350ms distance budget, even
+// when the last prediction steps ran and the next report is a walk.
+const MAX_UNCONFIRMED_PHYSICS_MS = 280
 function redundantPoint(a: PathPoint, b: PathPoint, c: PathPoint) {
   if (b.jump || c.jump || a.supported !== b.supported || b.supported !== c.supported) return false
   const x = c.x - a.x, y = c.y - a.y, z = c.z - a.z, length2 = x * x + y * y + z * z
@@ -61,6 +67,9 @@ export class LocalMovementPrediction {
   private positionPath: PathPoint[] = []
   private pathAnchor: PathPoint | undefined
   private pendingPhysicsMs = 0
+  private positionPhysicsMs = 0
+  private confirmedPhysicsMs = 0
+  private readonly reportedPhysics = new Map<number, number>()
   private simulatedAt = 0
   private intent: MovementIntent = { ...STOP }
   private correction = { x: 0, y: 0, z: 0, at: 0 }
@@ -76,6 +85,7 @@ export class LocalMovementPrediction {
   private acknowledgedJumpAt = -Infinity
   private idleWindow = true
   private pendingPositionJump: {epoch:number;seq:number} | undefined
+  private unconfirmedTakeoff: PositionReport | undefined
   private highestSent = 0
   private unavailable = false
   private steering: MotionSnapshot['steering']
@@ -100,6 +110,7 @@ export class LocalMovementPrediction {
   positionReport(seq: number, intent: MovementIntent, at = this.now()) {
     if (!this.ready || this.baseline?.motion.authority !== 'CLIENT_VALIDATED') return undefined
     this.advance(at)
+    if (this.unconfirmedTakeoff) return this.unconfirmedTakeoff
     if (this.tuned && intent.jump && !this.pendingPositionJump) this.pendingPositionJump={epoch:this.baseline.motion.epoch,seq}
     const effective = this.effectiveIntent(intent)
     const pose = this.sim!.pose()
@@ -107,10 +118,19 @@ export class LocalMovementPrediction {
       ? this.positionPath.length ? this.positionPath.map(({ supported: _support, ...sample }) => sample)
         : [{ x: pose.x, y: pose.y, z: pose.z, jump: false }] : undefined
     this.clearPositionPath()
-    return { seq, epoch: this.baseline.motion.epoch, ...pose, run: effective.run,
+    if (this.tuned) {
+      this.reportedPhysics.set(seq, this.positionPhysicsMs)
+      if (this.reportedPhysics.size > 128) this.reportedPhysics.delete(this.reportedPhysics.keys().next().value!)
+    }
+    const report = { seq, epoch: this.baseline.motion.epoch, ...pose, run: effective.run,
       jump: intent.jump || !!this.pendingPositionJump,
       manual: !!(intent.dx || intent.dz || intent.jump || this.pendingPositionJump || this.steeringSuppressed || path?.some(p => p.jump)),
       ...(path ? { path } : {}) }
+    // The server ignores a duplicate sequence, but can validate this exact
+    // takeoff if the original report was lost. Never send a later airborne
+    // endpoint ahead of the report that proves how the character took off.
+    if (path?.some(point => point.jump)) this.unconfirmedTakeoff = report
+    return report
   }
   async prepare() {
     if (this.unavailable || this.sim || this.preparing) return this.preparing
@@ -141,6 +161,7 @@ export class LocalMovementPrediction {
     this.sim?.dispose(); this.sim = undefined; this.preparing = undefined
     this.scope = ''; this.baseline = undefined; this.timeline = []; this.sent = []
     this.clearPositionPath()
+    this.clearPositionConfirmations()
     this.pendingPositionJump=undefined
     this.intent = { ...STOP }; this.allowed = false; this.firstInput = undefined
     this.lastJumpAt = -Infinity
@@ -159,6 +180,7 @@ export class LocalMovementPrediction {
     this.pendingPositionJump=undefined
     this.timeline = []; this.sent = []; this.intent = { ...STOP }; this.firstInput = undefined
     this.clearPositionPath()
+    this.clearPositionConfirmations()
     this.allowed = false; this.correction = { x: 0, y: 0, z: 0, at: 0 }
     this.facing = undefined
     this.displayed = undefined
@@ -178,6 +200,16 @@ export class LocalMovementPrediction {
     const newEpoch = !old || old.motion.epoch !== motion.epoch || old.motion.profile !== motion.profile || !this.allowed
     if (!newEpoch && motion.tick < old.motion.tick) return
     this.syncSteering(motion.steering, at)
+    if (this.unconfirmedTakeoff && (newEpoch || motion.appliedInputSeq >= this.unconfirmedTakeoff.seq)) {
+      this.unconfirmedTakeoff = undefined
+    }
+    if (newEpoch) this.clearPositionConfirmations()
+    else if (motion.appliedInputSeq > old.motion.appliedInputSeq) {
+      const confirmed = this.reportedPhysics.get(motion.appliedInputSeq)
+      if (confirmed !== undefined) this.confirmedPhysicsMs = confirmed
+      for (const seq of this.reportedPhysics.keys())
+        if (seq <= motion.appliedInputSeq) this.reportedPhysics.delete(seq)
+    }
     if(this.pendingPositionJump&&(newEpoch||motion.epoch!==this.pendingPositionJump.epoch||motion.appliedInputSeq>=this.pendingPositionJump.seq))this.pendingPositionJump=undefined
     if (!newEpoch && motion.tick === old.motion.tick && distance(pose, old.pose) < .0001) {
       this.allowed = true
@@ -392,15 +424,17 @@ export class LocalMovementPrediction {
     const integrate = (until: number) => {
       while (cursor < until - .0001) {
         const tracing = this.tuned && this.positionMode && this.sim!.stepJumped
+        const unconfirmedBudget = this.tuned && this.positionMode && this.reportedPhysics.size
+          ? MAX_UNCONFIRMED_PHYSICS_MS - (this.positionPhysicsMs - this.confirmedPhysicsMs) : Infinity
         if (tracing && (this.positionPath.length >= MAX_PATH_SAMPLES
-          || this.pendingPhysicsMs >= MAX_PENDING_PHYSICS_MS - .0001)) {
+          || this.pendingPhysicsMs >= MAX_PENDING_PHYSICS_MS - .0001 || unconfirmedBudget <= .0001)) {
           // Hold the last physical pose BEFORE an unreportable step. Keep every
           // turn/landing/takeoff and discard elapsed wall time, never the path.
           cursor = until
           return
         }
         const ms = Math.min(1000 / 60, until - cursor,
-          tracing ? MAX_PENDING_PHYSICS_MS - this.pendingPhysicsMs : Infinity)
+          tracing ? MAX_PENDING_PHYSICS_MS - this.pendingPhysicsMs : Infinity, unconfirmedBudget)
         if (tracing && !this.pathAnchor) {
           const p = this.sim!.pose()
           this.pathAnchor = { x: p.x, y: p.y, z: p.z, jump: false, supported: this.sim!.stepSupported?.() ?? false }
@@ -408,6 +442,7 @@ export class LocalMovementPrediction {
         this.sim!.step(input, ms / 1000)
         if (tracing) {
           this.pendingPhysicsMs += ms
+          this.positionPhysicsMs += ms
           const pose = this.sim!.pose()
           const point = { x: pose.x, y: pose.y, z: pose.z, jump: this.sim!.stepJumped!(), supported: this.sim!.stepSupported?.() ?? false }
           const b = this.positionPath.at(-1), a = this.positionPath.at(-2) ?? this.pathAnchor!
@@ -428,6 +463,10 @@ export class LocalMovementPrediction {
   }
   private clearPositionPath() {
     this.positionPath = []; this.pathAnchor = undefined; this.pendingPhysicsMs = 0
+  }
+  private clearPositionConfirmations() {
+    this.positionPhysicsMs = 0; this.confirmedPhysicsMs = 0; this.reportedPhysics.clear()
+    this.unconfirmedTakeoff = undefined
   }
 }
 export const localMovement = new LocalMovementPrediction()

@@ -3,9 +3,9 @@ export const inputState = {
   blocked: false, chatOpen: false, manualOpen: false, mapOpen: false,
   emoteWheelOpen: false, minigameOpen: false, feedbackOpen: false, notesOpen: false,
   shopOpen: false, wardrobeOpen: false, advertisementOpen: false, followMenuOpen: false,
-  welcomeFlight: false,
+  welcomeFlight: false, fortuneOpen: false, localBalloon: false,
 }
-export const roamingInput = { ready: false }
+export const roamingInput = { ready: false, draggingCamera: false }
 /** A physical scene control can own one pointer without locking keyboard/chat or other games. */
 export const scenePointerOwners = new Map<number, string>()
 export function clearRoamingInput() {
@@ -13,7 +13,8 @@ export function clearRoamingInput() {
     window.dispatchEvent(new Event('ontop-clear-input'))
 }
 const dialogOpen = () => typeof document !== 'undefined' && !!document.querySelector('dialog[open], [role="dialog"]')
-export const panelOwnsKeys = () => Object.values(inputState).some(Boolean) || dialogOpen()
+export const panelOwnsKeys = (except?: 'localBalloon') =>
+  (except ? Object.entries(inputState).some(([panel, open]) => panel !== except && open) : Object.values(inputState).some(Boolean)) || dialogOpen()
 /** Chat preserves an existing carry, while idle chat users and other panels stay protected. */
 export const panelBlocksCarry = (carryActive: boolean) =>
   Object.entries(inputState).some(([panel, open]) => open && (panel !== 'chatOpen' || !carryActive)) || dialogOpen()

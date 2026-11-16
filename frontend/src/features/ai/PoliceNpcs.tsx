@@ -20,6 +20,7 @@ function PoliceActor({npc}:{npc:PatrolNpc}) {
   useFrame((_,dt) => {
     if(!actor.current) return
     actor.current.visible=performance.now()-useWorldAi.getState().npcReceivedAt<5000
+    if(!actor.current.visible)return
     const p=motion.current.sample(performance.now());if(!p)return
     const last=previous.current,distance=last?Math.hypot(p.x-last[0],p.y-last[1],p.z-last[2]):0
     const measured=distance<2?Math.min(10,distance/Math.max(.001,dt)):0
@@ -30,6 +31,6 @@ function PoliceActor({npc}:{npc:PatrolNpc}) {
   })
   return <group ref={actor} name="patrolling-police" position={initialPosition.current} userData={{npc:true,action:npc.action}}>
     <ResidentModel kind="POLICE" speed={speed} airborne={npc.action==='RETURN_JUMP'} talking={npc.action==='TALK'||npc.action==='TELEPORT_WARNING'}/>
-    <NpcSpeechBubble actor="police" name={npc.name} ambient={npc.ambient} active={npc.action==='TALK'||npc.action==='TELEPORT_WARNING'}/>
+    <NpcSpeechBubble actor="police" name={npc.name} kind="POLICE" ambient={npc.ambient} active={npc.action==='TALK'||npc.action==='TELEPORT_WARNING'}/>
   </group>
 }

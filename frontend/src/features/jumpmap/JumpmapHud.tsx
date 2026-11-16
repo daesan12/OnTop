@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useParkRuntime } from '../../park/runtime/ParkRuntime'
 import { avatars, sampleAvatar, useSession } from '../../network/worldClient'
-import { GENERATED_PARK_ENABLED } from '../../park/mapSelection'
-import { START } from './course'
+import { JUMPMAP_ENABLED } from '../../park/mapSelection'
+import { START } from './activeCourse'
 import { useJumpmap } from './state'
 import { JumpmapOverlay } from './JumpmapOverlay'
 import { JumpmapGuide } from './JumpmapGuide'
@@ -16,7 +16,7 @@ export function JumpmapHud() {
   const xrOwnsView = useParkXR(s => s.phase !== 'idle')
   const [frame, setFrame] = useState({ now: performance.now(), near: false })
   useEffect(() => {
-    if (!GENERATED_PARK_ENABLED || xrOwnsView) return
+    if (!JUMPMAP_ENABLED || xrOwnsView) return
     const timer = setInterval(() => {
       if (document.hidden) return
       const now = performance.now(), own = avatars.get(useSession.getState().sessionId)
@@ -27,5 +27,5 @@ export function JumpmapHud() {
   }, [xrOwnsView])
   // XR renders the same server state in-world; a DOM completion dialog would steal
   // focus and end immersive presentation before the player could dismiss it.
-  return GENERATED_PARK_ENABLED && !xrOwnsView ? <><JumpmapGuide /><JumpmapOverlay state={state} now={frame.now} nearStart={frame.near} loadRankings={loadRankings} /></> : null
+  return JUMPMAP_ENABLED && !xrOwnsView ? <><JumpmapGuide loadRankings={loadRankings} /><JumpmapOverlay state={state} now={frame.now} nearStart={frame.near} loadRankings={loadRankings} /></> : null
 }

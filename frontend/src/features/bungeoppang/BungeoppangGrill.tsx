@@ -20,7 +20,7 @@ import {
 import { BUNGEOPPANG, bungeoppangV5Enabled } from "./config";
 import { createFishCartShape as fishShape } from '../../world/art/fishCartShape';
 import { createSculptedFish } from './fishBreadGeometry';
-import { v5HeatEls, BURNER_JET_OFFSETS, burnerJetEls } from './layoutV5';
+import { v5HeatEls, BURNER_JET_OFFSETS, burnerJetEls, renewalBreadShop } from './layoutV5';
 import { cookLevel, judge } from "./rules";
 import { heatLook, INGREDIENT_LOOK } from './presentation';
 import { BREAD_NAMES, BREAD_TOOLS } from './rulesV4';
@@ -32,6 +32,7 @@ import { environmentFrame } from '../../world/environmentState';
 import {
   BUNG_GRILL,
   bungeoppangClock,
+  bungeoppangCookingView,
   slotFx,
   slotOverlayEls,
   slotScreen,
@@ -88,9 +89,20 @@ const GAUGE: Record<string, string> = {
 /** 카트의 실제 철판 위에 내 반죽·붕어빵과 조리 효과만 표시한다. */
 export function BungeoppangGrill() {
   const phase = useBungeoppang((s) => s.phase);
+  const returningScene = useBungeoppang(s => s.returningScene);
   const v5 = useBungeoppang(s => isV5Grill(s.grill && 'rulesVersion' in s.grill ? s.grill : null));
   const root = useRef<Group>(null), { gl, camera, scene } = useThree();
   const [error, setError] = useState<Error | null>(null);
+  const [startStageReady, setStartStageReady] = useState(false);
+  useEffect(() => {
+    if (!renewalBreadShop || phase !== 'start' || startStageReady) return;
+    // Leave a paint for the start panel before mounting meshes and changing the light setup.
+    let next = 0;
+    const first = requestAnimationFrame(() => {
+      next = requestAnimationFrame(() => setStartStageReady(true));
+    });
+    return () => { cancelAnimationFrame(first); cancelAnimationFrame(next); };
+  }, [phase, startStageReady]);
   useEffect(() => {
     if (!v5 || phase !== 'countdown' || !root.current) return;
     let mounted = true;
@@ -100,9 +112,16 @@ export function BungeoppangGrill() {
     });
     return () => { mounted = false; };
   }, [v5, phase, gl, camera, scene]);
+  useFrame(({ clock }) => {
+    if (renewalBreadShop && root.current) root.current.visible = bungeoppangCookingView(clock.oldTime);
+  });
   if (error) throw error;
-  if (phase === "idle") return null;
-  return <group ref={root} name="bungeoppang-render-root">{bungeoppangV5Enabled && <BungeoppangStageV5 />}<GrillMeshes />{v5 && <><BungeoppangFood25V5 /><BungeoppangSceneV5 /></>}</group>;
+  if (phase === "idle" && !returningScene || renewalBreadShop && phase === "start" && !startStageReady) return null;
+  return <group ref={root} name="bungeoppang-render-root">
+    {(bungeoppangV5Enabled || renewalBreadShop) && <BungeoppangStageV5 />}
+    {phase !== "idle" && <GrillMeshes />}
+    {v5 && <><BungeoppangFood25V5 /><BungeoppangSceneV5 /></>}
+  </group>;
 }
 
 function GrillMeshes() {

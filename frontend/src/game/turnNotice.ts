@@ -6,8 +6,8 @@ export interface TurnCue { key: string; own: boolean; text: string; hint: string
 /** Public state only. A snapshot/version update is not necessarily a new turn. */
 export function gameTurnCue(game: Game | null, viewer: string, names: Record<string, { nickname: string }>, now: number): TurnCue | null {
   // Alkkagi sequences awards separately. Halli's rapid flips use the clock/seat highlight, never a board overlay.
-  if (!game || gameState(game).status !== 'PLAYING' || game.alkkagi || game.halli) return null
-  const state = gameState(game), deadline = 'flipDeadline' in state ? state.flipDeadline : state.turnDeadline
+  if (!game || gameState(game).status !== 'PLAYING' || game.alkkagi || game.halli || game.stone) return null
+  const state = gameState(game), deadline = 'flipDeadline' in state ? state.flipDeadline : 'turnDeadline' in state ? state.turnDeadline : null
   if (typeof deadline === 'string' && Date.parse(deadline) <= now) return null
   let actor: string | null = null, turn = '', judging = false
   if (game.omok) {
