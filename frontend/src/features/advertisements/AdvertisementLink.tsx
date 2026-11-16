@@ -44,7 +44,7 @@ const advertisements = [
     badge: '외부 팀 프로젝트',
     description: ['도형을 직접 돌리고 펼치고 잘라 보며 스스로 이해하는 초등·중학 도형 학습 앱'],
     image: geomatePreview,
-    alt: '도형 공부의 시작, 지오메이트. 눈으로 보고, 손으로 이해하는 도형 학습. 도형 캐릭터 다섯과 태블릿에 표시된 Geomate 앱 홈 화면',
+    alt: '도형 공부의 시작, 지오메이트. 한옥 공원에서 두 온탑 캐릭터가 입체도형과 전개도를 살펴보고, 다섯 마스코트 뒤로 지오메이트 앱 화면이 보이는 그림',
     artworkMat: 'cool',
     link: 'https://m.onestore.co.kr/v2/ko-kr/app/0001012470',
     action: '원스토어 방문',
