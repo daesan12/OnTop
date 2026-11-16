@@ -2,12 +2,12 @@ const hostname = typeof location === 'undefined' ? '' : location.hostname
 const localRenewal = (import.meta.env?.DEV || import.meta.env?.VITE_RENEWAL_LOCAL_PREVIEW === '1')
   && import.meta.env.MODE === 'park-renewal-integration'
   && ['localhost', '127.0.0.1'].includes(hostname)
-const deployedDevRenewal = import.meta.env?.MODE === 'park-integration'
+const deployedRenewal = import.meta.env?.MODE === 'park-integration'
   && import.meta.env.VITE_PARK_RENEWAL_ENABLED === 'true'
-  && hostname === 'dev.on-top.world'
+  && ['dev.on-top.world', 'www.on-top.world'].includes(hostname)
 
-export const RENEWAL_PARK_ENABLED = localRenewal || deployedDevRenewal
-export const BALLOON_RIDE_ENABLED = deployedDevRenewal
+export const RENEWAL_PARK_ENABLED = localRenewal || deployedRenewal
+export const BALLOON_RIDE_ENABLED = deployedRenewal
   || (localRenewal && import.meta.env.DEV && import.meta.env.VITE_LOCAL_BALLOON === '1')
 export const GENERATED_PARK_ENABLED = !RENEWAL_PARK_ENABLED && import.meta.env?.MODE === 'park-integration'
   && import.meta.env?.VITE_PARK_MAP === 'generated'
