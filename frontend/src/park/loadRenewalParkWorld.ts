@@ -11,7 +11,7 @@ export function loadRenewalParkWorld() {
     void import('../../park-renewal-preview/static/store').catch(() => {})
     // The first frame needs this pavilion. Its URL does not depend on map admission.
     const entranceModels = import('../../park-renewal-preview/live/preloadEntranceModels')
-    void entranceModels.then(module => module.preloadEntranceModels()).catch(() => {})
+    void entranceModels.then(module => module.preloadEntrancePavilion()).catch(() => {})
     const facilities = fetch(new URL('../../park-renewal-preview/static/facilities.bin.gz', import.meta.url), {
       cache: 'force-cache', priority: 'low', signal: AbortSignal.timeout(10000),
     })
