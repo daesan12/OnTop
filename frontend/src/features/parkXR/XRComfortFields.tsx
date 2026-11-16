@@ -1,4 +1,4 @@
-import { setXRComfort, useXRComfort, type XRComfortSettings } from './comfort'
+import { setXRComfort, useXRComfort, XR_EYE_HEIGHTS, type XRComfortSettings } from './comfort'
 
 export function XRComfortFields() {
   const s = useXRComfort(v => v.settings)
@@ -15,7 +15,7 @@ export function XRComfortFields() {
       <option value="standing">서서 플레이</option><option value="seated">앉아서 플레이</option>
     </select></label>
     {s.posture === 'seated' ? <label>앉기 모드 기준 눈높이<select value={s.seatedEyeHeight} onChange={e => setXRComfort({ seatedEyeHeight: Number(e.target.value) as XRComfortSettings['seatedEyeHeight'] })}>
-      {[1.4, 1.6, 1.8].map(v => <option key={v} value={v}>{v.toFixed(1)}m</option>)}
+      {XR_EYE_HEIGHTS.map(v => <option key={v} value={v}>{v}m</option>)}
     </select></label> : null}
     <p>서기 모드는 Quest의 실제 바닥·눈높이를 사용해요. 앉기 모드는 선택한 눈높이에 맞춰요. 고개를 숙이거나 움직이는 동작은 그대로 반영돼요.</p>
     <p>VR 진입 시 현재 자세로 맞춰요. 자세를 바꾸면 X 안내판 → 편안함 설정 → 눈높이 재설정을 선택하세요.</p>

@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { BackSide, CanvasTexture, Color, ShaderMaterial, Vector3 } from 'three'
+import type { Camera } from 'three'
 import { ENVIRONMENT } from '../config'
 import { environmentFrame as frame } from './environmentState'
 import { simpleEnvironmentPalette } from './simpleEnvironmentPalette'
@@ -198,7 +199,8 @@ export function ParkSky({ simple = false, matchServiceBrightness = false }: {
     clearHorizon: new Color('#c4edff'),
   }), [simple])
   const names = useMemo(createConstellationNames, [])
-  const focus = useRef({ index: -1, startedAt: 0 })
+  // The VR lens and the ordinary park (including both headset eyes) draw this sky in turn.
+  const focusByCamera = useMemo(() => new WeakMap<Camera, { index: number; startedAt: number; lastAt: number }>(), [])
   const viewDirection = useMemo(() => new Vector3(), [])
   const reducedMotion = useMemo(() => window.matchMedia('(prefers-reduced-motion: reduce)'), [])
   const material = useMemo(() => new ShaderMaterial({
@@ -252,10 +254,22 @@ export function ParkSky({ simple = false, matchServiceBrightness = false }: {
         }
       }
       const now = performance.now() / 1000
-      if (index !== focus.current.index) focus.current = { index, startedAt: now }
+      let revealTime = 0
+      if (index >= 0) {
+        let focus = focusByCamera.get(camera)
+        // A lens that stopped rendering should start the reveal again when it reopens.
+        if (!focus || focus.index !== index || now - focus.lastAt > 1) {
+          focus = { index, startedAt: now, lastAt: now }
+          focusByCamera.set(camera, focus)
+        }
+        focus.lastAt = now
+        revealTime = reducedMotion.matches ? 2.7 : Math.min(2.7, now - focus.startedAt)
+      } else {
+        focusByCamera.delete(camera)
+      }
       const { uniforms } = material
       uniforms.focusedConstellation.value = index
-      uniforms.revealTime.value = reducedMotion.matches ? 2.7 : Math.min(2.7, now - focus.current.startedAt)
+      uniforms.revealTime.value = revealTime
       uniforms.shimmerTime.value = reducedMotion.matches ? 0 : now % (Math.PI / 2)
       material.uniformsNeedUpdate = true
     }}>

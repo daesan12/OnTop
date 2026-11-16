@@ -5,10 +5,11 @@ import { BALLOON_RIDE_ENABLED } from '../../park/mapSelection'
 import { parkRuntime } from '../../park/runtime/runtime'
 import { clearRoamingInput, inputState } from '../../world/inputOwnership'
 import { BalloonFareError, buyBalloonTicket, completeBalloonTicket } from './fare'
-import { createFlight, REMOVE_SECONDS, returnToDock, stepFlight, stepUncrewedFlight, takeOff } from './flight'
+import { createFlight, REMOVE_SECONDS, returnToDock, stepFlight, stepSightseeingFlight, stepUncrewedFlight, takeOff } from './flight'
 import type { BalloonBoarding, Flight, FlightMap, Input, Point } from './flight'
 import { clearRemoteBalloons, sampleRemoteBalloon, useRemoteBalloons, watchOwnBalloonEnd } from './remoteRide'
-import { cabinRider, cabinSeats, idleCabin, toggleCabinSeat, walkCabin, type BalloonRiderPose, type CabinPose } from './cabin'
+import { cabinRider, cabinSeats, idleCabin, sightseeingCabin, SIGHTSEEING_STEP_HEIGHT, toggleCabinSeat, walkCabin, type BalloonRiderPose, type CabinPose } from './cabin'
+import { BALLOON_SCALE } from '../../../park-renewal-preview/plan'
 import { resetCabinCamera } from './cabinCamera'
 import { combineFlightInput, inputForRole, roleOf, stoppedFlightInput, type ControlAction, type ControlRole } from './controls'
 
@@ -21,6 +22,7 @@ type LocalRide = {
   cabin: CabinPose
   walkingInside: boolean
   cabinFirstPerson: boolean
+  xrSightseeing: boolean
   leader: string
   launching: boolean
   controlRole: ControlRole | null
@@ -32,13 +34,14 @@ type LocalRide = {
 }
 
 const DOCK_STEP_SECONDS = .5
+export const XR_DOCK_HANDOFF_SECONDS = .7
 const FIELD_RETURN_FADE_SECONDS = .25
 const POSE_INTERVAL_MS = 125
 let lastPoseAt = 0
 let lastGuestPose: CabinPose | null = null
 const idle: LocalRide = {
   owner: '', room: '', panel: 'closed', map: null, flight: null, ticketId: '', paymentError: '', revealSeconds: 0,
-  cabin: idleCabin, walkingInside: false, cabinFirstPerson: false, leader: '', launching: false,
+  cabin: idleCabin, walkingInside: false, cabinFirstPerson: false, xrSightseeing: false, leader: '', launching: false,
   controlRole: null, controlPending: false, emptySeconds: null,
 }
 export const useLocalBalloon = create<LocalRide>(() => idle)
@@ -49,16 +52,18 @@ function ownsRide(ride: LocalRide) {
     && session.status === 'connected' && session.mapCompatible
 }
 
-export function openLocalBalloon() {
+export function openLocalBalloon(xrSightseeing = false) {
   if (!BALLOON_RIDE_ENABLED || inputState.localBalloon) return false
   const { sessionId, roomId, status, mapCompatible } = useSession.getState()
   if (!sessionId || !roomId || status !== 'connected' || !mapCompatible) return false
   inputState.localBalloon = true
+  useLocalBalloon.setState({ owner: sessionId, room: roomId, panel: 'loading', xrSightseeing })
   clearRoamingInput()
-  useLocalBalloon.setState({ owner: sessionId, room: roomId, panel: 'loading' })
   const request = useLocalBalloon.getState()
   void import('./previewMap').then(({ flightMap }) => {
-    if (useLocalBalloon.getState() === request && ownsRide(request)) useLocalBalloon.setState({ map: flightMap, panel: 'board' })
+    if (useLocalBalloon.getState() !== request || !ownsRide(request)) return
+    useLocalBalloon.setState({ map: flightMap, panel: 'board' })
+    if (xrSightseeing) void boardLocalBalloon({ capacity: 1 })
   }).catch(() => {
     if (useLocalBalloon.getState() === request) useLocalBalloon.setState({ panel: 'error' })
   })
@@ -104,9 +109,9 @@ export async function boardLocalBalloon(boarding: BalloonBoarding) {
     lastPoseAt = performance.now()
     const flight = createFlight(ride.map)
     const party = useRemoteBalloons.getState().flights[leader]?.party
-    const role = roleOf(party?.controls, ride.owner)
+    const role = ride.xrSightseeing ? null : roleOf(party?.controls, ride.owner)
     useLocalBalloon.setState({ panel: 'closed', ticketId: ticket, leader, controlRole: role, walkingInside: !role && guest,
-      cabin: role ? cockpitPose(role) : party?.passengers[ride.owner] ?? idleCabin,
+      cabin: ride.xrSightseeing ? sightseeingCabin : role ? cockpitPose(role) : party?.passengers[ride.owner] ?? idleCabin,
       flight: sharedFlight ? flight : takeOff(flight) })
   } catch (error) {
     if (!stillWaiting()) return
@@ -137,7 +142,7 @@ export async function launchLocalBalloon(solo = false) {
 
 export function returnLocalBalloon() {
   const ride = useLocalBalloon.getState()
-  if (useRemoteBalloons.getState().flights[ride.leader]?.party?.controls) {
+  if (!ride.xrSightseeing && useRemoteBalloons.getState().flights[ride.leader]?.party?.controls) {
     if (ride.controlRole) void changeLocalBalloonControl({ action: 'return', role: ride.controlRole })
     return
   }
@@ -227,11 +232,12 @@ export function tickLocalBalloon(input: Input, elapsed: number, cabinInput = inp
   if (!ride.flight || !ride.map) return
   const guest = ride.leader !== ride.owner
   const shared = useRemoteBalloons.getState().flights[ride.leader]
-  const controls = shared?.party?.controls
+  const controls = ride.xrSightseeing ? null : shared?.party?.controls
   const role = roleOf(controls, ride.owner)
   const roleChanged = !!controls && role !== ride.controlRole
   const walkingInside = controls ? !role : ride.walkingInside
-  const localInput = walkingInside || roleChanged ? stoppedFlightInput : controls ? inputForRole(controls.mode, role, input) : input
+  const localInput = ride.xrSightseeing || walkingInside || roleChanged ? stoppedFlightInput
+    : controls ? inputForRole(controls.mode, role, input) : input
   const flightInput = controls ? combineFlightInput(controls, ride.owner, localInput) : localInput
   const now = performance.now()
   const emptySeconds = controls?.emptyMillis == null || !shared ? null
@@ -254,7 +260,9 @@ export function tickLocalBalloon(input: Input, elapsed: number, cabinInput = inp
     flight = { ...flight, position }
   } else {
     const dt = Math.min(.1, elapsed)
-    if (flight.phase === 'flying' && emptySeconds !== null) {
+    if (ride.xrSightseeing) {
+      flight = stepSightseeingFlight(flight, dt, ride.map, elapsed)
+    } else if (flight.phase === 'flying' && emptySeconds !== null) {
       flight = stepUncrewedFlight(flight, emptySeconds > 0, dt, ride.map)
     } else {
       flight = stepFlight(flight.fallSpeed ? { ...flight, fallSpeed: undefined } : flight, flightInput, dt, ride.map, elapsed)
@@ -290,16 +298,20 @@ export function localBalloonFade(ride: LocalRide) {
 
 export function localBalloonRider(id: string): BalloonRiderPose | null {
   if (!BALLOON_RIDE_ENABLED) return null
-  const { owner, flight, cabin } = useLocalBalloon.getState()
+  const { owner, flight, cabin, xrSightseeing } = useLocalBalloon.getState()
   if (!flight || owner !== id) return null
-  if (flight.phase !== 'landed') return cabinRider(flight.position, cabin)
-  const basket = cabinRider(flight.position, { ...cabin, seatIndex: -1, moving: false })
+  const cabinPose = flight.phase === 'landed' ? { ...cabin, seatIndex: -1, moving: false } : cabin
+  const basket = cabinRider(flight.position, cabinPose)
+  if (xrSightseeing) basket.y += SIGHTSEEING_STEP_HEIGHT * BALLOON_SCALE
+  if (flight.phase !== 'landed') return basket
   const atExit = (exit: Point | undefined) => exit ? { ...basket, ...exit } : null
   if (flight.landing === 'field') return atExit(flight.exit)
 
   // The server keeps the player on the ground during this local experience.
   const pose = authoritativePose(id)
   if (!pose) return atExit(flight.exit)
+  if (xrSightseeing) return flight.seconds > XR_DOCK_HANDOFF_SECONDS
+    ? basket : { ...basket, x: pose.x, y: pose.y - .8, z: pose.z }
   const step = Math.min(1, (REMOVE_SECONDS - flight.seconds) / DOCK_STEP_SECONDS)
   const progress = step * step * (3 - 2 * step)
   return {

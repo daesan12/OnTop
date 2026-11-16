@@ -50,6 +50,7 @@ import { bindAnchor, parseBindings } from '../../network/tableBindings'
 import { setDisplayProfiles } from '../../network/profileBridge'
 import { canPlace, canPlayDice, receiveGame, tableBusy, useGame } from '../../game/store'
 import { canUndoAction, type OmokUndoInput } from '../../game/omok/undo'
+import { parkXRView } from '../../world/xrView'
 import { canDrawAction, type OmokDrawInput } from '../../game/omok/draw'
 import { forgetTabGames, keepTabGame, latestEndedGame, readTabGame } from '../../game/resultRecovery'
 import { canStartForfeit, canRetryForfeit, definiteForfeitRejection, forfeitError, interruptForfeit, parseForfeitResult, resetForfeit, useForfeit } from '../../game/forfeit'
@@ -731,6 +732,7 @@ export class ParkRuntime implements ParkRuntimePort {
     }
     if(message.type==='CONNECTED') {
       rentalCapability.available = message.payload.mobilityAvailable === true
+      rentalCapability.xrAvailable = rentalCapability.available && message.payload.vrMobilityAvailable === true
       clearTimeout(this.timer)
       if(message.payload.map===undefined&&message.payload.mapVerificationRequired===true){this.rejectMap(undefined);return}
       if(!this.mapAdmission.connected(message.payload.map)){this.rejectMap(message.payload.map);return}
@@ -1084,7 +1086,7 @@ export class ParkRuntime implements ParkRuntimePort {
         'WORLD_CHAT_MESSAGE',
       ])
       // Only server echoes enter the message list. No optimistic duplicate or automatic replay.
-    }, { blockControls: !avatars.get(useSession.getState().sessionId)?.carry })
+    }, { blockControls: !parkXRView.active && !avatars.get(useSession.getState().sessionId)?.carry })
   move = (dx: number, dz: number, run: boolean, jump = false) => {
     const intent = normalizedMove(dx, dz, run, jump)
     if (!intent || !this.canSendMovement(intent)) return
@@ -1179,14 +1181,16 @@ export class ParkRuntime implements ParkRuntimePort {
     const sync = (): Promise<boolean> => {
       if (!current()) return Promise.resolve(false)
       if (status.pending) return status.pending.then(ok => ok ? sync() : false)
-      const vrActive = vrCarryProtection.active, desired = status.desired || vrActive, playing = status.desiredMinigame
+      const vrActive = vrCarryProtection.active, playing = status.desiredMinigame
+      // Older servers require busy=true whenever VR protection is active.
+      const desired = status.desired || (vrActive && !rentalCapability.xrAvailable)
       if (status.busy === desired && status.vrActive === vrActive && status.minigame === playing && !confirmNeeded) return Promise.resolve(true)
       if (performance.now() < status.retryAt) return Promise.resolve(false)
       confirmNeeded = false
       const payload = { busy: desired, ...(vrActive || status.vrActive ? { vrActive } : {}),
         ...(playing || status.minigame ? { minigame: playing } : {}) }
       status.pending = this.socket.request('WORLD_INTERACTION_SET', payload, ['WORLD_INTERACTION_STATE']).then(response => {
-        if (response.payload.channelId !== session.roomId || response.payload.busy !== desired
+        if (response.payload.channelId !== session.roomId || response.payload.busy !== (desired || vrActive)
           || (response.payload.vrActive === true) !== vrActive)
           throw new Error('창 점유 응답을 확인해주세요.')
         if (!current()) return false
