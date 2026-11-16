@@ -29,6 +29,9 @@ public final class BalloonFlights {
     private final Map<String, Ride> rides = new HashMap<>();
     private final Map<String, Group> groups = new HashMap<>();
     private final Map<String, Hold> holds = new HashMap<>();
+    // 행동 로그용 탑승 기록. 비행·결제·좌석 판정에는 쓰지 않는다. TableHub가 요청을 처리한 뒤 drainUsage로 가져간다.
+    private final Map<String, Airborne> airborne = new HashMap<>();
+    private final List<Usage> usage = new ArrayList<>();
     private final JsonNode station;
     private final double mapHalf;
 
@@ -147,8 +150,14 @@ public final class BalloonFlights {
         }
         group.boarding = false;
         rides.put(pilot, new Ride(session, ticket, at, at, ride.state));
-        consume(pilot, ticket);
-        group.passengers.forEach((rider, passenger) -> consume(rider, passenger.ticket));
+        int riders = 1 + group.passengers.size();
+        String flightMode = flightMode(group, at);
+        if (consume(pilot, ticket)) takeOff(channel, pilot, ticket, "PILOT", riders, flightMode, at);
+        group.passengers.forEach((rider, passenger) -> {
+            if (consume(rider, passenger.ticket)) {
+                takeOff(channel, rider, passenger.ticket, "PASSENGER", riders, flightMode, at);
+            }
+        });
         return withParty(ride.state, at);
     }
 
@@ -179,7 +188,10 @@ public final class BalloonFlights {
         CabinPose cabin = group != null && seatUnavailable(group, pilot, next.cabin.seatIndex)
                 ? ride.state.flight.cabin : next.cabin;
         var state = new State(channel, pilot, next.aboard ? new Flight(to, true, cabin) : new Flight(to, false));
-        consume(pilot, ticketId);
+        if (consume(pilot, ticketId)) {
+            takeOff(channel, pilot, ticketId, "PILOT", group == null ? 1 : 1 + group.passengers.size(),
+                    flightMode(group, at), at);
+        }
         rides.put(pilot, new Ride(session, ticketId, ride.startedAt, at, state));
         return withParty(state, at);
     }
@@ -189,6 +201,11 @@ public final class BalloonFlights {
     }
 
     public synchronized State finish(String pilot, String session, UUID ticketId, long at) {
+        return finish(pilot, session, ticketId, at, "ENDED");
+    }
+
+    // reason은 행동 로그에만 쓰는 하차 사유다(ENDED·DISCONNECTED·CHANNEL_LEFT).
+    public synchronized State finish(String pilot, String session, UUID ticketId, long at, String reason) {
         Ride ride = rides.get(pilot);
         if (ride == null) {
             Group group = groupOf(pilot);
@@ -196,6 +213,7 @@ public final class BalloonFlights {
             Passenger passenger = group.passengers.get(pilot);
             if (!passenger.session.equals(session) || (ticketId != null && !passenger.ticket.equals(ticketId))) return null;
             group.passengers.remove(pilot);
+            land(pilot, reason, at);
             if (group.controls != null) group.controls.remove(pilot, at);
             if (group.boarding && group.controls != null) {
                 group.passengers.entrySet().stream().findFirst().ifPresent(entry -> {
@@ -208,6 +226,7 @@ public final class BalloonFlights {
         if (!ride.session.equals(session)
                 || (ticketId != null && !ride.ticket.equals(ticketId))) return null;
         rides.remove(pilot);
+        landParty(pilot, reason, "PILOT_ENDED", at);
         removeGroup(pilot);
         return ride.ended();
     }
@@ -225,6 +244,7 @@ public final class BalloonFlights {
         rides.values().removeIf(ride -> {
             if (!expired(ride, at)) return false;
             ended.add(ride.ended());
+            landParty(ride.state.pilotId, "EXPIRED", "EXPIRED", at);
             removeGroup(ride.state.pilotId);
             return true;
         });
@@ -275,10 +295,46 @@ public final class BalloonFlights {
         return withParty(ride.state, at);
     }
 
-    private void consume(String rider, UUID ticketId) {
+    // 탑승권을 이번에 처음 썼으면 true다.
+    private boolean consume(String rider, UUID ticketId) {
         var ticket = new Ticket(rider, ticketId);
         var grant = grants.get(ticket);
-        if (grant != null && !grant.used) grants.put(ticket, new Grant(grant.deadline, true));
+        if (grant == null || grant.used) return false;
+        grants.put(ticket, new Grant(grant.deadline, true));
+        return true;
+    }
+
+    /** 쌓인 탑승 기록을 꺼내고 비운다. 이륙(endReason 없음)과 하차(endReason 있음)가 일어난 순서다. */
+    public synchronized List<Usage> drainUsage() {
+        var drained = List.copyOf(usage);
+        usage.clear();
+        return drained;
+    }
+
+    private void takeOff(String channel, String rider, UUID ticket, String role, int riders, String mode, long at) {
+        if (airborne.putIfAbsent(rider, new Airborne(channel, ticket, role, riders, mode, at)) == null) {
+            usage.add(new Usage(channel, rider, ticket, role, riders, mode, null, 0, BalloonFareService.FARE));
+        }
+    }
+
+    private void land(String rider, String reason, long at) {
+        Airborne flying = airborne.remove(rider);
+        if (flying != null) {
+            usage.add(new Usage(flying.channel, rider, flying.ticket, flying.role, flying.riders, flying.mode, reason,
+                    Math.max(0, at - flying.since), BalloonFareService.FARE));
+        }
+    }
+
+    // 조종사가 끝나면 남은 동승자도 함께 내린다.
+    private void landParty(String pilot, String pilotReason, String passengerReason, long at) {
+        land(pilot, pilotReason, at);
+        Group group = groups.get(pilot);
+        if (group != null) group.passengers.keySet().forEach(rider -> land(rider, passengerReason, at));
+    }
+
+    private static String flightMode(Group group, long at) {
+        if (group == null) return "single";
+        return group.controls == null ? "party" : group.controls.snapshot(at).mode();
     }
 
     /** 열기구를 조종하거나 함께 타고 있거나 자리를 잡아 둔 사람. 다른 공원 활동과 겹치지 않게 확인한다. */
@@ -404,6 +460,13 @@ public final class BalloonFlights {
             return session.equals(sessionId) && ticket.equals(id);
         }
     }
+    /**
+     * 행동 로그용 탑승 기록. endReason이 null이면 이륙, 있으면 하차다. riders는 이륙 때 함께 탄 인원,
+     * mode는 single(혼자 탑승)·party(여럿, 조종 분담 없음)·solo·split(조종 방식)이다.
+     */
+    public record Usage(String channelId, String riderId, UUID ticket, String role, int riders, String mode,
+            String endReason, long durationNanos, long fee) { }
+    private record Airborne(String channel, UUID ticket, String role, int riders, String mode, long since) { }
     private record Hold(String leader, UUID ticket, Instant deadline) { }
     private record Ticket(String pilot, UUID id) { }
     private record Grant(Instant deadline, boolean used) { }
