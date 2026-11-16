@@ -6,6 +6,7 @@ import com.ssafy.ontop.auth.security.TestLoginSessions;
 import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser;
 import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser.Provider;
 import com.ssafy.ontop.behavior.domain.BehaviorEvent;
+import com.ssafy.ontop.behavior.domain.BehaviorEventType;
 import com.ssafy.ontop.behavior.domain.PositionSample;
 import com.ssafy.ontop.behavior.service.BehaviorLog;
 import com.ssafy.ontop.table.service.TableHub;
@@ -59,6 +60,7 @@ class TableHubPositionTests {
     private final TableHub hub = new TableHub(mapper, Optional.empty(), false, Optional.empty(),
             Duration.ofSeconds(10), Duration.ofSeconds(10), registry);
     private final List<PositionSample> positions = new CopyOnWriteArrayList<>();
+    private final List<BehaviorEvent> events = new CopyOnWriteArrayList<>();
 
     @AfterEach
     void shutdown() {
@@ -331,6 +333,80 @@ class TableHubPositionTests {
         assertThat(registry.worldState("one").vehicles()).isEmpty();
     }
 
+    @Test
+    void 탈것은_실제로_탄_뒤_시작과_직접_하차를_시설_이용으로_한번씩_기록한다() throws Exception {
+        hub.configureBehaviorLog(new CapturingLog());
+        var wallet = mock(MobilityWallet.class);
+        Peer user = peer(101);
+        user.request("CHANNEL_JOIN", Map.of("channelId", "one"));
+        String lease = mobilityLease(wallet);
+
+        assertThat(user.request("WORLD_MOBILITY_START", mobilityStart(lease)).at("/payload/status").asText())
+                .isEqualTo("RIDING");
+        user.request("WORLD_MOBILITY_END", Map.of("leaseId", lease));
+
+        assertThat(facilityEvents()).extracting(BehaviorEvent::type)
+                .containsExactly(BehaviorEventType.FACILITY_USED, BehaviorEventType.FACILITY_RELEASED);
+        BehaviorEvent used = facilityEvents().getFirst();
+        assertThat(used.userId()).isEqualTo(101L);
+        assertThat(used.channelId()).isEqualTo("one");
+        assertThat(used.props()).containsOnlyKeys("leaseId", "facilityId", "kind")
+                .containsEntry("leaseId", lease).containsEntry("facilityId", "mobility-entry")
+                .containsEntry("kind", "SCOOTER");
+        BehaviorEvent released = facilityEvents().getLast();
+        assertThat(released.props()).containsEntry("leaseId", lease).containsEntry("endReason", "RELEASED");
+        // 이용 시간은 요금을 낸 초 수이고, 킥보드는 1초에 2냥이다.
+        long fee = (Long) released.props().get("fee");
+        assertThat(fee).isGreaterThanOrEqualTo(2);
+        assertThat(released.props()).containsEntry("durationMs", fee / 2 * 1000);
+    }
+
+    @Test
+    void 잔액이_부족해_내린_탈것은_확정된_요금과_함께_종료를_남긴다() throws Exception {
+        hub.configureBehaviorLog(new CapturingLog());
+        var wallet = mock(MobilityWallet.class);
+        Peer user = peer(101);
+        user.request("CHANNEL_JOIN", Map.of("channelId", "one"));
+        String lease = mobilityLease(wallet);
+        when(wallet.charge(eq(101L), eq(lease), eq(2L), eq(2), any(BooleanSupplier.class)))
+                .thenReturn(MobilityWallet.Payment.INSUFFICIENT);
+
+        user.request("WORLD_MOBILITY_START", mobilityStart(lease));
+        user.awaitMobilityUpdate("INSUFFICIENT");
+
+        assertThat(facilityEvents()).extracting(BehaviorEvent::type)
+                .containsExactly(BehaviorEventType.FACILITY_USED, BehaviorEventType.FACILITY_RELEASED);
+        assertThat(facilityEvents().getLast().props()).containsEntry("endReason", "INSUFFICIENT")
+                .containsEntry("durationMs", 1000L).containsEntry("fee", 2L);
+    }
+
+    @Test
+    void 첫_요금을_못_내_타지_못한_대여와_연결이_끊겨_내린_탈것을_구분한다() throws Exception {
+        hub.configureBehaviorLog(new CapturingLog());
+        var wallet = mock(MobilityWallet.class);
+        Peer user = peer(101);
+        user.request("CHANNEL_JOIN", Map.of("channelId", "one"));
+        String refused = mobilityLease(wallet);
+        when(wallet.charge(eq(101L), eq(refused), eq(1L), eq(2), any(BooleanSupplier.class)))
+                .thenReturn(MobilityWallet.Payment.INSUFFICIENT);
+        assertThat(user.request("WORLD_MOBILITY_START", mobilityStart(refused)).at("/payload/status").asText())
+                .isEqualTo("INSUFFICIENT");
+        assertThat(facilityEvents()).isEmpty();
+
+        String lease = mobilityLease(wallet);
+        user.request("WORLD_MOBILITY_START", mobilityStart(lease));
+        hub.disconnect(user.id);
+
+        assertThat(facilityEvents()).extracting(BehaviorEvent::type)
+                .containsExactly(BehaviorEventType.FACILITY_USED, BehaviorEventType.FACILITY_RELEASED);
+        assertThat(facilityEvents().getLast().props()).containsEntry("leaseId", lease)
+                .containsEntry("endReason", "DISCONNECTED");
+    }
+
+    private List<BehaviorEvent> facilityEvents() {
+        return events.stream().filter(event -> event.type().name().startsWith("FACILITY_")).toList();
+    }
+
     private String mobilityLease(MobilityWallet wallet) {
         var at = registry.positionOf("101");
         var stations = mapper.valueToTree(List.of(Map.of("id", "mobility-entry", "yaw", 0,
@@ -376,6 +452,7 @@ class TableHubPositionTests {
     private final class CapturingLog implements BehaviorLog {
         @Override
         public void record(Supplier<BehaviorEvent> event) {
+            events.add(event.get());
         }
 
         @Override

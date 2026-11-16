@@ -60,6 +60,7 @@
 - 2일차: 103 3구간 뒤 호수 착수(13냥), 104 1구간 뒤 연결 끊김(의심 판), 105 진행 중
 - 1일차 102 낙하 판에는 finish_ms가 0으로 남은 오염 데이터를 넣는다(24번 최고 기록 방어 확인)
 - 8일차: 101 course-2에서 2구간 뒤 낙하(25번 구간 번호가 코스별 최대 구간까지만 나오는지 확인)
+- 1일차 KST 12:00: 101 새 공원 10단계 코스(park220-jump10-v1, V167) 완주 410초. 이미 하루 한도라 지급 0냥
 
 클라이언트 로그(source=CLIENT, 접속해 있던 시간 안에만 넣는다)
 - 성능 보고: 1일차 101 desktop·nvidia 2건(fps 60·50), 102 desktop·intel 1건(fps 25),
@@ -86,6 +87,9 @@ NAMESPACE = uuid.UUID("6f2f4d4e-6c0b-4b6e-9a51-3c1f0a0c1400")
 # 11_zone_traffic.sql의 layouts 대응표에 있는 실제 해시(기존 맵·생성 맵)를 쓴다.
 MAP_VERSION = "ae833248d2dd356c6603af72b2b865f9051a866e9cfa7d2b9c9abe890579944d"
 GENERATED_MAP_VERSION = "c05d8ada8b12d4e509f50c7e807949bd976811e1c69a628232520b88c15a0d07"
+RENEWAL_MAP_VERSION = "b1a69e7d26d34bbb56cc88e110d7b4495b5d833669dfd708cf3c416d71a42404"
+# 2026-11-15 다시 올린 새 공원. 같은 renewal 배치로 집계되는지 소리함 표본 하나로 확인한다.
+RENEWAL_RESTART_MAP_VERSION = "01e3e6d1b6aa628df09c6629313d849769d6c31c1ea271d63be6f42e0098ad88"
 
 
 def build_seed() -> str:
@@ -109,11 +113,15 @@ def build_seed() -> str:
             props["step"] = step
         events.append((at, "ONBOARDING_STEP", user_id, None, None, None, props, "CLIENT"))
 
-    def facility(at: str, user_id: int, lease_id: str, facility_id: str, kind: str, seat: int,
-                 end_reason: str | None = None, duration_ms: int | None = None) -> None:
-        props = dict(leaseId=lease_id, facilityId=facility_id, kind=kind, seatIndex=seat)
+    def facility(at: str, user_id: int, lease_id: str, facility_id: str, kind: str, seat: int | None,
+                 end_reason: str | None = None, duration_ms: int | None = None, fee: int | None = None) -> None:
+        props = dict(leaseId=lease_id, facilityId=facility_id, kind=kind)
+        if seat is not None:
+            props["seatIndex"] = seat
         if end_reason:
             props.update(endReason=end_reason, durationMs=duration_ms)
+        if fee is not None:
+            props["fee"] = fee
         event(at, "FACILITY_RELEASED" if end_reason else "FACILITY_USED", user_id, channel="one", **props)
 
     def position(at: str, user_id: int, x: float, z: float, moving: bool, *,
@@ -180,6 +188,9 @@ def build_seed() -> str:
     event("2026-10-28 01:00:05", "CHANNEL_JOINED", 101, channel="one", currentUsers=2)
     facility("2026-10-28 01:00:10", 101, "lease-4", "telescope-1", "TELESCOPE", 0)
     facility("2026-10-28 01:01:10", 101, "lease-4", "telescope-1", "TELESCOPE", 0, "RELEASED", 60_000)
+    # 탈것: 정문 대여소 킥보드 30초(초당 2냥) 뒤 직접 하차.
+    facility("2026-10-28 01:01:20", 101, "ride-1", "mobility-entry", "SCOOTER", None)
+    facility("2026-10-28 01:01:50", 101, "ride-1", "mobility-entry", "SCOOTER", None, "RELEASED", 30_000, 60)
     event("2026-10-28 01:01:00", "TABLE_JOINED", 105, table="t1", channel="one")
     event("2026-10-28 01:02:00", "TABLE_JOINED", 101, table="t1", channel="one")
     for user_id in (101, 105):
@@ -249,6 +260,18 @@ def build_seed() -> str:
     position("2026-10-28 05:00:11", 103, 62, 56, False, map_version=GENERATED_MAP_VERSION)
     position("2026-10-28 05:00:20", 103, -20, -30, True, map_version=GENERATED_MAP_VERSION, y=20)
     position("2026-10-28 01:00:00", 105, 0, 6, False, map_version="unknown-map")
+    # 두더지 함정 표적: 102가 보이지 않는 표적을 3번 쳤다(38번 신호).
+    event("2026-10-27 01:06:20", "MOLE_ROUND_HONEYPOT", 102, game="whack-a-mole:1", hits=3)
+
+    # 새 공원: 101은 03:00~03:07 점프맵 도전 중(호수 위 공중·결승 발판은 jump-course), 끝난 뒤 호수 결승 근처에 멈춤,
+    # 광장·소리함·빈 길. 103은 같은 시각 도전 없이 점프맵 입구에 있다(다른 회원의 도전 시간은 섞이지 않는다).
+    position("2026-10-27 03:01:00", 101, -20, 42, True, map_version=RENEWAL_MAP_VERSION, y=48)
+    position("2026-10-27 03:05:00", 101, 62, -5, False, map_version=RENEWAL_MAP_VERSION, y=4.3)
+    position("2026-10-27 03:08:00", 101, 62, -5, False, map_version=RENEWAL_MAP_VERSION, y=4.3)
+    position("2026-10-27 03:10:00", 101, 0, 38, True, map_version=RENEWAL_MAP_VERSION, y=4.8)
+    position("2026-10-27 03:10:01", 101, -20.5, 22, False, map_version=RENEWAL_RESTART_MAP_VERSION, y=4.8)
+    position("2026-10-27 03:12:00", 101, 40, 80, True, map_version=RENEWAL_MAP_VERSION, y=4.8)
+    position("2026-10-27 03:02:00", 103, -66, 13, True, map_version=RENEWAL_MAP_VERSION, y=4.8)
 
     return to_sql(events, positions) + feature_sql()
 
@@ -275,6 +298,9 @@ def feature_sql() -> str:
         (103, "COMPLETED", 10, 15, "2026-10-28 05:01:00", "2026-10-28 05:03:00"),
         (101, "PLAYING", None, 0, "2026-10-28 01:03:00", None),
         (104, "INVALID", None, 0, "2026-10-27 03:00:00", "2026-10-27 03:02:00"),
+        # 39번 반응 시간: 10번 판은 105, 11번 판은 101(둘 다 v5 2분 판, 140초 뒤 완료).
+        (105, "COMPLETED", 300, 0, "2026-11-15 05:00:00", "2026-11-15 05:02:20"),
+        (101, "COMPLETED", 200, 0, "2026-11-15 05:00:00", "2026-11-15 05:02:20"),
     ]:
         lines.append(
             "INSERT INTO minigame_sessions (user_id, minigame_type, status, score, reward_amount, started_at, "
@@ -363,6 +389,16 @@ def wallet_sql() -> list[str]:
         (101, "PLUS_MINUS_PAYOUT", None, None, None, 500, 0, "2026-10-28 01:08:30"),
         (103, "MOLE_REWARD", None, None, None, 12, 0, "2026-10-28 05:06:03", "mole:reward:speed:1"),
         (102, "MINIGAME_ENTRY_FEE", None, None, None, -10, 0, "2026-10-28 02:00:00"),
+        # 공동 한도 1000냥(11/13 운영 배포) 뒤: 105가 순위 보상 80 + 꼬치 620 = 700냥. 예전 한도(500)라면 도달이다.
+        (105, "GAME_RANK_REWARD", None, None, None, 80, 0, "2026-11-13 06:00:00"),
+        (105, "SKEWER_REWARD", None, None, None, 620, 0, "2026-11-13 06:05:00"),
+        # 11/15 새 게임: 줄넘기·틀린 그림 찾기 보상은 붕어빵과 같은 MINIGAME_REWARD이고 키로 나눈다.
+        # 돌탑 생존전 5번 경기 순위 보상(1·2·3등 80·40·10냥).
+        (103, "MINIGAME_REWARD", None, None, None, 3, 0, "2026-11-15 06:01:03", "jump-rope:reward:1"),
+        (101, "MINIGAME_REWARD", None, None, None, 12, 0, "2026-11-15 06:20:00", "spot-difference:reward:run-1"),
+        (101, "GAME_RANK_REWARD", 5, None, None, 80, 0, "2026-11-15 05:06:00"),
+        (103, "GAME_RANK_REWARD", 5, None, None, 40, 0, "2026-11-15 05:06:00"),
+        (105, "GAME_RANK_REWARD", 5, None, None, 10, 0, "2026-11-15 05:06:00"),
     ]
     balances: dict[int, int] = {}
     for user_id, _, _, _, _, balance_delta, _, _, *_ in entries:
@@ -414,13 +450,15 @@ def minigame_extra_sql() -> list[str]:
         ("jr-5", 105, "STARTED", None, "2026-10-28 01:15:00", None, 0, None, 0, False, "course-1"),
         ("jr-6", 101, "ENDED", "FALL", "2026-11-03 01:05:00", "2026-11-03 01:05:40", 2, None, 0, False,
          "course-2"),
+        ("jr-7", 101, "ENDED", "FINISH", "2026-10-27 03:00:00", "2026-10-27 03:07:00", 10, 410000, 0, False,
+         "park220-jump10-v1"),
     ]:
         lines.append(
             "INSERT INTO jump_runs (id, user_id, channel_id, status, end_reason, rules_version, course_version, "
             "is_first_run, started_at, ended_at, gates_passed, gate_times_ms, final_reached, coins_granted, "
             f"elapsed_ms, finish_ms, suspicious) VALUES ('{run}', {user_id}, 'one', '{status}', {sql_value(reason)}, "
             f"'v1', '{course}', 1, '{timestamp(started)}', {sql_value(ended and timestamp(ended))}, {gates}, '[]', "
-            f"{int(gates == 7)}, {coins}, {sql_value(finish)}, {sql_value(finish)}, {int(suspicious)});"
+            f"{int(reason == 'FINISH')}, {coins}, {sql_value(finish)}, {sql_value(finish)}, {int(suspicious)});"
         )
     # (회원, 요청 키, 참가비, KST 날짜, 단계, 결과, 지급, 시작, 정산, 도전 단계, 도전 중)
     # 도전 중인 채로 지면 도전 실패, 아니면 첫 대결 패배다. 지급 = 참가비 × 칸 × 배수(이전 규칙 ×1.0/×1.5/×2.0).
@@ -471,6 +509,32 @@ def minigame_extra_sql() -> list[str]:
             f"completed_at, score, hits, misses) VALUES ({user_id}, '{key}', 1, 1, '{status}', '{timestamp(started)}', "
             f"{sql_value(completed and timestamp(completed))}, {sql_value(score)}, {sql_value(hits)}, "
             f"{sql_value(misses)});"
+        )
+    # 줄넘기 (회원, 요청 키, 상태, 시작, 끝, 점수, 퍼펙트, 굿, 실수, 종료 사유). 규칙 2, 판 번호는 입력 순서(1부터).
+    # 1번은 시간 종료라 150점 ÷ 50 = 3냥(원장 jump-rope:reward:1), 2번은 세 번 실수로 끝나 보상이 없고, 3번은 진행 중이다.
+    for user_id, key, status, started, completed, score, perfect, good, miss, reason in [
+        (103, "j-1", "SETTLED", "2026-11-15 06:00:00", "2026-11-15 06:01:03", 150, 20, 10, 1, "time"),
+        (101, "j-2", "SETTLED", "2026-11-15 06:05:00", "2026-11-15 06:05:40", 90, 8, 6, 3, "missLimit"),
+        (105, "j-3", "ACTIVE", "2026-11-15 06:10:00", None, None, None, None, None, None),
+    ]:
+        lines.append(
+            "INSERT INTO jump_rope_rounds (user_id, request_key, seed, rules_version, status, started_at, expires_at, "
+            "completed_at, score, perfect_count, good_count, miss_count, end_reason, input_hash) VALUES "
+            f"({user_id}, '{key}', 1, 2, '{status}', '{timestamp(started)}', "
+            f"'{timestamp(started)}' + INTERVAL 95 SECOND, {sql_value(completed and timestamp(completed))}, "
+            f"{sql_value(score)}, {sql_value(perfect)}, {sql_value(good)}, {sql_value(miss)}, {sql_value(reason)}, "
+            f"{sql_value(completed and '0' * 64)});"
+        )
+    # 점프맵 매크로 감지(V177): 101의 jr-1이 다른 판 2개와 같은 입력이다(REPLAY).
+    lines.append("INSERT INTO jump_macro_detections (run_id, user_id, rule, matched_runs, evidence, detected_at) "
+                 "VALUES ('jr-1', 101, 'REPLAY', 2, '{}', '2026-10-27 01:41:05.000');")
+    # 줄넘기 감사(V178): 1번 판(103)은 박자가 일정하고, 2번 판(101)은 사람처럼 흔들린다.
+    for round_id, user_id, jitter, steady in [(1, 103, 300, 1), (2, 101, 41000, 0)]:
+        lines.append(
+            "INSERT INTO jump_rope_audits (round_id, user_id, rules_version, jump_offsets, jump_count, jitter_us, "
+            "lead_mean_us, lead_sd_us, whole_ms_jumps, submit_delay_ms, in_park, duplicate_rounds, duplicate_log, "
+            f"steady_rhythm, received_at) VALUES ({round_id}, {user_id}, 2, '[]', 30, {jitter}, 50000, {jitter}, 0, "
+            f"200, 1, 0, 0, {steady}, '2026-11-15 06:01:04.000');"
         )
     # 플러스마이너스 (회원, 요청 키, KST 날짜, 결과, 결과값, 지급, 시각). 참가비 30 고정, 지급 = 결과값 × 10.
     for user_id, key, day, outcome, value, payout, at in [
@@ -572,6 +636,26 @@ def game_sql() -> list[str]:
             f"reservation_released_at) VALUES ({game}, {user_id}, {seat}, {seat - 1}, '{status}', '{result}', "
             f"{sql_value(leave)}, {ended if leave else 'NULL'}, {bet}, {delta}, {ended});"
         )
+    # 돌탑 생존전(V180): 3명, 판돈 5, 마지막까지 남은 101이 1등. 순위와 서버 발행 순위 보상을 참가자에 남긴다.
+    lines.append(
+        "INSERT INTO game_sessions (id, start_attempt_id, request_fingerprint, table_id, table_version, game_code, "
+        "target_score, participant_count, bet_amount_per_player, total_pot, status, settlement_status, "
+        "rejection_code, end_reason, owner_instance_id, owner_boot_id, created_at, reserved_at, started_at, "
+        "ended_at, settled_at) VALUES (5, UNHEX(LPAD('5', 32, '0')), UNHEX(REPEAT('0', 64)), 't4', 0, "
+        "'STONE_RUMBLE', NULL, 3, 5, 15, 'FINISHED', 'SETTLED', NULL, 'LAST_PLAYER_STANDING', 'seed', "
+        "UNHEX(REPEAT('0', 32)), '2026-11-15 05:00:00.000', '2026-11-15 05:00:00.000', '2026-11-15 05:00:00.000', "
+        "'2026-11-15 05:06:00.000', '2026-11-15 05:06:00.000');"
+    )
+    for user_id, seat, result, delta, rank, reward in [
+        (101, 1, "WIN", 10, 1, 80), (103, 2, "LOSE", -5, 2, 40), (105, 3, "LOSE", -5, 3, 10),
+    ]:
+        lines.append(
+            "INSERT INTO game_participants (game_session_id, user_id, seat_number, participant_order, "
+            "participant_status, result, leave_reason, left_at, reserved_amount, coin_delta, "
+            "reservation_released_at, finish_rank, rank_reward) VALUES "
+            f"(5, {user_id}, {seat}, {seat - 1}, 'FINISHED', '{result}', NULL, NULL, 5, {delta}, "
+            f"'2026-11-15 05:06:00.000', {rank}, {reward});"
+        )
     return lines
 
 
@@ -618,6 +702,34 @@ def bungeoppang_version_sql() -> list[str]:
         lines.append(
             "INSERT INTO bungeoppang_records (minigame_session_id, rules_version, heats, is_first_game, "
             f"rejection_detail) VALUES ({session}, '{rules}', '[]', 0, {sql_value('seed' if rejected else None)});"
+        )
+    # 39번: 굽기 속도 100이면 익힘 70('치익')은 굽기 시작 5600ms 뒤다. 반응 시간 = 뒤집은 시각 - 그 시각.
+    # 10번(105): 두 빵의 앞·뒷면을 신호 뒤 50·50·60·70ms에 뒤집는다(모두 150ms 미만, 먼저 누른 적 없음).
+    # 11번(101): 앞면은 신호 뒤 400ms, 뒷면은 신호보다 150ms 먼저 뒤집는다(미리 짐작).
+    def step(seq, action, t, slot, filling=None):
+        return {"seq": seq, "action": action, "t": t, "slot": slot, "filling": filling,
+                "breadId": None, "orderId": None, "deliveryKey": None}
+    logs = {
+        10: [step(1, "POUR", 0, 0), step(2, "FILL", 500, 0, "bean"), step(3, "TURN", 6150, 0),
+             step(4, "TURN", 11800, 0), step(5, "POUR", 12000, 1), step(6, "FILL", 12500, 1, "bean"),
+             step(7, "TURN", 18160, 1), step(8, "TURN", 23830, 1)],
+        11: [step(1, "POUR", 0, 0), step(2, "FILL", 500, 0, "bean"), step(3, "TURN", 6500, 0),
+             step(4, "TURN", 11950, 0)],
+    }
+    for session, log in logs.items():
+        submission = json.dumps({"rulesVersion": "v5", "throughSeq": len(log), "prefixHash": "seed", "log": log})
+        lines.append(
+            "INSERT INTO bungeoppang_records (minigame_session_id, rules_version, heats, is_first_game, submission) "
+            f"VALUES ({session}, 'v5', '[100, 100]', 0, '{submission}');"
+        )
+        rules = json.dumps({"rules": {"sideMs": 8000, "rushSideMs": 6000, "rushFromMs": 90000}})
+        lines.append(
+            "INSERT INTO bungeoppang_v4_rounds (minigame_session_id, config_version, config_json, issued_at, "
+            "countdown_starts_at, play_starts_at, play_ends_at, submit_deadline, expires_at, approved_prefix_hash, "
+            f"checkpoint_json, manual_paused_ms) VALUES ({session}, 'v5-20261103.1', '{rules}', "
+            "'2026-11-15 05:00:00.000', '2026-11-15 05:00:01.000', '2026-11-15 05:00:04.500', "
+            "'2026-11-15 05:02:04.500', '2026-11-15 05:02:19.500', '2026-11-15 05:02:29.500', "
+            f"'{'0' * 64}', '{{}}', 0);"
         )
     # (판 번호, 설정 버전, 발급·카운트다운, 조리 시작, 조리 끝, 제출 기한, 만료, 수동 일시정지 ms)
     # 조리 60초(v4)·180초(v5 3분). 7번 판은 사용자가 30초 멈췄다.
