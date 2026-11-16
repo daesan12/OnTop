@@ -4,6 +4,7 @@ import {
 } from './flight'
 import type { Flight, Point } from './flight'
 import { canBoard, flightMap, moveWalker, startPoint } from './previewMap'
+import { resetCabinCamera } from './cabinCamera'
 
 const options = new URLSearchParams(window.location.search)
 function numberOption(key: string, fallback: number, maximum: number) {
@@ -61,6 +62,7 @@ export const usePreview = create<Preview>((set, get) => ({
     if (flight.phase !== 'boarding' || !boarded) return
     keys.clear()
     cameraDrag.yaw = 0
+    resetCabinCamera()
     set({ flight: takeOff(flight), coins: coins - BALLOON_FARE, wait: 0 })
   },
 

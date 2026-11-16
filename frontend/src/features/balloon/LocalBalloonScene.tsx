@@ -8,7 +8,7 @@ import { interactLocalBalloonCabin, tickLocalBalloon, toggleLocalCabinMode, togg
 import { sampleRemoteBalloon, useRemoteBalloons } from './remoteRide'
 import { useBalloonModel } from './useBalloonModel'
 import { BalloonCabinSeats } from './BalloonCabinSeats'
-import { cabinCamera, dragCabinCamera } from './cabinCamera'
+import { balloonCanLook, cabinCamera, dragCabinCamera } from './cabinCamera'
 import { cameraRelativeMove } from '../../network/movementInput'
 import { useSession } from '../../network/worldClient'
 import { BalloonCabinControls, type LocalCabinInput } from './BalloonCabinControls'
@@ -46,12 +46,9 @@ export default function LocalBalloonScene() {
     const input = held.current
     let pointer: { id: number; x: number; y: number } | null = null
     const clear = () => { input.clear(); pointer = null }
-    const canLook = () => {
-      const ride = useLocalBalloon.getState()
-      return ride.walkingInside && ride.flight?.phase === 'flying'
-    }
+    const canLook = () => balloonCanLook(useLocalBalloon.getState().flight?.phase)
     const pointerDown = (event: PointerEvent) => {
-      if (!canLook() || event.button !== 0 || !event.isTrusted) return
+      if (pointer || !canLook() || event.button !== 0 || !event.isTrusted) return
       canvas.setPointerCapture(event.pointerId)
       pointer = { id: event.pointerId, x: event.clientX, y: event.clientY }
     }
