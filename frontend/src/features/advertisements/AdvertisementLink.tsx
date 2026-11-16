@@ -3,6 +3,7 @@ import { useSession } from '../../network/worldClient'
 import { canControlRoamingCamera } from '../../world/roamingCamera'
 import { clearRoamingInput, inputState } from '../../world/inputOwnership'
 import geomatePreview from './art/geomate-preview.webp'
+import oneStoreIcon from './art/one-store-icon.webp'
 import ontopPreview from './art/ontop-preview.webp'
 import pickusPreview from './art/pickus-preview.webp'
 import './advertisements.css'
@@ -46,6 +47,7 @@ const advertisements = [
     preserveImage: true,
     link: 'https://m.onestore.co.kr/v2/ko-kr/app/0001012470',
     action: '원스토어 방문',
+    actionIcon: oneStoreIcon,
     notice: '온탑 외부 페이지로 이동합니다.',
   },
 ]
@@ -184,7 +186,12 @@ export function AdvertisementLink() {
         <p className="park-advertisement-notice" id="advertisement-link-notice"><span aria-hidden="true">!</span><span>{advertisement.notice} 링크는 새 탭에서 열리며,<br className="park-advertisement-notice-break" /> 온탑 게임은 그대로 유지됩니다.</span></p>
         <div className="park-advertisement-actions">
           <button ref={stayButton} type="button" autoFocus onClick={() => setOpen(false)}><FrameCorners />공원에 남기</button>
-          <a href={advertisement.link} target="_blank" rel="noopener noreferrer" onClick={() => setOpen(false)}><FrameCorners />{advertisement.action} <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 19 19 5M6 5h13v13" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg></a>
+          <a href={advertisement.link} target="_blank" rel="noopener noreferrer" onClick={() => setOpen(false)}>
+            <FrameCorners />
+            {advertisement.actionIcon && <img className="park-advertisement-action-icon" src={advertisement.actionIcon} alt="" width="32" height="32" />}
+            {advertisement.action}
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 19 19 5M6 5h13v13" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          </a>
         </div>
       </footer>
     </div>

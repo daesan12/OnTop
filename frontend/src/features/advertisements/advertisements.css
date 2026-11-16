@@ -78,7 +78,16 @@
 .park-advertisement-details { display: flex; flex-direction: column; justify-content: center; align-items: flex-start; padding: 1.3cqw 0 1.8cqw; }
 .park-advertisement-badge { padding: .45cqw 1.05cqw; border-radius: 12px; background: #d6d6c2; color: #5b6654; font-size: 1.7cqw; line-height: 1.3; }
 .park-advertisement-details h3 { margin: 1.05cqw 0 1.5cqw; font-family: Georgia, 'BusanDandiMyeongjo', serif; font-size: 4.6cqw; font-weight: 500; line-height: 1.05; letter-spacing: -.04em; }
-.park-advertisement-project--framed .park-advertisement-preview { height: auto; align-self: center; object-fit: contain; }
+.park-advertisement-project--framed .park-advertisement-preview {
+  height: auto;
+  align-self: center;
+  aspect-ratio: auto;
+  object-fit: contain;
+  padding: clamp(4px, .55cqw, 8px);
+  border: 1px solid #bec8c1;
+  border-radius: clamp(5px, .6cqw, 9px);
+  background: linear-gradient(140deg, #edf3f8, #e7ebe1);
+}
 .park-advertisement-project--framed h3 { font-size: clamp(25px, 3.7cqw, 48px); overflow-wrap: anywhere; }
 .park-advertisement-details p { margin: 0; color: #5b6251; font-size: 2.25cqw; line-height: 1.45; letter-spacing: -.04em; }
 .park-advertisement-project--framed .park-advertisement-details p { text-wrap: balance; word-break: keep-all; }
@@ -98,6 +107,7 @@
 .park-advertisement-actions button, .park-advertisement-actions a { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: .7cqw; flex: 1; min-height: 6.8cqw; padding: 1cqw 1.4cqw; border: 2px solid #1a4a43; border-radius: 17px; background: #f0ead5; color: var(--ad-ink); font-family: inherit; font-size: 2.25cqw; font-weight: 700; line-height: 1.25; white-space: nowrap; text-decoration: none; cursor: pointer; box-shadow: inset 0 0 0 4px #ede9d5, inset 0 0 0 5px #c9c4a6; }
 .park-advertisement-actions a { flex: 1.25; background: linear-gradient(120deg, #1b5b48, #0b3634); color: #f5e9ba; border-color: #1c5148; box-shadow: inset 0 0 0 3px #214b40, inset 0 0 0 4px #a39c63, 0 2px 2px #263f3826; }
 .park-advertisement-actions a > svg { width: 1.9cqw; height: 1.9cqw; flex-shrink: 0; }
+.park-advertisement-action-icon { flex: none; width: clamp(21px, 2.9cqw, 34px); height: auto; }
 .park-advertisement-actions .park-advertisement-corners { inset: 5px; color: #b6b492; opacity: .65; }
 .park-advertisement-actions .park-advertisement-corners > svg { width: 18px; height: 18px; }
 .park-advertisement-actions a .park-advertisement-corners { color: #aa9e62; }
