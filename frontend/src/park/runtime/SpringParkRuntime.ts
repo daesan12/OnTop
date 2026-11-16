@@ -1,4 +1,9 @@
 import { acceptAlkkagiSocial, resetAlkkagiSocial, syncAlkkagiSocial } from '../../game/alkkagi/spectatorEvents'
+import { notifyOwnBalloonEnd, receiveRemoteBalloon } from '../../features/balloon/remoteRide'
+import type { BalloonBoarding, Input as BalloonInput, Point as BalloonPoint } from '../../features/balloon/flight'
+import type { ControlAction } from '../../features/balloon/controls'
+import type { CabinPose } from '../../features/balloon/cabin'
+import { BALLOON_RIDE_ENABLED } from '../mapSelection'
 import { acquireVRProtection, vrCarryProtection } from '../../features/vrSession/protection'
 import {
   clearAuthSession,
@@ -17,7 +22,7 @@ import { BUNGEOPPANG_RANKINGS_ENABLED } from '../../features/bungeoppang/ranking
 import { handScope, useOneCardUI } from '../../game/onecard/uiState'
 import { WorldTimeClient } from '../../network/worldTimeClient'
 import {MapAdmission,MAP_UPDATE_MESSAGE,type MapIdentity} from '../../network/mapContract'
-import { FacilityClient } from '../../network/facilityClient'
+import { FacilityClient, type BoatCommand } from '../../network/facilityClient'
 import { facilityMovementBlocked, FacilityUseBlockedError, showFacilityUseNotice, serverFacilities } from '../../features/facilities/state'
 import { RestError } from '../../network/restError'
 import { jokeBusinessMessage, jokeSubmissionPath } from '../../features/ai/jokeSubmissionError'
@@ -32,6 +37,7 @@ import {observedNpcPractice,syncPracticeSpectator} from '../../features/ai/pract
 import { gamePlayers, gameState } from '../../game/protocol'
 import { useBenchState } from '../../features/interactions/benchState'
 import { useFacilityState } from '../../features/facilities/state'
+import { closeBoatInvite, receiveBoatInvite, showBoatNotice } from '../../features/duckBoat/model'
 import { receiveWalletSettlement, refreshWalletAfterSettlement } from '../../features/wallet/settlementRefresh'
 import {
   channel,
@@ -346,6 +352,7 @@ export class ParkRuntime implements ParkRuntimePort {
     return this.facilities.use(id, seat, signal)
   }
   releaseFacility = (id: string, signal: AbortSignal) => this.facilities.release(id, signal)
+  boatCommand = (type: BoatCommand, payload: Record<string, unknown>, signal: AbortSignal) => this.facilities.boat(type, payload, signal)
   aimFacility = (id: string, aim: { yaw: number; pitch: number }, signal: AbortSignal) => this.facilities.aim(id, aim, signal)
   addAuthListener(listener: AuthEnded) {
     this.authListeners.add(listener)
@@ -714,6 +721,14 @@ export class ParkRuntime implements ParkRuntimePort {
       }
       return
     }
+    if (message.type === 'WORLD_BALLOON_STATE') {
+      if (!BALLOON_RIDE_ENABLED) return
+      const { roomId, sessionId } = useSession.getState()
+      if (message.payload.channelId === roomId && message.payload.pilotId === sessionId
+        && message.payload.flight === null && message.requestId === null) notifyOwnBalloonEnd()
+      receiveRemoteBalloon(message.payload, roomId, sessionId)
+      return
+    }
     if(message.type==='CONNECTED') {
       rentalCapability.available = message.payload.mobilityAvailable === true
       clearTimeout(this.timer)
@@ -733,6 +748,15 @@ export class ParkRuntime implements ParkRuntimePort {
       if (this.mapReady && this.mapAdmission.allowed && session.status === 'connected'
         && session.mapCompatible && session.roomId && !session.pending)
         this.notesChanges.accept(message)
+      return
+    }
+    if (message.type === 'WORLD_BOAT_INVITE') { receiveBoatInvite(message.payload); return }
+    if (message.type === 'WORLD_BOAT_INVITE_CLOSED') { closeBoatInvite(message.payload.inviterId); return }
+    if (message.type === 'WORLD_BOAT_NOTICE') {
+      const { status, fare, leaseId } = message.payload
+      showBoatNotice(status, fare)
+      if (status === 'PAID' && typeof leaseId === 'string')
+        refreshWalletAfterSettlement(useSession.getState().sessionId, 'duck-boat:' + leaseId)
       return
     }
     if (message.type === 'WORLD_MOBILITY_STATE') {
@@ -1067,6 +1091,31 @@ export class ParkRuntime implements ParkRuntimePort {
     localMovement.intend(intent)
     if (!stoppedIntent(intent)) cancelAvatarEmote(useSession.getState().sessionId, 'movement')
     this.movement.enqueue(intent, this.movementScope())
+  }
+  startBalloon = async (ticketId: string, position: BalloonPoint, boarding: BalloonBoarding) => {
+    const { roomId, sessionId } = useSession.getState()
+    const { payload } = await this.socket.request('WORLD_BALLOON_START', { ticketId, ...position, ...boarding }, ['WORLD_BALLOON_STATE'])
+    const leader = 'leaderId' in boarding ? boarding.leaderId : sessionId
+    if (payload.channelId !== roomId || payload.pilotId !== leader || !payload.flight) {
+      throw new Error('열기구 탑승 상태를 확인해주세요.')
+    }
+    return payload.party != null
+  }
+  launchBalloon = async (ticketId: string, solo: boolean) => {
+    await this.socket.request('WORLD_BALLOON_LAUNCH', { ticketId, solo }, ['WORLD_BALLOON_STATE'])
+  }
+  controlBalloon = async (ticketId: string, action: ControlAction) => {
+    await this.socket.request('WORLD_BALLOON_CONTROL', { ticketId, ...action }, ['WORLD_BALLOON_STATE'])
+  }
+  sendBalloonPose = (ticketId: string, position: BalloonPoint, aboard: boolean, cabin: CabinPose, input: BalloonInput) => {
+    if (!this.socket.connected) return
+    try { this.socket.send('WORLD_BALLOON_POSE', { ticketId, ...position, aboard, cabin, input }) }
+    catch { /* The next update or the flight expiry handles a transport interruption. */ }
+  }
+  endBalloon = (ticketId: string) => {
+    if (!this.socket.connected) return
+    try { this.socket.send('WORLD_BALLOON_END', { ticketId }) }
+    catch { /* The server also removes the balloon when the connection closes or expires. */ }
   }
   stopMovement = () => {
     this.movement.clear(false)

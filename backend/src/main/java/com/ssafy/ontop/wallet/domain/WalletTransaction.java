@@ -45,6 +45,10 @@ public class WalletTransaction {
         return balanceDelta;
     }
 
+    public Instant createdAt() {
+        return createdAt;
+    }
+
     public static WalletTransaction adminBulkGrant(long walletId, long batchId, long userId,
             long amount, Instant now) {
         if (walletId <= 0 || batchId <= 0 || userId <= 0 || amount <= 0) {
@@ -80,6 +84,19 @@ public class WalletTransaction {
         var entry = new WalletTransaction();
         entry.walletId = walletId;
         entry.transactionType = "MOBILITY_RENTAL_FEE";
+        entry.balanceDelta = -fee;
+        entry.idempotencyKey = key;
+        entry.createdAt = Objects.requireNonNull(now).truncatedTo(ChronoUnit.MILLIS);
+        return entry;
+    }
+
+    public static WalletTransaction duckBoatFee(long walletId, int fee, String key, Instant now) {
+        if (walletId <= 0 || fee <= 0 || key == null || !key.startsWith("duck-boat:")) {
+            throw new IllegalArgumentException("오리배 요금 원장을 확인하세요.");
+        }
+        var entry = new WalletTransaction();
+        entry.walletId = walletId;
+        entry.transactionType = "DUCK_BOAT_FEE";
         entry.balanceDelta = -fee;
         entry.idempotencyKey = key;
         entry.createdAt = Objects.requireNonNull(now).truncatedTo(ChronoUnit.MILLIS);

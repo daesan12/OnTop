@@ -112,6 +112,9 @@ gameId/version/state를 노출하지 않으며 기존 FE 파서와 재시도 UI�
 | 광장 | CHANNEL_JOIN / CHANNEL_LEAVE | CHANNEL_STATE / CHANNEL_LEFT / WORLD_STATE |
 | 이동 | WORLD_MOVE | WORLD_STATE |
 | 탈것 대여·하차 | WORLD_MOBILITY_START / WORLD_MOBILITY_END | WORLD_MOBILITY_STATE, 탑승 상태가 바뀌면 WORLD_STATE도 방송 |
+| 열기구 탑승·출발 | WORLD_BALLOON_START / WORLD_BALLOON_LAUNCH | WORLD_BALLOON_STATE |
+| 열기구 비행·조종석 | WORLD_BALLOON_POSE / WORLD_BALLOON_CONTROL | WORLD_BALLOON_STATE |
+| 열기구 종료 | WORLD_BALLOON_END | WORLD_BALLOON_STATE 또는 WORLD_BALLOON_END_ACK |
 | C 좌표 검증 이동 (dev 기본) | WORLD_POSITION | WORLD_STATE; local 명시 활성·dev 기본 활성·prod 제외. [계약](../world-movement-prediction.md#c-좌표-검증-이동-계약-dev-기본-적용-prod-제외) |
 | 클라이언트 물리 준비 실패 시 서버 이동 복귀 | WORLD_POSITION_FALLBACK | WORLD_STATE; C 모드에서 사용, payload는 현재 epoch |
 | 채팅·감정 | WORLD_CHAT_SEND / WORLD_EMOTE_SEND | WORLD_CHAT_MESSAGE / WORLD_EMOTE_EVENT / WORLD_EMOTE_CANCELLED |
@@ -123,6 +126,7 @@ gameId/version/state를 노출하지 않으며 기존 FE 파서와 재시도 UI�
 | 월드 문 상태 요청 | WORLD_SECRET_DOORS_SET | WORLD_STATE; `{open:boolean}`, 서버가 현재 위치와 요청 권한 확인 |
 | 실내 전환 | WORLD_INTERIOR_ACCESS | WORLD_STATE; `{access:string}`, 서버가 현재 위치와 이동 가능 여부 확인 |
 | 시설 | WORLD_FACILITY_CHECK / WORLD_FACILITY_CATALOG / WORLD_FACILITY_USE / WORLD_FACILITY_RELEASE / WORLD_FACILITY_AIM | [시설 계약](../world-facility-api.md)의 상태·목록·이용 응답 |
+| 오리배 (220m 공원) | WORLD_BOAT_JOIN / WORLD_BOAT_REPLY / WORLD_BOAT_TEAM, 하차·대기 취소는 WORLD_FACILITY_RELEASE | WORLD_FACILITY_STATE, 알림 WORLD_BOAT_INVITE / WORLD_BOAT_INVITE_CLOSED / WORLD_BOAT_NOTICE ([아래](#오리배-대기초대운항)) |
 | 착석·준비 | TABLE_JOIN / TABLE_LEAVE / READY_SET / GAME_SELECT | TABLE_STATE / TABLE_LEFT |
 | 대기 테이블 보기 | TABLE_WATCH / TABLE_UNWATCH | TABLE_WATCH_STATE / TABLE_WATCH_LEFT |
 | 시작 확인 | GAME_START_CHECK | GAME_START_STATE (시작 연결부 활성 시만 요청 허용) |
@@ -181,6 +185,38 @@ ERROR와 CONNECTED는 요청 타입이 아니다.
 - 하차가 결제 확정보다 먼저 처리되면 그 회차를 취소한다. 이미 커밋을 시작한 회차는 결과가 나온 뒤 최종 누적액에 반영하고, 다음 회차는 시작하지 않는다.
 
 탑승 상태는 같은 채널의 `WORLD_STATE.payload.vehicles`에 사용자 ID별 탈것 값으로 공유한다. 거리·이용 조건에 맞지 않는 요청에는 `MOBILITY_OUT_OF_REACH`, `MOBILITY_BUSY` 등 `ERROR`를 반환한다.
+
+## 열기구
+
+채널에 입장한 인증 세션에서 사용한다. 먼저 `POST /api/v1/world/balloon/tickets`로 100냥을 결제하고 응답의 `requestId`를 `ticketId`로 보낸다. 다른 열기구에 합류할 때는 결제와 탑승 요청에 같은 `leaderId`를 사용한다.
+
+| 요청 | payload와 동작 |
+| --- | --- |
+| WORLD_BALLOON_START | `{ticketId, x, y, z}`로 탑승을 시작한다. 새 기체는 `capacity`(1~4)와 `mode`(`solo` 또는 `split`)를 지정할 수 있다. 합류 시에는 `leaderId`를 보낸다. |
+| WORLD_BALLOON_LAUNCH | `{ticketId, solo?}`로 탑승 대기를 끝낸다. 분담 조종에서 `solo: true`를 보내면 혼자 조종하는 상태로 출발을 요청한다. |
+| WORLD_BALLOON_POSE | `{ticketId, x, y, z, aboard}`에 기내 상태 `cabin`과 조종 입력 `input`을 추가할 수 있다. `input`을 보낼 때는 `cabin`도 필요하다. |
+| WORLD_BALLOON_CONTROL | `{ticketId, role, action}`. 역할은 `direction` 또는 `altitude`다. 동작은 `claim`, `leave`, `return`, `offer`, `accept`이며, `offer`에는 `peer`, `accept`에는 `offerId`를 추가한다. |
+| WORLD_BALLOON_END | `{ticketId}`로 비행을 종료한다. 종료할 표시 상태가 없으면 요청자에게 `WORLD_BALLOON_END_ACK`를 보낸다. |
+
+서버는 비행 위치와 탑승 상태를 `WORLD_BALLOON_STATE`로 같은 채널에 공유한다. 종료 상태의 `flight`는 `null`이다. 관찰자는 이 상태로 기체와 탑승 아바타를 표시한다. [열기구 이용 및 검증 절차](../../frontend/src/features/balloon/README.md)
+
+## 오리배 대기·초대·운항
+
+220m 공원 생성물의 `interactions.boats`(선착장 대기 자리 4곳, 하차 위치, 1분 운항 경로)가 있고 DB 지갑이 있는 서버에서만 쓸 수 있다. 시설 종류는 `BOAT`이며 좌석 0~3은 대기 자리(팀×2+자리), 4번부터는 배마다 두 좌석이다. 일반 `WORLD_FACILITY_USE`로는 들어올 수 없다(`BOAT_JOIN_REQUIRED`).
+
+| 요청 | payload | 응답 |
+| --- | --- | --- |
+| WORLD_BOAT_JOIN | `{}`(혼자) 또는 `{partnerId}`(같은 채널 사용자 초대). 선착장 가까이에서 요청 | WORLD_FACILITY_STATE |
+| WORLD_BOAT_REPLY | `{inviterId, accept}`. 수락하면 위치와 상관없이 초대한 사람 옆 대기 자리로 옮긴다 | WORLD_FACILITY_STATE |
+| WORLD_BOAT_TEAM | `{action:"SOLO"}` 또는 `{action:"INVITE", partnerId}`. 초대 중이거나 고르는 중일 때 | WORLD_FACILITY_STATE |
+
+- 대기는 두 팀까지다. 초대 응답은 15초, 거절·무응답 뒤 고르기는 10초이며 고르지 않으면 대기에서 빠진다.
+- 준비된 팀만 먼저 온 순서로, 직전 출발 10초 뒤부터 출발한다. 동시에 최대 4척이며 돌아오는 배와 진입로가 겹치는 시각에는 출발하지 않는다.
+- 출발 순간 1인 30냥을 `DUCK_BOAT_FEE` 원장(키 `duck-boat:<walletId>:<leaseId>`)으로 한 번 차감한다. 중간 하차는 환불하지 않는다.
+- `WORLD_FACILITY_STATE.payload.boats`는 `{fare, lapMillis, teams:[{slot, members, phase, partnerId, deadline, departAt}], trips:[{boat, departedAt}]}`이며 시각은 epoch 밀리초다. 운항 중인 탑승자 위치는 경로와 `departedAt`으로 계산한다.
+- 알림: `WORLD_BOAT_INVITE {inviterId, channelId, expiresAt, fare}`, `WORLD_BOAT_INVITE_CLOSED {inviterId}`, `WORLD_BOAT_NOTICE {status, fare, leaseId}`. status는 PAID, ARRIVED, INSUFFICIENT, FAILED, ACCEPTED, DECLINED, EXPIRED, CANCELLED다.
+- 주요 오류: BOAT_UNAVAILABLE, BOAT_PARTNER_UNAVAILABLE, BOAT_INVITE_CLOSED, BOAT_TEAM_INVALID, FACILITY_OCCUPIED(대기열 가득), FACILITY_OUT_OF_RANGE.
+- 서버 재시작 시 대기와 운항은 복원하지 않는다.
 
 ## 캐릭터 들기·던지기와 창 입력 점유
 

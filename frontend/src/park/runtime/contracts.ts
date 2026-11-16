@@ -10,9 +10,17 @@ export interface ParkRuntimePort {
   subscribeNotesChanged(changed: () => void): () => void
   reconnect(): void
   requestJSON(path: string, init?: RequestInit): Promise<unknown>
+  startBalloon(ticketId: string, position: import('../../features/balloon/flight').Point,
+    boarding: import('../../features/balloon/flight').BalloonBoarding): Promise<boolean>
+  launchBalloon(ticketId: string, solo: boolean): Promise<void>
+  controlBalloon(ticketId: string, action: import('../../features/balloon/controls').ControlAction): Promise<void>
+  sendBalloonPose(ticketId: string, position: import('../../features/balloon/flight').Point, aboard: boolean,
+    cabin: import('../../features/balloon/cabin').CabinPose, input: import('../../features/balloon/flight').Input): void
+  endBalloon(ticketId: string): void
   checkFacilities(reloadCatalog?: boolean): Promise<void>
   useFacility(facilityId: string, seatIndex: number, signal: AbortSignal): Promise<import('../../features/facilities/protocol').FacilityLease>
   releaseFacility(leaseId: string, signal: AbortSignal): Promise<void>
+  boatCommand?(type: import('../../network/facilityClient').BoatCommand, payload: Record<string, unknown>, signal: AbortSignal): Promise<void>
   aimFacility(leaseId: string, aim: { yaw: number; pitch: number }, signal: AbortSignal): Promise<{ yaw: number; pitch: number }>
   selectChannel(channelId: string): Promise<boolean>
   enterRecommendedChannel(): Promise<boolean>

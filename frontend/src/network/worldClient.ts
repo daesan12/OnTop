@@ -45,7 +45,8 @@ import { resetNotesState, useNotesState } from '../features/notes/state'
 import { canReachNotes } from '../features/notes/validation'
 import { resetTableLobby } from '../features/tableLobby/state'
 import { publicMatchService } from '../features/tableLobby/publicMatch'
-import { resetFacilities } from '../features/facilities/state'
+import { resetFacilities, useFacilityState } from '../features/facilities/state'
+import { boatPlacement, sampleBoatRider } from '../features/duckBoat/model'
 import type { FacilityLease } from '../features/facilities/protocol'
 import { sameEquipment, type PublicEquipment } from './equipment'
 import { resetFollow } from '../features/follow/state'
@@ -87,6 +88,9 @@ export interface AvatarSnapshot {
   carry?: import('./protocol').CarryState | null
   interactionBusy?: boolean
   vehicle?: Vehicle
+  /** Duck-boat facility while queued or riding; riding also sets seatIndex and the trip departure time. */
+  boatId?: string
+  boatDepartedAt?: number
 }
 export interface ChatMessage {
   id: string
@@ -324,6 +328,8 @@ export function sampleAvatar(
       return target
     }
   }
+  if (avatar.boatId && avatar.boatDepartedAt && avatar.seatIndex >= 0
+    && sampleBoatRider(avatar.boatDepartedAt, avatar.seatIndex, estimatedServerTime(), target)) return target
   const sessionId = useSession.getState().sessionId
   if (avatar === avatars.get(sessionId)) {
     if (avatar.vehicle) {
@@ -346,7 +352,7 @@ function predictionAllowed() {
   const s = useSession.getState(), own = avatars.get(s.sessionId)
   return !!own && !own.vehicle && s.status === 'connected' && s.mapCompatible && !own.tableId && !own.benchId
     && (!own.carry || own.carry.role === 'CARRIER')
-    && !own.fitnessId && !own.telescopeId && (!own.followTargetId || localMovement.motionProfile === 'PARK_V1')
+    && !own.fitnessId && !own.telescopeId && !own.boatId && (!own.followTargetId || localMovement.motionProfile === 'PARK_V1')
     && (!s.activities[s.sessionId] || s.activities[s.sessionId] === 'WATCHING')
 }
 // UTC event time advances on a monotonic clock after CONNECTED; world day rendering is separate.
@@ -423,6 +429,8 @@ export function refreshActivityPresentation() {
     a.fitnessStartedAt = 0
     a.telescopeId = ''
     a.telescopeYaw = a.telescopePitch = 0
+    a.boatId = ''
+    a.boatDepartedAt = 0
     a.seatIndex = -1
     const authoritative = worldPoses.get(id)
     if (authoritative) a.current = { ...authoritative }
@@ -482,7 +490,18 @@ export function refreshActivityPresentation() {
       a.previous = { ...a.current }
       a.moving = a.running = false
     }
-    const activity = a.tableId || a.benchId || a.fitnessId || a.telescopeId
+    const facilities = useFacilityState.getState(), boatLease = facilities.occupancies[id]
+    const boat = boatPlacement(boatLease, facilities.boats)
+    if (!a.tableId && !a.benchId && !a.fitnessId && !a.telescopeId && boat && boatLease?.channelId === state.roomId) {
+      // Queued players stand at the server dock spot; riders are drawn on the boat from the trip clock.
+      a.boatId = boatLease.facilityId
+      a.boatDepartedAt = boat.phase === 'riding' ? boat.departedAt : 0
+      a.seatIndex = boat.phase === 'riding' ? boat.seat : -1
+      a.current = { ...(authoritative ?? a.current) }
+      a.previous = { ...a.current }
+      a.moving = a.running = a.swimming = false
+    }
+    const activity = a.tableId || a.benchId || a.fitnessId || a.telescopeId || a.boatId
     if (activity) remoteMovement.forget(id)
     if (activity && previousActivity !== activity) cancelAvatarEmote(id)
   }

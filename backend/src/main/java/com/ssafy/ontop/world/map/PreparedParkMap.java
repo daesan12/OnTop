@@ -6,7 +6,10 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ssafy.ontop.table.domain.TableRoom;
 import com.ssafy.ontop.world.config.WorldProximityProperties;
 import com.ssafy.ontop.world.dto.WorldMapMetadata;
+import com.ssafy.ontop.world.boat.DuckBoatRoute;
+import com.ssafy.ontop.world.boat.DuckBoatSchedule;
 import com.ssafy.ontop.world.movement.ParkScene;
+import com.ssafy.ontop.world.service.WorldFacilityService;
 import com.ssafy.ontop.world.service.WorldFacilityService.Catalog;
 import com.ssafy.ontop.world.service.WorldFacilityService.Definition;
 import com.ssafy.ontop.world.service.WorldFacilityService.Pose;
@@ -32,6 +35,7 @@ public final class PreparedParkMap {
     private final List<Binding> bindings;
     private final WorldProximityProperties proximity;
     private final Catalog facilities;
+    private final DuckBoatRoute boatRoute;
     private final Reach notes;
     private final Reach feedback;
     private final Reach vrEntrance;
@@ -101,6 +105,7 @@ public final class PreparedParkMap {
         bindings = List.copyOf(entries);
         proximity = new WorldProximityProperties(null, null, tablePoints);
         facilities = facilities(data.path("interactions"), map);
+        boatRoute = boatRoute(data.path("interactions").path("boats"));
         constructionSites = data.path("interactions").path("construction").deepCopy();
         JsonNode notesNode = data.path("interactions").path("notes");
         require("legacy-avatar-origin".equals(notesNode.path("heightReference").asText())
@@ -137,6 +142,7 @@ public final class PreparedParkMap {
     public List<Binding> bindings() { return bindings; }
     public WorldProximityProperties proximity() { return proximity; }
     public Catalog facilities() { return facilities; }
+    public DuckBoatRoute boatRoute() { return boatRoute; }
     public Reach notes() { return notes; }
     public Reach feedback() { return feedback; }
     public boolean hasStoneRumbleEntrance() { return !stoneRumbleEntrances.isEmpty(); }
@@ -375,10 +381,57 @@ public final class PreparedParkMap {
                         positive(item.path("heightTolerance")), List.copyOf(seats), exit));
             }
         }
+        DuckBoatRoute route = boatRoute(interactions.path("boats"));
+        for (JsonNode item : route == null ? List.<JsonNode>of() : List.of(interactions.path("boats").get(0))) {
+            String id = item.path("id").asText();
+            require(!id.isBlank() && ids.add(id), "시설 ID가 비었거나 중복되었습니다.");
+            require(WorldFacilityService.BOAT.equals(item.path("kind").asText()), "시설 종류가 일치하지 않습니다.");
+            Pose center = position(item.path("position"), number(item.path("yaw")));
+            center = new Pose(center.x(), center.y() + 0.8, center.z(), center.yaw());
+            JsonNode queue = item.path("queue");
+            require(queue.isArray() && queue.size() == DuckBoatSchedule.QUEUE_SEATS, "오리배 대기 자리를 확인해주세요.");
+            var seats = new ArrayList<Pose>();
+            for (JsonNode spot : queue) {
+                seats.add(pose(spot));
+            }
+            // 대기 자리 뒤에 배마다 두 좌석을 둔다. 탑승 좌석의 실제 자세는 경로와 출발 시각으로 계산한다.
+            for (int boat = 0; boat < DuckBoatSchedule.BOATS; boat++) {
+                for (int seat = 0; seat < DuckBoatSchedule.CAPACITY; seat++) {
+                    seats.add(route.seatPose(0, seat));
+                }
+            }
+            definitions.add(new Definition(id, WorldFacilityService.BOAT, center, positive(item.path("radius")),
+                    positive(item.path("heightTolerance")), List.copyOf(seats), pose(item.path("exit"))));
+        }
         require(!definitions.isEmpty(), "이용 가능한 시설이 없습니다.");
         definitions.sort(Comparator.comparing(Definition::facilityId));
         return new Catalog(map.metadata().mapVersion(), map.fileSha256(), previous.aimIntervalMs(),
                 previous.minPitch(), previous.maxPitch(), previous.initialPitch(), List.copyOf(definitions), List.of());
+    }
+
+    /** 오리배는 맵마다 최대 한 곳이다. 없으면 null. */
+    static DuckBoatRoute boatRoute(JsonNode boats) {
+        if (boats.isMissingNode() || boats.isNull() || boats.isArray() && boats.isEmpty()) {
+            return null;
+        }
+        require(boats.isArray() && boats.size() == 1, "오리배 시설은 하나만 둘 수 있습니다.");
+        JsonNode route = boats.get(0).path("route");
+        var points = new ArrayList<double[]>();
+        for (JsonNode point : route.path("points")) {
+            require(point.isArray() && point.size() == 2, "오리배 경로 점을 확인해주세요.");
+            points.add(new double[] {number(point.get(0)), number(point.get(1))});
+        }
+        var seats = new ArrayList<double[]>();
+        for (JsonNode seat : route.path("seats")) {
+            require(seat.isArray() && seat.size() == 3, "오리배 좌석을 확인해주세요.");
+            seats.add(new double[] {number(seat.get(0)), number(seat.get(1)), number(seat.get(2))});
+        }
+        try {
+            return new DuckBoatRoute(positive(route.path("seconds")), number(route.path("y")), points, seats,
+                    number(route.path("laneSeconds")));
+        } catch (IllegalArgumentException invalid) {
+            throw new IllegalStateException(invalid.getMessage(), invalid);
+        }
     }
 
     private static Map<String, JsonNode> indexed(JsonNode items) {

@@ -50,7 +50,7 @@ public class BalloonFareService {
         String key = "balloon:" + wallet.id() + ":" + requestId;
         var prior = transactions.findByWalletIdAndIdempotencyKey(wallet.id(), key);
         if (prior.isPresent()) {
-            return new Receipt(requestId, -prior.get().balanceDelta());
+            return new Receipt(requestId, -prior.get().balanceDelta(), prior.get().createdAt());
         }
         if (wallet.balance() - wallet.reserved() < FARE) {
             throw new Rejected("INSUFFICIENT_COINS", "열기구에 타려면 100냥이 필요해요.");
@@ -58,7 +58,7 @@ public class BalloonFareService {
         Instant now = Instant.now();
         wallet.debit(FARE, now);
         transactions.save(WalletTransaction.balloonFare(wallet.id(), FARE, key, now));
-        return new Receipt(requestId, FARE);
+        return new Receipt(requestId, FARE, now);
     }
 
     private boolean atStation(long userId) {
@@ -78,7 +78,7 @@ public class BalloonFareService {
                 && Math.abs(position.y() - reach.get(1).asDouble()) <= station.path("heightTolerance").asDouble();
     }
 
-    public record Receipt(UUID requestId, long fee) { }
+    public record Receipt(UUID requestId, long fee, @com.fasterxml.jackson.annotation.JsonIgnore Instant paidAt) { }
 
     static final class Rejected extends RuntimeException {
         private final String code;

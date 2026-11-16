@@ -43,6 +43,8 @@ export const FITNESS_STATIONS = renewal ? p.DRAFT_FITNESS_STATIONS.flatMap(s => 
 export const FITNESS = generated ? {...base.FITNESS,exitOffset:p.SETTINGS.fitness.exitOffset} : base.FITNESS
 export const FITNESS_AREA = generated ? p.DRAFT_FITNESS_AREA : base.FITNESS_AREA
 const sharedInteractions = renewal?.interactions ?? (generated ? p.data.interactions : null)
+/** 220m park duck-boat dock; absent on other maps. */
+export const DUCK_BOAT = renewal?.interactions.boats?.[0] ?? null
 export const TELESCOPES = sharedInteractions ? sharedInteractions.telescopes.map(t => ({...base.TELESCOPES.find(old => old.id === t.id)!, position:t.position, yaw:t.yaw})) : base.TELESCOPES
 export const MAILBOX = renewal ? { ...base.MAILBOX, x: renewal.interactions.mailbox.position[0], z: renewal.interactions.mailbox.position[2] }
   : generated ? {...base.MAILBOX,...p.SITES.mailbox,yaw:p.SETTINGS.mailbox.yaw,height:base.MAILBOX.height*p.SETTINGS.mailbox.scale,bodyHalfWidth:base.MAILBOX.bodyHalfWidth*p.SETTINGS.mailbox.scale,bodyHalfDepth:base.MAILBOX.bodyHalfDepth*p.SETTINGS.mailbox.scale} : base.MAILBOX

@@ -18,13 +18,13 @@ import {TelescopeModel} from '../src/world/art/TelescopeModel'
 import {TraditionalNotesBoard} from '../src/world/art/TraditionalNotesBoard'
 import {ReferenceBench} from '../src/world/art/ReferenceBenchFrames'
 import {factory} from './assetFactories'
-import {SITES,site,heightAt,LAKE,TABLES,JUMP_TABLES,MAILBOX_SCALE,REST_PAVILIONS,BOAT_ROUTE,DOCK_SCALE,STATION_BENCH,STATION_SCALE,BALLOON_DOCK_OFFSET,BALLOON_SCALE,FISHING_DECK,FISHING_SHOP,FISHING_NOTICE,FISHING_BENCHES,FISHING_ROD_RACKS,facilityGroundY} from './plan'
+import {SITES,site,heightAt,LAKE,TABLES,JUMP_TABLES,MAILBOX_SCALE,REST_PAVILIONS,BOAT_ROUTE,DOCK_SCALE,STATION_BENCH,STATION_SCALE,FISHING_DECK,FISHING_SHOP,FISHING_NOTICE,FISHING_BENCHES,FISHING_ROD_RACKS,facilityGroundY} from './plan'
 import {willowPositions} from './landscape'
 import {reverseSteleArrow} from './steleRefinement'
 import {PreservedFitness} from './PreservedFitness'
 import {PreservedPagodaGarden,FitnessFence} from './PreservedDistricts'
 import {PreservedFountain} from './PreservedFountain'
-import {SHOOTING_SIZE,ARCADE_SCALE,fitApprovedObject,boatAngleAt,boatPose,openDockSideEntry,groundObject,widenDockRearPassage,removeDockRearRopes} from './assetSizing'
+import {SHOOTING_SIZE,ARCADE_SCALE,fitApprovedObject,boatAngleAt,boatPose,openDockSideEntry,groundObject,widenDockRearPassage,removeDockRearRopes,turnDockBooth} from './assetSizing'
 import {ParkMoleShop} from './ParkMoleShop'
 import {ParkGachaKiosk,interactWithKiosk} from './ParkGachaKiosk'
 import {buildRankingBoard,RankingBoardPanels} from '../src/layout-preview/RankingBoardModel'
@@ -36,12 +36,16 @@ import {FacilityGeometry,hasFacilityGeometry} from './FacilityGeometry'
 import { models, structureModels, originalRemainingGlbs, originalFacilityGeometry } from './modelUrls'
 import { bakedEntryMesh } from './static/facilities'
 
-import { RENEWAL_DISTANCE_LOD } from '../src/park/mapSelection'
+import { BALLOON_RIDE_ENABLED, RENEWAL_DISTANCE_LOD } from '../src/park/mapSelection'
 import { createTowerFrame } from './original/world/art/towerFrameGeometry'
 import { LakePart, LakeStage } from './lakeStages'
 import { estimatedServerTime } from '../src/network/serverEventClock'
+import { useFacilityState } from '../src/features/facilities/state'
+import { buildDuckBoatRoute } from './live/boats'
+import { duckBoatRidePose, type RidePose } from './duckBoatRidePath'
 import { FacilityOnApproach } from './live/FacilityOnApproach'
 import { bungeoppangCookingView } from '../src/features/bungeoppang/bungeoppangView'
+import { DockedBalloon } from '../src/features/balloon/DockedBalloon'
 import { ShaderPreparedGroup } from './live/ShaderPreparedGroup'
 
 const Arcade = lazy(() => import('./ArcadeBuilding'))
@@ -65,6 +69,7 @@ function Model({kind,fit=false,prepareShaders=false}:{kind:string;fit?:boolean;p
     widenDockRearPassage(g)
    }
    removeDockRearRopes(g)
+   turnDockBooth(g)
   }
   return fit?fitApprovedObject(g,SHOOTING_SIZE):['boat','dock'].includes(kind)?g:groundObject(g)
  },[gltf,fit,kind])
@@ -186,9 +191,9 @@ export function Buildings({live=false,distantReady=true,upperFacilitiesReady=dis
   </group>
   <ReferenceBench name="balloon-station-waiting-bench"
     position={[STATION_BENCH.x,STATION_BENCH.floor,STATION_BENCH.z]} yaw={0} seatHeight={STATION_BENCH.seatHeight}/>
-  {showDockedBalloon&&<group position={BALLOON_DOCK_OFFSET} scale={BALLOON_SCALE}>
+  {showDockedBalloon&&<DockedBalloon trackFlights={live && BALLOON_RIDE_ENABLED}>
    {live ? <ShaderPreparedGroup><LocalFactory kind="balloon"/></ShaderPreparedGroup> : <LocalFactory kind="balloon"/>}
-  </group>}
+  </DockedBalloon>}
  </group>}
  {REST_PAVILIONS.map(([x,z],i)=><group key={i} name={'facility-rest-'+(i+1)} userData={{pavilionId:pavilionIdForSite('rest-'+(i+1))}} position={[x,heightAt(x,z),z]} rotation={[0,site('rest-'+(i+1)).yaw!,0]}><Suspense fallback={null}><StructureModel kind="pavilion"/></Suspense><PavilionIntermediateTreads/></group>)}
  <LakePart at={LakeStage.Willows}><LakeWillows/></LakePart>
@@ -220,10 +225,18 @@ function FishingPier(){const d=FISHING_DECK;return <group name="native-fishing-d
   {FISHING_BENCHES.map(([x,z,yaw],i)=><group key={i} name={'fishing-rest-bench-'+i} position={[x!,FISHING_DECK.top,z!]} rotation={[0,yaw!,0]}><LocalFactory kind="fishing-bench"/></group>)}
  </LakePart>
  </group>}
+const ridePose:RidePose={x:0,y:0,z:0,boatYaw:0,riderYaw:0}
 function Boats({live}:{live:boolean}){
  const boats=useMemo(()=>{const g=new Group();g.name='single-circulating-duck-boat';return[g]},[])
- useFrame(({clock})=>{const t=live?estimatedServerTime()/1000:clock.getElapsedTime();boats.forEach(g=>{const p=boatPose(boatAngleAt(t,BOAT_ROUTE.period),BOAT_ROUTE.x,BOAT_ROUTE.z,BOAT_ROUTE.rx,BOAT_ROUTE.rz);g.position.set(p.x,LAKE.y+.08,p.z);g.rotation.y=p.yaw})})
- return <>{boats.map((g,i)=><primitive key={i} object={g}><Suspense fallback={null}><Model kind="boat"/></Suspense></primitive>)}</>
+ // Ride boats exist only while a server trip is sailing; the decorative boat hides meanwhile (server collider too).
+ const rides=useMemo(()=>live?Array.from({length:4},(_,i)=>{const g=new Group();g.name='duck-boat-ride-'+i;g.visible=false;return g}):[],[live])
+ const route=useMemo(()=>live?buildDuckBoatRoute():null,[live])
+ useFrame(({clock})=>{
+  const now=estimatedServerTime(),t=live?now/1000:clock.getElapsedTime(),trips=live?useFacilityState.getState().boats?.trips??[]:[]
+  boats.forEach(g=>{g.visible=!trips.length;const p=boatPose(boatAngleAt(t,BOAT_ROUTE.period),BOAT_ROUTE.x,BOAT_ROUTE.z,BOAT_ROUTE.rx,BOAT_ROUTE.rz);g.position.set(p.x,LAKE.y+.08,p.z);g.rotation.y=p.yaw})
+  rides.forEach((g,i)=>{const trip=trips.find(x=>x.boat===i);g.visible=!!trip&&!!route;if(!trip||!route)return;duckBoatRidePose(route,(now-trip.departedAt)/1000,ridePose);g.position.set(ridePose.x,ridePose.y,ridePose.z);g.rotation.y=ridePose.boatYaw})
+ })
+ return <>{[...boats,...rides].map((g,i)=><primitive key={i} object={g}><Suspense fallback={null}><Model kind="boat"/></Suspense></primitive>)}</>
 }
 
 /** Local furniture is kept at human scale even though the tower is stretched to 40 m. */

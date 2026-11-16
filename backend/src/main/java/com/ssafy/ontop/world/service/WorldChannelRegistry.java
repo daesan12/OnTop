@@ -860,6 +860,28 @@ public class WorldChannelRegistry implements ChannelPresence {
         room.worldVersion++;
     }
 
+    /** 시설에 묶인 사람을 움직이는 좌석(오리배)으로 옮긴다. 묶여 있지 않으면 아무것도 하지 않는다. */
+    public synchronized boolean moveHeld(String userId, WorldFacilityService.Pose pose) {
+        String channelId = membership.get(userId);
+        Room room = channelId == null ? null : rooms.get(channelId);
+        if (room == null || room.physics == null || !room.held.contains(userId)
+                || !room.physics.moveSeated(userId, pose.x(), pose.y(), pose.z(), pose.yaw())) {
+            return false;
+        }
+        Movement previous = room.positions.get(userId);
+        room.positions.put(userId, new Movement(snapshotPosition(room, userId), previous.acceptedAtNanos()));
+        room.worldVersion++;
+        room.dirty = true;
+        return true;
+    }
+
+    public synchronized void setDuckBoatHidden(String channelId, boolean hidden) {
+        Room room = rooms.get(channelId);
+        if (room != null && room.physics != null) {
+            room.physics.setDuckBoatHidden(hidden);
+        }
+    }
+
     public synchronized WorldFacilityService.Pose facilityExit(String userId, WorldFacilityService.Lease lease) {
         Room room = rooms.get(membership.get(userId));
         for (var pose : List.of(lease.exit(), lease.returnPose())) {
@@ -873,6 +895,34 @@ public class WorldChannelRegistry implements ChannelPresence {
     public synchronized void releaseFacility(String userId, WorldFacilityService.Pose pose) {
         holdFacility(userId, pose);
         rooms.get(membership.get(userId)).held.remove(userId);
+    }
+
+    /**
+     * 오리배 하차 위치. 선착장 하차 지점과 그 좌우 1.2m 중 다른 사람이 없고 설 수 있는 곳을 고른다.
+     * 둘이 함께 도착해도 겹치지 않는다. 모두 막히면 대기열에 들어온 위치, 그것도 막히면 null.
+     */
+    public synchronized WorldFacilityService.Pose boatExit(String userId, WorldFacilityService.Lease lease) {
+        Room room = rooms.get(membership.get(userId));
+        if (room == null || room.physics == null) {
+            return null;
+        }
+        var exit = lease.exit();
+        double rightX = Math.cos(exit.yaw()), rightZ = -Math.sin(exit.yaw());
+        var candidates = List.of(exit,
+                new WorldFacilityService.Pose(exit.x() + rightX * 1.2, exit.y(), exit.z() + rightZ * 1.2, exit.yaw()),
+                new WorldFacilityService.Pose(exit.x() - rightX * 1.2, exit.y(), exit.z() - rightZ * 1.2, exit.yaw()),
+                lease.returnPose());
+        for (var pose : candidates) {
+            boolean occupied = room.positions.entrySet().stream().anyMatch(entry -> {
+                var other = entry.getValue().position();
+                return !entry.getKey().equals(userId) && Math.abs(other.y() - pose.y()) < 1.6
+                        && Math.hypot(other.x() - pose.x(), other.z() - pose.z()) < 1;
+            });
+            if (!occupied && room.physics.canStand(pose.x(), pose.y(), pose.z())) {
+                return pose;
+            }
+        }
+        return null;
     }
 
     /** Use the authored standing area when several players leave the same table. */
