@@ -73,7 +73,9 @@ public class SpeedMoleService {
             var hiddenIds = new MoleTargets(GAME, id, row.seed()).hiddenIds(HOLES);
             var playableTaps = taps.stream().filter(tap -> tap == null || !hiddenIds.contains(tap.targetId())).toList();
             var reactions = new ArrayList<Integer>();
+            var hitTimes = new ArrayList<Integer>();
             var score = SpeedMoleRules.replay(row.seed(), playableTaps, (appearedAt, at) -> {
+                hitTimes.add(at);
                 if (appearedAt >= 0) reactions.add(at - appearedAt);
             });
             Instant completed = clock.instant().truncatedTo(ChronoUnit.MILLIS);
@@ -81,8 +83,8 @@ public class SpeedMoleService {
             repository.settle(id, score, completed);
             if (timingAudit != null) {
                 var tapTimes = playableTaps.stream().map(SpeedMoleRules.Tap::at).toList();
-                timingAudit.settled(GAME, user, id, row.version(), () -> MoleTimingSignals.speed(reactions, tapTimes),
-                        completed);
+                timingAudit.settled(GAME, user, id, row.version(),
+                        () -> MoleTimingSignals.speed(reactions, tapTimes, hitTimes), completed);
             }
             var result = new SpeedMoleDtos.Result(Long.toString(id), row.version(), score.score(), score.hits(), score.misses(), completed,
                     score.score() / SpeedMoleRules.POINTS_PER_COIN, granted, rewards.earned(user, completed), MinigameRewardBudget.DAILY_CAP);

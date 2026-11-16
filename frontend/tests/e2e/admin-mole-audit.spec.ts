@@ -179,3 +179,40 @@ test('적발 회원을 자동 조회하고 선택한 판을 수동 검색 없이
   expect(speedRequests).toBe(2)
   expect(pageErrors).toEqual([])
 })
+
+test('스피드 두더지의 지속 고속 적중 신호와 구간별 근거를 표시한다', async ({ page }) => {
+  await fixture(page)
+  await page.route('**/api/v1/admin/me', route => route.fulfill({ json: {
+    canRead: true, canGrant: false, canOperate: false,
+  } }))
+  const window = { from: '2026-10-14T01:00:00Z', until: startedAt, limit: 100 }
+  await page.route('**/api/v1/admin/macro-analysis/mole/detections?*', route =>
+    route.fulfill({ json: { ...window, items: [] } }))
+  await page.route('**/api/v1/admin/macro-analysis/mole/timing?*', route => route.fulfill({ json: {
+    ...window, items: [{ userId: '101', nickname: '검토 회원', withdrawn: false, flaggedRounds: 1,
+      fastRounds: 0, steadyRounds: 0, sustainedPaceRounds: 1, auditedRounds: 2, lowestMedianReactionMs: 400,
+      latestRoundId: '456', lastDetectedAt: startedAt }],
+  } }))
+  const pace = { taps: 160, hits: 156, p90IntervalMs: 158, qualifies: true }
+  const segment = { samples: 159, medianMs: 124, spreadMs: 30, pace }
+  const comparison = { rounds: 1, honeypotTaps: 0, completionHoneypotTaps: 0, first: distribution, rapid: distribution }
+  await page.route('**/api/v1/admin/macro-analysis/mole/456?*', route => route.fulfill({ json: {
+    selected: round, nickname: '검토 회원', withdrawn: false, recent: [round], timeline: [],
+    member: comparison, reference: comparison,
+    timing: { reactions: 464, medianReactionMs: 400, segments: [segment, segment, segment],
+      fastReaction: false, steady: false, sustainedPace: true, recordedAt: startedAt },
+  } }))
+
+  await page.setViewportSize({ width: 390, height: 740 })
+  await page.goto('/admin')
+  await page.getByRole('navigation', { name: '관리자 메뉴' }).getByRole('button', { name: '게임 매크로 분석' }).click()
+  await page.getByRole('button', { name: /^스피드 두더지 잡기/ }).click()
+  const detections = page.getByRole('region', { name: '타이밍 적발 회원', exact: true })
+  await expect(detections.getByRole('columnheader', { name: '지속 고속 적중' })).toBeVisible()
+  await detections.getByRole('button', { name: '456번 판 보기' }).click()
+  const detail = page.getByRole('region', { name: '타이밍 신호', exact: true })
+  await expect(detail.getByText('검토 필요', { exact: true })).toBeVisible()
+  await expect(detail.getByRole('cell', { name: '156 / 160', exact: true })).toHaveCount(3)
+  await expect(detail.getByRole('cell', { name: '158ms', exact: true })).toHaveCount(3)
+  expect(await page.locator('body').evaluate(body => body.scrollWidth <= window.innerWidth)).toBe(true)
+})

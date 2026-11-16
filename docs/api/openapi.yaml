@@ -13157,6 +13157,9 @@ components:
           type: boolean
         steady:
           type: boolean
+        sustainedPace:
+          type: boolean
+          nullable: true
         recordedAt:
           type: string
           format: date-time
@@ -13172,6 +13175,23 @@ components:
         spreadMs:
           type: integer
           format: int32
+        pace:
+          $ref: "#/components/schemas/SpeedMoleAuditPace"
+    SpeedMoleAuditPace:
+      type: object
+      properties:
+        taps:
+          type: integer
+          format: int32
+        hits:
+          type: integer
+          format: int32
+        p90IntervalMs:
+          type: integer
+          format: int32
+          nullable: true
+        qualifies:
+          type: boolean
     MoleTimingDetections:
       type: object
       properties:
@@ -13204,6 +13224,9 @@ components:
           type: integer
           format: int32
         steadyRounds:
+          type: integer
+          format: int32
+        sustainedPaceRounds:
           type: integer
           format: int32
         auditedRounds:

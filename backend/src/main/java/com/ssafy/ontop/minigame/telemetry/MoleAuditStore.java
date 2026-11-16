@@ -122,11 +122,15 @@ class MoleAuditStore {
     List<MoleAuditDtos.TimingMember> timingDetections(MoleAuditGame game, Instant from, Instant until, int limit) {
         // 기간 안에 타이밍 신호가 한 번이라도 난 회원만 남기고, 같은 기간의 전체 기록 판 수를 함께 센다.
         String sql = """
-                WITH audits AS (
+                WITH timing AS (
                     SELECT user_id, round_id, received_at, fast_reaction, steady_timing, median_reaction_ms,
-                           (fast_reaction OR steady_timing) AS flagged
+                           COALESCE(JSON_EXTRACT(segments, '$[*].pace.qualifies') = CAST('[true,true,true]' AS JSON),
+                                    FALSE) AS sustained_pace
                     FROM mole_timing_audits
                     WHERE game = :game AND received_at >= :from AND received_at < :until
+                ), audits AS (
+                    SELECT timing.*, (fast_reaction OR steady_timing OR sustained_pace) AS flagged
+                    FROM timing
                 ), latest AS (
                     SELECT user_id, round_id, received_at,
                            ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY received_at DESC, round_id DESC) AS recency
@@ -135,7 +139,8 @@ class MoleAuditStore {
                 )
                 SELECT a.user_id, u.nickname, u.deleted_at IS NOT NULL AS withdrawn,
                        SUM(a.flagged) AS flagged_rounds, SUM(a.fast_reaction) AS fast_rounds,
-                       SUM(a.steady_timing) AS steady_rounds, COUNT(*) AS audited_rounds,
+                       SUM(a.steady_timing) AS steady_rounds, SUM(a.sustained_pace) AS sustained_pace_rounds,
+                       COUNT(*) AS audited_rounds,
                        MIN(a.median_reaction_ms) AS lowest_median_reaction_ms,
                        MAX(l.round_id) AS latest_round_id, MAX(l.received_at) AS last_detected_at
                 FROM audits a
@@ -148,7 +153,7 @@ class MoleAuditStore {
         return jdbc.query(sql, Map.of("game", game.path, "from", utc(from), "until", utc(until), "limit", limit),
                 (row, index) -> new MoleAuditDtos.TimingMember(row.getString("user_id"), row.getString("nickname"),
                         row.getBoolean("withdrawn"), row.getInt("flagged_rounds"), row.getInt("fast_rounds"),
-                        row.getInt("steady_rounds"), row.getInt("audited_rounds"),
+                        row.getInt("steady_rounds"), row.getInt("sustained_pace_rounds"), row.getInt("audited_rounds"),
                         row.getObject("lowest_median_reaction_ms", Integer.class),
                         row.getString("latest_round_id"), instant(row, "last_detected_at")));
     }
@@ -162,9 +167,11 @@ class MoleAuditStore {
                     try {
                         var segments = List.of(mapper.readValue(row.getString("segments"),
                                 MoleTimingSignals.Segment[].class));
+                        Boolean sustainedPace = segments.stream().anyMatch(segment -> segment.pace() != null)
+                                ? MoleTimingSignals.sustainedPace(segments) : null;
                         return new MoleAuditDtos.Timing(row.getInt("reaction_count"),
                                 row.getObject("median_reaction_ms", Integer.class), segments,
-                                row.getBoolean("fast_reaction"), row.getBoolean("steady_timing"),
+                                row.getBoolean("fast_reaction"), row.getBoolean("steady_timing"), sustainedPace,
                                 instant(row, "received_at"));
                     } catch (com.fasterxml.jackson.core.JsonProcessingException error) {
                         throw new SQLException("두더지 타이밍 기록 JSON을 읽을 수 없습니다.", error);

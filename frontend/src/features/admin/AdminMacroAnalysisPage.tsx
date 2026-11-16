@@ -230,6 +230,7 @@ function RoundList({ rounds, active, onSelect }: {
 
 function TimingCard({ game, timing }: { game: MoleGame; timing: AuditTiming | null }) {
   const criteria = moleTimingCriteria[game]
+  const showPace = game === 'speed-mole'
   return <section className="admin-macro-card" aria-labelledby="admin-mole-timing-title">
     <h3 id="admin-mole-timing-title">타이밍 신호</h3>
     {!timing ? <p>이 판에는 타이밍 기록이 없어요. 기능 배포 전에 끝났거나 아직 정산되지 않은 판입니다.</p> : <>
@@ -240,9 +241,14 @@ function TimingCard({ game, timing }: { game: MoleGame; timing: AuditTiming | nu
         <div><dt>{criteria.steadyLabel}</dt><dd data-signal={timing.steady || undefined}>
           {timing.steady ? '적발' : '해당 없음'}
         </dd></div>
+        {showPace && <div><dt>{moleTimingCriteria.sustainedPace.label}</dt><dd data-signal={timing.sustainedPace || undefined}>
+          {timing.sustainedPace == null ? '기록 없음' : timing.sustainedPace ? '검토 필요' : '해당 없음'}
+        </dd></div>}
       </dl>
       <div className="admin-macro-table"><table>
-        <thead><tr><th>구간</th><th>{criteria.sample} 표본</th><th>중앙값</th><th>흔들림</th></tr></thead>
+        <thead><tr><th>구간</th><th>{criteria.sample} 표본</th><th>중앙값</th><th>흔들림</th>
+          {showPace && <><th>적중 / 입력</th><th>입력 간격 90백분위</th></>}
+        </tr></thead>
         <tbody>{timing.segments.map((segment, index) => {
           const measured = segment.samples >= criteria.minSamples
           return <tr key={index}>
@@ -251,10 +257,14 @@ function TimingCard({ game, timing }: { game: MoleGame; timing: AuditTiming | nu
             <td data-signal={(measured && segment.spreadMs !== null && segment.spreadMs < criteria.steadyMs) || undefined}>
               {segment.spreadMs === null ? '—' : `${segment.spreadMs}ms`}{measured ? '' : ' (표본 부족)'}
             </td>
+            {showPace && <>
+              <td data-signal={segment.pace?.qualifies || undefined}>{segment.pace ? `${segment.pace.hits} / ${segment.pace.taps}` : '—'}</td>
+              <td>{segment.pace?.p90IntervalMs == null ? '—' : `${segment.pace.p90IntervalMs}ms`}</td>
+            </>}
           </tr>
         })}</tbody>
       </table></div>
-      <p>흔들림은 중앙값 절대 편차 × 1.4826입니다. {criteria.minSamples}건 이상인 구간만 판정에 쓰며, 사람은 보통 수십 ms 이상 흔들립니다. 타격 시각은 클라이언트 보고값이고 두더지가 나온 시각은 서버가 다시 계산한 값입니다.</p>
+      <p>흔들림은 중앙값 절대 편차 × 1.4826입니다. 일정한 타이밍 판정에는 {criteria.minSamples}건 이상인 구간을 사용합니다. 타격 시각은 클라이언트 보고값이고 두더지가 나온 시각은 서버가 다시 계산한 값입니다.</p>
     </>}
   </section>
 }

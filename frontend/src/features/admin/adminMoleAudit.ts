@@ -44,6 +44,7 @@ export interface TimingSegment {
   samples: number
   medianMs: number | null
   spreadMs: number | null
+  pace?: { taps: number; hits: number; p90IntervalMs: number | null; qualifies: boolean }
 }
 
 /** 판 확정 때 서버가 남긴 타이밍 신호. 기능 배포 전 판이나 확정되지 않은 판은 null이다. */
@@ -53,6 +54,7 @@ export interface AuditTiming {
   segments: TimingSegment[]
   fastReaction: boolean
   steady: boolean
+  sustainedPace?: boolean | null
   recordedAt: string
 }
 
@@ -100,6 +102,7 @@ export interface MoleTimingMember {
   flaggedRounds: number
   fastRounds: number
   steadyRounds: number
+  sustainedPaceRounds?: number
   auditedRounds: number
   lowestMedianReactionMs: number | null
   latestRoundId: string
@@ -120,6 +123,7 @@ export type MoleDetectionLink = Pick<MoleDetectedMember, 'userId' | 'latestRound
 export const moleTimingCriteria = {
   fastMedianMs: 150,
   fastMinReactions: 20,
+  sustainedPace: { label: '지속 고속 적중', hits: 140, accuracyPercent: 97, p90Ms: 180 },
   'whack-a-mole': { segmentSeconds: 30, minSamples: 8, steadyMs: 12, steadyLabel: '구간 내 일정한 반응', sample: '반응 시간' },
   'speed-mole': { segmentSeconds: 20, minSamples: 10, steadyMs: 8, steadyLabel: '구간 내 일정한 간격', sample: '타격 간격' },
 } as const

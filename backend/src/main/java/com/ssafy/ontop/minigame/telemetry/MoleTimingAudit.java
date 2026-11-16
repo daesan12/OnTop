@@ -80,9 +80,10 @@ public class MoleTimingAudit implements AutoCloseable {
                     """, game, roundId, userId, rulesVersion, signals.reactions(), signals.medianReactionMs(),
                     mapper.writeValueAsString(signals.segments()), signals.fastReaction(), signals.steady(),
                     receivedAt.toEpochMilli());
-            if (signals.fastReaction() || signals.steady()) {
-                log.info("두더지 타이밍 의심 판 기록 game={} roundId={} userId={} medianReactionMs={} steady={}",
-                        game, roundId, userId, signals.medianReactionMs(), signals.steady());
+            boolean sustainedPace = signals.sustainedPace();
+            if (signals.fastReaction() || signals.steady() || sustainedPace) {
+                log.info("두더지 타이밍 의심 판 기록 game={} roundId={} userId={} medianReactionMs={} steady={} pace={}",
+                        game, roundId, userId, signals.medianReactionMs(), signals.steady(), sustainedPace);
             }
         } catch (JsonProcessingException | RuntimeException failure) {
             log.warn("두더지 타이밍 기록을 저장하지 못했습니다. game={} roundId={} reason={}", game, roundId,

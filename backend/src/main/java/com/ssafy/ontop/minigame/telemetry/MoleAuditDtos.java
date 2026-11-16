@@ -56,7 +56,8 @@ public final class MoleAuditDtos {
     /** 판 확정 때 남긴 타이밍 신호. 기능 배포 전 판이나 확정되지 않은 판에는 없다. */
     @Schema(name = "MoleAuditTiming")
     public record Timing(int reactions, Integer medianReactionMs, List<MoleTimingSignals.Segment> segments,
-                         boolean fastReaction, boolean steady, Instant recordedAt) {
+                         boolean fastReaction, boolean steady, @Schema(nullable = true) Boolean sustainedPace,
+                         Instant recordedAt) {
     }
 
     @Schema(name = "MoleAuditDetail")
@@ -66,7 +67,7 @@ public final class MoleAuditDtos {
 
     @Schema(name = "MoleTimingMember")
     public record TimingMember(String userId, String nickname, boolean withdrawn, int flaggedRounds, int fastRounds,
-                               int steadyRounds, int auditedRounds, Integer lowestMedianReactionMs,
+                               int steadyRounds, int sustainedPaceRounds, int auditedRounds, Integer lowestMedianReactionMs,
                                String latestRoundId, Instant lastDetectedAt) {
     }
 
