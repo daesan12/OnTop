@@ -81,7 +81,7 @@
 .park-advertisement-project--framed .park-advertisement-preview { height: auto; align-self: center; object-fit: contain; }
 .park-advertisement-project--framed h3 { font-size: clamp(25px, 3.7cqw, 48px); overflow-wrap: anywhere; }
 .park-advertisement-details p { margin: 0; color: #5b6251; font-size: 2.25cqw; line-height: 1.45; letter-spacing: -.04em; }
-.park-advertisement-project--framed .park-advertisement-details p { text-wrap: balance; }
+.park-advertisement-project--framed .park-advertisement-details p { text-wrap: balance; word-break: keep-all; }
 .park-advertisement-divider { display: flex; align-items: center; gap: .6cqw; width: 100%; margin: 1.65cqw 0 1.5cqw; color: #b5b99a; }
 .park-advertisement-divider::before, .park-advertisement-divider::after { content: ''; height: 1px; flex: 1; background: #c8c7ac; }
 .park-advertisement-divider > svg { width: 1.7cqw; height: 1.7cqw; }
