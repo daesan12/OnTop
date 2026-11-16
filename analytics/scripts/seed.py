@@ -215,6 +215,21 @@ def build_seed() -> str:
             props.update(reactionMinMs=reaction[0], reactionMedianMs=reaction[1], reactionAvgMs=reaction[2])
         event(at, "GAME_PLAY_STATS", user_id, table="t1", game=game, **props)
 
+    # 틀린 그림 찾기 판 기록(GAME_PLAY_STATS, 40번). 101은 보통 난이도 완주(12냥), 103은 어려움을 하다 새 판으로
+    # 바꾸고, 그 보통 판은 시작만 하고 만료됐다.
+    def spot(at: str, user_id: int, run: str, difficulty: str, reason: str, started: int, cleared: int, found: int,
+             misses: int, fastest: int | None, reward: int | None, duration: int) -> None:
+        props = dict(gameCode="SPOT_DIFFERENCE", difficulty=difficulty, endReason=reason, roundsStarted=started,
+                     roundsCleared=cleared, found=found, misses=misses, durationMs=duration)
+        if fastest is not None:
+            props["fastestClearMs"] = fastest
+        if reward is not None:
+            props["reward"] = reward
+        event(at, "GAME_PLAY_STATS", user_id, game=run, **props)
+
+    spot("2026-10-28 01:09:30", 101, "run-1", "NORMAL", "COMPLETED", 6, 6, 36, 1, 1000, 12, 400_000)
+    spot("2026-10-28 05:02:00", 103, "run-2", "HARD", "RESTARTED", 1, 0, 2, 0, None, None, 70_000)
+    spot("2026-10-28 05:04:00", 103, "run-3", "NORMAL", "EXPIRED", 0, 0, 0, 0, None, None, 0)
     bells("2026-10-28 01:08:00", 101, "h1", 3, 1, 2, (420, 610, 640), 0, 0)
     bells("2026-10-28 01:08:00", 105, "h1", 6, 0, 0, (60, 90, 95), 5, 6)
     bells("2026-10-28 01:09:00", 101, "h2", 2, 0, 1, (380, 500, 500), 0, 0)
