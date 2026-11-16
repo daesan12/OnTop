@@ -55,8 +55,8 @@ public class RaffleDrawingController {
 
     @PostMapping("/api/v1/admin/raffles/rounds/{weekStart}/finalize")
     @Operation(summary = "관리자가 검토한 응모권 추첨 시도 최종 확정",
-            description = "공개 추첨 행사 대상으로 등록된 회차는 409 RAFFLE_LIVE_EVENT_LOCKED로 거부한다. "
-                    + "그 회차는 행사를 마칠 때 서버 내부 경로로만 확정된다.",
+            description = "공개 추첨 행사 회차와 행사에 포함된 회차는 409 RAFFLE_LIVE_EVENT_LOCKED로 거부한다. "
+                    + "행사 회차는 행사를 마칠 때 서버 내부 경로로만 확정된다.",
             security = @SecurityRequirement(name = "AccessJwt"))
     public ResponseEntity<RaffleDrawResponse> finalizeRound(Principal principal,
             @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate weekStart,
@@ -66,6 +66,9 @@ public class RaffleDrawingController {
 
     @PostMapping("/api/v1/admin/raffles/rounds/{weekStart}/draws")
     @Operation(summary = "응모권 추첨 결과를 검토용으로 저장",
+            description = "공개 추첨 행사 회차는 연결된 모든 회차의 응모권으로 추첨한다. 행사에 포함된 회차는 "
+                    + "409 RAFFLE_LIVE_EVENT_SOURCE_ROUND, 회차 연결이 끝나지 않은 행사 회차는 "
+                    + "409 RAFFLE_LIVE_EVENT_INCOMPLETE로 거부한다.",
             security = @SecurityRequirement(name = "AccessJwt"))
     public ResponseEntity<RaffleReviewResponse> createReview(Principal principal,
             @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate weekStart) {
@@ -94,6 +97,9 @@ public class RaffleDrawingController {
 
     @PostMapping("/api/v1/admin/raffles/rounds/{weekStart}/draws/reroll")
     @Operation(summary = "현재 검토 시도를 대체하고 사유를 남겨 재추첨",
+            description = "공개 추첨 행사 회차는 연결된 모든 회차의 응모권으로 재추첨한다. 행사에 포함된 회차는 "
+                    + "409 RAFFLE_LIVE_EVENT_SOURCE_ROUND, 회차 연결이 끝나지 않은 행사 회차는 "
+                    + "409 RAFFLE_LIVE_EVENT_INCOMPLETE로 거부한다.",
             security = @SecurityRequirement(name = "AccessJwt"))
     public ResponseEntity<RaffleReviewResponse> reroll(Principal principal,
             @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate weekStart,

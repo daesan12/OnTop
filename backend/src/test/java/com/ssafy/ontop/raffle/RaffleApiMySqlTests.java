@@ -59,9 +59,9 @@ class RaffleApiMySqlTests {
 
     @BeforeEach
     void setUp() {
-        // V182의 공개 추첨 행사 등록이 raffle_rounds를 참조하므로 먼저 지운다.
-        for (String table : List.of("raffle_tickets", "raffle_live_events", "raffle_rounds",
-                "wallet_transactions", "wallets", "users")) {
+        // V182의 공개 추첨 행사 연결·등록이 raffle_rounds를 참조하므로 먼저 지운다.
+        for (String table : List.of("raffle_tickets", "raffle_live_event_rounds", "raffle_live_events",
+                "raffle_rounds", "wallet_transactions", "wallets", "users")) {
             jdbc.update("DELETE FROM " + table);
         }
         service = new RaffleService(raffles, wallets, ledger, transactions,

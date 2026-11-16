@@ -49,14 +49,45 @@ public class RaffleDrawingRepository {
                 java.sql.Date.valueOf(week)).stream().findFirst();
     }
 
-    /** 공개 추첨 행사 대상으로 등록된 회차인지 확인한다. 진행 상태와 관계없이 등록 자체가 직접 확정 잠금의 근거다. */
-    public boolean liveEventRegistered(LocalDate week) {
-        Integer count = jdbc.queryForObject("""
-                SELECT COUNT(*) FROM raffle_live_events e
-                JOIN raffle_rounds r ON r.id = e.raffle_round_id
-                WHERE r.week_start_date = ?
-                """, Integer.class, java.sql.Date.valueOf(week));
-        return count != null && count > 0;
+    /**
+     * 주차가 공개 추첨 행사 회차이거나 행사에 포함된 회차인지 확인한다. 진행 상태와 관계없이 소속 자체가
+     * 직접 확정 잠금의 근거다. 연결 실패(회차 없음·이미 확정)와 행사 회차 연결 누락은 미완료로 센다.
+     */
+    public Optional<LiveEventMembership> liveEventMembership(LocalDate week) {
+        var date = java.sql.Date.valueOf(week);
+        return jdbc.query("""
+                SELECT e.id AS live_event_id, p.week_start_date AS event_week,
+                       (SELECT COUNT(*) FROM raffle_live_event_rounds x
+                        WHERE x.live_event_id = e.id AND x.raffle_round_id IS NULL)
+                     + (CASE WHEN EXISTS (SELECT 1 FROM raffle_live_event_rounds x
+                        WHERE x.live_event_id = e.id AND x.raffle_round_id = e.raffle_round_id) THEN 0 ELSE 1 END)
+                       AS missing_rounds,
+                       (SELECT COUNT(*) FROM raffle_live_event_rounds x
+                        JOIN event_rounds f ON f.event_type = 'RAFFLE' AND f.raffle_round_id = x.raffle_round_id
+                        WHERE x.live_event_id = e.id AND x.raffle_round_id <> e.raffle_round_id
+                          AND f.finalized_at IS NOT NULL) AS finalized_rounds
+                FROM raffle_live_events e
+                JOIN raffle_rounds p ON p.id = e.raffle_round_id
+                WHERE p.week_start_date = ? OR EXISTS (SELECT 1 FROM raffle_live_event_rounds l
+                    WHERE l.live_event_id = e.id AND l.week_start_date = ?)
+                """, (rows, index) -> new LiveEventMembership(rows.getLong("live_event_id"),
+                rows.getDate("event_week").toLocalDate(), rows.getInt("missing_rounds"),
+                rows.getInt("finalized_rounds")), date, date).stream().findFirst();
+    }
+
+    /** 행사에 연결된 모든 회차의 응모권을 각 회차의 판매 기간 안에서만 모은다. 연결되지 않은 회차는 포함하지 않는다. */
+    public List<Ticket> liveEventTickets(long liveEventId) {
+        return jdbc.query("""
+                SELECT t.id, t.user_id, t.ticket_number
+                FROM raffle_live_event_rounds l
+                JOIN raffle_rounds r ON r.id = l.raffle_round_id
+                JOIN raffle_tickets t ON t.round_id = r.id
+                JOIN users u ON u.id = t.user_id AND u.deleted_at IS NULL
+                WHERE l.live_event_id = ? AND t.purchased_at >= r.sales_starts_at
+                  AND t.purchased_at < r.sales_ends_at
+                ORDER BY t.id
+                """, (rows, index) -> new Ticket(rows.getLong("id"), rows.getLong("user_id"),
+                rows.getInt("ticket_number")), liveEventId);
     }
 
     public void ensurePrizeSlot(long eventRoundId, int place, int slotNumber, String prizeName) {
@@ -271,6 +302,18 @@ public class RaffleDrawingRepository {
     }
 
     public record OutcomeCounts(int candidateCount, int excludedGmCount) {}
+
+    /** 행사 소속 정보. eventWeek는 추첨·확정을 진행하는 행사 회차(11/16)다. */
+    public record LiveEventMembership(long liveEventId, LocalDate eventWeek, int missingRounds,
+            int finalizedRounds) {
+        public boolean eventRound(LocalDate week) {
+            return eventWeek.equals(week);
+        }
+
+        public boolean complete() {
+            return missingRounds == 0 && finalizedRounds == 0;
+        }
+    }
 
     public record ReviewDraw(long id, long eventRoundId, long raffleRoundId,
             int attemptNumber, String status, long requestedByUserId, String rerollReason,
