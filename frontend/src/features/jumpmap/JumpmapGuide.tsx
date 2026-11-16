@@ -7,9 +7,8 @@ import { JUMPMAP_ENABLED } from '../../park/mapSelection'
 import { closeJumpmapGuide, jumpmapGuideScope, useJumpmapGuide } from './guideState'
 import { useJumpmap } from './state'
 import { DAILY_CAP, STAGES } from './activeCourse'
-import { JumpmapRanking, type RankingLoader } from './JumpmapRanking'
+import { JumpmapRankingDialog, type RankingLoader } from './JumpmapRanking'
 import './jumpmapGuide.css'
-import './jumpmapCompletion.css'
 import './rewardFeedback.css'
 
 const steps = [
@@ -32,11 +31,12 @@ export function JumpmapGuideDialog({ onClose, loadRankings }: { onClose():void; 
   const returning = useRef(false)
   const closeRanking = () => { returning.current = true; setRankingOpen(false) }
   useEffect(() => { clearRoamingInput(); return clearRoamingInput }, [])
+  useEffect(() => {
+    if (!rankingOpen && returning.current) rankingButton.current?.scrollIntoView({ block: 'nearest' })
+  }, [rankingOpen])
   return createPortal(<div className="jm-guide-root">
-    {rankingOpen ? <PaperPopup key="ranking" title="돌탑 타임어택 랭킹" label="돌탑 타임어택 랭킹"
-      className="jm-completion-paper jm-ranking-paper" closeLabel="랭킹 닫기" onClose={closeRanking}>
-      <JumpmapRanking load={loadRankings} onBack={closeRanking} backLabel="안내로 돌아가기" />
-    </PaperPopup> : <PaperPopup key="guide" title="미니게임 · 준비 안내" label="돌탑 점프맵 준비 안내"
+    {rankingOpen ? <JumpmapRankingDialog load={loadRankings} onBack={closeRanking} backLabel="안내로 돌아가기" />
+    : <PaperPopup key="guide" title="미니게임 · 준비 안내" label="돌탑 점프맵 준비 안내"
       className="jm-guide-paper" closeLabel="돌탑 안내 닫기" onClose={onClose} initialFocusRef={returning.current ? rankingButton : undefined}>
       <header className="jm-guide-intro">
         <div><span className="jm-guide-eyebrow">{STAGES.length===10?'공원 위, 열 구간의 하늘길':'공원 위, 일곱 구간의 하늘길'}</span><h2>돌탑 점프맵</h2><p>한 걸음, 한 번의 점프로<br />{STAGES.length===10?'오리를 따라 호수섬까지 가 볼까요?':'마지막 연잎까지 올라가 볼까요?'}</p></div>
@@ -54,7 +54,7 @@ export function JumpmapGuideDialog({ onClose, loadRankings }: { onClose():void; 
       <div className="jm-guide-controls" aria-label="돌탑 조작 안내"><span><kbd>WASD</kbd> 이동</span><span><kbd>Space</kbd> 점프</span><span><kbd>Shift</kbd> 달리기</span></div>
       <section className="jm-guide-ranking" aria-label="타임어택 랭킹 안내"><span aria-hidden="true"><StepIcon step={2} /></span><div>
         <h3>타임어택 랭킹에 도전해요!</h3><p>완주 시간으로 순위를 겨뤄요. 내 최고 기록을 줄여보세요.</p>
-        {loadRankings && <button ref={rankingButton} type="button" aria-haspopup="dialog" onClick={() => setRankingOpen(true)}>타임어택 랭킹 보기</button>}
+        {loadRankings && <button ref={rankingButton} type="button" className="paper-primary" aria-haspopup="dialog" onClick={() => setRankingOpen(true)}>타임어택 랭킹 보기</button>}
       </div></section>
       <p className="jm-guide-optional">이 화면은 가이드예요. <strong>매번 확인하지 않고 첫 발판에서 바로 도전해도 돼요.</strong><br />{STAGES.length === 10 ? '점프맵 비석' : '출발 표식'}에서 <kbd>E</kbd>를 누르면 언제든 다시 읽을 수 있어요.</p>
       <button type="button" className="paper-primary jm-guide-depart" onClick={onClose}>안내 닫고 출발하기</button>
