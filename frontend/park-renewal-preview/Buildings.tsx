@@ -24,7 +24,7 @@ import {reverseSteleArrow} from './steleRefinement'
 import {PreservedFitness} from './PreservedFitness'
 import {PreservedPagodaGarden,FitnessFence} from './PreservedDistricts'
 import {PreservedFountain} from './PreservedFountain'
-import {SHOOTING_SIZE,ARCADE_SCALE,fitApprovedObject,boatAngleAt,boatPose,openDockSideEntry,groundObject,widenDockRearPassage,removeDockRearRopes} from './assetSizing'
+import {SHOOTING_SIZE,ARCADE_SCALE,fitApprovedObject,boatAngleAt,boatPose,openDockSideEntry,groundObject,widenDockRearPassage,removeDockRearRopes,turnDockBooth} from './assetSizing'
 import {ParkMoleShop} from './ParkMoleShop'
 import {ParkGachaKiosk,interactWithKiosk} from './ParkGachaKiosk'
 import {buildRankingBoard,RankingBoardPanels} from '../src/layout-preview/RankingBoardModel'
@@ -40,6 +40,9 @@ import { RENEWAL_DISTANCE_LOD } from '../src/park/mapSelection'
 import { createTowerFrame } from './original/world/art/towerFrameGeometry'
 import { LakePart, LakeStage } from './lakeStages'
 import { estimatedServerTime } from '../src/network/serverEventClock'
+import { useFacilityState } from '../src/features/facilities/state'
+import { buildDuckBoatRoute } from './live/boats'
+import { duckBoatRidePose, type RidePose } from './duckBoatRidePath'
 import { FacilityOnApproach } from './live/FacilityOnApproach'
 import { bungeoppangCookingView } from '../src/features/bungeoppang/bungeoppangView'
 import { ShaderPreparedGroup } from './live/ShaderPreparedGroup'
@@ -65,6 +68,7 @@ function Model({kind,fit=false,prepareShaders=false}:{kind:string;fit?:boolean;p
     widenDockRearPassage(g)
    }
    removeDockRearRopes(g)
+   turnDockBooth(g)
   }
   return fit?fitApprovedObject(g,SHOOTING_SIZE):['boat','dock'].includes(kind)?g:groundObject(g)
  },[gltf,fit,kind])
@@ -220,10 +224,18 @@ function FishingPier(){const d=FISHING_DECK;return <group name="native-fishing-d
   {FISHING_BENCHES.map(([x,z,yaw],i)=><group key={i} name={'fishing-rest-bench-'+i} position={[x!,FISHING_DECK.top,z!]} rotation={[0,yaw!,0]}><LocalFactory kind="fishing-bench"/></group>)}
  </LakePart>
  </group>}
+const ridePose:RidePose={x:0,y:0,z:0,boatYaw:0,riderYaw:0}
 function Boats({live}:{live:boolean}){
  const boats=useMemo(()=>{const g=new Group();g.name='single-circulating-duck-boat';return[g]},[])
- useFrame(({clock})=>{const t=live?estimatedServerTime()/1000:clock.getElapsedTime();boats.forEach(g=>{const p=boatPose(boatAngleAt(t,BOAT_ROUTE.period),BOAT_ROUTE.x,BOAT_ROUTE.z,BOAT_ROUTE.rx,BOAT_ROUTE.rz);g.position.set(p.x,LAKE.y+.08,p.z);g.rotation.y=p.yaw})})
- return <>{boats.map((g,i)=><primitive key={i} object={g}><Suspense fallback={null}><Model kind="boat"/></Suspense></primitive>)}</>
+ // Ride boats exist only while a server trip is sailing; the decorative boat hides meanwhile (server collider too).
+ const rides=useMemo(()=>live?Array.from({length:4},(_,i)=>{const g=new Group();g.name='duck-boat-ride-'+i;g.visible=false;return g}):[],[live])
+ const route=useMemo(()=>live?buildDuckBoatRoute():null,[live])
+ useFrame(({clock})=>{
+  const now=estimatedServerTime(),t=live?now/1000:clock.getElapsedTime(),trips=live?useFacilityState.getState().boats?.trips??[]:[]
+  boats.forEach(g=>{g.visible=!trips.length;const p=boatPose(boatAngleAt(t,BOAT_ROUTE.period),BOAT_ROUTE.x,BOAT_ROUTE.z,BOAT_ROUTE.rx,BOAT_ROUTE.rz);g.position.set(p.x,LAKE.y+.08,p.z);g.rotation.y=p.yaw})
+  rides.forEach((g,i)=>{const trip=trips.find(x=>x.boat===i);g.visible=!!trip&&!!route;if(!trip||!route)return;duckBoatRidePose(route,(now-trip.departedAt)/1000,ridePose);g.position.set(ridePose.x,ridePose.y,ridePose.z);g.rotation.y=ridePose.boatYaw})
+ })
+ return <>{[...boats,...rides].map((g,i)=><primitive key={i} object={g}><Suspense fallback={null}><Model kind="boat"/></Suspense></primitive>)}</>
 }
 
 /** Local furniture is kept at human scale even though the tower is stretched to 40 m. */

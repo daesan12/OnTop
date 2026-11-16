@@ -860,6 +860,28 @@ public class WorldChannelRegistry implements ChannelPresence {
         room.worldVersion++;
     }
 
+    /** 시설에 묶인 사람을 움직이는 좌석(오리배)으로 옮긴다. 묶여 있지 않으면 아무것도 하지 않는다. */
+    public synchronized boolean moveHeld(String userId, WorldFacilityService.Pose pose) {
+        String channelId = membership.get(userId);
+        Room room = channelId == null ? null : rooms.get(channelId);
+        if (room == null || room.physics == null || !room.held.contains(userId)
+                || !room.physics.moveSeated(userId, pose.x(), pose.y(), pose.z(), pose.yaw())) {
+            return false;
+        }
+        Movement previous = room.positions.get(userId);
+        room.positions.put(userId, new Movement(snapshotPosition(room, userId), previous.acceptedAtNanos()));
+        room.worldVersion++;
+        room.dirty = true;
+        return true;
+    }
+
+    public synchronized void setDuckBoatHidden(String channelId, boolean hidden) {
+        Room room = rooms.get(channelId);
+        if (room != null && room.physics != null) {
+            room.physics.setDuckBoatHidden(hidden);
+        }
+    }
+
     public synchronized WorldFacilityService.Pose facilityExit(String userId, WorldFacilityService.Lease lease) {
         Room room = rooms.get(membership.get(userId));
         for (var pose : List.of(lease.exit(), lease.returnPose())) {

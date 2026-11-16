@@ -13,6 +13,7 @@ export interface ParkRuntimePort {
   checkFacilities(reloadCatalog?: boolean): Promise<void>
   useFacility(facilityId: string, seatIndex: number, signal: AbortSignal): Promise<import('../../features/facilities/protocol').FacilityLease>
   releaseFacility(leaseId: string, signal: AbortSignal): Promise<void>
+  boatCommand?(type: import('../../network/facilityClient').BoatCommand, payload: Record<string, unknown>, signal: AbortSignal): Promise<void>
   aimFacility(leaseId: string, aim: { yaw: number; pitch: number }, signal: AbortSignal): Promise<{ yaw: number; pitch: number }>
   selectChannel(channelId: string): Promise<boolean>
   enterRecommendedChannel(): Promise<boolean>

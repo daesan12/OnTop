@@ -86,6 +86,19 @@ public class WalletTransaction {
         return entry;
     }
 
+    public static WalletTransaction duckBoatFee(long walletId, int fee, String key, Instant now) {
+        if (walletId <= 0 || fee <= 0 || key == null || !key.startsWith("duck-boat:")) {
+            throw new IllegalArgumentException("오리배 요금 원장을 확인하세요.");
+        }
+        var entry = new WalletTransaction();
+        entry.walletId = walletId;
+        entry.transactionType = "DUCK_BOAT_FEE";
+        entry.balanceDelta = -fee;
+        entry.idempotencyKey = key;
+        entry.createdAt = Objects.requireNonNull(now).truncatedTo(ChronoUnit.MILLIS);
+        return entry;
+    }
+
     public static WalletTransaction rafflePurchase(long walletId, long price, String key, Instant now) {
         if (walletId <= 0 || price <= 0 || key == null || !key.startsWith("raffle:") || key.length() > 120) {
             throw new IllegalArgumentException("응모권 구매 원장을 확인하세요.");

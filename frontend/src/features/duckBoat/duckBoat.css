@@ -1,0 +1,80 @@
+.park-page .duck-boat-panel,
+.park-page .duck-boat-toast {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 8;
+  box-sizing: border-box;
+  width: min(420px, calc(100% - 32px));
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: #201d18e6;
+  color: #f3efe3;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.duck-boat-controls { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.duck-boat-controls strong { font-weight: 500; }
+.duck-boat-controls p { margin: 2px 0 0; color: #c3cbb9; font-size: 13px; font-variant-numeric: tabular-nums; }
+.duck-boat-controls button,
+.duck-boat-toast button {
+  flex: none;
+  padding: 9px 14px;
+  border: 1px solid #e6ddbf55;
+  border-radius: 9px;
+  background: #f3efe30a;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+}
+.duck-boat-controls button:hover { background: #f3efe31a; border-color: #e6ddbf99; }
+.duck-boat-controls button:focus-visible { outline: 2px solid #e9d5a4; outline-offset: 4px; }
+.duck-boat-controls button:disabled { opacity: 0.5; cursor: default; }
+.duck-boat-panel > [role='status'], .duck-boat-panel > [role='alert'] { display: block; margin-top: 8px; font-size: 13px; }
+.duck-boat-panel > [role='alert'] { color: #ffbead; }
+.duck-boat-toast button { margin-left: 12px; padding: 4px 10px; }
+@media (max-width: 600px) {
+  .duck-boat-controls { gap: 10px; }
+  .duck-boat-controls button { padding: 9px 10px; font-size: 13px; }
+}
+.duck-boat-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.duck-boat-actions button,
+.duck-boat-partners button {
+  padding: 9px 14px;
+  border: 1px solid #e6ddbf55;
+  border-radius: 9px;
+  background: #f3efe30a;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+}
+.duck-boat-actions button:hover,
+.duck-boat-partners button:hover { background: #f3efe31a; border-color: #e6ddbf99; }
+.duck-boat-actions button:disabled,
+.duck-boat-partners button:disabled { opacity: 0.5; cursor: default; }
+.duck-boat-hint, .duck-boat-empty { margin: 8px 0 0; color: #c3cbb9; font-size: 13px; }
+.duck-boat-partners { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 6px; max-height: 220px; overflow-y: auto; }
+.duck-boat-partners button { width: 100%; display: flex; justify-content: space-between; gap: 12px; text-align: left; }
+.duck-boat-partners small { color: #c3cbb9; font-variant-numeric: tabular-nums; }
+.park-page .duck-boat-invites {
+  position: absolute;
+  top: 72px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 13;
+  display: grid;
+  gap: 8px;
+  width: min(380px, calc(100% - 32px));
+}
+.duck-boat-invite {
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: #201d18f2;
+  color: #f3efe3;
+  font-size: 14px;
+  line-height: 1.5;
+  box-shadow: 0 6px 24px #0006;
+}
+.duck-boat-invite p { margin: 0; }
+.duck-boat-invite small { color: #c3cbb9; font-variant-numeric: tabular-nums; }

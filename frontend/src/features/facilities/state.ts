@@ -1,12 +1,12 @@
 import { create } from 'zustand'
-import type { FacilityCatalogPage, FacilityDefinition, FacilityLease } from './protocol'
+import type { DuckBoatView, FacilityCatalogPage, FacilityDefinition, FacilityLease } from './protocol'
 
 // The explicit preview is the only local facility simulation. Normal dev uses Spring too.
 export const serverFacilities = !(import.meta.env?.DEV && import.meta.env.MODE === 'facility-preview')
 const initial = () => ({ channelId: '', version: -1, ready: false, loading: false, pending: false,
   awaitingWorld: false, uncertain: false, error: '', catalog: {} as Record<string, FacilityDefinition>,
   options: null as Omit<FacilityCatalogPage, 'offset' | 'total' | 'nextOffset' | 'facilities'> | null,
-  occupancies: {} as Record<string, FacilityLease> })
+  occupancies: {} as Record<string, FacilityLease>, boats: null as DuckBoatView | null })
 export const useFacilityState = create(initial)
 export function resetFacilities() { clearFacilityUseNotice(); useFacilityState.setState(initial(), true) }
 export function facilityAvailable(id: string) {

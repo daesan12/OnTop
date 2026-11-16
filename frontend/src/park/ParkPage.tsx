@@ -20,6 +20,8 @@ import { ConstructionNotice } from '../features/construction/ConstructionNotice'
 import { FortunePanel } from '../features/fortune/FortunePanel'
 import { EmoteWheel } from '../features/emotes/EmoteWheel'
 import { TelescopePanel } from '../features/telescopes/TelescopePanel'
+import { DuckBoatPanel } from '../features/duckBoat/DuckBoatPanel'
+import { DUCK_BOAT } from './mapConfig'
 import { FeedbackPanel } from '../features/feedback/FeedbackPanel'
 import { PolicePrivateNotice } from '../features/ai/PolicePrivateNotice'
 import { AnonymousNotes } from '../features/notes/AnonymousNotes'
@@ -246,6 +248,7 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked, welco
         <FacilityStatus />
         <EmoteWheel />
         <TelescopePanel />
+        {DUCK_BOAT && <DuckBoatPanel />}
         <FeedbackPanel />
         <AnonymousNotes />
         <ShopHost />

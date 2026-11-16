@@ -116,6 +116,13 @@ public final class TableProtocol {
                     && payload.path("seatIndex").isIntegralNumber() && payload.path("seatIndex").canConvertToInt()
                     && payload.path("seatIndex").asInt() >= 0 && payload.path("seatIndex").asInt() <= 1;
             case "WORLD_FACILITY_RELEASE" -> fields(payload, Set.of("leaseId")) && validLease(payload);
+            case "WORLD_BOAT_JOIN" -> fields(payload, Set.of())
+                    || fields(payload, Set.of("partnerId")) && validUserId(payload.path("partnerId"));
+            case "WORLD_BOAT_REPLY" -> fields(payload, Set.of("inviterId", "accept"))
+                    && validUserId(payload.path("inviterId")) && payload.path("accept").isBoolean();
+            case "WORLD_BOAT_TEAM" -> fields(payload, Set.of("action")) && payload.path("action").asText().equals("SOLO")
+                    || fields(payload, Set.of("action", "partnerId")) && payload.path("action").asText().equals("INVITE")
+                            && validUserId(payload.path("partnerId"));
             case "WORLD_FACILITY_AIM" -> fields(payload, Set.of("leaseId", "seq", "yaw", "pitch"))
                     && validLease(payload) && payload.path("seq").isIntegralNumber()
                     && payload.path("seq").canConvertToLong() && payload.path("seq").asLong() > 0
@@ -336,6 +343,10 @@ public final class TableProtocol {
         } catch (IllegalArgumentException exception) {
             return false;
         }
+    }
+
+    private static boolean validUserId(JsonNode node) {
+        return node.isTextual() && node.asText().matches("[A-Za-z0-9_-]{1,80}");
     }
 
     private boolean fields(JsonNode node, Set<String> expected) {

@@ -5,6 +5,7 @@ import type { TableAnchor } from './tablePlacement'
 import type { Point3 } from '../map/park/interactionData'
 import type { VrEntrance } from '../features/vrZone/anchors'
 import type { buildRenewalJumpCourse } from '../../park-renewal-preview/live/jumpCourseData'
+import type { DuckBoatRoute } from '../../park-renewal-preview/duckBoatRidePath'
 
 export type RenewalRecreationId = 'fortune' | 'fish-bread' | 'rps-roulette-cabinet' | 'plus-minus-cabinet' | 'mole-shop' | 'pigeon-jump-rope'
 export interface RenewalRecreationAnchor {
@@ -13,6 +14,11 @@ export interface RenewalRecreationAnchor {
   reachPosition: Point3
   radius: number
   heightTolerance?: number
+}
+export interface DuckBoatAnchor {
+  id: string; kind: 'BOAT'; position: Point3; yaw: number; radius: number; heightTolerance: number
+  queue: readonly { x: number; y: number; z: number; yaw: number }[]; exit: { x: number; y: number; z: number; yaw: number }
+  route: DuckBoatRoute
 }
 type RenewalData = Omit<ParkMapData, 'tables' | 'interactions' | 'pavilions' | 'physics'> & {
   physics: ParkMapData['physics'] & { secretTerrainCuts?: readonly number[]; duckBoat?: {
@@ -24,6 +30,7 @@ type RenewalData = Omit<ParkMapData, 'tables' | 'interactions' | 'pavilions' | '
   interactions: Omit<ParkMapData['interactions'], 'benches'> & {
     benches: readonly (ParkMapData['interactions']['benches'][number] & { seatHeight?: number; pavilionId?: string })[]
     recreation?: readonly RenewalRecreationAnchor[]
+    boats?: readonly DuckBoatAnchor[]
     vrEntrance?: VrEntrance
     jokeJudge?: Point3
   }
