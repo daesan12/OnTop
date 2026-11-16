@@ -7,8 +7,10 @@ export type { MoleGame, MoleInput }
 export interface AuditRound {
   roundId: string
   userId: string
+  nickname?: string | null
   startedAt: string
   status: string
+  score?: number | null
   observedTaps: number
   honeypotTaps: number
   completionHoneypotTaps: number
@@ -45,6 +47,7 @@ export interface TimingSegment {
   medianMs: number | null
   spreadMs: number | null
   pace?: { taps: number; hits: number; p90IntervalMs: number | null; qualifies: boolean }
+  earlyReaction?: { samples: number; quickHits: number; qualifies: boolean }
 }
 
 /** 판 확정 때 서버가 남긴 타이밍 신호. 기능 배포 전 판이나 확정되지 않은 판은 null이다. */
@@ -55,6 +58,7 @@ export interface AuditTiming {
   fastReaction: boolean
   steady: boolean
   sustainedPace?: boolean | null
+  repeatedEarlyReaction?: boolean | null
   recordedAt: string
 }
 
@@ -72,6 +76,7 @@ export interface AuditDetail {
 export interface AuditFilters {
   game: MoleGame
   input: MoleInput
+  nickname: string
   userId: string
   roundId: string
   date: string
@@ -103,6 +108,7 @@ export interface MoleTimingMember {
   fastRounds: number
   steadyRounds: number
   sustainedPaceRounds?: number
+  repeatedEarlyReactionRounds?: number
   auditedRounds: number
   lowestMedianReactionMs: number | null
   latestRoundId: string
@@ -117,15 +123,16 @@ export interface MoleTimingDetections {
 }
 
 /** 적발 목록에서 판 상세를 열 때 쓰는 공통 정보. */
-export type MoleDetectionLink = Pick<MoleDetectedMember, 'userId' | 'latestRoundId' | 'lastDetectedAt'>
+export type MoleDetectionLink = Pick<MoleDetectedMember, 'userId' | 'nickname' | 'latestRoundId' | 'lastDetectedAt'>
 
 /** 서버 MoleTimingSignals와 같은 기준값. 운영자 화면의 설명에만 쓴다. */
 export const moleTimingCriteria = {
   fastMedianMs: 150,
   fastMinReactions: 20,
+  repeatedEarlyReaction: { label: '반복 초단기 반응', minSamples: 16, minPercent: 50 },
   sustainedPace: { label: '지속 고속 적중', hits: 140, accuracyPercent: 97, p90Ms: 180 },
-  'whack-a-mole': { segmentSeconds: 30, minSamples: 8, steadyMs: 12, steadyLabel: '구간 내 일정한 반응', sample: '반응 시간' },
-  'speed-mole': { segmentSeconds: 20, minSamples: 10, steadyMs: 8, steadyLabel: '구간 내 일정한 간격', sample: '타격 간격' },
+  'whack-a-mole': { segmentSeconds: 30, minSamples: 8, steadyMs: 12, steadyLabel: '구간 내 일정한 반응', sample: '반응 시간', earlyMaxMs: 50 },
+  'speed-mole': { segmentSeconds: 20, minSamples: 10, steadyMs: 8, steadyLabel: '구간 내 일정한 간격', sample: '타격 간격', earlyMaxMs: 100 },
 } as const
 
 export function timingSegmentLabel(game: MoleGame, index: number) {
@@ -162,8 +169,9 @@ async function request<T>(path: string, signal: AbortSignal): Promise<T> {
 }
 
 export function searchMoleAudit(filters: AuditFilters, signal: AbortSignal) {
-  const { game, userId, roundId, date } = filters
+  const { game, nickname, userId, roundId, date } = filters
   const query = new URLSearchParams({ game })
+  if (nickname) query.set('nickname', nickname)
   if (userId) query.set('userId', userId)
   if (roundId) query.set('roundId', roundId)
   if (date) query.set('date', date)

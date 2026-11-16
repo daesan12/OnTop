@@ -7,12 +7,12 @@ import {
 import { kstDate } from './adminAnalytics'
 import { JumpmapMacroPanel } from './JumpmapMacroPanel'
 import { JumpRopeMacroPanel } from './JumpRopeMacroPanel'
-import { MoleDetectionsPanel } from './MoleDetectionsPanel'
-import { MoleTimingPanel } from './MoleTimingPanel'
+import { MoleReviewPanel } from './MoleReviewPanel'
 import './adminMacroAnalysis.css'
 
 const gameOptions = { 'whack-a-mole': '두더지 잡기', 'speed-mole': '스피드 두더지 잡기' } as const
 const inputOptions = { KEYBOARD: '키보드', POINTER: '마우스·펜', TOUCH: '터치' } as const
+const roundStatus: Record<string, string> = { ACTIVE: '진행 중', SETTLED: '정산 완료', EXPIRED: '만료' }
 const outcomes = {
   HIT: '적중', RAPID: '헬멧 연타', MISS: '빈 구멍', DECOY: '고슴도치',
   IGNORED: '판정 제외', HONEYPOT: '더미 ID',
@@ -30,10 +30,10 @@ export function AdminMacroAnalysisPage({ onAuthEnded }: { onAuthEnded: () => voi
     {view === 'games' ? <>
       <h2>게임 매크로 분석</h2>
       <button type="button" className="admin-macro-game" onClick={() => setView('whack-a-mole')}>
-        <strong>두더지 잡기</strong><span>함정 표적과 반응 타이밍으로 적발된 회원과 타격 기록을 조회합니다.</span>
+        <strong>두더지 잡기</strong><span>의심 회원, 판별 탐지 근거와 타격 기록을 조회합니다.</span>
       </button>
       <button type="button" className="admin-macro-game" onClick={() => setView('speed-mole')}>
-        <strong>스피드 두더지 잡기</strong><span>함정 표적과 반응·타격 간격 타이밍으로 적발된 회원과 타격 기록을 조회합니다.</span>
+        <strong>스피드 두더지 잡기</strong><span>의심 회원, 판별 탐지 근거와 타격 기록을 조회합니다.</span>
       </button>
       <button type="button" className="admin-macro-game" onClick={() => setView('jumpmap')}>
         <strong>점프맵 반복 패턴</strong><span>반복 재생으로 보이는 판이 기록된 회원과 적발 횟수를 조회합니다.</span>
@@ -52,7 +52,7 @@ export function AdminMacroAnalysisPage({ onAuthEnded }: { onAuthEnded: () => voi
 
 function MoleAudit({ game, onAuthEnded }: { game: MoleGame; onAuthEnded: () => void }) {
   const [form, setForm] = useState<AuditFilters>(() => ({
-    game, input: 'KEYBOARD', userId: '', roundId: '', date: kstDate(new Date().toISOString()),
+    game, input: 'KEYBOARD', nickname: '', userId: '', roundId: '', date: '',
   }))
   const [query, setQuery] = useState<AuditFilters | null>(null)
   const [rounds, setRounds] = useState<AuditRound[] | null>(null)
@@ -86,9 +86,11 @@ function MoleAudit({ game, onAuthEnded }: { game: MoleGame; onAuthEnded: () => v
 
   const search = async (event: FormEvent) => {
     event.preventDefault()
-    const filters = { ...form, userId: form.userId.trim(), roundId: form.roundId.trim() }
-    if (!filters.userId && !filters.roundId && !filters.date) {
-      setError('회원 ID, 판 ID 또는 날짜를 입력해주세요.')
+    const filters = {
+      ...form, nickname: form.nickname.trim(), userId: form.userId.trim(), roundId: form.roundId.trim(),
+    }
+    if (!filters.nickname && !filters.userId && !filters.roundId && !filters.date) {
+      setError('닉네임, 회원 ID, 판 ID 또는 날짜를 입력해주세요.')
       return
     }
     const signal = begin('판을 조회하고 있어요…')
@@ -111,7 +113,6 @@ function MoleAudit({ game, onAuthEnded }: { game: MoleGame; onAuthEnded: () => v
     setDetail(null)
     if (detection) {
       setSelectedDetection(detection)
-      setForm(filters)
       setQuery(filters)
       setRounds(null)
       searchHeading.current?.focus()
@@ -131,19 +132,19 @@ function MoleAudit({ game, onAuthEnded }: { game: MoleGame; onAuthEnded: () => v
 
   const openDetection = (item: MoleDetectionLink) => {
     const roundId = item.latestRoundId
-    void openRound(roundId, { ...form, userId: item.userId, roundId, date: '' },
-      { userId: item.userId, latestRoundId: roundId, lastDetectedAt: item.lastDetectedAt })
+    void openRound(roundId, { ...form, nickname: '', userId: item.userId, roundId, date: '' }, item)
   }
 
   return <>
     <h2>{gameOptions[game]}</h2>
-    <MoleDetectionsPanel game={game} onAuthEnded={onAuthEnded} onOpen={openDetection} />
-    <MoleTimingPanel game={game} onAuthEnded={onAuthEnded} onOpen={openDetection} />
+    <MoleReviewPanel game={game} onAuthEnded={onAuthEnded} onOpen={openDetection} />
     <h3 tabIndex={-1} ref={searchHeading}>플레이 기록 조회</h3>
     <form className="admin-macro-filters admin-mole-search-filters" onSubmit={event => void search(event)}>
       <label>비교 입력 방식<select value={form.input} onChange={event => setForm({ ...form, input: event.target.value as AuditFilters['input'] })}>
         {Object.entries(inputOptions).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
       </select></label>
+      <label>닉네임<input maxLength={8} placeholder="닉네임 전체" value={form.nickname}
+        onChange={event => setForm({ ...form, nickname: event.target.value })} /></label>
       <label>회원 ID<input inputMode="numeric" pattern={idPattern} value={form.userId}
         onChange={event => setForm({ ...form, userId: event.target.value })} /></label>
       <label>판 ID<input inputMode="numeric" pattern={idPattern} value={form.roundId}
@@ -207,6 +208,9 @@ function RoundIdentity({ detail, detectedAt }: {
     <div><dt>판 시작 시각 (한국 시간)</dt><dd>
       <time dateTime={detail.selected.startedAt}>{formatAuditDateTime(detail.selected.startedAt)}</time>
     </dd></div>
+    <div><dt>판 상태</dt><dd>{roundStatus[detail.selected.status] ?? detail.selected.status}</dd></div>
+    <div><dt>확정 점수</dt><dd>{detail.selected.score ?? '—'}</dd></div>
+    <div><dt>서버 관측</dt><dd>{detail.selected.observedTaps}건</dd></div>
     {lastDetection && <div><dt>{timestampLabel} (한국 시간)</dt><dd>
       <time dateTime={lastDetection}>{formatAuditDateTime(lastDetection)}</time>
     </dd></div>}
@@ -216,11 +220,13 @@ function RoundIdentity({ detail, detectedAt }: {
 function RoundList({ rounds, active, onSelect }: {
   rounds: AuditRound[]; active?: string; onSelect: (round: AuditRound) => void
 }) {
-  return <div className="admin-macro-table"><table>
-    <thead><tr><th>판 ID</th><th>회원 ID</th><th>서버 관측</th><th>더미 ID</th></tr></thead>
+  return <div className="admin-macro-table admin-mole-round-list" tabIndex={0} aria-label="두더지 판 목록"><table>
+    <thead><tr><th>판 ID</th><th>회원</th><th>시작 (한국 시간)</th><th>확정 점수</th><th>관측</th><th>더미 ID</th></tr></thead>
     <tbody>{rounds.map(round => <tr key={round.roundId} data-selected={round.roundId === active || undefined}>
       <td><button type="button" aria-pressed={round.roundId === active} onClick={() => onSelect(round)}>{round.roundId}</button></td>
-      <td>{round.userId}</td><td>{round.observedTaps}건</td>
+      <td>{round.nickname && <strong>{round.nickname}<br /></strong>}#{round.userId}</td>
+      <td><time dateTime={round.startedAt}>{formatAuditDateTime(round.startedAt)}</time></td>
+      <td>{round.score ?? '—'}</td><td>{round.observedTaps}건</td>
       <td data-signal={round.honeypotTaps > 0 || round.completionHoneypotTaps > 0 || undefined}>
         판 중 {round.honeypotTaps} · 종료 {round.completionHoneypotTaps}
       </td>
@@ -241,12 +247,18 @@ function TimingCard({ game, timing }: { game: MoleGame; timing: AuditTiming | nu
         <div><dt>{criteria.steadyLabel}</dt><dd data-signal={timing.steady || undefined}>
           {timing.steady ? '적발' : '해당 없음'}
         </dd></div>
+        <div><dt>{moleTimingCriteria.repeatedEarlyReaction.label}</dt>
+          <dd data-signal={timing.repeatedEarlyReaction || undefined}>
+            {timing.repeatedEarlyReaction == null ? '기록 없음' : timing.repeatedEarlyReaction ? '검토 필요' : '해당 없음'}
+          </dd>
+        </div>
         {showPace && <div><dt>{moleTimingCriteria.sustainedPace.label}</dt><dd data-signal={timing.sustainedPace || undefined}>
           {timing.sustainedPace == null ? '기록 없음' : timing.sustainedPace ? '검토 필요' : '해당 없음'}
         </dd></div>}
       </dl>
-      <div className="admin-macro-table"><table>
+      <div className="admin-macro-table" tabIndex={0} aria-label="구간별 타이밍 근거"><table>
         <thead><tr><th>구간</th><th>{criteria.sample} 표본</th><th>중앙값</th><th>흔들림</th>
+          <th>{criteria.earlyMaxMs}ms 이하 / 반응</th>
           {showPace && <><th>적중 / 입력</th><th>입력 간격 90백분위</th></>}
         </tr></thead>
         <tbody>{timing.segments.map((segment, index) => {
@@ -256,6 +268,9 @@ function TimingCard({ game, timing }: { game: MoleGame; timing: AuditTiming | nu
             <td>{segment.medianMs === null ? '—' : `${segment.medianMs}ms`}</td>
             <td data-signal={(measured && segment.spreadMs !== null && segment.spreadMs < criteria.steadyMs) || undefined}>
               {segment.spreadMs === null ? '—' : `${segment.spreadMs}ms`}{measured ? '' : ' (표본 부족)'}
+            </td>
+            <td data-signal={segment.earlyReaction?.qualifies || undefined}>
+              {segment.earlyReaction ? `${segment.earlyReaction.quickHits} / ${segment.earlyReaction.samples}` : '—'}
             </td>
             {showPace && <>
               <td data-signal={segment.pace?.qualifies || undefined}>{segment.pace ? `${segment.pace.hits} / ${segment.pace.taps}` : '—'}</td>

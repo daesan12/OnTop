@@ -2,7 +2,8 @@ import { expect, test } from '@playwright/test'
 import { fixture } from './contractFixture'
 
 const startedAt = '2026-11-13T01:00:00Z'
-const round = { roundId: '456', userId: '101', startedAt, status: 'SETTLED', observedTaps: 3, honeypotTaps: 1,
+const round = { roundId: '456', userId: '101', nickname: '검색회원', startedAt, status: 'SETTLED', score: 240,
+  observedTaps: 3, honeypotTaps: 1,
   completionHoneypotTaps: 0 }
 const recent = { ...round, roundId: '455', honeypotTaps: 0 }
 const distribution = { count: 12, median: 181, p10: 175, p90: 188 }
@@ -33,7 +34,7 @@ test('관리자가 게임 매크로 분석에서 판을 검색하고 타임라�
   await page.route('**/api/v1/admin/macro-analysis/mole?*', route => {
     const query = new URL(route.request().url()).searchParams
     expect(Object.fromEntries(query)).toEqual({
-      game: 'whack-a-mole', userId: '101', roundId: '456', date: '2026-11-13',
+      game: 'whack-a-mole', nickname: '검색회원',
     })
     return route.fulfill({ json: [round] })
   })
@@ -65,14 +66,17 @@ test('관리자가 게임 매크로 분석에서 판을 검색하고 타임라�
   await page.goto('/admin')
   await page.getByRole('navigation', { name: '관리자 메뉴' }).getByRole('button', { name: '게임 매크로 분석' }).click()
   await page.getByRole('button', { name: /^두더지 잡기/ }).click()
-  await page.getByLabel('회원 ID').fill('101')
-  await page.getByLabel('판 ID').fill('456')
-  await page.getByLabel('날짜').fill('2026-11-13')
+  await page.getByLabel('닉네임').fill('검색회원')
   await page.getByRole('button', { name: '조회', exact: true }).click()
 
+  const result = page.getByRole('table').filter({ has: page.getByRole('columnheader', { name: '확정 점수' }) })
+  await expect(result.getByText('검색회원', { exact: true })).toBeVisible()
+  await result.getByRole('button', { name: '456', exact: true }).click()
   await expect(page.getByRole('heading', { name: '456번 판 타임라인' })).toBeVisible()
   const detail = page.getByRole('region', { name: '456번 판 상세' })
   await expect(detail).toContainText('검색 회원 · 회원 #101')
+  await expect(detail).toContainText('확정 점수')
+  await expect(detail).toContainText('240')
   await expect(detail).toContainText('판 중 적발 시각 (한국 시간)')
   await expect(detail).toContainText('2026-11-13 10:00:03.860')
   await expect(page.getByRole('button', { name: '455' })).toBeVisible()
@@ -112,6 +116,7 @@ test('적발 회원을 자동 조회하고 선택한 판을 수동 검색 없이
       from: '2026-10-14T01:00:00Z', until: startedAt, limit: 100,
       items: game === 'speed-mole' ? [] : [{
         userId: '101', nickname: '테스트 회원', withdrawn: false, flaggedRounds: 1, fastRounds: 0, steadyRounds: 1,
+        repeatedEarlyReactionRounds: 1,
         auditedRounds: 4, lowestMedianReactionMs: 211, latestRoundId: '456', lastDetectedAt: detectedAt,
       }],
     } })
@@ -130,8 +135,11 @@ test('적발 회원을 자동 조회하고 선택한 판을 수동 검색 없이
     return route.fulfill({ json: {
       selected, nickname: '테스트 회원', withdrawn: false, recent: [selected], timeline: [],
       member: comparison, reference: comparison,
-      timing: { reactions: 64, medianReactionMs: 211, fastReaction: false, steady: true, recordedAt: detectedAt,
-        segments: [{ samples: 30, medianMs: 210, spreadMs: 1 }, { samples: 30, medianMs: 212, spreadMs: 2 },
+      timing: { reactions: 64, medianReactionMs: 211, fastReaction: false, steady: true,
+        repeatedEarlyReaction: true, recordedAt: detectedAt,
+        segments: [{ samples: 30, medianMs: 210, spreadMs: 1,
+          earlyReaction: { samples: 30, quickHits: 15, qualifies: true } }, { samples: 30, medianMs: 212, spreadMs: 2,
+          earlyReaction: { samples: 30, quickHits: 15, qualifies: true } },
           { samples: 4, medianMs: 215, spreadMs: 1 }] },
     } })
   })
@@ -139,11 +147,11 @@ test('적발 회원을 자동 조회하고 선택한 판을 수동 검색 없이
   await page.goto('/admin')
   await page.getByRole('navigation', { name: '관리자 메뉴' }).getByRole('button', { name: '게임 매크로 분석' }).click()
   await page.getByRole('button', { name: /^두더지 잡기/ }).click()
-  const detections = page.getByRole('region', { name: '함정 표적 적발 회원', exact: true })
-  await expect(detections.getByRole('rowheader', { name: /테스트 회원.*101/ })).toBeVisible()
-  const timingPanel = page.getByRole('region', { name: '타이밍 적발 회원', exact: true })
-  await expect(timingPanel.getByRole('rowheader', { name: /테스트 회원.*101/ })).toBeVisible()
-  await expect(timingPanel).toContainText('구간 내 일정한 반응')
+  const detections = page.getByRole('region', { name: '매크로 의심 회원', exact: true })
+  await expect(detections.getByRole('rowheader', { name: /테스트 회원.*101/ })).toHaveCount(1)
+  await expect(detections.getByRole('row').filter({ hasText: '테스트 회원' })).toContainText('구간 내 일정한 반응')
+  await expect(detections.getByRole('row').filter({ hasText: '테스트 회원' })).toContainText('판 중 1 · 종료 1')
+  await expect(detections.getByRole('row').filter({ hasText: '테스트 회원' })).toContainText('반복 초단기 반응 1판')
   await page.screenshot({ path: testInfo.outputPath('admin-mole-detections.png') })
 
   await page.setViewportSize({ width: 390, height: 740 })
@@ -153,6 +161,7 @@ test('적발 회원을 자동 조회하고 선택한 판을 수동 검색 없이
   await page.getByLabel('비교 입력 방식').selectOption('TOUCH')
   await detections.getByRole('button', { name: '456번 판 보기' }).click()
   await expect(page.getByRole('heading', { name: '456번 판 상세' })).toBeFocused()
+  await expect(page.getByLabel('회원 ID')).toHaveValue('')
   const detail = page.getByRole('region', { name: '456번 판 상세' })
   await expect(detail).toContainText('테스트 회원 · 회원 #101')
   await expect(detail).toContainText('최근 적발 시각 (한국 시간)')
@@ -163,7 +172,8 @@ test('적발 회원을 자동 조회하고 선택한 판을 수동 검색 없이
   const timingCard = page.getByRole('region', { name: '타이밍 신호' })
   await expect(timingCard).toContainText('3구간 (60–90초)')
   await expect(timingCard).toContainText('표본 부족')
-  await expect(timingCard.locator('dd[data-signal]')).toHaveText('적발')
+  await expect(timingCard.locator('dd[data-signal]')).toHaveText(['적발', '검토 필요'])
+  await expect(timingCard.getByRole('cell', { name: '15 / 30', exact: true })).toHaveCount(2)
   expect(manualSearches).toBe(0)
 
   await page.getByRole('button', { name: '← 게임 선택' }).click()
@@ -171,11 +181,11 @@ test('적발 회원을 자동 조회하고 선택한 판을 수동 검색 없이
   await expect(page.getByRole('heading', { name: '스피드 두더지 잡기', level: 2 })).toBeVisible()
   await expect(detections.getByRole('alert')).toBeVisible()
   await expect(detections.getByText('테스트 회원')).toHaveCount(0)
-  await expect(timingPanel.getByText('최근 30일 동안 타이밍 적발 기록이 없습니다.')).toBeVisible()
+  await expect(detections.getByText('함정 표적 기록을 조회하지 못했습니다.')).toBeVisible()
   await expect(detail).toHaveCount(0)
   await expect(page.getByRole('heading', { name: '456번 판 타임라인' })).toHaveCount(0)
   await detections.getByRole('button', { name: '새로고침' }).click()
-  await expect(detections.getByText('최근 30일 동안 적발 기록이 없습니다.')).toBeVisible()
+  await expect(detections.getByText('최근 30일 동안 검토 신호가 기록된 회원이 없습니다.')).toBeVisible()
   expect(speedRequests).toBe(2)
   expect(pageErrors).toEqual([])
 })
@@ -207,8 +217,8 @@ test('스피드 두더지의 지속 고속 적중 신호와 구간별 근거를 
   await page.goto('/admin')
   await page.getByRole('navigation', { name: '관리자 메뉴' }).getByRole('button', { name: '게임 매크로 분석' }).click()
   await page.getByRole('button', { name: /^스피드 두더지 잡기/ }).click()
-  const detections = page.getByRole('region', { name: '타이밍 적발 회원', exact: true })
-  await expect(detections.getByRole('columnheader', { name: '지속 고속 적중' })).toBeVisible()
+  const detections = page.getByRole('region', { name: '매크로 의심 회원', exact: true })
+  await expect(detections.getByText('지속 고속 적중 1판', { exact: true })).toBeVisible()
   await detections.getByRole('button', { name: '456번 판 보기' }).click()
   const detail = page.getByRole('region', { name: '타이밍 신호', exact: true })
   await expect(detail.getByText('검토 필요', { exact: true })).toBeVisible()
