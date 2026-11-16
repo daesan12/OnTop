@@ -29,6 +29,27 @@ describe('remote server-tick snapshot interpolation', () => {
     buffer.sample('other', 220, p); expect(p.x).toBeCloseTo(.9)
     buffer.sample('other', 270, p); expect(p.x).toBeCloseTo(1.35)
   })
+
+  it('follows the displayed pad between snapshots and blends back to the server height on takeoff', () => {
+    const buffer = new RemoteMovement(180), p = pose(0)
+    const riding = { movingPad: { block: 12 } }
+    let padY = 10.8
+    const padHeight = (block: number) => block === 12 ? padY : undefined
+    buffer.push('other', { ...pose(0), y: 10.32 }, { ...motion(0), ...riding }, 0)
+    buffer.push('other', { ...pose(.5), y: 10.4 }, { ...motion(3), ...riding }, 100)
+    buffer.sample('other', 230, p, undefined, padHeight)
+    expect(p.y).toBeCloseTo(10.8)
+    expect(p.x).toBeCloseTo(.25)
+
+    padY = 10.6
+    buffer.push('other', { ...pose(1), y: 11.4 }, { ...motion(6), grounded: false }, 200)
+    buffer.sample('other', 280, p, undefined, padHeight)
+    expect(p.y).toBeCloseTo(10.6)
+    buffer.sample('other', 330, p, undefined, padHeight)
+    expect(p.y).toBeCloseTo(11)
+    buffer.sample('other', 380, p, undefined, padHeight)
+    expect(p.y).toBeCloseTo(11.4)
+  })
   it('sorts reordered ticks, deduplicates receipt snapshots, bounds history and rejects old epochs', () => {
     const buffer = new RemoteMovement(120), p = pose(0)
     buffer.push('other', pose(0), motion(0), 0)

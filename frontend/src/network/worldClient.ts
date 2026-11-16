@@ -337,7 +337,7 @@ export function sampleAvatar(
   const course = useJumpmap.getState()
   const ownCourseRun = own && course.owner === sessionId && !!course.run
   if (ownCourseRun && avatar.movingPad) {
-    const height = movingPadRiderHeight(avatar.movingPad)
+    const height = movingPadRiderHeight(avatar.movingPad.block)
     if (height !== undefined) {
       sampleMovement(avatar, now, MOVEMENT_INPUT_INTERVAL_MS, target)
       target.y = height
@@ -350,7 +350,9 @@ export function sampleAvatar(
     } else if (!predictionAllowed()) localMovement.suspend()
     else if (localMovement.sample(now, target)) return target
   } else if (avatar.userId && !avatar.tableId && !avatar.benchId && !avatar.fitnessId && !avatar.telescopeId
-    && remoteMovement.sample(avatar.userId, now, target, avatar.vehicle === 'SCOOTER' || avatar.carry?.role === 'THROWN' ? 14 : avatar.vehicle === 'BICYCLE' ? 11 : undefined)) {
+    && remoteMovement.sample(avatar.userId, now, target,
+      avatar.vehicle === 'SCOOTER' || avatar.carry?.role === 'THROWN' ? 14 : avatar.vehicle === 'BICYCLE' ? 11 : undefined,
+      course.available && course.run ? movingPadRiderHeight : undefined)) {
     return target
   }
   // Keep takeoff responsive when the server still owns movement after dismount.
