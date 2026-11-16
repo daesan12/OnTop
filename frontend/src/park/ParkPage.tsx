@@ -16,6 +16,7 @@ import type { QualityPreset } from '../config'
 import { useMobility } from '../features/mobility/state'
 import { MobilityHud } from '../features/mobility/MobilityHud'
 import { ParkInteractionHint } from '../features/interactions/ParkInteractionHint'
+import { BALLOON_RIDE_ENABLED } from './mapSelection'
 import { ConstructionNotice } from '../features/construction/ConstructionNotice'
 import { FortunePanel } from '../features/fortune/FortunePanel'
 import { EmoteWheel } from '../features/emotes/EmoteWheel'
@@ -78,6 +79,7 @@ import { useParkOperationGate } from '../features/operation/useParkOperationGate
 import type { ServiceOperationStatus } from '../features/operation/serviceOperation'
 
 
+const LocalBalloonHud = lazy(() => import('../features/balloon/LocalBalloonHud'))
 const ArcadePicker = lazy(() => import('../features/arcade/ArcadePicker').then(module => ({ default: module.ArcadePicker })))
 const SpotDifferencePanel = lazy(() => import('../features/spotDifference/SpotDifferencePanel').then(module => ({ default: module.SpotDifferencePanel })))
 const LazyBungeoppangHud = lazy(loadBungeoppangHud)
@@ -232,6 +234,7 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked, welco
         <div hidden={omokFocus} inert={omokFocus}>
         <WelcomeTour />
         <ConstructionNotice />
+        {BALLOON_RIDE_ENABLED && <Suspense fallback={null}><LocalBalloonHud /></Suspense>}
         <FortunePanel />
         {arcadeScope === 'mole' && <MoleModePicker />}
         {(rpsOpen || arcadeOpen || plusMinusOpen || moleOpen) && <Suspense fallback={<p role="status">게임을 불러오는 중입니다.</p>}>

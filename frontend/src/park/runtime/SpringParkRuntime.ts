@@ -1,4 +1,9 @@
 import { acceptAlkkagiSocial, resetAlkkagiSocial, syncAlkkagiSocial } from '../../game/alkkagi/spectatorEvents'
+import { notifyOwnBalloonEnd, receiveRemoteBalloon } from '../../features/balloon/remoteRide'
+import type { BalloonBoarding, Input as BalloonInput, Point as BalloonPoint } from '../../features/balloon/flight'
+import type { ControlAction } from '../../features/balloon/controls'
+import type { CabinPose } from '../../features/balloon/cabin'
+import { BALLOON_RIDE_ENABLED } from '../mapSelection'
 import { acquireVRProtection, vrCarryProtection } from '../../features/vrSession/protection'
 import {
   clearAuthSession,
@@ -468,6 +473,7 @@ export class ParkRuntime implements ParkRuntimePort {
       && /^\/api\/v1\/minigames\/bungeoppang\/rankings\?period=ALL_TIME&rulesVersion=v[45]&limit=20(?:&durationMs=[1-9]\d{0,8})?(?:&cursor=[A-Za-z0-9%+_.~-]{1,1536})?$/.test(path)
     const parkRankingRequest = method === 'GET' && path === '/api/v1/rankings/park'
     const fitnessRewardRequest = method === 'GET' && path === '/api/v1/world/fitness/rewards/status'
+    const balloonFareRequest = method === 'POST' && path === '/api/v1/world/balloon/tickets'
     const skewerCoop = method === 'GET' && /^\/api\/v1\/minigames\/skewer\/coop\/rooms\?channelId=[^&#?]+$/.test(path)
       || method === 'GET' && /^\/api\/v1\/minigames\/skewer\/coop\/result\?gameId=skewer-coop-[a-f0-9-]{36}$/.test(path)
       || method === 'GET' && /^\/api\/v1\/minigames\/skewer\/coop\/rankings(?:\?mode=(?:PC|VR))?$/.test(path)
@@ -505,7 +511,7 @@ export class ParkRuntime implements ParkRuntimePort {
     if (!this.active || (!serviceAiRequest && !localAiRequest && !notesRead && !notesWrite && !shopRequest && !profileRequest
       && !historyRequest && !minigameRequest && !jumpmapRequest && !rankingRequest && !parkRankingRequest && !skewerCoop
       && !rpsRouletteRequest && !plusMinusRequest && !moleRequest && !speedMoleRequest && !jumpRopeRequest
-      && !spotDifferenceRequest && !raffleRequest && !gachaRequest && !fitnessRewardRequest
+      && !spotDifferenceRequest && !raffleRequest && !gachaRequest && !fitnessRewardRequest && !balloonFareRequest
       && !/^\/api\/v1\/(?:wallets\/me|feedback)$/.test(path))
       || (path === '/api/v1/feedback' && init.method !== 'POST'))
       throw new Error('현재 공원에서 사용할 수 없는 요청입니다.')
@@ -713,6 +719,14 @@ export class ParkRuntime implements ParkRuntimePort {
         if(this.beforeMap.length>=64){this.rejectMap(this.mapAdmission.serverMap);return}
         this.beforeMap.push(message)
       }
+      return
+    }
+    if (message.type === 'WORLD_BALLOON_STATE') {
+      if (!BALLOON_RIDE_ENABLED) return
+      const { roomId, sessionId } = useSession.getState()
+      if (message.payload.channelId === roomId && message.payload.pilotId === sessionId
+        && message.payload.flight === null && message.requestId === null) notifyOwnBalloonEnd()
+      receiveRemoteBalloon(message.payload, roomId, sessionId)
       return
     }
     if(message.type==='CONNECTED') {
@@ -1078,6 +1092,31 @@ export class ParkRuntime implements ParkRuntimePort {
     if (!stoppedIntent(intent)) cancelAvatarEmote(useSession.getState().sessionId, 'movement')
     this.movement.enqueue(intent, this.movementScope())
   }
+  startBalloon = async (ticketId: string, position: BalloonPoint, boarding: BalloonBoarding) => {
+    const { roomId, sessionId } = useSession.getState()
+    const { payload } = await this.socket.request('WORLD_BALLOON_START', { ticketId, ...position, ...boarding }, ['WORLD_BALLOON_STATE'])
+    const leader = 'leaderId' in boarding ? boarding.leaderId : sessionId
+    if (payload.channelId !== roomId || payload.pilotId !== leader || !payload.flight) {
+      throw new Error('열기구 탑승 상태를 확인해주세요.')
+    }
+    return payload.party != null
+  }
+  launchBalloon = async (ticketId: string, solo: boolean) => {
+    await this.socket.request('WORLD_BALLOON_LAUNCH', { ticketId, solo }, ['WORLD_BALLOON_STATE'])
+  }
+  controlBalloon = async (ticketId: string, action: ControlAction) => {
+    await this.socket.request('WORLD_BALLOON_CONTROL', { ticketId, ...action }, ['WORLD_BALLOON_STATE'])
+  }
+  sendBalloonPose = (ticketId: string, position: BalloonPoint, aboard: boolean, cabin: CabinPose, input: BalloonInput) => {
+    if (!this.socket.connected) return
+    try { this.socket.send('WORLD_BALLOON_POSE', { ticketId, ...position, aboard, cabin, input }) }
+    catch { /* The next update or the flight expiry handles a transport interruption. */ }
+  }
+  endBalloon = (ticketId: string) => {
+    if (!this.socket.connected) return
+    try { this.socket.send('WORLD_BALLOON_END', { ticketId }) }
+    catch { /* The server also removes the balloon when the connection closes or expires. */ }
+  }
   stopMovement = () => {
     this.movement.clear(false)
     this.move(0, 0, false)
@@ -1204,7 +1243,7 @@ export class ParkRuntime implements ParkRuntimePort {
       && !facilityMovementBlocked(s.sessionId)
       && (!avatars.get(s.sessionId)?.carry || avatars.get(s.sessionId)?.carry?.role === 'CARRIER')
       && !tableBusy() && !s.tableId && (!useGame.getState().watchedGameId || stoppedIntent(intent))
-      && (!inputState.minigameOpen || stoppedIntent(intent))
+      && (!(inputState.minigameOpen || inputState.localBalloon) || stoppedIntent(intent))
       && (!useTableLobby.getState().joiningAnchorId || stoppedIntent(intent))
       && (!(benchBusy(s.sessionId) || fitnessBusy(s.sessionId) || telescopeBusy(s.sessionId)) || stoppedIntent(intent)) && this.socket.connected
   }

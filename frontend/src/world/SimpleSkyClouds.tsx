@@ -15,12 +15,13 @@ const clouds: Part[] = Array.from({ length: 8 }, (_, i) => {
     s: [28 * cloudScale, (lobe === 0 ? 15 : 11) * cloudScale, 17 * cloudScale], c: '#ffffff',
   }))
 }).flat()
-const day = new Color('#fbfdfb'), night = new Color('#343d51')
+const day = new Color('#fbfdfb'), night = new Color('#26334b'), sunset = new Color('#e29b9c')
 export function SimpleSkyClouds() {
   const group = useRef<Group>(null), material = useRef<MeshBasicMaterial>(null)
   useFrame(({ camera }) => {
     group.current?.position.copy(cameraWorldPosition(camera))
     material.current?.color.copy(night).lerp(day, environmentFrame.daylight)
+      .lerp(sunset, environmentFrame.twilight * .85)
   })
   return <group ref={group} name="simple-sky-clouds" userData={{ keepOpaque: true }}>
     <Instances parts={clouds} shadow={false}

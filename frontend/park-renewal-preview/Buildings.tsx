@@ -18,7 +18,7 @@ import {TelescopeModel} from '../src/world/art/TelescopeModel'
 import {TraditionalNotesBoard} from '../src/world/art/TraditionalNotesBoard'
 import {ReferenceBench} from '../src/world/art/ReferenceBenchFrames'
 import {factory} from './assetFactories'
-import {SITES,site,heightAt,LAKE,TABLES,JUMP_TABLES,MAILBOX_SCALE,REST_PAVILIONS,BOAT_ROUTE,DOCK_SCALE,STATION_BENCH,STATION_SCALE,BALLOON_SCALE,FISHING_DECK,FISHING_SHOP,FISHING_NOTICE,FISHING_BENCHES,FISHING_ROD_RACKS,facilityGroundY} from './plan'
+import {SITES,site,heightAt,LAKE,TABLES,JUMP_TABLES,MAILBOX_SCALE,REST_PAVILIONS,BOAT_ROUTE,DOCK_SCALE,STATION_BENCH,STATION_SCALE,FISHING_DECK,FISHING_SHOP,FISHING_NOTICE,FISHING_BENCHES,FISHING_ROD_RACKS,facilityGroundY} from './plan'
 import {willowPositions} from './landscape'
 import {reverseSteleArrow} from './steleRefinement'
 import {PreservedFitness} from './PreservedFitness'
@@ -36,7 +36,7 @@ import {FacilityGeometry,hasFacilityGeometry} from './FacilityGeometry'
 import { models, structureModels, originalRemainingGlbs, originalFacilityGeometry } from './modelUrls'
 import { bakedEntryMesh } from './static/facilities'
 
-import { RENEWAL_DISTANCE_LOD } from '../src/park/mapSelection'
+import { BALLOON_RIDE_ENABLED, RENEWAL_DISTANCE_LOD } from '../src/park/mapSelection'
 import { createTowerFrame } from './original/world/art/towerFrameGeometry'
 import { LakePart, LakeStage } from './lakeStages'
 import { estimatedServerTime } from '../src/network/serverEventClock'
@@ -45,6 +45,7 @@ import { buildDuckBoatRoute } from './live/boats'
 import { duckBoatRidePose, type RidePose } from './duckBoatRidePath'
 import { FacilityOnApproach } from './live/FacilityOnApproach'
 import { bungeoppangCookingView } from '../src/features/bungeoppang/bungeoppangView'
+import { DockedBalloon } from '../src/features/balloon/DockedBalloon'
 import { ShaderPreparedGroup } from './live/ShaderPreparedGroup'
 
 const Arcade = lazy(() => import('./ArcadeBuilding'))
@@ -152,7 +153,7 @@ function PublicBreadShop({ children }: { children: ReactNode }) {
  return <group ref={shop}>{children}</group>
 }
 
-export function Buildings({live=false,distantReady=true,upperFacilitiesReady=distantReady,loadedRentalBatches=distantRentalBatches,entrancePavilion=true,entranceDistricts=true,entranceFacilities=true}:{live?:boolean;distantReady?:boolean;upperFacilitiesReady?:boolean;loadedRentalBatches?:number;entrancePavilion?:boolean;entranceDistricts?:boolean;entranceFacilities?:boolean}){const mailbox=site('mailbox'),jump=site('jump'),tower=site('tower'),balloon=site('balloon');return <group name="detail-220-buildings">
+export function Buildings({live=false,distantReady=true,upperFacilitiesReady=distantReady,loadedRentalBatches=distantRentalBatches,entrancePavilion=true,entranceDistricts=true,entranceFacilities=true,showDockedBalloon=true}:{showDockedBalloon?:boolean;live?:boolean;distantReady?:boolean;upperFacilitiesReady?:boolean;loadedRentalBatches?:number;entrancePavilion?:boolean;entranceDistricts?:boolean;entranceFacilities?:boolean}){const mailbox=site('mailbox'),jump=site('jump'),tower=site('tower'),balloon=site('balloon');return <group name="detail-220-buildings">
  {SITES.filter(s=>s.asset&&models[s.asset]&&(distantReady||s.asset!=='stele')&&(entrancePavilion||s.id!=='pavilion')&&(entranceFacilities||s.id!=='fortune'&&s.id!=='lottery')).map(s=>{const isDock=s.asset==='dock',fit=['bread','pigeon','cafe'].includes(s.asset!),yaw=facilityYaw(s);const model=<group key={s.id} name={'facility-'+s.id} userData={{siteId:s.id,legacyFacilityIds:legacyIdsForSite(s.id),pavilionId:pavilionIdForSite(s.id)}} position={[s.x,isDock?LAKE.y:facilityGroundY(s)+.1,s.z]} rotation={[0,yaw,0]} scale={isDock?DOCK_SCALE:s.asset==='stele'?1.45:1} onClick={s.id==='stele'?e=>{e.stopPropagation();window.dispatchEvent(new Event('park-select-jump'))}:undefined}><Suspense fallback={null}><Model kind={s.asset!} fit={fit} prepareShaders={live&&s.asset==='stele'}/></Suspense></group>;return isDock?<LakePart key={s.id} at={LakeStage.Dock}>{model}</LakePart>:live&&s.asset==='bread'?<PublicBreadShop key={s.id}>{model}</PublicBreadShop>:model})}
  {entranceFacilities&&<RentalPairs entrance/>}
  {distantReady&&(live
@@ -190,9 +191,9 @@ export function Buildings({live=false,distantReady=true,upperFacilitiesReady=dis
   </group>
   <ReferenceBench name="balloon-station-waiting-bench"
     position={[STATION_BENCH.x,STATION_BENCH.floor,STATION_BENCH.z]} yaw={0} seatHeight={STATION_BENCH.seatHeight}/>
-  <group position={[2.35*1.6*STATION_SCALE,.65*STATION_SCALE-.37*BALLOON_SCALE+.12,0]} scale={BALLOON_SCALE}>
+  {showDockedBalloon&&<DockedBalloon trackFlights={live && BALLOON_RIDE_ENABLED}>
    {live ? <ShaderPreparedGroup><LocalFactory kind="balloon"/></ShaderPreparedGroup> : <LocalFactory kind="balloon"/>}
-  </group>
+  </DockedBalloon>}
  </group>}
  {REST_PAVILIONS.map(([x,z],i)=><group key={i} name={'facility-rest-'+(i+1)} userData={{pavilionId:pavilionIdForSite('rest-'+(i+1))}} position={[x,heightAt(x,z),z]} rotation={[0,site('rest-'+(i+1)).yaw!,0]}><Suspense fallback={null}><StructureModel kind="pavilion"/></Suspense><PavilionIntermediateTreads/></group>)}
  <LakePart at={LakeStage.Willows}><LakeWillows/></LakePart>

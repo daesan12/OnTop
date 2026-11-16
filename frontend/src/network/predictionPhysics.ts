@@ -15,7 +15,7 @@ import { fountainExclusionPosition } from './fountainExclusion'
 import type { MovementIntent } from './movementInput'
 import type { Pose } from './worldClient'
 import type { PredictionSimulation } from './localMovementPrediction'
-import { COURSE, COURSE_COLLIDERS, renewalCourse } from '../features/jumpmap/activeCourse'
+import { COURSE, COURSE_COLLIDERS, COURSE_LANDING_COLLIDER_IDS, renewalCourse } from '../features/jumpmap/activeCourse'
 import { renewalPadPose, syncRenewalMotion } from '../features/jumpmap/renewalMotion'
 import { useJumpmap } from '../features/jumpmap/state'
 import { JumpGrace, type JumpGraceSnapshot } from '../features/jumpmap/jumpGrace'
@@ -86,10 +86,11 @@ class PredictionPhysics implements PredictionSimulation {
   private readonly creaturePads = renewalCourse ? COURSE.filter(pad => pad.theme === 'mole' || pad.theme === 'pigeon') : []
   private readonly creatureOffsets = new Map<number, number>()
   private readonly jumpGrace = new JumpGrace()
-  /** jumpSupported() at the last tuned landing, reused as the next step's jump support. */
-  private serverSupport?: boolean
+  /** undefined before the first sweep, null when no walkable support was found. */
+  private supportCollider?: RAPIER.Collider | null
   private edgeGlide = 0
   private readonly jumpColliders: RAPIER.Collider[] = []
+  private readonly jumpSupports = new Set<RAPIER.Collider>()
   private stepWorld() {
     if (!renewalCourse) {
       this.world.step()
@@ -111,8 +112,10 @@ class PredictionPhysics implements PredictionSimulation {
     this.jumpRun = running
     if (enabled && !this.jumpColliders.length) for (const b of COURSE_COLLIDERS) {
       const desc = b.shape === 'cylinder' ? RAPIER.ColliderDesc.cylinder(b.half[1]!, b.radius!) : RAPIER.ColliderDesc.cuboid(b.half[0]!, b.half[1]!, b.half[2]!)
-      this.jumpColliders.push(this.world.createCollider(desc.setTranslation(b.center[0]!, b.center[1]!, b.center[2]!)
-        .setRotation({ x: 0, y: Math.sin(b.yaw / 2), z: 0, w: Math.cos(b.yaw / 2) })))
+      const collider = this.world.createCollider(desc.setTranslation(b.center[0]!, b.center[1]!, b.center[2]!)
+        .setRotation({ x: 0, y: Math.sin(b.yaw / 2), z: 0, w: Math.cos(b.yaw / 2) }))
+      this.jumpColliders.push(collider)
+      this.jumpSupports.add(collider)
     }
     if (modeChanged) for (const [block, collider] of this.jumpColliders.entries()) {
       const solid = enabled && (!renewalCourse || running || block < renewalCourse.visibleAtStart)
@@ -142,7 +145,9 @@ class PredictionPhysics implements PredictionSimulation {
   }
   constructor(private tuned: boolean) {
     if (sharedPhysics) {
-      this.chairs.push(...addGeneratedPredictionColliders(this.world, sharedPhysics, this.secretDoors))
+      this.chairs.push(...addGeneratedPredictionColliders(this.world, sharedPhysics, this.secretDoors, {
+        colliderIds: COURSE_LANDING_COLLIDER_IDS, supports: this.jumpSupports,
+      }))
       this.syncSecretDoors()
     } else {
       for (const box of WORLD_COLLIDERS.filter(b => !staticStructureBatch(b.id))) {
@@ -203,7 +208,7 @@ class PredictionPhysics implements PredictionSimulation {
     this.vy = velocityY; this.grounded = grounded; this.yaw = pose.yaw; this.climbY = 0
     this.jumpGrace.reset(grounded, grace)
     this.parkMotion.reset(velocityY); this.tunedActive = false
-    this.serverSupport = undefined; this.edgeGlide = 0
+    this.supportCollider = undefined; this.edgeGlide = 0
     this.stepWorld()
   }
   setChairs(counts: ReadonlyMap<string, number>) {
@@ -228,12 +233,13 @@ class PredictionPhysics implements PredictionSimulation {
       if (!this.tunedActive) this.parkMotion.reset(this.vy)
       // Rapier can report grounded with no contact beside a thin fence's top edge.
       // Gliding there is fine, but the server rejects a jump without its own support.
-      const support = this.grounded && (this.serverSupport ?? this.jumpSupported(p))
+      if (this.grounded && this.supportCollider === undefined) this.supportCollider = this.findSupport(p)
+      const support = this.grounded && !!this.supportCollider
       const jump = this.jumpEnabled ? this.jumpGrace.step(input.jump, support, dt) : input.jump && support
       this.launchedJump = jump
       this.tunedActive = true; this.stepTuned({ ...input, jump }, dt, jump); return
     }
-    this.tunedActive = false; this.serverSupport = undefined
+    this.tunedActive = false; this.supportCollider = undefined
     if (input.jump && swimming && (input.dx || input.dz)) {
       const stone = (sharedPhysics?.steppingStones ?? legacySteppingStones).find(s => Math.hypot(Math.max(0, Math.abs(p.x - s.x) - s.width / 2),
         Math.max(0, Math.abs(p.z - s.z) - s.depth / 2)) <= .8
@@ -272,7 +278,8 @@ class PredictionPhysics implements PredictionSimulation {
   }
   private stepTuned(input: MovementIntent, dt: number, launch: boolean) {
     const p=this.body.translation(),jumpSpeed=this.onPavilion(p)?sharedPhysics?.pavilionTunedJumpSpeed:undefined
-    const wanted=this.parkMotion.advance(input,dt,this.grounded||launch,jumpSpeed)
+    const brakeSprint = !!this.supportCollider && (!this.jumpEnabled || !this.jumpSupports.has(this.supportCollider))
+    const wanted = this.parkMotion.advance(input, dt, this.grounded || launch, jumpSpeed, brakeSprint)
     this.limitFollow(wanted,p)
     // Finish a known stair rise before its centre crosses the tread. Rounded
     // capsule corner contact can otherwise report an interpenetrating mid-step.
@@ -316,12 +323,13 @@ class PredictionPhysics implements PredictionSimulation {
     // resting on its rounded corner (normal y ~.61), where the server sees no support. Standing
     // there hangs the capsule in the air and running along the edge glides on it, both ending
     // in a server HOVER correction. Fall at once without input; a rail hop only grazes the corner.
-    const supported=this.grounded&&this.jumpSupported(landing)
+    const support = this.grounded ? this.findSupport(landing) : null
+    const supported = support !== null
     if(this.grounded&&!supported&&!onStair){
       this.edgeGlide+=dt
       if(!input.dx&&!input.dz&&!walls.length&&!walkableContact||this.edgeGlide>EDGE_GLIDE_SECONDS)this.grounded=false
     }else if(supported)this.edgeGlide=0
-    this.serverSupport=supported
+    this.supportCollider = support
     this.parkMotion.contact(wanted,delta,this.grounded,walls);this.vy=this.parkMotion.velocityY()
     this.body.setNextKinematicTranslation(landing)
     if(input.dx||input.dz)this.yaw=Math.atan2(input.dx,input.dz)
@@ -334,9 +342,9 @@ class PredictionPhysics implements PredictionSimulation {
     return fountainExclusionPosition(landing,sharedPhysics.fountainPolicy,footOffset,MOVEMENT.radius)
   }
   /** Mirrors the server's PositionCollision.supported(): the capsule swept 0.17m down onto a walkable face. */
-  private jumpSupported(pose:{x:number;y:number;z:number}) {
+  private findSupport(pose:{x:number;y:number;z:number}) {
     const hit=this.world.castShape(pose,{x:0,y:0,z:0,w:1},{x:0,y:-1,z:0},this.collider.shape,0,.17,false,undefined,undefined,this.collider)
-    return !!hit&&hit.normal1.y>.6
+    return hit && hit.normal1.y > .6 ? hit.collider : null
   }
   private supportAllowed(pose:{x:number;y:number;z:number}) {
     return !sharedPhysics||furnitureAllowsSupport(pose,this.furniture,MOVEMENT.halfHeight+MOVEMENT.radius+MOVEMENT.offset,MOVEMENT.radius,this.chairCounts)
@@ -354,7 +362,7 @@ class PredictionPhysics implements PredictionSimulation {
   /** Airborne, swimming and water-exit climbing retain their physical animation flags. */
   groundedForLocomotion() { return this.tunedActive && this.grounded }
   stepJumped() { return this.launchedJump }
-  stepSupported() { return this.serverSupport ?? this.grounded }
+  stepSupported() { return this.supportCollider === undefined ? this.grounded : this.supportCollider !== null }
   pose(): Pose { return { ...this.body.translation(), yaw: this.yaw } }
   dispose() { this.world.free() }
 }

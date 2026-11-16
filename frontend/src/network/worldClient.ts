@@ -53,7 +53,8 @@ import { resetFollow } from '../features/follow/state'
 import { resetBenchSpectator } from '../features/interactions/benchSpectator'
 import { defeatTimeline, parseGameReaction } from '../game/presentation/defeat'
 import {acceptParkDebris,parseParkDebris,resetParkDebris} from '../features/parkDebris/state'
-import { receiveJumpmap, resetJumpmap } from '../features/jumpmap/state'
+import { receiveJumpmap, resetJumpmap, useJumpmap } from '../features/jumpmap/state'
+import { MOVEMENT_INPUT_INTERVAL_MS } from './movementInput'
 
 export interface Pose {
   x: number
@@ -339,7 +340,12 @@ export function sampleAvatar(
     && remoteMovement.sample(avatar.userId, now, target, avatar.vehicle === 'SCOOTER' || avatar.carry?.role === 'THROWN' ? 14 : avatar.vehicle === 'BICYCLE' ? 11 : undefined)) {
     return target
   }
-  return sampleMovement(avatar, now, NETWORK.interpolationMs, target)
+  // On server-owned course pads, follow the local player's confirmed poses
+  // over one input interval. The ordinary 120ms blend softens remote movement
+  // but visibly drags behind both jump takeoff and the moving platform here.
+  const course = useJumpmap.getState()
+  const ownCourseRun = avatar === avatars.get(sessionId) && course.owner === sessionId && !!course.run
+  return sampleMovement(avatar, now, ownCourseRun ? MOVEMENT_INPUT_INTERVAL_MS : NETWORK.interpolationMs, target)
 }
 
 function predictionAllowed() {

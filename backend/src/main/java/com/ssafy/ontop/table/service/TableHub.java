@@ -54,6 +54,8 @@ import com.ssafy.ontop.world.dto.WorldGameReaction;
 import com.ssafy.ontop.world.map.LegacyParkTables;
 import com.ssafy.ontop.world.map.PreparedParkMap;
 import com.ssafy.ontop.world.map.WorldMapRuntime;
+import com.ssafy.ontop.world.balloon.BalloonFlights;
+import com.ssafy.ontop.world.balloon.BalloonControls;
 import com.ssafy.ontop.world.service.DynamicChannelDisplayNumbers;
 import com.ssafy.ontop.world.service.ParkDebrisStore;
 import com.ssafy.ontop.world.service.WorldAppearanceGateway;
@@ -116,6 +118,10 @@ public class TableHub {
     private final Map<String, Long> emptyChannelsSince = new HashMap<>();
     private DynamicChannelsProperties dynamicChannels = DynamicChannelsProperties.disabled();
     private WorldMapRuntime dynamicMap;
+    private BalloonFlights balloons;
+
+    @Autowired(required = false)
+    public synchronized void configureBalloonFlights(BalloonFlights flights) { balloons = flights; }
     private String initialChannelId;
     private final Map<String, Member> members = new HashMap<>();
     private final WorldMapCompatibility maps;
@@ -709,6 +715,10 @@ public class TableHub {
                 disconnect(entry.getKey());
             }
         }
+        if (balloons != null) {
+            balloons.expire(java.time.Instant.now(), System.nanoTime())
+                    .forEach(state -> publishBalloon(state, null, null));
+        }
     }
 
     public synchronized TableListResponse listTables() {
@@ -951,6 +961,9 @@ public class TableHub {
                 case "CHANNEL_JOIN" -> joinChannel(member, request);
                 case "CHANNEL_LEAVE" -> leaveChannel(member, request);
                 case "WORLD_MOBILITY_START", "WORLD_MOBILITY_END" -> mobility(member, request);
+                case "WORLD_BALLOON_START", "WORLD_BALLOON_POSE", "WORLD_BALLOON_END", "WORLD_BALLOON_LAUNCH",
+                        "WORLD_BALLOON_CONTROL" ->
+                        balloon(member, request);
                 case "WORLD_MOVE" -> moveWorld(member, request);
                 case "WORLD_POSITION" -> positionWorld(member, request);
                 case "WORLD_SECRET_DOORS_SET" -> publishWorld(channels.setSecretDoors(member.userId(),
@@ -1021,6 +1034,7 @@ public class TableHub {
             return;
         }
         endRide(member.userId(), "ENDED");
+        endBalloon(member);
         closeMember(member, reason);
         String loginSessionId = loginSessions.remove(sessionId);
         connectionStarted.remove(sessionId);
@@ -1361,6 +1375,7 @@ public class TableHub {
         }
         if (!channels.isInChannel(member.userId(), channelId)) {
             endRide(member.userId(), "ENDED");
+            endBalloon(member);
         }
         long joinStarted = System.nanoTime();
         WorldChannelRegistry.Change change = channels.join(member.userId(), channelId);
@@ -1392,6 +1407,11 @@ public class TableHub {
         }
         publishTyping(channelId, member, null, false);
         sendParkDebris(member, channelId);
+        if (balloons != null) {
+            for (var flight : balloons.snapshot(channelId, System.nanoTime())) {
+                member.peer().offer(protocol.encode(null, "WORLD_BALLOON_STATE", flight));
+            }
+        }
         refreshAppearance(member);
         if (change.changed() || !profileMemberships.containsKey(member)) {
             profileMemberships.put(member, new ProfileTarget(member, channelId));
@@ -1550,6 +1570,7 @@ public class TableHub {
             fail(request, "TABLE_BUSY", "먼저 테이블에서 퇴장해주세요.");
         }
         endRide(member.userId(), "ENDED");
+        endBalloon(member);
         cancelBoatCharge(member.userId());
         withdrawBoatInvite(member.userId());
         declineBoatInvites(member.userId());
@@ -1577,6 +1598,77 @@ public class TableHub {
         recordBehavior(BehaviorEventType.CHANNEL_LEFT, member.accountId(),
                 builder -> builder.channelId(state.channelId()).prop("byDisconnect", false));
         positionSampler.forget(member.userId());
+    }
+
+    private void balloon(Member member, Request request) {
+        String pilot = member.userId();
+        String channel = channels.channelOf(pilot);
+        if (balloons == null || channel == null || member.accountId() == null) {
+            fail(request, "BALLOON_UNAVAILABLE", "공원 채널 연결을 확인해주세요.");
+        }
+        var payload = request.payload();
+        var ticket = java.util.UUID.fromString(payload.path("ticketId").asText());
+        if (request.type().equals("WORLD_BALLOON_END")) {
+            var ended = balloons.finish(pilot, member.sessionId(), ticket);
+            if (ended != null) publishBalloon(ended, member, request.requestId());
+            else member.peer().offer(protocol.encode(request.requestId(), "WORLD_BALLOON_END_ACK", Map.of()));
+            return;
+        }
+        var point = new BalloonFlights.Point(payload.path("x").asDouble(), payload.path("y").asDouble(),
+                payload.path("z").asDouble());
+        long now = System.nanoTime();
+        BalloonFlights.State state;
+        if (request.type().equals("WORLD_BALLOON_CONTROL")) {
+            state = balloons.control(channel, pilot, member.sessionId(), ticket, payload.path("action").asText(),
+                    payload.path("role").asText(), payload.path("offerId").asText(payload.path("peer").asText(null)), now);
+            if (state == null) fail(request, "BALLOON_CONTROL_REJECTED", "조종석 상태가 바뀌었어요. 다시 확인해주세요.");
+        } else if (request.type().equals("WORLD_BALLOON_LAUNCH")) {
+            state = balloons.launch(channel, pilot, member.sessionId(), ticket, java.time.Instant.now(), now,
+                    payload.path("solo").asBoolean());
+            if (state == null) fail(request, "BALLOON_LAUNCH_REJECTED", "탑승 인원과 조종석 상태를 확인해주세요.");
+        } else if (request.type().equals("WORLD_BALLOON_START")) {
+            if (seating.containsKey(pilot) || mobilityRides.containsKey(pilot) || facilities.current(pilot) != null
+                    || channels.carryState(pilot) != null) {
+                fail(request, "BALLOON_BUSY", "다른 공원 활동을 끝낸 뒤 탑승해주세요.");
+            }
+            var wallTime = java.time.Instant.now();
+            state = balloons.start(channel, pilot, member.sessionId(), ticket, channels.positionOf(pilot),
+                    point, wallTime, now, payload.path("capacity").asInt(1), payload.path("leaderId").asText(null),
+                    payload.path("mode").asText(null));
+            if (state == null && !balloons.ticketAvailable(pilot, ticket, wallTime)) {
+                fail(request, "BALLOON_TICKET_EXPIRED", "이 탑승권의 유효 시간이 끝났어요.");
+            }
+        } else {
+            var cabin = payload.path("cabin");
+            var rider = cabin.isMissingNode() ? BalloonFlights.CabinPose.IDLE
+                    : new BalloonFlights.CabinPose(cabin.path("x").asDouble(), cabin.path("z").asDouble(),
+                            cabin.path("yaw").asDouble(), cabin.path("seatIndex").asInt(), cabin.path("moving").asBoolean());
+            var input = payload.path("input");
+            var intent = new BalloonControls.Intent(input.path("x").asDouble(), input.path("z").asDouble(),
+                    input.path("lift").asDouble());
+            state = balloons.update(channel, pilot, member.sessionId(), ticket,
+                    new BalloonFlights.Flight(point, payload.path("aboard").asBoolean(), rider), intent, now);
+        }
+        if (state == null) {
+            fail(request, "BALLOON_STATE_REJECTED", "승강장 또는 비행 상태를 확인해주세요.");
+        }
+        publishBalloon(state, member, request.requestId());
+    }
+
+    private void endBalloon(Member member) {
+        if (balloons == null) return;
+        var ended = balloons.finish(member.userId(), member.sessionId(), null);
+        if (ended != null) publishBalloon(ended, null, null);
+    }
+
+    private void publishBalloon(BalloonFlights.State state, Member pilot, String requestId) {
+        if (pilot != null) pilot.peer().offer(protocol.encode(requestId, "WORLD_BALLOON_STATE", state));
+        String event = protocol.encode(null, "WORLD_BALLOON_STATE", state);
+        for (Member observer : members.values()) {
+            if (observer != pilot && isMapReady(observer) && channels.isInChannel(observer.userId(), state.channelId())) {
+                observer.peer().offer(event);
+            }
+        }
     }
 
     @Autowired(required = false)
@@ -1761,7 +1853,8 @@ public class TableHub {
         if (seating.containsKey(user)) {
             fail(request, "TABLE_BUSY", "먼저 테이블에서 퇴장해주세요.");
         }
-        if (mobilityRides.containsKey(user) || channels.carryState(user) != null) {
+        if (mobilityRides.containsKey(user) || channels.carryState(user) != null
+                || balloons != null && balloons.aboard(user)) {
             fail(request, "FACILITY_BUSY", "진행 중인 이용을 먼저 종료해주세요.");
         }
     }
@@ -1771,7 +1864,7 @@ public class TableHub {
         if (partner.equals(inviter) || target == null || target.accountId() == null
                 || !channels.isInChannel(partner, channel) || facilities.current(partner) != null
                 || seating.containsKey(partner) || mobilityRides.containsKey(partner)
-                || channels.carryState(partner) != null) {
+                || channels.carryState(partner) != null || balloons != null && balloons.aboard(partner)) {
             fail(request, "BOAT_PARTNER_UNAVAILABLE", "지금은 그 사람을 초대할 수 없어요.");
         }
     }

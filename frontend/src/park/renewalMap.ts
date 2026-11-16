@@ -24,7 +24,7 @@ type RenewalData = Omit<ParkMapData, 'tables' | 'interactions' | 'pavilions' | '
   physics: ParkMapData['physics'] & { secretTerrainCuts?: readonly number[]; duckBoat?: {
     x: number; y: number; z: number; rx: number; rz: number; period: number; half: Point3
   } }
-  jumpCourse?: ReturnType<typeof buildRenewalJumpCourse>
+  jumpCourse?: ReturnType<typeof buildRenewalJumpCourse> & { landingColliderIds?: readonly string[] }
   tables: readonly Omit<TableAnchor, 'spectatorRadius'>[]
   pavilions: readonly (ParkMapData['pavilions'][number] & { spectatorBenchTop?: number })[]
   interactions: Omit<ParkMapData['interactions'], 'benches'> & {

@@ -84,6 +84,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   inputState.minigameOpen = false
+  inputState.localBalloon = false
   await runtime.stop()
   vi.useRealTimers()
   clearAuthSession()
@@ -205,14 +206,14 @@ describe('M14 authenticated REST and movement ownership boundary', () => {
     await expect(runtime.requestJSON('/api/v1/minigames/sessions/901/complete', { method: 'POST', body: '{}' }))
       .rejects.toMatchObject({ status: 422, code: 'TOO_EARLY' })
   })
-  it('blocks movement during cooking while retaining stop delivery and subsequent roaming', async () => {
-    inputState.minigameOpen = true
+  it.each(['minigameOpen', 'localBalloon'] as const)('blocks movement during %s while retaining stop delivery and subsequent roaming', async owner => {
+    inputState[owner] = true
     runtime.move(0, -1, true, true)
     expect(moves()).toHaveLength(0)
     runtime.move(0, 0, false)
     expect(moves()).toHaveLength(1)
     await vi.advanceTimersByTimeAsync(60)
-    inputState.minigameOpen = false
+    inputState[owner] = false
     runtime.move(1, 0, false)
     expect(moves()).toHaveLength(2)
   })

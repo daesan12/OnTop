@@ -9,6 +9,8 @@ import { ScenicGround } from '../ScenicGround'
 import { OriginalPlaza, ParkBoundary } from '../ParkBoundary'
 import { TableFurniture } from '../../src/features/tables/TableFurniture'
 import { TABLES } from '../../src/park/mapConfig'
+import { STONE_RUMBLE_ANCHOR_ID } from '../../src/game/stone-rumble/entrance'
+import { STONE_RUMBLE_ENABLED } from '../../src/features/tableLobby/model'
 import { lazy, memo, startTransition, Suspense, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Object3D, type Group } from 'three'
@@ -31,7 +33,9 @@ import { collectJumpViewDrawables } from '../../src/features/jumpmap/preparation
 const HorrorZone = lazy(() => import('../HorrorZone').then(module => ({ default: module.HorrorZone })))
 const AnnexDetails = lazy(() => import('../InteriorDetails').then(module => ({ default: module.AnnexDetails })))
 const TableBoards = lazy(() => import('../../src/features/tables/TableBoards'))
+const StoneRumbleEntranceStele = lazy(() => import('../../src/game/stone-rumble/StoneRumbleEntranceStele'))
 const ParkDetailGeometry = lazy(() => import('../ParkDetailGeometry').then(module => ({ default: module.ParkDetailGeometry })))
+const RenewalParkAdvertising = lazy(() => import('./RenewalParkAdvertising').then(module => ({ default: module.RenewalParkAdvertising })))
 
 const spawn = renewalMap?.data.physics.spawn.position
 const jumpEntrance = renewalMap?.data.jumpCourse?.start
@@ -52,9 +56,13 @@ const StableEntranceTrees = memo(PreviewTreeBatches)
 const StableBuildings = lazy(() => import('../Buildings').then(module => ({ default: memo(module.Buildings) })))
 const StableTable = memo(function StableTable({ index, boards }: { index: number; boards: boolean }) {
   const anchor = TABLES[index]!
-  return <TableFurniture anchor={anchor} nativeFurniture={!!anchor.pavilionId}>
-    {boards && <Suspense fallback={null}><TableBoards anchor={anchor} nativeFurniture={!!anchor.pavilionId} /></Suspense>}
-  </TableFurniture>
+  return <>
+    <TableFurniture anchor={anchor} nativeFurniture={!!anchor.pavilionId}>
+      {boards && <Suspense fallback={null}><TableBoards anchor={anchor} nativeFurniture={!!anchor.pavilionId} /></Suspense>}
+    </TableFurniture>
+    {STONE_RUMBLE_ENABLED && anchor.id === STONE_RUMBLE_ANCHOR_ID &&
+      <Suspense fallback={null}><StoneRumbleEntranceStele anchor={anchor} /></Suspense>}
+  </>
 })
 
 function atEntrance(pose = authoritativePose(useSession.getState().sessionId)) {
@@ -83,8 +91,7 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady, gr
   const [stage, setStage] = useState(() => !atEntrance() || welcomeFlight.active ? finalStage : 0)
   const distantReady = stage > 0
   const entry = useRef({
-    start: undefined as { x: number; z: number } | undefined,
-    requestedStage: stage, stableFrames: 0, committedAt: 0, movedAt: 0,
+    requestedStage: stage, stableFrames: 0, committedAt: 0,
   })
 
   useLayoutEffect(() => {
@@ -113,18 +120,15 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady, gr
       return
     }
     const pose = authoritativePose(useSession.getState().sessionId)
-    if (pose) pending.start ??= { x:pose.x, z:pose.z }
     const shownAt = firstFrameAt.current
-    if (pose && pending.start && Math.hypot(pose.x - pending.start.x, pose.z - pending.start.z) > .08) {
-      pending.start = { x: pose.x, z: pose.z }
-      pending.movedAt = now
-    }
+    if (shownAt === null) return
+    pending.stableFrames = delta <= 1 / 30 ? pending.stableFrames + 1 : 0
     const lookedAround = Math.abs(Math.atan2(Math.sin(viewControls.yaw), Math.cos(viewControls.yaw))) > .08
       || Math.abs(viewControls.pitch - CAMERA.pitch) > .08
       || Math.abs(viewControls.distance - CAMERA.distance) > .5
-    const settled = shownAt !== null && now - Math.max(shownAt, pending.movedAt) >= 2200
+    const settled = pending.stableFrames >= 3 || now - shownAt >= 500
     const needsDistantView = !!pose && !!spawn && Math.hypot(pose.x - spawn[0], pose.z - spawn[2]) >= 26
-    if (shownAt !== null && (needsDistantView || welcomeFlight.active || lookedAround || settled)) {
+    if (needsDistantView || welcomeFlight.active || lookedAround || settled) {
       pending.requestedStage = 1
       performance.mark('park-distant-facilities-start')
       preloadGateSurroundings()
@@ -228,7 +232,7 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady, gr
       <Suspense fallback={null}>
         <StableParkBoundary />
         <OriginalPlaza />
-        <StableEntranceTrees />
+        <StableEntranceTrees live />
         <StableEntranceBuilding id="pavilion" />
         <StableEntranceBuilding id="fortune" />
         <StableEntranceBuilding id="lottery" />
@@ -238,7 +242,12 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady, gr
         <StableEntranceLandscape quality={quality} showFitnessStations={entryPresented && stage >= 1} />
         <GroundMounted ready={groundMounted} />
       </Suspense>
-      {entryPresented && stage >= 1 && <Suspense fallback={null}><StableScenicDetails includeGround={false} includeTrees={false} includeLandscape={false} distantReady={stage >= 2} live /></Suspense>}
+      {entryPresented && stage >= 1 && (
+        <>
+          <Suspense fallback={null}><RenewalParkAdvertising /></Suspense>
+          <Suspense fallback={null}><StableScenicDetails includeGround={false} includeTrees={false} includeLandscape={false} distantReady={stage >= 2} live /></Suspense>
+        </>
+      )}
       {entryPresented && stage >= 2 && <Suspense fallback={null}><StableBuildings live entrancePavilion={false} entranceDistricts={false} entranceFacilities={false} distantReady={distantReady} upperFacilitiesReady={stage >= 4}
         loadedRentalBatches={stage} /></Suspense>}
       {entryPresented && stage >= 3 && TABLES.map((anchor, index) => <Suspense key={anchor.id} fallback={null}>
