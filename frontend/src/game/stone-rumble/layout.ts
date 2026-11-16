@@ -1,5 +1,6 @@
 export const STONE_TILE_SIZE = 2.6
 export const STONE_STEP_DELAY = 1200
+export const STONE_OUTER_WARNING_SECONDS = 3
 export const STONE_FLOOR_HEIGHTS = [0, 12, 24] as const
 export const STONE_FLOOR_COLORS = ['#858cc3', '#69ac8f', '#95becf'] as const
 export const STONE_TILE_COUNTS = [289, 225, 169] as const

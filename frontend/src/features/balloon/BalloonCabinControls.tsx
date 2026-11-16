@@ -1,7 +1,7 @@
 import { useRef, type RefObject } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { MathUtils, type Group } from 'three'
-import { cabinSeats } from './cabin'
+import { CABIN_DECK_RISE, cabinSeats } from './cabin'
 import { combineFlightInput, stoppedFlightInput } from './controls'
 import type { Input } from './flight'
 import { useRemoteBalloons } from './remoteRide'
@@ -35,7 +35,7 @@ export function BalloonCabinControls({ local, pilot }: {
     if (lever.current) lever.current.rotation.z = MathUtils.damp(lever.current.rotation.z, input.lift * .53, 13, delta)
   }, -1.7)
 
-  return <group name="balloon-cabin-controls">
+  return <group name="balloon-cabin-controls" position-y={CABIN_DECK_RISE}>
     <group position={[directionSeat.x + .39, .94, directionSeat.z + .1]} rotation-y={directionSeat.yaw}>
       <mesh position={[0, 0, -.42]} castShadow>
         <boxGeometry args={[.31, .23, .06]} />
@@ -50,8 +50,8 @@ export function BalloonCabinControls({ local, pilot }: {
         <meshStandardMaterial color={brass} roughness={.57} metalness={.35} />
       </mesh>
       <group ref={stick} name="balloon-direction-handle">
-        <mesh position={[0, .113, 0]} castShadow>
-          <cylinderGeometry args={[.022, .034, .226, 8]} />
+        <mesh position={[0, .108, 0]} castShadow>
+          <cylinderGeometry args={[.022, .034, .236, 8]} />
           <meshStandardMaterial color={brass} roughness={.53} metalness={.35} />
         </mesh>
         <mesh position={[0, .225, 0]} castShadow>

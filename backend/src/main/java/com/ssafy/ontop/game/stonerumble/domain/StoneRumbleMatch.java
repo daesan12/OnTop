@@ -24,8 +24,11 @@ public final class StoneRumbleMatch {
     public static final double ELIMINATION_HEIGHT = -6.0;
     private static final int[] RADII = {8, 7, 6};
     private static final double[] HEIGHTS = {0, 12, 24};
+    private static final long FIRST_COLLAPSE_DELAY = 18_000;
+    private static final long COLLAPSE_INTERVAL = 9_000;
     private final List<Player> players = new ArrayList<>();
     private final List<Tile> tiles = new ArrayList<>();
+    private final List<List<Tile>> collapseRings = new ArrayList<>();
     private final List<Pigeon> pigeons = new ArrayList<>();
     private final Map<String, Tile> tileIndex = new LinkedHashMap<>();
     public static final long LOADING_TIMEOUT = 90_000;
@@ -35,7 +38,7 @@ public final class StoneRumbleMatch {
     private final long loadingStartedAt;
     private final Set<String> readyUsers = new LinkedHashSet<>();
     private boolean released;
-    private int collapseFloor = 2, collapseRing = RADII[2];
+    private int collapseRing;
     private long nextCollapseAt;
     private long now;
     private long pigeonSequence;
@@ -50,14 +53,24 @@ public final class StoneRumbleMatch {
         }
         loadingStartedAt = createdAt;
         now = createdAt;
+        for (int floor = RADII.length - 1; floor >= 0; floor--) {
+            for (int ring = RADII[floor]; ring >= 0; ring--) {
+                collapseRings.add(new ArrayList<>());
+            }
+        }
         for (int floor = 0; floor < 3; floor++) {
             int radius = RADII[floor];
+            int ringOffset = 0;
+            for (int upper = floor + 1; upper < RADII.length; upper++) {
+                ringOffset += RADII[upper] + 1;
+            }
             for (int q = -radius; q <= radius; q++) {
                 for (int r = -radius; r <= radius; r++) {
                     Tile tile = new Tile(tiles.size(), floor, q, r,
                             UNSCHEDULED);
                     tiles.add(tile);
                     tileIndex.put(key(floor, q, r), tile);
+                    collapseRings.get(ringOffset + radius - Math.max(Math.abs(q), Math.abs(r))).add(tile);
                 }
             }
         }
@@ -79,7 +92,7 @@ public final class StoneRumbleMatch {
             released = true;
             landsAt = now + DROP_DURATION;
             startsAt = landsAt + COUNTDOWN_DURATION;
-            nextCollapseAt = startsAt + 10_000;
+            nextCollapseAt = startsAt + FIRST_COLLAPSE_DELAY;
             for (Player p : players) { p.pigeonReadyAt = startsAt; p.slideReadyAt = landsAt; }
             collapseOuterRing();
         }
@@ -87,22 +100,22 @@ public final class StoneRumbleMatch {
 
     /** 위층의 남은 테두리부터 한 겹씩 없앤 후 다음 층으로 내려간다. */
     private void collapseOuterRing() {
-        while (collapseFloor >= 0) {
-            int floor = collapseFloor, ring = collapseRing;
-            var border = tiles.stream().filter(t -> t.floor == floor
-                    && Math.max(Math.abs(t.q), Math.abs(t.r)) == ring).toList();
-            if (border.stream().noneMatch(t -> t.breakAt > now)) {
-                if (now >= nextCollapseAt) { nextCollapseAt += 6000; }
-                nextCollapseRing();
-                continue;
+        while (collapseRing < collapseRings.size()) {
+            boolean remaining = false;
+            for (Tile tile : collapseRings.get(collapseRing)) {
+                if (tile.breakAt > now) {
+                    remaining = true;
+                    tile.breakAt = Math.min(tile.breakAt, nextCollapseAt);
+                }
             }
-            for (Tile tile : border) { tile.breakAt = Math.min(tile.breakAt, nextCollapseAt); }
-            break;
+            if (remaining) {
+                return;
+            }
+            if (now >= nextCollapseAt) {
+                nextCollapseAt += COLLAPSE_INTERVAL;
+            }
+            collapseRing++;
         }
-    }
-
-    private void nextCollapseRing() {
-        if (--collapseRing < 0 && --collapseFloor >= 0) { collapseRing = RADII[collapseFloor]; }
     }
 
     public void control(String userId, double x, double z, double aimX, double aimZ,

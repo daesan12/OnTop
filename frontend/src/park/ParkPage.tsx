@@ -50,6 +50,7 @@ import { RewardCoinFlight } from '../features/wallet/RewardCoinFlight'
 import { useWalletSync } from '../features/wallet/useWalletSync'
 import { LocationChip } from '../features/parkMenus/LocationChip'
 import { JumpmapHud } from '../features/jumpmap/JumpmapHud'
+import { StoneRumbleGuide } from '../game/stone-rumble/StoneRumbleGuide'
 import { useJumpmapController } from '../features/jumpmap/useJumpmapController'
 import { useStore } from 'zustand'
 import { ParkVrZone } from '../features/vrZone/ParkVrZone'
@@ -269,6 +270,7 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked, welco
       {(bungeoppang || breadRecovery) && <Suspense fallback={<p role="status">붕어빵 가게를 불러오는 중입니다.</p>}><BungeoppangHud /></Suspense>}
       <OmokFeedback />
       <RankingBoardHost />
+      <StoneRumbleGuide />
       <ManualHost showLauncher={!omokFocus} worldActions={bungeoppang || omokFocus ? undefined : <ManualWorldActions />} />
       <WinnerContactsHost open={winningsOpen} refreshKey={winningsRefresh} selectedWeek={winningsWeek}
         onAutoOpen={autoOpenWinnings} onClose={() => setWinningsOpen(false)} />

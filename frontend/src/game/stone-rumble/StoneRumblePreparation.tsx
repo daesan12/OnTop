@@ -46,15 +46,17 @@ export function StoneRumblePreparation({ onStatus, playScene }: { onStatus: Ston
         await prepareScene(gl, playScene, camera, live, { warmGeometry: true, views })
         if (!live()) return
         await waitForScenePrograms(gl, live, Promise.all([gl.compileAsync(scene, camera), gl.compileAsync(playScene, camera)]))
-        if (live()) startup.phase = 'ready'
+        if (live()) {
+          backdrop.prepare(gl, scene)
+          startup.phase = 'ready'
+        }
       })().catch((error: unknown) => {
         if (live()) { startup.phase = 'failed'; onStatus(false, error instanceof Error ? error.message : '공원을 준비하지 못했어요.') }
       })
       return
     }
     if (startup.phase === 'preparing' || startup.phase === 'failed') return
-    backdrop.update(gl, scene, camera, performance.now())
-    renderStoneScene(gl, backdrop.scene, playScene, camera, backdrop.camera)
+    renderStoneScene(gl, backdrop.scene, playScene, camera)
     if (startup.phase === 'ready') {
       startup.fence = context.fenceSync(context.SYNC_GPU_COMMANDS_COMPLETE, 0)
       if (!startup.fence) { startup.phase = 'failed'; onStatus(false, '3D 화면 준비를 확인하지 못했어요. 다시 준비해 주세요.'); return }

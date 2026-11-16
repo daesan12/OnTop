@@ -529,7 +529,7 @@ class RestSecurityTests {
                 "DELETE /api/v1/users/me",
                 "GET /api/v1/admin/me", "GET /api/v1/admin/analytics/summary",
                 "GET /api/v1/admin/macro-analysis/mole", "GET /api/v1/admin/macro-analysis/mole/{id}",
-                "GET /api/v1/admin/macro-analysis/mole/detections",
+                "GET /api/v1/admin/macro-analysis/mole/detections", "GET /api/v1/admin/macro-analysis/mole/timing",
                 "GET /api/v1/admin/macro-analysis/jumpmap", "GET /api/v1/admin/macro-analysis/jump-rope",
                 "POST /api/v1/admin/wallet-grants/preview", "POST /api/v1/admin/wallet-grants",
                 "GET /api/v1/operations/status", "GET /api/v1/admin/operations/status",

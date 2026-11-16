@@ -19,9 +19,9 @@ function BalloonKeys({ direction, altitude, walking = false, seated = false }: {
   direction: boolean; altitude: boolean; walking?: boolean; seated?: boolean
 }) {
   return <div className="park-balloon-key-guide">
-    {direction && <span><kbd>WASD / 방향키</kbd> {walking ? '걷기' : '방향 조종'}</span>}
+    {direction && <span><kbd>WASD / 방향키</kbd> {walking ? '걷기' : '시점 기준 이동'}</span>}
     {altitude && <><span><kbd>Space</kbd> 상승</span><span><kbd>Shift</kbd> 하강</span></>}
-    {walking && <><span><kbd>E</kbd> {seated ? '일어나기' : '앉기'}</span><span>드래그로 둘러보기</span></>}
+    {walking && <span><kbd>E</kbd> {seated ? '일어나기' : '앉기'}</span>}
   </div>
 }
 
@@ -33,7 +33,7 @@ function BalloonWarning({ children }: { children: ReactNode }) {
 
 function DirectionCockpitGuide() {
   return <div className="park-balloon-direction-guide" role="group" aria-label="방향 조종 키">
-    <span className="park-balloon-direction-label">수평 이동</span>
+    <span className="park-balloon-direction-label">시점 기준 이동</span>
     <div className="park-balloon-direction-options">
       <div className="park-balloon-direction-pad" role="img" aria-label="W 앞, A 왼쪽, S 뒤, D 오른쪽">
         <kbd aria-hidden="true">W</kbd><kbd aria-hidden="true">A</kbd><kbd aria-hidden="true">S</kbd><kbd aria-hidden="true">D</kbd>
@@ -193,10 +193,10 @@ export default function LocalBalloonHud() {
     className="park-balloon-paper park-balloon-guide" closeLabel="탑승 화면으로 돌아가기" onClose={() => showLocalBalloonManual(false)}>
     <ul className="park-balloon-manual">
       <li>1인당 {BALLOON_FARE}냥이에요. 새 열기구의 정원을 1~{CAPACITY}명으로 정하거나, 같은 채널에서 기다리는 열기구에 합류할 수 있어요.</li>
-      <li>방향은 <kbd>WASD / 방향키</kbd>, 고도는 <kbd>Space</kbd> 상승과 <kbd>Shift</kbd> 하강으로 조종해요. 2인 분담에서는 두 역할을 나눠 맡아요.</li>
+      <li><kbd>WASD / 방향키</kbd>는 화면에서 바라보는 방향을 기준으로 이동해요. <kbd>Space</kbd>로 상승하고 <kbd>Shift</kbd>로 하강해요. 2인 분담에서는 두 역할을 나눠 맡아요.</li>
       <li><strong>조종 교대 제안</strong>을 받은 사람이 <kbd>E</kbd>로 수락하면 바로 교대해요. <kbd>F</kbd>를 눌러 조종석에서 일어나거나 빈 조종석을 잡을 수 있어요.</li>
       <li>조종석이 모두 비면 3초 뒤 추락해요. 바닥에 닿기 전에 조종석을 잡으면 다시 조종할 수 있어요.</li>
-      <li>기내에서 마우스를 드래그해 둘러보고 <kbd>V</kbd>로 1인칭과 3인칭을 바꿔요. 기내에서는 점프할 수 없어요.</li>
+      <li>이륙부터 조종석에서도 마우스를 드래그해 둘러볼 수 있어요. 조종석에서 일어나면 <kbd>V</kbd>로 1인칭과 3인칭을 바꿔요. 기내에서는 점프할 수 없어요.</li>
     </ul>
     <div className="paper-actions"><button type="button" className="paper-primary"
       onClick={() => showLocalBalloonManual(false)}>탑승 화면으로</button></div>
@@ -246,6 +246,7 @@ export default function LocalBalloonHud() {
           {directing ? <DirectionCockpitGuide />
             : <BalloonKeys walking={walkingInside} seated={seated} direction={walkingInside || controlRole !== 'altitude'}
                 altitude={!walkingInside && (controlsMode !== 'split' || controlRole === 'altitude')} />}
+          <span className="park-balloon-hud-note">드래그로 둘러보기</span>
           {paymentError && <span className="park-balloon-hud-note" role="alert">{paymentError}</span>}
           {boundary && <span className="park-balloon-hud-note" role="status">비행 구역 경계 · 공원 안쪽으로 돌아가세요</span>}
           <div className="park-balloon-hud-controls">
