@@ -27,11 +27,10 @@ const tips = [
 ] as const
 
 const artRoot = '/art/stone-rumble/loading/'
-const imageSizes = '100vw'
+const imageSizes = '(max-width: 620px) calc(100vw - 54px), (max-width: 1400px) 47vw, 700px'
 const tipNames = ['발판', '비둘기', '슬라이딩'] as const
-const wideWidths = [1280, 1672] as const
-const sceneUrl = (kind: string, width: number) => `${artRoot}scene-${kind}-hanji-${width}.webp`
-const wideSceneSources = (kind: string) => wideWidths.map(width => `${sceneUrl(kind, width)} ${width}w`).join(', ')
+const sceneUrl = (kind: string, width: number) => `${artRoot}scene-${kind}-park-${width}.webp`
+const sceneSources = (kind: string) => `${sceneUrl(kind, 540)} 540w, ${sceneUrl(kind, 1080)} 1080w`
 
 export function StoneLoadingTips({ ready, total, ownReady, error, retry }: {
   ready: number; total: number; ownReady: boolean; error: string; retry: () => void
@@ -43,42 +42,43 @@ export function StoneLoadingTips({ ready, total, ownReady, error, retry }: {
   }, [index])
   useEffect(() => {
     // 첫 팁을 표시한 뒤 나머지 삽화를 낮은 우선순위로 미리 불러온다.
-    const portrait = window.matchMedia('(max-width: 700px)').matches
     for (const tip of tips.slice(1)) {
       const image = new Image()
       image.fetchPriority = 'low'
-      if (!portrait) {
-        image.sizes = imageSizes
-        image.srcset = wideSceneSources(tip.kind)
-      }
-      image.src = sceneUrl(tip.kind, portrait ? 640 : 1280)
+      image.sizes = imageSizes
+      image.srcset = sceneSources(tip.kind)
     }
   }, [])
   const tip = tips[index]!
   const prepared = Math.max(0, Math.min(total, ready))
-  return <div className="stone-loading-tips" aria-label="돌탑 경기 준비" role="region">
-    <picture className="stone-tip-picture" key={tip.kind}>
-      <source media="(max-width: 700px)" srcSet={sceneUrl(tip.kind, 640)} />
-      <img src={sceneUrl(tip.kind, 1280)} srcSet={wideSceneSources(tip.kind)}
-        sizes={imageSizes} width="1672" height="941" alt={tip.alt} decoding="async" fetchPriority="high" />
-    </picture>
-    <div className="stone-loading-shade" aria-hidden="true" />
-    <header className="stone-loading-heading"><StoneTowerIcon /><h1>돌탑 생존전</h1></header>
-    <div className="stone-loading-footer">
-      <article className="stone-tip-card" aria-label={`${index + 1}번째 생존 팁`}>
-        <div className="stone-tip-copy"><small>생존 TIP <b>0{index + 1}</b><span> / 0{tips.length}</span></small>
-          <h2>{tip.title}</h2><p>{tip.copy}</p><p className="stone-tip-detail">{tip.detail}</p>
-          <div className="stone-tip-controls" aria-label="관련 조작">{tip.controls.map(control => <span key={control.key}><kbd>{control.key}</kbd>{control.label}</span>)}</div>
+  return <div className="stone-loading-tips" aria-label="돌탑 경기 준비" role="region" tabIndex={0}>
+    <div className="stone-loading-content">
+      <header className="stone-loading-heading"><StoneTowerIcon /><h1>돌탑 생존전</h1></header>
+      <div className="stone-loading-sheet">
+        <div className="stone-tip-layout">
+          <div className="stone-tip-visual">
+            <div className="stone-tip-picture">
+              <img key={tip.kind} src={sceneUrl(tip.kind, 540)} srcSet={sceneSources(tip.kind)}
+                sizes={imageSizes} width="1080" height="810" alt={tip.alt} decoding="async" fetchPriority="high" />
+            </div>
+            <nav className="stone-tip-nav" aria-label="게임 팁 선택">
+              {tips.map(({ kind }, i) => <button type="button" key={kind} aria-label={`${i + 1}번째 팁`} aria-pressed={i === index} onClick={() => setIndex(i)}><span>0{i + 1}</span> {tipNames[i]}</button>)}
+            </nav>
+          </div>
+          <article className="stone-tip-copy" aria-label={`${index + 1}번째 생존 팁`}>
+            <h2>{tip.title}</h2><p>{tip.copy}</p><p className="stone-tip-detail">{tip.detail}</p>
+            <div className="stone-tip-controls" aria-label="관련 조작">{tip.controls.map(control => <span key={control.key}><kbd>{control.key}</kbd>{control.label}</span>)}</div>
+          </article>
         </div>
-      </article>
-      <nav className="stone-tip-nav" aria-label="게임 팁 선택">
-        {tips.map((tip, i) => <button type="button" key={tip.kind} aria-label={`${i + 1}번째 팁`} aria-pressed={i === index} onClick={() => setIndex(i)}><span>0{i + 1}</span>{tipNames[i]}</button>)}
-      </nav>
-      <div className="stone-loading-progress" role="status">
-        <div className="stone-loading-ready"><strong>{error ? '준비를 다시 확인해 주세요' : '경기장 준비'}</strong><span>{prepared}<small> / {total}</small></span></div>
-        <div className="stone-loading-stones" aria-hidden="true">{Array.from({ length: total }, (_, i) => <span key={i} data-ready={i < prepared} />)}</div>
-        <p>{error || (ownReady ? '내 준비는 끝났어요. 모두 준비되면 구름에서 함께 내려가요.' : '공원과 경기장을 준비하고 있어요. 잠시만 기다려 주세요.')}</p>
-        {error && <button className="stone-loading-retry" onClick={retry}>다시 준비하기</button>}
+        <div className="stone-loading-progress" role="status">
+          <div className="stone-loading-ready">
+            <strong>{error ? '준비를 다시 확인해 주세요' : '경기장 준비'}</strong>
+            <div className="stone-loading-stones" aria-hidden="true">{Array.from({ length: total }, (_, i) => <span key={i} data-ready={i < prepared} />)}</div>
+            <span>{prepared}<small> / {total}</small></span>
+          </div>
+          <p>{error || (ownReady ? '내 준비는 끝났어요. 모두 준비되면 구름에서 함께 내려가요.' : '공원과 경기장을 준비하고 있어요. 잠시만 기다려 주세요.')}</p>
+          {error && <button type="button" className="stone-loading-retry" onClick={retry}>다시 준비하기</button>}
+        </div>
       </div>
     </div>
   </div>
