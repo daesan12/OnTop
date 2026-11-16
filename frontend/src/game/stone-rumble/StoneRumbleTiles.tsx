@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { BoxGeometry, Color, DynamicDrawUsage, InstancedBufferAttribute, Object3D, type InstancedMesh, type MeshBasicMaterial } from 'three'
-import { STONE_FLOOR_COLORS, STONE_FLOOR_HEIGHTS, STONE_TILE_SIZE } from './layout'
+import { STONE_FLOOR_COLORS, STONE_FLOOR_HEIGHTS, STONE_OUTER_WARNING_SECONDS, STONE_TILE_SIZE } from './layout'
 import type { StoneTile } from './protocol'
 import { stoneTileEpoch, updateStoneTileMarks } from './tileBuffers'
 
@@ -30,7 +30,7 @@ function tileSurface(material: MeshBasicMaterial, clock: { value: number }) {
         float fallen = max(0.0, -remaining);
         transformed *= 1.0 - step(0.65, fallen);
         transformed.z -= fallen * fallen * 15.0;
-        vStoneMark = vec2(mix((1.0 - step(1.8, remaining)) * 2.0, 1.0, stoneMark.x), clamp(remaining / 1.2, 0.0, 1.0));
+        vStoneMark = vec2(mix((1.0 - step(${STONE_OUTER_WARNING_SECONDS.toFixed(1)}, remaining)) * 2.0, 1.0, stoneMark.x), clamp(remaining / 1.2, 0.0, 1.0));
         vStoneSide = 1.0 - abs(normal.z);`)
     shader.fragmentShader = shader.fragmentShader.replace('#include <common>', `#include <common>
       uniform vec3 stoneInk;
