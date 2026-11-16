@@ -65,6 +65,16 @@ class MoleTimingSignalsTests {
     }
 
     @Test
+    void 두더지의_한_구간이_불규칙해도_두_구간의_반응이_일정하면_기록한다() {
+        var moles = moles(30);
+        var signals = MoleTimingSignals.mole(moles, hits(moles, id -> id < 60 ? 250 + id % 3 : 250 + id % 5 * 30));
+
+        assertThat(signals.segments().getLast().spreadMs()).isGreaterThan(MoleTimingSignals.STEADY_REACTION_MS);
+        assertThat(signals.fastReaction()).isFalse();
+        assertThat(signals.steady()).isTrue();
+    }
+
+    @Test
     void 반응_중앙값이_150ms보다_짧으면_초고속_반응으로_적발한다() {
         var random = new SplittableRandom(11);
         var moles = moles(30);
@@ -147,5 +157,20 @@ class MoleTimingSignalsTests {
             oneSegment.add(n * 300);
         }
         assertThat(MoleTimingSignals.speed(List.of(), oneSegment).steady()).isFalse();
+    }
+
+    @Test
+    void 스피드_두더지의_한_구간이_불규칙해도_두_구간의_타격이_일정하면_기록한다() {
+        var taps = new ArrayList<Integer>();
+        for (int at = 0, n = 0; at < 60_000; n++) {
+            taps.add(at);
+            at += at < 40_000 ? 250 : 200 + n % 5 * 30;
+        }
+
+        var signals = MoleTimingSignals.speed(List.of(), taps);
+
+        assertThat(signals.segments().getLast().spreadMs()).isGreaterThan(MoleTimingSignals.STEADY_INTERVAL_MS);
+        assertThat(signals.fastReaction()).isFalse();
+        assertThat(signals.steady()).isTrue();
     }
 }

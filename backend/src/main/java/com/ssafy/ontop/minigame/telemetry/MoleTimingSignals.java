@@ -109,11 +109,11 @@ public final class MoleTimingSignals {
         return new Signals(reactions.size(), median, segments, fast, steady);
     }
 
-    /** 표본이 충분한 구간이 둘 이상이고, 그 구간이 모두 기준보다 덜 흔들린다. */
+    /** 표본이 충분하고 기준보다 덜 흔들리는 구간이 둘 이상이면 신호를 남긴다. */
     static boolean steady(List<Segment> segments, int minSamples, int thresholdMs) {
-        var measured = segments.stream().filter(segment -> segment.samples() >= minSamples).toList();
-        return measured.size() >= MIN_STEADY_SEGMENTS
-                && measured.stream().allMatch(segment -> segment.spreadMs() < thresholdMs);
+        return segments.stream()
+                .filter(segment -> segment.samples() >= minSamples && segment.spreadMs() < thresholdMs)
+                .count() >= MIN_STEADY_SEGMENTS;
     }
 
     private static Segment segment(List<Integer> values) {

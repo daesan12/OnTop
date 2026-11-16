@@ -50,7 +50,7 @@ export function MoleTimingPanel({ game, onAuthEnded, onOpen }: {
     <p>최근 30일 동안 판을 끝낼 때 아래 타이밍 신호가 기록된 회원입니다. 두더지가 나온 시각은 서버가 다시 계산한 값입니다. 운영 검토용 신호이며 자동 제재는 적용되지 않습니다.</p>
     <ul className="admin-mole-timing-criteria">
       <li><strong>초고속 반응</strong> 두더지가 나온 뒤 처음 친 반응 시간의 판 전체 중앙값이 {moleTimingCriteria.fastMedianMs}ms 미만 ({moleTimingCriteria.fastMinReactions}건 이상{game === 'speed-mole' ? ', 처음 4마리 제외' : ''})</li>
-      <li><strong>{criteria.steadyLabel}</strong> {criteria.segmentSeconds}초 구간마다 {criteria.sample}을 재서, {criteria.minSamples}건 이상인 구간이 2개 이상이고 모두 흔들림이 {criteria.steadyMs}ms 미만</li>
+      <li><strong>{criteria.steadyLabel}</strong> {criteria.segmentSeconds}초 구간 중 {criteria.sample} 표본이 {criteria.minSamples}건 이상이고 흔들림이 {criteria.steadyMs}ms 미만인 구간이 2개 이상</li>
     </ul>
     <p>최근 조회 결과는 새로고침해도 최대 30초 동안 표시될 수 있습니다.</p>
     {loading && <p role="status">타이밍 기록을 확인하고 있어요…</p>}
