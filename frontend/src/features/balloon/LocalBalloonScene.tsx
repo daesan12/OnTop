@@ -102,14 +102,13 @@ export default function LocalBalloonScene() {
   useFrame((_, delta) => {
     const input = held.current
     const side = Number(input.has('KeyD') || input.has('ArrowRight')) - Number(input.has('KeyA') || input.has('ArrowLeft'))
-    const back = Number(input.has('KeyS') || input.has('ArrowDown')) - Number(input.has('KeyW') || input.has('ArrowUp'))
-    const inside = useLocalBalloon.getState().walkingInside
-    const aim = inside ? cameraRelativeMove(-back, side, cabinCamera.yaw, false, false, steering.current) : null
+    const forward = Number(input.has('KeyW') || input.has('ArrowUp')) - Number(input.has('KeyS') || input.has('ArrowDown'))
+    const aim = cameraRelativeMove(forward, side, cabinCamera.yaw, false, false, steering.current)
     const flightInput = tickLocalBalloon({
-      x: side,
-      z: back,
+      x: aim.dx,
+      z: aim.dz,
       lift: Number(input.has('Space')) - Number(input.has('ShiftLeft') || input.has('ShiftRight')),
-    }, delta, aim ? { x: aim.dx, z: aim.dz, lift: 0 } : undefined)
+    }, delta)
     const { owner, leader, flight } = useLocalBalloon.getState()
     cabinInput.current.pilot = leader
     cabinInput.current.input = flightInput ?? stoppedFlightInput
