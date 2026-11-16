@@ -4,6 +4,7 @@ import { openBoatChooser } from '../duckBoat/model'
 import { authoritativePose, avatars, useSession } from '../../network/worldClient'
 import { parkRuntime } from '../../park/runtime/runtime'
 import { openLocalBalloon } from '../balloon/localRide'
+import { hasPassedBalloonGate } from '../balloon/wayfinding'
 import { BALLOON_RIDE_ENABLED } from '../../park/mapSelection'
 import { viewControls } from '../../world/cameraPerspective'
 import { tableBusy, useGame } from '../../game/store'
@@ -40,7 +41,7 @@ import { tableEntry } from '../tableLobby/tableEntry'
 import { useTableLobby } from '../tableLobby/state'
 import { STONE_RUMBLE_ANCHOR_ID } from '../../game/stone-rumble/entrance'
 import { STONE_RUMBLE_GUIDE_ID, stoneRumbleStelePosition } from '../../game/stone-rumble/entranceStele'
-import { openManual } from '../manual/manualState'
+import { openStoneRumbleGuide, stoneRumbleGuideScope } from '../../game/stone-rumble/guideState'
 import { STONE_RUMBLE_ENABLED } from '../tableLobby/model'
 import { canReachTable } from '../tableLobby/tableReach'
 import { GENERATED_PARK_ENABLED, JUMPMAP_ENABLED, RENEWAL_PARK_ENABLED } from '../../park/mapSelection'
@@ -144,6 +145,7 @@ export function getParkInteraction(preferredGuide?: typeof STONE_RUMBLE_GUIDE_ID
     // backend runtime capability below, not by the legacy construction marker.
     if(site.id===PARK_GACHA_MACHINE.id || RENEWAL_PARK_ENABLED && site.id.startsWith('mobility-'))continue
     if(!canReachConstruction(p.current,site.id))continue
+    if(site.id==='balloon'&&BALLOON_RIDE_ENABLED&&!hasPassedBalloonGate(p.current.z,site.position[2]))continue
     const [x,y,z]=site.reachPosition,distance=Math.hypot(p.current.x-x,p.current.z-z)
     // The deployed 220m map still classifies this anchor as construction.
     if (renewalMap && site.id === 'shooting') {
@@ -268,7 +270,7 @@ export function interactWithPark(expectedId?: string): boolean {
     return !!pose && interiorVisit.addDiamond(visitScope(sessionId, roomId), pose)
   }
   if (target.kind === 'avatar-pickup' || target.kind === 'avatar-throw') interactWithAvatar(target.kind, target.id)
-  else if (target.kind === 'stone-rumble-guide') openManual('stone-rumble')
+  else if (target.kind === 'stone-rumble-guide') openStoneRumbleGuide(stoneRumbleGuideScope(useSession.getState()))
   else if (target.kind === 'jumpmap-guide') openJumpmapGuide(jumpmapGuideScope(useSession.getState()))
   else if (target.kind === 'ranking-board') openRankingBoard()
   else if (target.kind === 'joke-judge') openJokeContest()

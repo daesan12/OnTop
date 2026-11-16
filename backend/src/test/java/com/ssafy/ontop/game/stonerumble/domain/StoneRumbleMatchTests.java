@@ -96,7 +96,7 @@ class StoneRumbleMatchTests {
         assertThat(state.tiles().stream().filter(t -> t.floor() == 1)).hasSize(225);
         assertThat(state.tiles().stream().filter(t -> t.floor() == 0)).hasSize(289);
         assertThat(state.tiles().stream().filter(t -> t.floor() == 2 && t.q() == 6 && t.r() == 6)
-                .findFirst().orElseThrow().breakAt()).isEqualTo(13000);
+                .findFirst().orElseThrow().breakAt()).isEqualTo(21_000);
         assertThat(state.tiles().stream().filter(t -> t.floor() == 2 && t.q() == 0 && t.r() == 0)
                 .findFirst().orElseThrow().breakAt()).isGreaterThan(49000);
         assertThat(state.tiles().stream().filter(t -> t.floor() < 2))

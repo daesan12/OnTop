@@ -48,6 +48,23 @@ class MoleAuditServiceTests {
     }
 
     @Test
+    void 타이밍_적발도_게임별로_30초_동안_같은_집계를_재사용한다() {
+        Instant expiresAt = QUERY_TIME.plusSeconds(30);
+        when(store.timingDetections(MoleAuditGame.SPEED, QUERY_TIME.minus(WINDOW), QUERY_TIME, 100))
+                .thenReturn(List.of());
+        when(store.timingDetections(MoleAuditGame.SPEED, expiresAt.minus(WINDOW), expiresAt, 100))
+                .thenReturn(List.of());
+
+        var speed = service.timingDetections(MoleAuditGame.SPEED, QUERY_TIME);
+        assertThat(service.timingDetections(MoleAuditGame.SPEED, expiresAt.minusNanos(1))).isSameAs(speed);
+        assertThat(service.timingDetections(MoleAuditGame.SPEED, expiresAt).until()).isEqualTo(expiresAt);
+        assertThat(speed.limit()).isEqualTo(100);
+        verify(store).timingDetections(MoleAuditGame.SPEED, QUERY_TIME.minus(WINDOW), QUERY_TIME, 100);
+        verify(store).timingDetections(MoleAuditGame.SPEED, expiresAt.minus(WINDOW), expiresAt, 100);
+        verifyNoMoreInteractions(store);
+    }
+
+    @Test
     void DB_조회가_실패하면_다음_요청이_다시_조회한다() {
         when(store.detections(MoleAuditGame.MOLE, QUERY_TIME.minus(WINDOW), QUERY_TIME, 100))
                 .thenThrow(new DataAccessResourceFailureException("DB unavailable"))

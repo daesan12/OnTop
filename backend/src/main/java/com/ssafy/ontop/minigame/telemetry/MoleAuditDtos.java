@@ -53,8 +53,24 @@ public final class MoleAuditDtos {
                              Distribution first, Distribution rapid) {
     }
 
+    /** 판 확정 때 남긴 타이밍 신호. 기능 배포 전 판이나 확정되지 않은 판에는 없다. */
+    @Schema(name = "MoleAuditTiming")
+    public record Timing(int reactions, Integer medianReactionMs, List<MoleTimingSignals.Segment> segments,
+                         boolean fastReaction, boolean steady, Instant recordedAt) {
+    }
+
     @Schema(name = "MoleAuditDetail")
     public record Detail(Round selected, String nickname, boolean withdrawn, List<Entry> timeline,
-                         List<Round> recent, Comparison member, Comparison reference) {
+                         List<Round> recent, Comparison member, Comparison reference, Timing timing) {
+    }
+
+    @Schema(name = "MoleTimingMember")
+    public record TimingMember(String userId, String nickname, boolean withdrawn, int flaggedRounds, int fastRounds,
+                               int steadyRounds, int auditedRounds, Integer lowestMedianReactionMs,
+                               String latestRoundId, Instant lastDetectedAt) {
+    }
+
+    @Schema(name = "MoleTimingDetections")
+    public record TimingDetections(List<TimingMember> items, Instant from, Instant until, int limit) {
     }
 }

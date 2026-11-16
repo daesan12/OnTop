@@ -14,6 +14,8 @@ public final class SpeedMoleRules {
         }
     }
     public record Score(int score, int hits, int misses) { }
+    /** 적중마다 맞힌 두더지가 나온 시각(처음 4마리는 -1)과 친 시각을 받는다. 판정에는 쓰지 않는다. */
+    public interface HitListener { void hit(int appearedAt, int at); }
     private long state;
     private SpeedMoleRules(long seed) { state = seed & 0xffffffffL; }
     private int pick(int length) {
@@ -21,11 +23,15 @@ public final class SpeedMoleRules {
         return (int) (state * length / 4294967296L);
     }
     public static Score replay(long seed, List<Tap> taps) {
+        return replay(seed, taps, (appearedAt, at) -> { });
+    }
+    public static Score replay(long seed, List<Tap> taps, HitListener listener) {
         requireTapCount(taps);
         var random = new SpeedMoleRules(seed);
         var available = new ArrayList<>(List.of(0, 1, 2, 3, 4, 5, 6, 7));
         var targets = new ArrayList<Integer>();
         for (int n = 0; n < 4; n++) targets.add(available.remove(random.pick(available.size())));
+        int[] appeared = {-1, -1, -1, -1};
         int score = 0, hits = 0, misses = 0, previous = -1;
         for (Tap tap : taps) {
             if (tap == null || tap.hole < 0 || tap.hole > 7 || tap.at < previous
@@ -36,6 +42,8 @@ public final class SpeedMoleRules {
             var empty = new ArrayList<Integer>();
             for (int h = 0; h < 8; h++) if (!targets.contains(h)) empty.add(h);
             targets.set(index, empty.get(random.pick(empty.size())));
+            listener.hit(appeared[index], tap.at);
+            appeared[index] = tap.at;
             score++; hits++;
         }
         return new Score(score, hits, misses);
