@@ -133,9 +133,27 @@ export function factory(kind,options={}){
  // The approved envelope has inward-facing panels. Keep the package intact and
  // show both sides on this local instance so its exterior remains visible.
  if(kind==='balloon'){
- const floor=new Mesh(new CylinderGeometry(1.69,1.69,.07,12),new MeshLambertMaterial({color:'#b5844e'}));floor.position.y=.39;floor.name='solid-timber-passenger-floor';group.add(floor)
- for(const z of[-1.2,-.6,0,.6,1.2]){const length=2*Math.sqrt(1.68**2-z*z),seam=new Mesh(new BoxGeometry(length,.008,.018),new MeshLambertMaterial({color:'#855b35'}));seam.position.set(0,.428,z);group.add(seam)}
- for(let i=1;i<=4;i++){const p=group.getObjectByName('passenger-slot-'+i);if(p)p.position.y=.425}group.userData.cabin={...group.userData.cabin,floorY:.425}
+  const baseFloorY=.425,floorY=options.cabinFloorY??baseFloorY
+  const raised=floorY>baseFloorY
+  const radius=raised?1.77:1.69,thickness=raised?floorY-baseFloorY:.07
+  const floor=new Mesh(new CylinderGeometry(radius,radius,thickness,12),new MeshLambertMaterial({color:'#b5844e'}))
+  floor.position.y=floorY-thickness/2
+  floor.name='solid-timber-passenger-floor'
+  floor.receiveShadow=raised
+  group.add(floor)
+  for(const z of[-1.2,-.6,0,.6,1.2]){
+   const length=2*Math.sqrt(1.68**2-z*z)
+   const seam=new Mesh(new BoxGeometry(length,.008,.018),new MeshLambertMaterial({color:'#855b35'}))
+   seam.position.set(0,floorY+.003,z)
+   seam.name='passenger-floor-seam'
+   seam.receiveShadow=raised
+   group.add(seam)
+  }
+  for(let i=1;i<=4;i++){
+   const slot=group.getObjectByName('passenger-slot-'+i)
+   if(slot)slot.position.y=floorY
+  }
+  group.userData.cabin={...group.userData.cabin,floorY}
  }
  if(kind==='balloon')group.traverse(o=>{if(o.isMesh)for(const m of Array.isArray(o.material)?o.material:[o.material])m.side=2})
  return group
