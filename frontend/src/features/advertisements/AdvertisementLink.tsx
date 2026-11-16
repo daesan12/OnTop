@@ -89,7 +89,7 @@ const advertisements = [
       '마음에 드는 제품을 고르고 전체 예산도 확인할 수 있어요.',
     ],
     image: deroPreview,
-    alt: '노란 후드티를 입은 캐릭터가 DERO의 3D 화면에서 책상과 의자를 배치하는 모습. 3D 배치, 제품 탐색, 예산 확인 안내.',
+    alt: '두 온탑 캐릭터가 DERO의 3D 화면에서 책상과 의자를 배치하는 모습. 3D 배치, 제품 탐색, 예산 확인 안내.',
     artworkMat: 'gold',
     detailPoster: deroPoster,
     link: 'https://www.dero.life/',
