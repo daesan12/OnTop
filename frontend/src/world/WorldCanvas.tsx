@@ -30,8 +30,13 @@ import { ParkPigeons } from './pigeons/ParkPigeons'
 import { NightLighting } from './NightLighting'
 import { BoardFocusLighting } from './boardFocusLighting'
 import { CameraRig } from './CameraRig'
-import { ParkXRBridge } from '../features/parkXR/ParkXRBridge'
 import { parkXRView } from './xrView'
+const ParkXRBridge = lazy(() => import('../features/parkXR/ParkXRBridge')
+  .then(({ ParkXRBridge }) => ({ default: ParkXRBridge }))
+  .catch((error: unknown) => {
+    console.warn('[park-xr] Could not load immersive controls', error)
+    return { default: () => null }
+  }))
 
 import { Avatars } from './Avatars'
 import {JokeJudgeActor} from '../features/ai/JokeJudgeActor'
@@ -267,7 +272,8 @@ export const WorldCanvas = memo(function WorldCanvas({
       >
         <AvatarPoseFrame>
           {BALLOON_RIDE_ENABLED && <Suspense fallback={null}><LocalBalloonScene /></Suspense>}
-          <ParkXRBridge />
+          {/* The gate frame doesn't need controller meshes, guides or VR game panels. */}
+          {entryPresented && <Suspense fallback={null}><ParkXRBridge /></Suspense>}
           <group name={RENEWAL_PARK_ENABLED ? 'renewal-exterior-lighting' : 'park-exterior-lighting'}>
             <EnvironmentScene matchServiceBrightness={RENEWAL_PARK_ENABLED} />
             <ParkSun quality={quality} serviceNightLight={RENEWAL_PARK_ENABLED || undefined} />

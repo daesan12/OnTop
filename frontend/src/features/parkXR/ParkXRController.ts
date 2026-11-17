@@ -42,6 +42,7 @@ export class ParkXRController {
   private session: XRSession | null = null
   private referenceSpace: XRReferenceSpace | null = null
   private disposed = false
+  private starting = false
   private ending = false
   private scope = ''
   private started = false
@@ -129,7 +130,8 @@ export class ParkXRController {
   }
 
   private async begin(kind: XRMode): Promise<void> {
-    if (this.disposed || useParkXR.getState().phase !== 'idle') return
+    const { phase, ready } = useParkXR.getState()
+    if (this.disposed || this.starting || phase !== 'idle' || !ready) return
     const own = avatars.get(useSession.getState().sessionId)
     if (!own?.connected || own.carry || own.vehicle || useMobility.getState().phase !== 'idle') {
       useParkXR.setState({ error: '다른 행동을 마친 뒤 공원에 연결된 상태에서 VR을 시작해 주세요.' }); return
@@ -150,21 +152,19 @@ export class ParkXRController {
       useParkXR.setState({ error: '현재 실행 중인 VR 화면을 종료한 뒤 다시 시작해 주세요.' }); return
     }
     this.scope = this.currentScope()
+    this.starting = true
     clearRoamingInput(); this.movement.reset(); parkXRView.ownsInput = true
     useParkXR.setState({ phase: 'requesting', mode: kind, error: '', notice: '' })
     let granted: XRSession | null = null
     try {
       // Preserve user activation: request the immersive session before any other await.
       granted = await navigator.xr.requestSession('immersive-vr', { requiredFeatures: ['local-floor'] })
-      // A confirmed game seat already blocks carry; the server rejects world-presence changes during a match.
-      const release = kind === 'omok' ? undefined : await acquireVRProtection(parkRuntime)
       const current = avatars.get(useSession.getState().sessionId)
       if (this.disposed || this.currentScope() !== this.scope || !this.canKeepSession()
         || !current?.connected || current.carry || current.vehicle || useMobility.getState().phase !== 'idle'
         || kind === 'jumpmap' && (!canStartJumpmapXR(current.current) || current.swimming || !useJumpmap.getState().available)) {
-        release?.(); await granted.end(); return
+        await granted.end(); return
       }
-      this.releaseVR = release
       if (kind === 'omok') this.omok ??= new OmokXR(this.headAnchor, this.scene)
       else {
         this.telescope ??= new TelescopeXR(this.scene, this.headAnchor)
@@ -179,19 +179,37 @@ export class ParkXRController {
       this.saved.projection.copy(this.camera.projectionMatrix); this.saved.inverse.copy(this.camera.projectionMatrixInverse)
       this.yaw = viewControls.yaw; this.offset.set(0, 0, 0)
       this.heightCalibration.reset(); this.heightReady = false; this.heightRevision = this.heightRequestRevision = -1; this.stationaryAt = null
-      sampleAvatar(avatars.get(useSession.getState().sessionId)!, performance.now(), this.pose)
+      sampleAvatar(current, performance.now(), this.pose)
       this.rig.position.set(this.pose.x, this.pose.y - .8, this.pose.z); this.rig.rotation.set(0, this.yaw, 0)
+      parkXRView.position.copy(this.rig.position)
       this.rig.add(this.camera); this.rig.visible = true; this.headAnchor.visible = false; this.camera.layers.set(0)
       granted.addEventListener('end', this.finished)
       granted.addEventListener('visibilitychange', this.interrupted)
       granted.addEventListener('inputsourceschange', this.interrupted)
       this.gl.xr.enabled = true; this.gl.xr.setReferenceSpaceType('local-floor'); this.gl.xr.setFramebufferScaleFactor(.8)
+      const requested = granted
+      // A confirmed game seat already blocks carry. In the park, let the headset
+      // draw while the server confirms protection; leave gameplay locked meanwhile.
+      const protection = kind === 'omok' ? null : acquireVRProtection(parkRuntime).then(release => {
+        if (this.session === requested) this.releaseVR = release
+        else release()
+        return null
+      }, (error: unknown) => ({ error }))
       await this.gl.xr.setSession(granted)
       if (this.disposed || this.session !== granted) return
       this.gl.xr.setFoveation(1)
       this.referenceSpace = this.gl.xr.getReferenceSpace()
       this.referenceSpace?.addEventListener?.('reset', this.recentered)
       this.panel.inCourse = kind === 'jumpmap'; this.panel.reset(); this.panelKey = ''; parkXRView.active = true
+      const failure = await protection
+      if (this.disposed || this.session !== granted || this.ending) return
+      if (failure) throw failure.error
+      const protectedAvatar = avatars.get(useSession.getState().sessionId)
+      if (!this.canKeepSession() || !protectedAvatar?.connected || protectedAvatar.carry || protectedAvatar.vehicle
+        || useMobility.getState().phase !== 'idle'
+        || kind === 'jumpmap' && (!canStartJumpmapXR(protectedAvatar.current) || protectedAvatar.swimming || !useJumpmap.getState().available)) {
+        await this.end('공원 캐릭터 상태가 바뀌었어요. 확인한 뒤 VR을 다시 시작해 주세요.'); return
+      }
       if (kind === 'jumpmap') jumpmapXRFeedback.start(granted)
       useParkXR.setState({ phase: 'active', notice: '왼쪽 스틱 이동 · A 점프 · 왼손 그립 달리기 · X 놀이 방법 · B VR 종료' })
     } catch (error) {
@@ -205,6 +223,7 @@ export class ParkXRController {
             : error instanceof Error ? error.message : 'VR 연결을 확인하지 못했어요.' })
       }
     } finally {
+      this.starting = false
       if (!this.session && !this.disposed) { parkXRView.ownsInput = false; useParkXR.setState({ phase: 'idle' }) }
     }
   }
@@ -215,8 +234,8 @@ export class ParkXRController {
     this.ending = true; this.movement.reset(); useParkXR.setState({ phase: 'ending', notice })
     try { await this.session.end() }
     catch {
-        this.ending = false
-      if (!this.disposed) useParkXR.setState({ phase: 'active', error: 'VR 종료 요청을 완료하지 못했어요. Meta 버튼으로 브라우저 메뉴를 열어 종료해 주세요.' })
+      this.ending = false
+      if (!this.disposed) useParkXR.setState({ phase: this.starting ? 'requesting' : 'active', error: 'VR 종료 요청을 완료하지 못했어요. Meta 버튼으로 브라우저 메뉴를 열어 종료해 주세요.' })
     }
   }
   showGuide = () => {
@@ -335,6 +354,16 @@ export class ParkXRController {
     }
     this.direction.set(0, 0, -1).applyQuaternion(this.rotation).applyQuaternion(this.rig.quaternion)
     if (Math.hypot(this.direction.x, this.direction.z) > .01) this.headYaw = Math.atan2(-this.direction.x, -this.direction.z)
+    if (this.starting || useParkXR.getState().phase === 'requesting') {
+      const avatar = avatars.get(useSession.getState().sessionId)
+      if (!avatar?.connected || avatar.carry || avatar.vehicle) { void this.end('공원 캐릭터 연결을 다시 확인해 주세요.'); return }
+      sampleAvatar(avatar, now, this.pose)
+      this.heightCalibration.calibrate(this.head.y, useXRComfort.getState().settings)
+      this.rig.position.set(this.pose.x - this.offset.x, this.pose.y - .8 + this.heightCalibration.offset, this.pose.z - this.offset.z)
+      this.applyViewerPose()
+      this.rig.updateMatrixWorld(true)
+      return
+    }
     const input = readXRInput(session.inputSources)
     let exit = false, guide = false, chat = false, trigger = false, telescopeTilt = 0
     for (const source of session.inputSources) {
@@ -471,8 +500,7 @@ export class ParkXRController {
     }
     viewControls.yaw = this.headYaw
     this.rig.position.set(feet.x - this.offset.x, floorY + this.heightCalibration.offset, feet.z - this.offset.z)
-    parkXRView.position.copy(this.head).applyQuaternion(this.rig.quaternion).add(this.rig.position)
-    this.camera.position.copy(this.head); this.camera.quaternion.copy(this.rotation)
+    this.applyViewerPose()
     this.headAnchor.position.copy(this.head); this.headAnchor.quaternion.copy(this.rotation); this.headAnchor.visible = true
     this.rig.updateMatrixWorld(true)
     if (playingOmok || usingTelescope) this.names.hide(now)
@@ -556,6 +584,11 @@ export class ParkXRController {
     this.telescope?.setHover(telescopeHovered)
     this.balloon?.setHover(balloonHovered)
     this.mobility?.select(rentalSelection, rentalStarted, now)
+  }
+
+  private applyViewerPose(): void {
+    parkXRView.position.copy(this.head).applyQuaternion(this.rig.quaternion).add(this.rig.position)
+    this.camera.position.copy(this.head); this.camera.quaternion.copy(this.rotation)
   }
 
   dispose(): void {

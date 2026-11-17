@@ -21,6 +21,8 @@ const viewerRotation = new Quaternion()
 let turnSamples: number[] = []
 let tracked = true
 let viewerHeight = 1.65
+let presentedFrames = 0
+export const xrPresentedFrames = () => presentedFrames
 export function height(value: number) { viewerHeight = value }
 const feedbackPulses: { hand: string; strength: number; duration: number }[] = []
 let feedbackResets = 0
@@ -115,6 +117,12 @@ export function install(options: { haptics?: boolean; frameStep?: number } = {})
     }, reset: async () => { feedbackResets++; return 'complete' } }] : [],
     buttons: Array.from({ length: 6 }, () => ({ pressed: false, touched: false, value: 0 })) }) as unknown as Gamepad
   let current: XRSession | null = null
+  presentedFrames = 0
+  const draw = state.gl.render.bind(state.gl)
+  state.gl.render = (scene, camera) => {
+    draw(scene, camera)
+    if (current && parkXRView.active && camera.parent?.name === 'park-xr-rig') presentedFrames++
+  }
   // Exercise our bridge and the real park intent/socket path while keeping desktop WebGL rendering.
   state.gl.xr.setSession = async value => { current = value }
   state.gl.xr.getSession = () => current
