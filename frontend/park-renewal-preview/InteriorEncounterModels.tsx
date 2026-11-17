@@ -1,12 +1,12 @@
 import type { ReactNode } from 'react'
-import { CircleGeometry, Euler, PlaneGeometry, Quaternion, Shape as Outline, ShapeGeometry, SphereGeometry, Vector3, type BufferGeometry } from 'three'
+import { AdditiveBlending, CircleGeometry, Euler, PlaneGeometry, Quaternion, Shape as Outline, ShapeGeometry, SphereGeometry, Vector3, type BufferGeometry } from 'three'
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
 import { encounterFinishes, type Finish } from './interiorEncounterMaterials'
 import {
   EYE_DIRS, MOUTH_DIR, aim, cached, facePoint, furGeometry, hairGeometry, handGeometry, headGeometry, hoodGeometry,
   limbGeometry, lumpGeometry, tatteredGeometry, teethGeometry, type FaceKind, type HandStyle, type V,
 } from './encounterSculpt'
-import { footprintTexture, irisTexture, sackTexture, scleraTexture, shadowTexture } from './encounterTextures'
+import { footprintTexture, irisTexture, sackTexture, scleraTexture, shadowTexture, wallLightTexture } from './encounterTextures'
 import { TripoEncounter } from './TripoEncounter'
 
 // The twelve underground encounters (InteriorEncounters animates them by these group names; keep them).
@@ -228,7 +228,7 @@ export const encounterModels: Record<number, ReactNode> = {
       {[.36,1.7].flatMap(y => [-.82,-.6,-.3,-.08].map(x => <mesh key={x + ',' + y} position={[x,y,.12]}><sphereGeometry args={[.022,8,6]} /><Surface color="#4b3a30" finish="metal" /></mesh>))}
       {[0,1,2,3].map(i => <Rod key={'s' + i} from={[-.66 + i * .06, 1.35 - i * .04, .085]} to={[-.5 + i * .06, .95 - i * .05, .085]} width={.006} color="#c9b493" finish="wood" />)}
     </group>
-    <group name="door-beast"><TripoEncounter id={4} glow={.3} fallback={<>
+    <group name="door-beast"><TripoEncounter id={4} glow={.12} fallback={<>
       <Geo geometry={lumpGeometry('beast', .12, .06)} color="#3b2a25" finish="flesh" at={[0, .82, -.1]} scale={[.5, .38, .62]} glow={.02} />
       <Geo geometry={furGeometry('beast', [.5, .38, .62], 140, .17)} color="#1d1515" finish="hair" at={[0, .82, -.1]} />
       <Limb id="beast-neck" points={[[0, .93, .32], [0, .96, .56]]} radii={[.17, .14]} color="#3b2a25" finish="flesh" />
@@ -257,9 +257,13 @@ export const encounterModels: Record<number, ReactNode> = {
   </>,
   // 6. Your shadow on the wall is not yours: it grows, cocks its head and lifts arms that end in too many fingers.
   6: <>
-    <Shape at={[0,1.0,-.09]} size={[1.46,1.95,.05]} color="#5d5745" />
+    <group name="shadow-board"><Shape at={[0,1.3,-.25]} size={[2.3,2.6,.36]} color="#5a5a52" finish="stone" /></group>
+    <mesh name="shadow-light" position={[0, 1.05, -.066]} scale={[1.6, 2.4, 1]} renderOrder={1}>
+      <planeGeometry args={[1, 1]} />
+      <meshBasicMaterial map={wallLightTexture()} transparent depthWrite={false} blending={AdditiveBlending} toneMapped={false} polygonOffset polygonOffsetFactor={-1} />
+    </mesh>
     <group name="wall-shadow">
-      <mesh geometry={shadowPlane()} position={[0, 1, -.062]} dispose={null}>
+      <mesh geometry={shadowPlane()} position={[0, 1, -.062]} dispose={null} renderOrder={2}>
         <meshBasicMaterial map={shadowTexture()} transparent depthWrite={false} polygonOffset polygonOffsetFactor={-2} />
       </mesh>
       {[.045, .085].map(x => <mesh key={x} position={[x, 1.6, -.058]}><sphereGeometry args={[.009, 8, 6]} /><Glow color="#ff5a36" /></mesh>)}

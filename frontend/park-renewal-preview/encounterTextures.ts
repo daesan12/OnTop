@@ -73,6 +73,13 @@ export const shadowTexture = () => canvas('shadow', 256, 512, g => {
   }
 })
 
+/** A pool of warm lamplight on the wall, for the shadow to stand in (a shadow on an unlit wall is invisible). */
+export const wallLightTexture = () => canvas('wall-light', 256, 256, g => {
+  const grad = g.createRadialGradient(128, 118, 8, 128, 128, 128)
+  grad.addColorStop(0, 'rgba(255,214,160,.9)'); grad.addColorStop(.45, 'rgba(230,170,110,.55)'); grad.addColorStop(1, 'rgba(120,80,40,0)')
+  g.fillStyle = grad; g.fillRect(0, 0, 256, 256)
+})
+
 /** Coarse sackcloth with a stitched seam (for the lift passenger's hood). */
 export const sackTexture = () => canvas('sack', 256, 256, g => {
   g.fillStyle = '#6b5d45'; g.fillRect(0, 0, 256, 256)

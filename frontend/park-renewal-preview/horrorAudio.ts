@@ -236,14 +236,45 @@ export function playEncounterLunge(ctx: Ctx, bus: AudioNode, duration: number) {
 
 // ---------- the other scare styles (encounterStaging.StageStyle) ----------
 /** No warning: a scream at full force right in your face, a crack and a boom that rings on in the dark. */
-export function playJumpScare(ctx: Ctx, bus: AudioNode) {
+export function playJumpScare(ctx: Ctx, bus: AudioNode, voice: 'scream' | 'roar' = 'scream') {
   const o = output(ctx, bus), now = ctx.currentTime + .005
-  const real = clip(o, any('scream-a', 'scream-b'), now, { gain: 1, rate: .85 + Math.random() * .2, wet: .2 })
-  clip(o, any('roar-a', 'roar-low', 'snarl-a'), now, { gain: .7, rate: .75 + Math.random() * .15, wet: .25 })
+  // A beast roars instead of screaming: two roars stacked, one an octave down.
+  const real = voice === 'roar'
+    ? clip(o, 'roar-a', now, { gain: 1, rate: .9, wet: .2 }) && clip(o, 'roar-low', now, { gain: .9, rate: .6, wet: .2 })
+    : clip(o, any('scream-a', 'scream-b'), now, { gain: 1, rate: .85 + Math.random() * .2, wet: .2 })
+  clip(o, voice === 'roar' ? 'snarl-a' : any('roar-a', 'roar-low', 'snarl-a'), now, { gain: .7, rate: .75 + Math.random() * .15, wet: .25 })
   clip(o, any('hit-low', 'hit-deep', 'hit-mid'), now, { gain: .9, wet: .25, offset: .35, until: now + 2.2, fadeOut: 1.6 })
   noise(o, now, { type: 'highpass', freq: 300, gain: .7, attack: .002, release: .45, wet: .3 })
   thud(o, now, .9, 52)
-  if (!real) shriek(o, now, .7, .16)
+  if (!real && voice === 'roar') growl(o, now, .8, .3)
+  else if (!real) shriek(o, now, .7, .16)
+}
+/** The beast in its crouch: a low wet snarl, close, getting louder until it leaps. */
+export function playPounceCrouch(ctx: Ctx, bus: AudioNode, len: number) {
+  const o = output(ctx, bus), now = ctx.currentTime + .01
+  if (!clip(o, 'snarl-a', now, { gain: .55, rate: .62, wet: .15 })) growl(o, now, len, .14)
+  clip(o, 'growl-low', now + len * .45, { gain: .7, rate: .7, wet: .15 })
+  growl(o, now, len + .1, .07)
+}
+/** The runner coming flat out: bare feet slapping faster and louder, a scream rising as it closes. */
+export function playSprint(ctx: Ctx, bus: AudioNode, start: number, len: number) {
+  const o = output(ctx, bus), now = ctx.currentTime + .01
+  for (let t = 0, i = 0; t < len; i++) {
+    const near = Math.min(1, (t + .1) / len)
+    noise(o, now + start + t, { type: 'lowpass', freq: 600 + near * 2400, gain: .12 + near * .45, attack: .002, release: .07, pan: (i % 2 ? .15 : -.15), wet: .5 - near * .35 })
+    tone(o, now + start + t, { wave: 'sine', freq: 110, to: 60, gain: .06 + near * .25, attack: .002, release: .08, wet: .3 })
+    t += .2 - near * .08
+  }
+  if (!clip(o, any('scream-a', 'scream-b'), now + start + len - .55, { gain: .9, rate: .9, wet: .2, fadeIn: .25 })) shriek(o, now + start + len - .5, .6, .14)
+  clip(o, any('hit-low', 'hit-deep'), now + start + len - .1, { gain: .9, offset: .35, until: now + start + len + 1.8, fadeOut: 1.4, wet: .25 })
+  thud(o, now + start + len, .9, 52)
+}
+/** The statue has moved: stone grinding on stone, and the floor takes its weight. */
+export function playStoneStep(ctx: Ctx, bus: AudioNode, near: number) {
+  const o = output(ctx, bus), now = ctx.currentTime + .005
+  scrape(o, now, .35 + near * .2, 0, .3 + near * .3)
+  noise(o, now, { type: 'lowpass', freq: 260, to: 90, gain: .25 + near * .3, attack: .01, release: .4, wet: .4 })
+  thud(o, now + .3, .35 + near * .4, 48)
 }
 /** The false alarm: stutter, drone and heartbeat as usual… then silence, cut dead, and the lamps clunk back on. */
 export function playFakeout(ctx: Ctx, bus: AudioNode, calm: number) {

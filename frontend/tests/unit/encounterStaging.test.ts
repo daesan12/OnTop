@@ -48,7 +48,45 @@ describe('underground encounter staging (S15P31B105-450)', () => {
       seen.add(style); last = style
     }
     expect([...seen].sort()).toEqual([...STAGE_STYLES].sort())
-    for (const id of [1, 4, 5, 6, 8, 11, 12]) expect(stylesFor(id)).toEqual(['pop', 'fakeout', 'reveal'])
+    for (const id of [1, 5, 8, 11, 12]) expect(stylesFor(id)).toEqual(['pop', 'fakeout', 'reveal'])
+  })
+
+  it('gives the statue, the beast, the shadow and the runner a scare of their own', () => {
+    expect(stylesFor(2)).toEqual(['statue'])
+    expect(stylesFor(4)).toEqual(['pounce'])
+    expect(stylesFor(6)).not.toContain('pop')
+    expect(stylesFor(7)).toContain('sprint')
+    // A creature with one way to happen still gets it after another creature used it.
+    expect(pickStyle(4, 'pounce')).toBe('pounce')
+  })
+
+  it('pounce: crouched a few steps off, then a leap that ends at your face', () => {
+    const plan = stagePlan('pounce', 3600)
+    expect(standDistance(plan, 4, 0)).toBeGreaterThan(3.5)
+    const crouch = styleFrame(plan, 4, plan.rush / 2, 4.2)
+    expect(crouch).toMatchObject({ visible: true, advance: 0 })
+    expect(crouch.rise).toBeLessThan(0)
+    const mid = styleFrame(plan, 4, (plan.rush + plan.dark) / 2, 4.2)
+    expect(mid.rise).toBeGreaterThan(0)
+    expect(styleFrame(plan, 4, plan.dark - .001, 4.2).advance).toBeCloseTo(3.4, 1)
+  })
+
+  it('sprint: from the far end of the hall at a steady run', () => {
+    const plan = stagePlan('sprint', 3600)
+    expect(standDistance(plan, 7, 0)).toBeGreaterThan(10)
+    const a = styleFrame(plan, 7, plan.rush + (plan.dark - plan.rush) * .25, 12)
+    const b = styleFrame(plan, 7, plan.rush + (plan.dark - plan.rush) * .5, 12)
+    expect(b.advance / a.advance).toBeCloseTo(2, 1)
+  })
+
+  it('statue: closer at each blink and each look away, its face coming down to eye level', () => {
+    const plan = stagePlan('statue', 3600, () => .5)
+    expect(standDistance(plan, 2, 0, 6.5, 1)).toBeLessThan(standDistance(plan, 2, 0, 6.5, 0))
+    expect(standDistance(plan, 2, plan.jumps[0]! + .2, 6.5)).toBeLessThan(standDistance(plan, 2, 0, 6.5))
+    expect(styleFrame(plan, 2, plan.jumps[0]!, 6.5).visible).toBe(false)
+    const early = styleFrame(plan, 2, .5, 6.5).rise, late = styleFrame(plan, 2, plan.jumps[2]! + .2, 6.5).rise
+    expect(late).toBeLessThan(early)
+    expect(styleFrame(plan, 2, .5, 6.5).drag).toBe(0)
   })
 
   it('pops with no warning at all', () => {
