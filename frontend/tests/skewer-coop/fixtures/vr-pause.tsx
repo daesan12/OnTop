@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { Mesh, MeshBasicMaterial, Quaternion, Vector3, WebGLRenderer } from 'three'
-import type { Camera, Scene } from 'three'
+import type { Camera, Object3D, Scene } from 'three'
 import CoopHost from '../../../src/features/skewer/coop/CoopHost'
 import { ChefPreview } from '../../../src/features/skewer/chef/model'
 import type { ChefAction } from '../../../src/features/skewer/chef/model'
@@ -12,8 +12,9 @@ import '../../../src/styles.css'
 
 // Actual host/page/scene, with test-only transport and WebXR session/pose adapters.
 const gameId = 'skewer-coop-00000000-0000-4000-8000-000000000001'
+const chefPreview = new ChefPreview()
 const state: CoopSnapshot = { gameId, version: 1, registered: true,
-  privateState: { role: 'chef', chef: new ChefPreview().view() },
+  privateState: { role: 'chef', chef: chefPreview.view() },
   publicState: { gameCode: 'SKEWER_COOP', phase: 'WAITING', channelId: 'park', actionVersion: 1,
     remaining: 240, elapsed: 0, countdown: 0, score: 432, served: 2, paused: false, chefVR: false,
     rankingEligible: true, entryFee: 0, rewardStatus: 'SERVER_SETTLEMENT', message: '', endReason: null,
@@ -42,6 +43,10 @@ const transport: CoopTransport = {
     if (type === 'GAME_ACTION_SEND') {
       calls.push(input.type === 'PAUSE' ? `PAUSE:${input.paused}` : input.type)
       if (input.type === 'THREAD' && failCooking) { failCooking = false; throw { code: 'GAME_ACTION_INVALID_ACTION' } }
+      if (input.type === 'SUBMIT') {
+        chefPreview.action({ type: 'submit' })
+        state.privateState.chef = chefPreview.view()
+      }
       if (input.type === 'GREET') {
         if (hold) await new Promise<void>(resolve => { release = resolve })
         if (failGreeting) { failGreeting = false; throw new Error('일시 통신 오류') }
@@ -96,18 +101,24 @@ ChefScene.prototype.enterVR = async function () {
   }
   timer = setInterval(() => { clock = Math.max(clock + 40, performance.now()); renderFrame?.() }, 40)
 }
-async function select(action: string) {
-  await new Promise(resolve => setTimeout(resolve, 80)) // publish 이후 실제 Scene 프레임에 메뉴를 반영한다.
+function aimAt(target: Object3D, x = .25, y = 1.3) {
   if (!renderer || !scene) throw new Error('주방 준비 전')
-  let target: import('three').Object3D | undefined
-  scene.traverse(object => { if (object.userData.pick?.action === action) target = object })
-  if (!target) throw new Error(`선택 대상 없음: ${action}`)
   const controller = renderer.xr.getController(0)
-  controller.visible = true; controller.position.set(.25, 1.3, -.15)
+  controller.visible = true; controller.position.set(x, y, -.15)
   scene.updateMatrixWorld(true)
   const point = target.getWorldPosition(new Vector3()); controller.parent!.worldToLocal(point)
   controller.quaternion.setFromUnitVectors(new Vector3(0, 0, -1), point.sub(controller.position).normalize())
   controller.updateMatrix(); controller.updateWorldMatrix(true, true)
+  return controller
+}
+
+async function select(action: string) {
+  await new Promise(resolve => setTimeout(resolve, 80)) // publish 이후 실제 Scene 프레임에 메뉴를 반영한다.
+  if (!scene) throw new Error('주방 준비 전')
+  let target: Object3D | undefined
+  scene.traverse(object => { if (object.userData.pick?.action === action) target = object })
+  if (!target) throw new Error(`선택 대상 없음: ${action}`)
+  const controller = aimAt(target)
   const hit = (kitchen as unknown as { controllerHit(index: number): { object: import('three').Object3D } | undefined }).controllerHit(0)
   controller.dispatchEvent({ type: 'selectstart', data: right })
   return { pick: hit?.object.userData.pick, targetVisible: target.visible, parentVisible: target.parent?.visible }
@@ -115,14 +126,9 @@ async function select(action: string) {
 
 async function measureAssembly() {
   await new Promise(resolve => setTimeout(resolve, 80))
-  if (!renderer || !scene || !kitchen) throw new Error('주방 준비 전')
+  if (!kitchen) throw new Error('주방 준비 전')
   const assembly = kitchen as unknown as { skewer: import('three').Group; kitchen: import('three').Group; marker: Mesh<import('three').BufferGeometry, MeshBasicMaterial> }
-  const controller = renderer.xr.getController(0)
-  controller.visible = true; controller.position.set(-.25, 1.13, -.15)
-  const aim = assembly.skewer.getWorldPosition(new Vector3())
-  controller.parent!.worldToLocal(aim)
-  controller.quaternion.setFromUnitVectors(new Vector3(0, 0, -1), aim.sub(controller.position).normalize())
-  controller.updateMatrix(); controller.updateWorldMatrix(true, true)
+  const controller = aimAt(assembly.skewer, -.25, 1.13)
   const length = () => assembly.skewer.localToWorld(new Vector3(-1.51, 0, 0)).distanceTo(assembly.marker.getWorldPosition(new Vector3()))
   const restingLength = length()
   controller.dispatchEvent({ type: 'squeezestart', data: right })
@@ -132,11 +138,33 @@ async function measureAssembly() {
     counterHeight: assembly.kitchen.localToWorld(new Vector3(0, 1.02, 0)).y,
     markerOccluded: assembly.marker.material.depthTest, markerRenderOrder: assembly.marker.renderOrder }
 }
+
+function submitHolding(targetName: string) {
+  if (!scene || !kitchen) throw new Error('주방 준비 전')
+  const { skewer } = kitchen as unknown as { skewer: Object3D }
+  const target = scene.getObjectByName(targetName)
+  const hint = scene.getObjectByName('chef-submit-hint')
+  if (!target || !hint) throw new Error(`전달대 대상 없음: ${targetName}`)
+  renderFrame?.()
+  const hintVisible = hint.visible
+  const controller = aimAt(skewer, -.25, 1.13)
+  controller.dispatchEvent({ type: 'squeezestart', data: right })
+  const held = skewer.parent === controller
+  aimAt(target).dispatchEvent({ type: 'selectstart', data: right })
+  controller.dispatchEvent({ type: 'squeezeend', data: right })
+  return { held, hintVisible }
+}
 const showModal = HTMLDialogElement.prototype.showModal
 let modalCalls = 0
 HTMLDialogElement.prototype.showModal = function () { if (session) modalCalls++; showModal.call(this) }
 Reflect.set(window, 'vrPauseQA', {
   start: () => { state.publicState.phase = 'PLAYING'; publish() },
+  finishSkewer: () => {
+    for (const ingredient of chefPreview.view().visible[0].recipe) chefPreview.action({ type: 'thread', ingredient })
+    state.privateState.chef = chefPreview.view()
+    publish()
+  },
+  submitHolding,
   phase: (value: CoopSnapshot['publicState']['phase']) => { state.publicState.phase = value; publish() },
   finish: () => { Object.assign(state.publicState, { phase: 'FINISHED', paused: false, pausedBy: [], endReason: 'SKEWER_FORFEIT' }); publish() },
   // Scene 앞단의 허용 여부와 별개로 상위 입력이 Page 콜백에 직접 들어오는 경로를 검증한다.

@@ -29,6 +29,21 @@ test('로비에서 헤드셋을 바로 연결하고 VR 조리대에서 꼬치를
   expect(assembly.markerRenderOrder).toBeGreaterThan(0)
 })
 
+for (const target of ['chef-pass-sign', 'chef-submit-hint']) test(`협동 VR에서 꼬치를 쥔 손으로 ${target}에 접시를 제출한다`, async ({ page }) => {
+  await prepare(page)
+  await page.getByRole('button', { name: '헤드셋 연결하기', exact: true }).click()
+  const chef = page.getByTestId('chef-app')
+  await expect(chef).toHaveAttribute('data-xr', 'true')
+  await command(page, 'start')
+  await command(page, 'finishSkewer')
+  await expect(chef.locator('.chef-submit')).toHaveAttribute('data-ready', 'true')
+  const gesture = await page.evaluate(targetName => Reflect.get(window, 'vrPauseQA').submitHolding(targetName), target)
+  expect(gesture).toEqual({ held: true, hintVisible: true })
+  await expect(chef.locator('.chef-stage')).toHaveAttribute('data-pass-count', '1')
+  await expect(chef).toHaveAttribute('data-stack', '')
+  expect((await command(page, 'snapshot')).calls.filter((action: string) => action === 'SUBMIT')).toHaveLength(1)
+})
+
 for (const failure of ['failProtection', 'rejectSession']) test(`${failure} 실패 후 재연결하고 정상 종료해도 이전 오류가 남지 않는다`, async ({ page }) => {
   const errors: string[] = []
   page.on('pageerror', error => errors.push(error.message))

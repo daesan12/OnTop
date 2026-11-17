@@ -6,7 +6,7 @@ export const CHEF_VR_STEPS = [
   ['주문표 선택', '앞쪽 주문표를 가리키고 트리거를 눌러요.'],
   ['재료 집고 꽂기', '트리거를 누른 채 옮겨, 꼬치 끝의 고리가 초록색일 때 놓아요.'],
   ['그립으로 꼬치 잡기 · 고치기', '그립을 놓으면 제작대로 돌아와요. 끝 재료는 가리켜 트리거로 빼요.'],
-  ['완성 접시 제출', '오른쪽 전달대의 접시를 가리키고 트리거를 눌러요.'],
+  ['완성 접시 제출', '오른쪽 전달대나 제출 안내를 가리켜 트리거를 눌러요. 꼬치를 잡은 채로도 제출할 수 있어요.'],
 ] as const
 
 /** Existing kitchen artwork and cooking flow, with the same Touch diagram as the park. */
@@ -28,7 +28,7 @@ export function paintChefVRGuide(ctx: CanvasRenderingContext2D, image: HTMLImage
     ['주문표 선택', '1 주문표를 가리켜 트리거로 선택해요.'],
     ['재료 집고 꽂기', '1 누른 채 옮겨, 초록 고리에서 놓아요.'],
     ['꼬치 잡기 · 수정', '2 그립으로 잡아요. 1 끝 재료를 가리켜 빼요.'],
-    ['완성 접시 제출', '1 오른쪽 전달대 접시를 가리켜 눌러요.'],
+    ['완성 접시 제출', '1 오른쪽 전달대나 제출 안내를 가리켜 눌러요.'],
   ]
   steps.forEach(([title, detail], i) => {
     const x = 64 + i % 2 * 708, y = 762 + Math.floor(i / 2) * 97
