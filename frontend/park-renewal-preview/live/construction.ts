@@ -1,7 +1,7 @@
 import type { ParkMapData } from '../../src/map/park'
 import { facilityBase, facilityYaw } from '../facilityPlacement'
 import { groundSurfaceHeight } from '../groundSurface'
-import { BALLOON_DOOR_OFFSET_X, FACILITY_APPROACHES, FISHING_ACCESS, SITES, STATION_STAIRS, heightAt, site, type Point } from '../plan'
+import { FACILITY_APPROACHES, FISHING_ACCESS, SITES, STATION_STAIRS, heightAt, site, type Point } from '../plan'
 
 type ConstructionSite = ParkMapData['interactions']['construction'][number]
 
@@ -34,8 +34,8 @@ export function buildRenewalConstructionSites(): ConstructionSite[] {
     { ...notice('cafe', buildingFront('cafe', -4.25)), radius: 2.1 },
     notice('shooting', frontOfApproach('shooting')),
     notice('folk', frontOfApproach('folk'), '전통놀이존'),
-    { ...notice('balloon', [balloon.x + BALLOON_DOOR_OFFSET_X - .65, balloon.z], '열기구 승강장',
-      heightAt(balloon.x, balloon.z) + STATION_STAIRS.top), yaw: -Math.PI / 2, radius: 1.6 },
+    notice('balloon', [balloon.x, balloon.z + STATION_STAIRS.zTop - 2], '열기구 승강장',
+      heightAt(balloon.x, balloon.z) + STATION_STAIRS.top),
     notice('fishing', FISHING_ACCESS.points.at(-1)!, '호숫가 낚시터', FISHING_ACCESS.top),
     ...SITES.filter(facility => facility.asset === 'pair')
       .map(facility => notice(facility.id, frontOfApproach(facility.id))),

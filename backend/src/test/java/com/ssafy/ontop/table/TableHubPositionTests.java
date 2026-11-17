@@ -101,6 +101,7 @@ class TableHubPositionTests {
         var observer = peer(103);
         for (var peer : List.of(pilot, passenger, observer)) peer.request("CHANNEL_JOIN", Map.of("channelId", "one"));
         var at = registry.positionOf("101");
+        registry.move("102", at);
         var flights = balloonFlightsAt(at);
         var ticket = UUID.randomUUID();
         var guestTicket = UUID.randomUUID();
@@ -139,7 +140,7 @@ class TableHubPositionTests {
         PreparedParkMap prepared = mock(PreparedParkMap.class);
         when(map.prepared()).thenReturn(Optional.of(prepared));
         when(prepared.constructionSites()).thenReturn(mapper.valueToTree(List.of(Map.of("id", "balloon",
-                "position", List.of(at.x(), at.y(), at.z()),
+                "position", List.of(at.x() - 3.08, at.y(), at.z()),
                 "reachPosition", List.of(at.x(), at.y(), at.z()), "radius", 3, "heightTolerance", .7))));
         when(prepared.collisionData()).thenReturn(mapper.readTree("""
                 {"world":{"halfSize":110}}
@@ -421,7 +422,7 @@ class TableHubPositionTests {
         var dock = new com.ssafy.ontop.world.balloon.BalloonFlights.Point(-33.608, 22.4, -76);
         flights.authorize("101", ticket, now, now);
         flights.start("one", "101", "socket", ticket,
-                new com.ssafy.ontop.world.service.WorldChannelRegistry.Position(1, -40, 23.905, -61.952, 0),
+                new com.ssafy.ontop.world.service.WorldChannelRegistry.Position(1, -36.92, 23.905, -76, 0),
                 dock, now, 0);
         flights.update("one", "101", "socket", ticket,
                 new com.ssafy.ontop.world.balloon.BalloonFlights.Flight(dock, true), Duration.ofMillis(200).toNanos());

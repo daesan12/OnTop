@@ -23,12 +23,23 @@ class BalloonFlightsTests {
     private static final Instant NOW = Instant.parse("2026-11-15T00:00:00Z");
     private static final UUID TICKET = UUID.randomUUID();
     private static final Point DOCK = new Point(-33.608, 22.4, -76);
-    private static final Position GROUND = new Position(1, -40, 23.905, -61.952, 0);
+    private static final Position GROUND = new Position(1, -36.92, 23.905, -76, 0);
     private static final String CHANNEL = "channel-1";
     private static final String PILOT = "101";
     private static final String SESSION = "socket-1";
 
     private BalloonFlights flights;
+
+    @Test
+    void 이전_승강장_안내_지점과_문_안쪽에서는_탑승할_수_없다() {
+        var approach = new Position(1, -40, 23.905, -61.952, 0);
+        var inside = new Position(1, -36, 23.905, -76, 0);
+        flights.authorize(PILOT, TICKET, NOW, NOW);
+
+        assertThat(flights.start(CHANNEL, PILOT, SESSION, TICKET, approach, DOCK, NOW, 0)).isNull();
+        assertThat(flights.start(CHANNEL, PILOT, SESSION, TICKET, inside, DOCK, NOW, 0)).isNull();
+        assertThat(flights.start(CHANNEL, PILOT, SESSION, TICKET, GROUND, DOCK, NOW, 0)).isNotNull();
+    }
 
     @Test
     void 일인_수동_탑승은_출발_전까지_같은_탑승권으로_내렸다_다시_탈_수_있다() {
