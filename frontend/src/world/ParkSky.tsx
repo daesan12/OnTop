@@ -1,9 +1,10 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { BackSide, CanvasTexture, Color, ShaderMaterial, Vector3 } from 'three'
 import type { Camera } from 'three'
 import { ENVIRONMENT } from '../config'
-import { environmentFrame as frame } from './environmentState'
+import { environmentConfig, environmentFrame as frame } from './environmentState'
+import { constellationNightIndex, constellations, selectConstellations } from './parkConstellations'
 import { simpleEnvironmentPalette } from './simpleEnvironmentPalette'
 
 const vertex = `
@@ -14,64 +15,41 @@ void main() {
   gl_Position = clip.xyww;
 }`
 
-// The park map uses -Z for north and +Z for south. Azimuth is atan(z, x).
-const constellations = [
-  {
-    name: '북두칠성', azimuth: -1.93, elevation: .42, horizontalScale: .91,
-    bounds: [.18, -.14, .11], label: [.015, -.116],
-    stars: [[-.154, .055], [-.105, .032], [-.059, .003], [-.009, -.013], [.018, -.079], [.108, -.074], [.13, .003]],
-    edges: [[0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 3]],
-  },
-  {
-    name: '카시오페이아자리', azimuth: -1.18, elevation: .58, horizontalScale: .84,
-    bounds: [.15, -.12, .09], label: [0, -.082],
-    stars: [[-.123, .039], [-.068, -.04], [-.005, .052], [.052, -.019], [.111, .058]],
-    edges: [[0, 1], [1, 2], [2, 3], [3, 4]],
-  },
-  {
-    name: '오리온자리', azimuth: Math.PI / 2, elevation: .44, horizontalScale: .91,
-    bounds: [.15, -.16, .14], label: [0, -.135],
-    stars: [[-.039, -.009], [0, .001], [.035, .012], [-.094, .086], [.076, .118], [-.083, -.097], [.105, -.084]],
-    edges: [[0, 1], [1, 2], [0, 3], [3, 4], [4, 2], [0, 5], [5, 6], [6, 2]],
-  },
-] as const
-
 const constellationDirections = constellations.map(({ azimuth, elevation }) => new Vector3(
   Math.cos(azimuth) * Math.cos(elevation), Math.sin(elevation), Math.sin(azimuth) * Math.cos(elevation),
 ))
 const glslFloat = (value: number) => value.toFixed(5)
-const glslPoint = ([x, y]: readonly [number, number]) => `vec2(${glslFloat(x)}, ${glslFloat(y)})`
+const initialConstellations = selectConstellations(0).visible
+const constellationSlots = initialConstellations.length
+const maxStars = Math.max(...constellations.map(pattern => pattern.stars.length))
+const maxEdges = Math.max(...constellations.map(pattern => pattern.edges.length))
 
-const constellationFunctions = constellations.map(({ stars, edges }, index) => `
-vec3 drawConstellation${index}(vec2 point, bool focused) {
-  vec2 stars[${stars.length}];
-  ${stars.map((point, index) => `stars[${index}] = ${glslPoint(point)};`).join('\n  ')}
-  vec3 light = vec3(0.);
-  for (int i = 0; i < ${stars.length}; i++) {
-    float distanceToStar = length(point - stars[i]);
-    light = max(light, constellationStar(distanceToStar, float(i), focused));
+function constellationUniforms(indices: readonly number[]) {
+  const centers = new Float32Array(constellationSlots * 3)
+  const bounds = new Float32Array(constellationSlots * 3)
+  const labels = new Float32Array(constellationSlots * 2)
+  const counts = new Int32Array(constellationSlots * 2)
+  const stars = new Float32Array(constellationSlots * maxStars * 2)
+  const edges = new Int32Array(constellationSlots * maxEdges * 2)
+  indices.forEach((index, slot) => {
+    const pattern = constellations[index]!
+    centers.set([pattern.azimuth, pattern.elevation, pattern.horizontalScale], slot * 3)
+    bounds.set(pattern.bounds, slot * 3)
+    labels.set(pattern.label, slot * 2)
+    counts.set([pattern.stars.length, pattern.edges.length], slot * 2)
+    pattern.stars.forEach((point, star) => stars.set(point, (slot * maxStars + star) * 2))
+    pattern.edges.forEach((edge, line) => edges.set(edge, (slot * maxEdges + line) * 2))
+  })
+  return {
+    constellationIds: { value: Int32Array.from(indices) },
+    constellationCenters: { value: centers },
+    constellationBounds: { value: bounds },
+    constellationLabels: { value: labels },
+    constellationCounts: { value: counts },
+    constellationStars: { value: stars },
+    constellationEdges: { value: edges },
   }
-  if (focused) {
-    float line = 0.;
-    ${edges.map(([start, end], step) => `line = max(line, joiningLight(point, stars[${start}], stars[${end}], ${glslFloat(step)}));`).join('\n    ')}
-    light += vec3(.34, .54, .8) * line;
-  }
-  return light;
-}`).join('\n')
-
-const constellationRegions = constellations.map(({ azimuth, elevation, horizontalScale, bounds, label }, index) => `
-  {
-    vec2 point = (sky - ${glslPoint([azimuth, elevation])}) * ${glslPoint([horizontalScale, 1])};
-    if (abs(point.x) < ${glslFloat(bounds[0])} && point.y > ${glslFloat(bounds[1])} && point.y < ${glslFloat(bounds[2])}) {
-      bool focused = focusedConstellation == ${index};
-      vec3 light = drawConstellation${index}(point, focused);
-      if (focused) {
-        float label = constellationName(point - ${glslPoint(label)}, ${glslFloat(constellations.length - index - 1)});
-        light += vec3(.52, .65, .8) * label * .55 * smoothstep(1.7, 2.3, revealTime);
-      }
-      return light;
-    }
-  }`).join('\n')
+}
 
 const fragment = `
 uniform vec3 topColor, horizonColor, sunDirection;
@@ -79,6 +57,10 @@ uniform float daylight, twilight, night, clearDay;
 uniform int focusedConstellation;
 uniform float revealTime, shimmerTime;
 uniform sampler2D constellationNames;
+uniform int constellationIds[${constellationSlots}];
+uniform vec3 constellationCenters[${constellationSlots}], constellationBounds[${constellationSlots}];
+uniform vec2 constellationLabels[${constellationSlots}], constellationStars[${constellationSlots * maxStars}];
+uniform ivec2 constellationCounts[${constellationSlots}], constellationEdges[${constellationSlots * maxEdges}];
 varying vec3 vDirection;
 
 float hash(vec2 p) {
@@ -116,11 +98,37 @@ float constellationName(vec2 offset, float row) {
   return texture2D(constellationNames, vec2(uv.x, (uv.y + row) / ${glslFloat(constellations.length)})).a;
 }
 
-${constellationFunctions}
-
 vec3 constellationLight(vec2 sky) {
-  ${constellationRegions}
-  return vec3(0.);
+  vec3 light = vec3(0.);
+  for (int slot = 0; slot < ${constellationSlots}; slot++) {
+    vec3 center = constellationCenters[slot];
+    vec2 point = (sky - center.xy) * vec2(center.z, 1.);
+    vec3 bounds = constellationBounds[slot];
+    if (abs(point.x) >= bounds.x || point.y <= bounds.y || point.y >= bounds.z) continue;
+
+    int index = constellationIds[slot];
+    bool focused = focusedConstellation == index;
+    int starOffset = slot * ${maxStars};
+    ivec2 counts = constellationCounts[slot];
+    for (int i = 0; i < ${maxStars}; i++) {
+      if (i >= counts.x) break;
+      light = max(light, constellationStar(length(point - constellationStars[starOffset + i]), float(i), focused));
+    }
+    if (focused) {
+      float line = 0.;
+      for (int i = 0; i < ${maxEdges}; i++) {
+        if (i >= counts.y) break;
+        ivec2 edge = constellationEdges[slot * ${maxEdges} + i];
+        line = max(line, joiningLight(point, constellationStars[starOffset + edge.x],
+          constellationStars[starOffset + edge.y], float(i)));
+      }
+      float label = constellationName(point - constellationLabels[slot], float(${constellations.length - 1} - index));
+      light += vec3(.34, .54, .8) * line;
+      light += vec3(.52, .65, .8) * label * .55 * smoothstep(1.7, 2.3, revealTime);
+    }
+    break;
+  }
+  return light;
 }
 
 #ifndef SIMPLE_SKY
@@ -203,6 +211,7 @@ export function ParkSky({ simple = false, matchServiceBrightness = false }: {
   const focusByCamera = useMemo(() => new WeakMap<Camera, { index: number; startedAt: number; lastAt: number }>(), [])
   const viewDirection = useMemo(() => new Vector3(), [])
   const reducedMotion = useMemo(() => window.matchMedia('(prefers-reduced-motion: reduce)'), [])
+  const schedule = useRef<{ nightIndex: number; material: ShaderMaterial; visible: readonly number[] } | null>(null)
   const material = useMemo(() => new ShaderMaterial({
     defines: simple ? { SIMPLE_SKY: 1 } : {},
     uniforms: {
@@ -214,6 +223,7 @@ export function ParkSky({ simple = false, matchServiceBrightness = false }: {
       night: { value: 0 },
       clearDay: { value: 0 },
       focusedConstellation: { value: -1 },
+      ...constellationUniforms(initialConstellations),
       revealTime: { value: 0 },
       shimmerTime: { value: 0 },
       constellationNames: { value: names },
@@ -229,6 +239,12 @@ export function ParkSky({ simple = false, matchServiceBrightness = false }: {
 
   useFrame(() => {
     const { uniforms } = material
+    const nightIndex = constellationNightIndex(frame.serverTime, environmentConfig)
+    if (nightIndex !== schedule.current?.nightIndex || schedule.current.material !== material) {
+      const { visible } = selectConstellations(nightIndex)
+      schedule.current = { nightIndex, material, visible }
+      Object.assign(uniforms, constellationUniforms(visible))
+    }
     const clearDay = matchServiceBrightness ? frame.daylight * (1 - frame.twilight) : 0
     uniforms.topColor.value.copy(palette.nightTop).lerp(palette.dayTop, frame.daylight).lerp(palette.clearTop, clearDay)
     uniforms.horizonColor.value.copy(palette.nightHorizon).lerp(palette.dayHorizon, frame.daylight).lerp(palette.clearHorizon, clearDay)
@@ -246,8 +262,8 @@ export function ParkSky({ simple = false, matchServiceBrightness = false }: {
       if (camera.userData.showConstellationLines === true && frame.night > .01) {
         camera.getWorldDirection(viewDirection)
         let bestAlignment = .95
-        for (const [candidate, direction] of constellationDirections.entries()) {
-          const alignment = direction.dot(viewDirection)
+        for (const candidate of schedule.current?.visible ?? initialConstellations) {
+          const alignment = constellationDirections[candidate]!.dot(viewDirection)
           if (alignment <= bestAlignment) continue
           bestAlignment = alignment
           index = candidate
