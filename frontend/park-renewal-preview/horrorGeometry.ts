@@ -36,7 +36,8 @@ export const horrorArt=(()=>{
   if(s.id.startsWith('pillar')){for(const y of[.25,3.15,6.25,10.2])b.box('stone','#555b50',[x,f+y,z],[w+.26,.24,d+.26]);for(let y=.8;y<9;y+=.7)b.box('stone','#303b36',[x,f+y,z],[w+.015,.035,d+.015])}
  }
  // The central dark cistern is sealed and unwalkable, with two broad bypasses.
- const c=HORROR_CRYPT;b.cylinder('stone','#41463c',[c.x,f+c.height/2,c.z],c.rx,c.rx,c.height,[0,0,0],24);b.cylinder('paint','#111b1b',[c.x,f+c.height+.03,c.z],c.rx-.5,c.rx-.5,.06,[0,0,0],24)
+ const c=HORROR_CRYPT;b.cylinder('stone','#41463c',[c.x,f+c.height/2,c.z],c.rx,c.rx,c.height,[0,0,0],24)
+ // (the dark water itself is HorrorDressing's animated cistern surface)
  for(let i=0;i<18;i++){const a=i/18*Math.PI*2;b.box('stone','#5a5b4b',[c.x+Math.cos(a)*6.2,f+c.height+.12,c.z+Math.sin(a)*6.2],[1.5,.3,.9],[0,-a,0])}
  // Engine loop under the balloon: a winch, flywheels, pipes and an empty freight cage.
  b.box('metal','#333c37',[-38,f+.45,-71],[12,.9,10]);b.box('metal','#485047',[-38,f+2,-71],[7,3.1,5.4]);b.cylinder('metal','#6b6251',[-38,f+2.6,-71],1.8,1.8,7.8,[0,0,Math.PI/2],16)

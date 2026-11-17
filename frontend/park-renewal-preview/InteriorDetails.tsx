@@ -1,5 +1,6 @@
 import { annex, annexVolumes, galleryVolumes, passageVolumes, upperRamp, upperRoomVolumes } from './interiorAccess'
 import { HorrorStoneMaterial } from './HorrorStoneMaterial'
+import { GrimeMaterial } from './HorrorGrimeMaterial'
 
 export function AnnexDetails() {
   return <group name="renewal-annex-interior">
@@ -29,7 +30,7 @@ export function HallDetails() {
   const run = upperRamp.z0 - upperRamp.z1, rise = upperRamp.y1 - upperRamp.y0
   return <group>
     {passageVolumes.map(({center,size}, index) => <mesh key={index} position={center}>
-      <boxGeometry args={[...size]} /><meshLambertMaterial color="#57574b" />
+      <boxGeometry args={[...size]} /><HorrorStoneMaterial color="#57574b" />
     </mesh>)}
     {[...galleryVolumes, ...upperRoomVolumes].map(({center,size,material}, index) => {
       if (material === 'guard') {
@@ -37,22 +38,22 @@ export function HallDetails() {
         const count = Math.ceil(length / 1.8)
         return <group key={index} position={center} rotation={[0,alongX ? 0 : Math.PI / 2,0]}>
           {[-.45,.5].map(y => <mesh key={y} position={[0,y,0]}>
-            <boxGeometry args={[length,.1,.16]} /><meshLambertMaterial color="#706756" />
+            <boxGeometry args={[length,.1,.16]} /><GrimeMaterial kind="wood" color="#706756" />
           </mesh>)}
           {Array.from({length:count+1}, (_, i) => <mesh key={i} position={[length*(i/count-.5),0,0]}>
-            <boxGeometry args={[.12,1,.13]} /><meshLambertMaterial color="#817560" />
+            <boxGeometry args={[.12,1,.13]} /><GrimeMaterial kind="wood" color="#817560" />
           </mesh>)}
         </group>
       }
       return <mesh key={index} position={center}>
         <boxGeometry args={[...size]} />
-        {material === 'wood' ? <meshLambertMaterial color="#705340" /> : <HorrorStoneMaterial />}
+        {material === 'wood' ? <GrimeMaterial kind="wood" color="#705340" /> : <HorrorStoneMaterial color="#5a5d55" />}
       </mesh>
     })}
     <mesh position={[upperRamp.x, (upperRamp.y0 + upperRamp.y1) / 2 - .12, (upperRamp.z0 + upperRamp.z1) / 2]}
       rotation={[Math.atan2(rise,run),0,0]}>
       <boxGeometry args={[upperRamp.width,.24,Math.hypot(run,rise)]} />
-      <meshLambertMaterial color="#797061" />
+      <HorrorStoneMaterial color="#797061" />
     </mesh>
     {([[-55,16.48,-90.3],[-45,14.3,-71],[-14,14.3,-54],[22,14.3,-76],[5,14.3,-91]] as const).map(position =>
       <group key={position.join(',')} position={position}>
@@ -61,7 +62,7 @@ export function HallDetails() {
       </group>)}
     <pointLight position={[1.4,9.2,-50]} color="#a7a77d" intensity={12} distance={6} />
     <mesh position={[-57.98,13.46,-88]}>
-      <boxGeometry args={[.22,3.2,2.4]} /><meshLambertMaterial color="#626258" />
+      <boxGeometry args={[.22,3.2,2.4]} /><GrimeMaterial kind="paint" color="#626258" />
     </mesh>
   </group>
 }
