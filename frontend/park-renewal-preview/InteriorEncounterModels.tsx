@@ -7,6 +7,7 @@ import {
   limbGeometry, lumpGeometry, tatteredGeometry, teethGeometry, type FaceKind, type HandStyle, type V,
 } from './encounterSculpt'
 import { footprintTexture, irisTexture, sackTexture, scleraTexture, shadowTexture } from './encounterTextures'
+import { TripoEncounter } from './TripoEncounter'
 
 // The twelve underground encounters (InteriorEncounters animates them by these group names; keep them).
 // S15P31B105-450: sculpted faces, bony long-fingered hands, hanging hair, torn cloth, teeth, fur and bloodshot eyes
@@ -132,7 +133,7 @@ function Basin() {
         <meshBasicMaterial color="#67827a" transparent opacity={.39} depthWrite={false} />
       </mesh>)}
     </group>
-    <group name="pool-figure">
+    <group name="pool-figure"><TripoEncounter id={11} fallback={<>
       <Cloth id="pool" color="#b9b8ab" height={1.2} radius={.36} tear={.15} />
       <Geo geometry={lumpGeometry('shoulders')} color="#b9b8ab" finish="cloth" at={[0, 1.22, 0]} scale={[.27, .12, .17]} />
       <Limb id="pool-neck" points={[[0, 1.25, 0], [0, 1.33, .03]]} radii={[.045, .04]} color="#a3aa9f" />
@@ -142,7 +143,7 @@ function Basin() {
       <Hand id="pool-l" at={[-.22, 1.2, .58]} dir={[0, .3, 1]} roll={.3} style={{ finger: .2, spread: .22, curl: .35, thick: .0085 }} color="#a3aa9f" />
       <Limb id="pool-arm-r" points={[[.24, 1.18, 0], [.36, .75, .2], [.42, .27, .34]]} radii={[.038, .032, .027]} color="#a3aa9f" />
       <Hand id="pool-r" at={[.42, .27, .34]} dir={[.1, -.8, .5]} style={{ finger: .19, spread: .25, curl: .2, thick: .0085 }} color="#a3aa9f" />
-    </group>
+    </>} /></group>
   </>
 }
 
@@ -189,7 +190,7 @@ export const encounterModels: Record<number, ReactNode> = {
     <Hand id="peek" at={[.2, 1.36, .07]} dir={[.12, 1, .25]} roll={-.6} style={{ finger: .19, spread: .1, curl: .55, thick: .0085 }} color="#cfc8b6" />
   </>,
   // 2. A weathered statue that is a little closer every time: hollow eyes, a cracked screaming face, reaching arms.
-  2: <>
+  2: <TripoEncounter id={2} glow={.2} fallback={<>
     <Shape at={[0,.17,0]} size={[1.14,.32,.75]} color="#4b554e" />
     <Cloth id="statue" color={stone} finish="stone" height={1.25} radius={.42} at={[0, .33, 0]} tear={.04} />
     <Geo geometry={lumpGeometry('chest')} color={stone} finish="stone" at={[0, 1.44, 0]} scale={[.3, .27, .2]} />
@@ -201,11 +202,11 @@ export const encounterModels: Record<number, ReactNode> = {
       <Hand id="statue" at={[side * .27, 1.42, .55]} dir={[side * .1, .2, 1]} roll={side * .4} style={{ finger: .15, spread: .16, curl: .25, thick: .013, nails: false }} color={stone} glow={0} />
       <Shape at={[side * .2, 1.6, .05]} size={[.16, .06, .14]} color="#47573a" sphere finish="flesh" />
     </group>)}
-  </>,
+  </>} />,
   // 3. Hung by the ankles, it drops from the vault: arms dangling, hair hanging to the floor, milky eyes open.
   3: <>
     <Rod from={[0,1.02,0]} to={[0,8.8,0]} width={.028} color={straw} finish="cloth" />
-    <group position={[0,1.02,0]} rotation={[0,0,Math.PI]}>
+    <TripoEncounter id={3} at={[0, 1.1, 0]} glow={.7} fallback={<group position={[0,1.02,0]} rotation={[0,0,Math.PI]}>
       <mesh position={[0, .02, 0]} rotation={[Math.PI / 2, 0, 0]}><torusGeometry args={[.09, .022, 6, 14]} /><Surface color={straw} finish="cloth" /></mesh>
       {[-1, 1].map(side => <Limb key={side} id={'hang-leg' + side} points={[[side * .05, 0, 0], [side * .09, .26, .03], [side * .11, .5, 0]]} radii={[.035, .045, .065]} color="#a39b8b" glow={.06} />)}
       <Cloth id="hang" color="#8f8676" height={.72} radius={.3} at={[0, .48, 0]} tear={.35} flip />
@@ -216,7 +217,7 @@ export const encounterModels: Record<number, ReactNode> = {
       <Limb id="hang-neck" points={[[0, 1.1, 0], [0, 1.2, .01]]} radii={[.045, .045]} color="#a39b8b" />
       <Head at={[0, 1.34, .02]} kind={{ mouth: 'gape', gaunt: 1.2 }} skin="#a39b8b" eyes="milky" gravity={[0, 1, 0]}
         hair={{ id: 'hang', length: .36 }} />
-    </group>
+    </group>} />
   </>,
   // 4. The door bangs open on a starved, bristling thing with a split jaw and lamp-bright eyes.
   4: <>
@@ -227,7 +228,7 @@ export const encounterModels: Record<number, ReactNode> = {
       {[.36,1.7].flatMap(y => [-.82,-.6,-.3,-.08].map(x => <mesh key={x + ',' + y} position={[x,y,.12]}><sphereGeometry args={[.022,8,6]} /><Surface color="#4b3a30" finish="metal" /></mesh>))}
       {[0,1,2,3].map(i => <Rod key={'s' + i} from={[-.66 + i * .06, 1.35 - i * .04, .085]} to={[-.5 + i * .06, .95 - i * .05, .085]} width={.006} color="#c9b493" finish="wood" />)}
     </group>
-    <group name="door-beast">
+    <group name="door-beast"><TripoEncounter id={4} glow={.3} fallback={<>
       <Geo geometry={lumpGeometry('beast', .12, .06)} color="#3b2a25" finish="flesh" at={[0, .82, -.1]} scale={[.5, .38, .62]} glow={.02} />
       <Geo geometry={furGeometry('beast', [.5, .38, .62], 140, .17)} color="#1d1515" finish="hair" at={[0, .82, -.1]} />
       <Limb id="beast-neck" points={[[0, .93, .32], [0, .96, .56]]} radii={[.17, .14]} color="#3b2a25" finish="flesh" />
@@ -242,7 +243,7 @@ export const encounterModels: Record<number, ReactNode> = {
         <Limb id={'beast-hind' + side} points={[[side * .3, .75, -.45], [side * .46, .45, -.62], [side * .4, .08, -.45]]} radii={[.13, .09, .065]} color="#3b2a25" finish="flesh" />
         {[-1, 0, 1].map(k => <Rod key={k} from={[side * .42 + k * .035, .07, .6]} to={[side * .42 + k * .045, .02, .74]} width={.011} color={bone} />)}
       </group>)}
-    </group>
+    </>} /></group>
   </>,
   // 5. Out of a crack in the wall, a long grey arm reaches for you, every finger too long by a joint.
   5: <>
@@ -271,7 +272,7 @@ export const encounterModels: Record<number, ReactNode> = {
         <meshStandardMaterial map={footprintTexture()} transparent depthWrite={false} roughness={.12} color="#4a4038" polygonOffset polygonOffsetFactor={-2} />
       </mesh>
     </group>)}
-    <group name="running-coat">
+    <group name="running-coat"><TripoEncounter id={7} rotation={[0, -1.25, 0]} glow={.7} fallback={<>
       <group rotation={[.38, 0, 0]}>
         <Cloth id="runner" color="#262a33" height={1.2} radius={.32} at={[0, .32, 0]} tear={.32} />
         <Geo geometry={lumpGeometry('hunch')} color="#262a33" finish="cloth" at={[0, 1.42, -.06]} scale={[.27, .18, .2]} />
@@ -283,13 +284,13 @@ export const encounterModels: Record<number, ReactNode> = {
       </group>
       <Limb id="runner-leg-l" points={[[-.08, .48, 0], [-.11, .22, .14], [-.09, .02, .06]]} radii={[.035, .03, .024]} color="#8f887a" />
       <Limb id="runner-leg-r" points={[[.08, .48, 0], [.1, .26, -.16], [.12, .06, -.3]]} radii={[.035, .03, .024]} color="#8f887a" />
-    </group>
+    </>} /></group>
   </>,
   // 8. The lift rises with someone in it: a sack over its head, eyes glinting through the holes, hands on the bars.
   8: <>
     {[-.57,-.28,0,.28,.57].map(x => <Shape key={x} at={[x,1.06,.57]} size={[.046,2.15,.052]} color={rust} finish="metal" />)}
     {[.11,1.02,2.04].map(y => <Shape key={y} at={[0,y,.57]} size={[1.21,.07,.07]} color="#5b4c3e" finish="metal" />)}
-    <group name="lift-passenger" position={[0,0,-.12]}>
+    <group name="lift-passenger" position={[0,0,-.12]}><TripoEncounter id={8} at={[0, 0, .12]} glow={.6} fallback={<>
       <Cloth id="lift" color="#3e332e" height={1.36} radius={.44} tear={.28} />
       <Geo geometry={lumpGeometry('shoulders')} color="#3e332e" finish="cloth" at={[0, 1.36, 0]} scale={[.31, .14, .19]} />
       <mesh geometry={sackHead()} position={[0, 1.64, 0]} scale={[.2, .27, .2]} dispose={null}><meshStandardMaterial map={sackTexture()} color="#8c8270" roughness={.95} /></mesh>
@@ -303,10 +304,10 @@ export const encounterModels: Record<number, ReactNode> = {
         <Limb id={'lift-arm' + side} points={[[side * .26, 1.32, 0], [side * .33, 1.1, .26], [side * .26, 1.28, .5]]} radii={[.04, .034, .029]} color="#a49d8e" />
         <Hand id="grip" at={[side * .26, 1.28, .5]} dir={[0, 1, .2]} roll={side * .2} style={{ finger: .16, spread: .06, curl: 1.15, thick: .0095 }} color="#a49d8e" />
       </group>)}
-    </group>
+    </>} /></group>
   </>,
   // 9. As the lamps die, something very tall comes on: a void under the hood, two embers for eyes, bone hands.
-  9: <>
+  9: <TripoEncounter id={9} fallback={<>
     <Cloth id="tall-a" color="#0e1116" height={2.25} radius={.72} tear={.38} />
     <Cloth id="tall-b" color="#14171d" height={1.68} radius={.82} at={[0, .58, 0]} tear={.45} />
     <Geo geometry={lumpGeometry('shoulders')} color="#101318" finish="cloth" at={[0, 1.98, 0]} scale={[.44, .2, .28]} />
@@ -317,9 +318,9 @@ export const encounterModels: Record<number, ReactNode> = {
       <Limb id={'tall-sleeve' + side} points={[[side * .42, 1.9, .05], [side * .56, 1.55, .3], [side * .5, 1.38, .55]]} radii={[.13, .11, .1]} color="#0e1116" finish="cloth" />
       <Hand id="bone" at={[side * .5, 1.36, .62]} dir={[side * .15, -.35, 1]} roll={side * .3} style={{ finger: .27, spread: .18, curl: .35, thick: .0075 }} color="#bdb6a6" glow={.12} />
     </group>)}
-  </>,
+  </>} />,
   // 10. Someone waits at the exit in a grey hood, head lolling sideways on a broken neck, arms hanging past the knees.
-  10: <>
+  10: <TripoEncounter id={10} glow={.5} fallback={<>
     <Cloth id="grey" color="#565c58" height={1.5} radius={.46} tear={.2} />
     <Geo geometry={lumpGeometry('shoulders')} color="#5c625e" finish="cloth" at={[0, 1.42, 0]} scale={[.3, .14, .2]} />
     <Geo geometry={hoodGeometry()} color="#5e6460" finish="cloth" at={[-.09, 1.58, -.06]} rotation={[0, 0, 1.0]} scale={[.24, .28, .25]} />
@@ -329,7 +330,7 @@ export const encounterModels: Record<number, ReactNode> = {
       <Limb id={'grey-arm' + side} points={[[side * .28, 1.38, 0], [side * .34, 1.0, .05], [side * .33, .62, .1]]} radii={[.036, .031, .027]} color="#bdb7a8" />
       <Hand id="hang-low" at={[side * .33, .62, .1]} dir={[0, -1, .1]} roll={side * 1.2} style={{ finger: .23, spread: .1, curl: .2, thick: .0085 }} color="#bdb7a8" />
     </group>)}
-  </>,
+  </>} />,
   // 11. Something rises out of the puddle, wet hair over its face, one hand reaching out of the water for you.
   11: <Basin />,
   // 12. A bed of flesh opens a dozen bloodshot eyes, and every one of them follows you.
