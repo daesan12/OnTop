@@ -63,6 +63,26 @@ export function sceneFramePNG() {
   state.gl.render(state.scene, state.camera)
   return state.gl.domElement.toDataURL('image/png')
 }
+export function crowdRenderStats() {
+  const { scene, camera, gl } = root()
+  let avatars = 0, detailedAvatars = 0, avatarTriangles = 0, names = 0
+  for (const peer of scene.getObjectByName('visitors')?.children ?? []) {
+    if (!peer.name.startsWith('avatar-') || !peer.visible) continue
+    avatars++
+    let detailed = false
+    peer.traverseVisible(node => {
+      const mesh = node as Mesh
+      if (!mesh.isMesh) return
+      if (mesh.name.startsWith('near-')) detailed = true
+      avatarTriangles += (mesh.geometry.index?.count ?? mesh.geometry.attributes.position?.count ?? 0) / 3
+    })
+    if (detailed) detailedAvatars++
+  }
+  for (const node of scene.children) if (node.name === 'park-xr-nickname' && node.visible) names++
+  gl.render(scene, camera)
+  return { avatars, detailedAvatars, avatarTriangles, names, calls: gl.info.render.calls, triangles: gl.info.render.triangles,
+    desktopOverlays: document.querySelectorAll('.avatar-overhead[style*="visibility: visible"]').length }
+}
 export function watchTelescopeSky() {
   const { scene, camera } = root()
   const sky = scene.getObjectByName('dynamic-sky') as Mesh<never, ShaderMaterial>
