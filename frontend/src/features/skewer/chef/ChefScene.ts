@@ -69,6 +69,7 @@ export class ChefScene {
   private undoTarget!: THREE.Mesh
   private undoRing!: THREE.Mesh
   private submitHint!: THREE.Mesh
+  private submitTarget!: THREE.Mesh
   private hover: Pick | null = null
   private pointerPosition: THREE.Vector2 | null = null
   private arrivals: { root: THREE.Group; started: number }[] = []
@@ -383,12 +384,16 @@ export class ChefScene {
       }
     }
     const passSign = a.place(this.passFurniture, this.labelStyle === 'minimal' ? new THREE.Group() : a.box(.73, .20, .045, this.labelStyle === 'wood' || this.labelStyle === 'menu' ? '#68452d' : '#ac7d49', .012), 2.59, 1.49, -1.48)
+    passSign.name = 'chef-pass-sign'
     a.place(passSign, this.sign('전달대', .70, .18, undefined, true), 0, 0, .025)
     if (this.labelStyle !== 'minimal') for (const x of [-.27, .27]) a.place(this.passFurniture, a.box(.035, .24, .04, '#68452d'), 2.59 + x, 1.28, -1.49)
     this.passFurniture.add(this.spatialControls); this.spatialControls.add(this.passGlow)
     this.submitCanvas.width = 768; this.submitCanvas.height = 190; this.submitTexture = this.texture(this.submitCanvas)
     this.submitHint = this.mesh(new THREE.PlaneGeometry(1.12, .28), new THREE.MeshBasicMaterial({ map: this.submitTexture, transparent: true, side: THREE.DoubleSide, toneMapped: false })); a.place(this.spatialControls, this.submitHint, 2.59, 1.96, -1.10)
-    this.hitBox(this.spatialControls, new THREE.Vector3(2.59, 1.30, -1.22), new THREE.Vector3(1.65, .27, .75), { action: 'submit' })
+    this.submitHint.name = 'chef-submit-hint'
+    this.submitHint.userData.pick = { action: 'submit' } satisfies Pick
+    this.pickables.push(this.submitHint)
+    this.submitTarget = this.hitBox(this.spatialControls, new THREE.Vector3(2.59, 1.30, -1.22), new THREE.Vector3(1.65, .27, .75), { action: 'submit' })
     if (this.view.cooperative) {
       this.coopCanvas.width = 768; this.coopCanvas.height = 190; this.coopTexture = this.texture(this.coopCanvas)
       this.coopPanel = new THREE.Group(); r.add(this.coopPanel)
@@ -577,7 +582,7 @@ export class ChefScene {
       ctx.fillStyle = active ? '#fff0d1' : '#ead8b9'; ctx.textAlign = 'center'; ctx.font = '700 53px "Malgun Gothic",sans-serif'; ctx.fillText(label, 384, 85, 720)
       ctx.font = '700 30px "Malgun Gothic",sans-serif'; ctx.fillText(sub, 384, 144, 720); texture.needsUpdate = true
     }
-    paint(this.submitCanvas, this.submitTexture, p.submitReady ? '완성 접시 놓기' : p.submitLabel, `트리거 · 전달대 ${this.view.pass.length} / 2`, p.submitReady)
+    paint(this.submitCanvas, this.submitTexture, p.submitLabel, `트리거 · 전달대 ${this.view.pass.length} / 2`, p.submitReady)
     if (this.coopTexture) {
       if (coop?.phase === 'FINISHED') {
         const ctx = this.coopCanvas.getContext('2d')!
@@ -689,6 +694,8 @@ export class ChefScene {
       this.undoTarget.position.set((lastPosition + .06) * 2.1, .02, .04)
       this.undoHint.position.copy(this.undoTarget.position)
     }
+    // Cover the trays and their sign in VR, using the original target in desktop mode.
+    this.submitTarget.scale.set(vr ? 1.1 : 1, vr ? 2.6 : 1, vr ? 1.25 : 1)
     this.scene.updateMatrixWorld(true)
     this.hover = null
     if (vr && this.session) {
@@ -703,7 +710,7 @@ export class ChefScene {
     }
     const focusedAction = this.hover && 'action' in this.hover ? this.hover.action : ''
     this.undoHint.visible = this.undoTarget.visible && focusedAction === 'unthread'
-    this.submitHint.visible = vr && focusedAction === 'submit'
+    this.submitHint.visible = vr && (focusedAction === 'submit' || p.submitReady && !!p.guide?.complete)
     this.passGlow.children.forEach((slot, i) => { slot.visible = vr && i >= this.view.pass.length && (p.submitReady || focusedAction === 'submit') })
     this.host.dataset.focusedAction = focusedAction
     this.host.dataset.completed = String(this.view.completed ?? 0)
@@ -743,9 +750,10 @@ export class ChefScene {
       })
       const start = () => {
         if (this.sharedRenderer && (!c.visible || this.session?.visibilityState !== 'visible')) return
-        if (this.owner === i || this.held.has(i)) return
+        if (this.held.has(i)) return
         const hit = this.controllerHit(i), pick = hit?.object.userData.pick as Pick | undefined
         if (!pick) return
+        if (this.owner === i && (!('action' in pick) || pick.action !== 'submit')) return
         if ('ingredient' in pick) {
           if (chefPresentation(this.view).blocked || availablePieces(this.view.skewer, pick.ingredient) <= 0 || !this.view.visible.length) return
           const root = this.foods.create(pick.ingredient); root.scale.setScalar(2.1 * VR_KITCHEN_SCALE * VR_SKEWER_SCALE); root.rotation.y = Math.PI / 2; root.position.z = -.18; c.add(root); this.held.set(i, { ingredient: pick.ingredient, root }); this.action({ type: 'select', ingredient: pick.ingredient })
