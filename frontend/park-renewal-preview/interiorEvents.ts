@@ -1,9 +1,10 @@
 import { secretCorridorContains } from './horrorPlan'
 import { accessAt } from './interiorAccess'
+import { pickStyle, stagePlan, type StagePlan, type StageStyle } from './encounterStaging'
 
 type Position = { x: number; y: number; z: number; interiorExitReady?: boolean }
 type Point = readonly [number, number, number]
-export type Encounter = { id: number; at: Point; duration: number; presentedAt?: number }
+export type Encounter = { id: number; at: Point; duration: number; plan: StagePlan; presentedAt?: number }
 const pool = Array.from({ length: 12 }, (_, i) => i + 1)
 export const diamond: Point = [18.1, 7.95, -76.5]
 export const visitScope = (user: string, room: string) => user && room ? user + ':' + room : ''
@@ -48,6 +49,7 @@ export class InteriorVisit {
   private exitApproached = false
   private requestedExit: { submit: () => void; expires: number } | undefined
   private lastAt = -Infinity
+  private lastStyle: StageStyle | undefined
   private readonly usedAnchors = new Set<Point>()
 
   constructor(private readonly random = Math.random) {}
@@ -62,6 +64,7 @@ export class InteriorVisit {
     this.exitApproached = false
     this.requestedExit = undefined
     this.lastAt = -Infinity
+    this.lastStyle = undefined
     this.usedAnchors.clear()
   }
 
@@ -127,9 +130,13 @@ export class InteriorVisit {
   private fire(id: number, at: Point, started: number) {
     this.fired.add(id)
     this.lastAt = started
-    const duration = id === 10 || id === 12 ? finaleDuration
+    const base = id === 10 || id === 12 ? finaleDuration
       : this.upperVisited ? departureDuration : encounterDuration
-    this.active = { id, at, duration }
+    // S15P31B105-450: a different way to happen each time (encounterStaging styles).
+    const style = pickStyle(id, this.lastStyle, this.random)
+    const plan = stagePlan(style, base, this.random)
+    this.lastStyle = style
+    this.active = { id, at, duration: plan.duration, plan }
   }
 }
 

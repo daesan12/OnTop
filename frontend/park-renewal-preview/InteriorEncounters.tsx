@@ -2,9 +2,9 @@ import { useEffect, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Vector3, type Group, type Light, type Mesh, type Object3D, type PointLight } from 'three'
 import { effectsOutput } from '../src/audio/bgm'
-import { playEncounterLunge, playEncounterStaging } from './horrorAudio'
+import { playBehind, playEncounterLunge, playEncounterStaging, playFakeout, playJumpScare, playStalkStart, playStalkStep } from './horrorAudio'
 import { diamond, interiorVisit, type Encounter } from './interiorEvents'
-import { STAGE, encounterDistance, encounterScale, flashlight, offGaze, placeInView, stageFrame } from './encounterStaging'
+import { STALK_MIN, encounterDistance, encounterScale, flashlight, offGaze, placeInView, stagePlan, standDistance, styleFrame } from './encounterStaging'
 import { clearRoamingInput, inputState } from '../src/world/inputOwnership'
 import { viewControls } from '../src/world/cameraPerspective'
 import { horrorWalkable } from './horrorPlan'
@@ -19,6 +19,11 @@ const beatsByScene = [
 ]
 const clamp = (x: number) => Math.max(0, Math.min(1, x))
 const ease = (x: number) => { const n = clamp(x); return n * n * (3 - 2*n) }
+
+function sound(play: (ctx: AudioContext, bus: AudioNode) => void) {
+  const output = effectsOutput()
+  if (output) play(output.context, output.bus)
+}
 
 function cue(id: number, duration: number) {
   const output = effectsOutput()
@@ -139,17 +144,23 @@ export function InteriorEncounters() {
   const stage = useRef<Group>(null)
   const viewer = useRef(new Vector3())
   const accent = useRef<PointLight>(null)
-  // Where the creature first stands, which way it rushes (towards the viewer) and how far away it started.
-  const placed = useRef({ x: 0, y: 0, z: 0, dx: 0, dz: 0, start: 3, seed: 0, revealed: false, rushed: false, away: 0 })
+  // Where the creature stands, which way it rushes (towards the viewer) and how far away it started.
+  const placed = useRef({ x: 0, y: 0, z: 0, dx: 0, dz: 0, start: 3, seed: 0, shown: false, rushed: false, away: 0, step: 0, held: false, pan: 0, far: 9, ox: 0, oz: 0 })
   const look = useRef(new Vector3())
-  /** Stand encounter `id` in the viewer's line of sight now (first person underground), facing them. */
-  const placeFront = (group: Group, id: number, at: readonly number[], camera: { position: Vector3; getWorldDirection: (v: Vector3) => Vector3 }) => {
+  type Viewer = { position: Vector3; getWorldDirection: (v: Vector3) => Vector3 }
+  /** Stand the creature `distance` m along the viewer's line of sight (or straight behind them), facing them. */
+  const place = (group: Group, at: readonly number[], camera: Viewer, distance: number, behind = false) => {
     camera.getWorldDirection(look.current)
-    const [x, z] = placeInView([camera.position.x, camera.position.z], [look.current.x, look.current.z],
-      encounterDistance(id), (px, pz) => horrorWalkable(px, pz, .45), [at[0]!, at[2]!])
+    const s = behind ? -1 : 1
+    const [x, z] = placeInView([camera.position.x, camera.position.z], [look.current.x * s, look.current.z * s],
+      distance, (px, pz) => horrorWalkable(px, pz, .45), [at[0]!, at[2]!])
     const start = Math.hypot(camera.position.x - x, camera.position.z - z) || 1
     Object.assign(placed.current, { x, z, dx: (camera.position.x - x) / start, dz: (camera.position.z - z) / start, start, away: 0 })
     group.rotation.set(0, Math.atan2(camera.position.x - x, camera.position.z - z), 0)
+  }
+  const gazeOff = (camera: Viewer, x: number, z: number) => {
+    camera.getWorldDirection(look.current)
+    return offGaze([camera.position.x, camera.position.z], [look.current.x, look.current.z], [x, z])
   }
   useEncounterWarmup(stage)
   // Never leave the player held if the underground unmounts mid-scare.
@@ -168,29 +179,42 @@ export function InteriorEncounters() {
       if (accent.current) accent.current.intensity = 0
       inputState.encounterHeld = false
       flashlight.factor = 1
-      if (active) {
-        // Frozen in place for the whole scare: the keys let go and the walk stops.
-        inputState.encounterHeld = true
-        clearRoamingInput()
-        const group = objects.current[active.id]
-        if (group) {
-          // In the viewer's line of sight (first person underground), not wherever the anchor happened to be; placed
-          // again when it shows and when it rushes, so turning during the build-up cannot leave it behind you.
-          Object.assign(placed.current, { y: active.at[1] - .78, seed: Math.random() * 10, revealed: false, rushed: false })
-          group.rotation.order = 'YXZ'
-          placeFront(group, active.id, active.at, camera)
-          group.position.set(placed.current.x, placed.current.y, placed.current.z)
-          group.scale.setScalar(encounterScale(active.id))
-          group.visible = false
-          const lights: Light[] = []
-          stage.current?.parent?.traverse(object => {
-            const light = object as Light
-            if (light.isLight && light !== accent.current && light.position.distanceTo(group.position) < 16) lights.push(light)
-          })
-          lighting.current = { lights, intensity: lights.map(light => light.intensity) }
-          if (accent.current) accent.current.color.set(active.id === 11 ? '#a0bdad' : '#e5bc93')
-          active.presentedAt = performance.now()
-          cue(active.id, active.duration)
+      const group = active && objects.current[active.id]
+      if (active && group) {
+        Object.assign(placed.current, { y: active.at[1] - .78, seed: Math.random() * 10, shown: false, rushed: false, step: 0, held: false, far: 9 })
+        group.rotation.order = 'YXZ'
+        // In the viewer's line of sight (first person underground), not wherever the anchor happened to be.
+        place(group, active.at, camera, standDistance(active.plan, active.id, 0), active.plan.style === 'behind')
+        if (active.plan.style === 'stalk') {
+          // No long hall in view to creep down: it simply pops.
+          if (placed.current.start < STALK_MIN) {
+            active.plan = stagePlan('pop', active.duration)
+            active.duration = active.plan.duration
+            place(group, active.at, camera, standDistance(active.plan, active.id, 0))
+          } else placed.current.far = placed.current.start
+        }
+        // Behind you it keeps the same spot relative to you as you walk, but not as you turn.
+        Object.assign(placed.current, { ox: placed.current.x - camera.position.x, oz: placed.current.z - camera.position.z })
+        const plan = active.plan
+        group.position.set(placed.current.x, placed.current.y, placed.current.z)
+        group.scale.setScalar(encounterScale(active.id) * (plan.style === 'pop' || plan.style === 'fakeout' ? 1.1 : 1))
+        group.visible = false
+        const lights: Light[] = []
+        stage.current?.parent?.traverse(object => {
+          const light = object as Light
+          if (light.isLight && light !== accent.current && light.position.distanceTo(group.position) < 16) lights.push(light)
+        })
+        lighting.current = { lights, intensity: lights.map(light => light.intensity) }
+        if (accent.current) accent.current.color.set(active.id === 11 ? '#a0bdad' : '#e5bc93')
+        active.presentedAt = performance.now()
+        // Where the breathing comes from: the side of your back it stands on.
+        placed.current.pan = Math.random() < .5 ? -.35 : .35
+        switch (plan.style) {
+          case 'reveal': cue(active.id, active.duration); break
+          case 'pop': sound(playJumpScare); break
+          case 'fakeout': sound((c, b) => playFakeout(c, b, plan.calm)); break
+          case 'stalk': sound(playStalkStart); break
+          case 'behind': sound((c, b) => playBehind(c, b, plan.rush, placed.current.pan)); break
         }
       }
       previous.current = active
@@ -204,43 +228,61 @@ export function InteriorEncounters() {
     if (!active || active.presentedAt === undefined) return
     const group = objects.current[active.id]
     if (!group) return
-    let t = clamp((performance.now() - active.presentedAt) / active.duration)
+    const plan = active.plan, d = plan.duration / 1000
+    let t = Math.min(d, (performance.now() - active.presentedAt) / 1000)
     const child = group.children[0]
     if (!child) return
     const p = placed.current
-    if (t >= STAGE.reveal && !p.revealed) { p.revealed = true; placeFront(group, active.id, active.at, camera) }
-    // Walk up to it and it does not wait: it lunges now.
-    if (p.revealed && !p.rushed && t < STAGE.lunge) {
-      camera.getWorldDirection(look.current)
-      const near = Math.hypot(camera.position.x - p.x, camera.position.z - p.z)
-      const ahead = offGaze([camera.position.x, camera.position.z], [look.current.x, look.current.z], [p.x, p.z]) < 1
-      if (near < 1.9 && ahead) {
-        active.presentedAt = performance.now() - STAGE.lunge * active.duration
-        t = STAGE.lunge
-        p.start = Math.max(1, near)
+    const skipTo = (at: number) => { active.presentedAt = performance.now() - at * 1000; t = at }
+    if (t >= plan.show && !p.shown) {
+      p.shown = true
+      if (plan.style !== 'behind') place(group, active.at, camera, standDistance(plan, active.id, t, p.far))
+      if (plan.style === 'fakeout') sound(playJumpScare)
+    }
+    // The stalker is closer every time the lamps blink, always in front of you.
+    const step = plan.jumps.filter(j => t >= j).length
+    if (step > p.step) {
+      p.step = step
+      place(group, active.at, camera, standDistance(plan, active.id, t, p.far))
+      sound((c, b) => playStalkStep(c, b, step))
+    }
+    if (plan.style === 'behind' && t < plan.rush) {
+      // It follows a step behind as you walk; turn round and it is on you at once.
+      if (t > .8 && gazeOff(camera, p.x, p.z) < .55) skipTo(plan.rush)
+      else if (t < plan.rush - .6) {
+        const x = camera.position.x + p.ox, z = camera.position.z + p.oz
+        if (horrorWalkable(x, z, .45)) { p.x = x; p.z = z }
       }
     }
-    if (t >= STAGE.lunge && !p.rushed) {
+    // Walk up to it and it does not wait: it lunges now.
+    if ((plan.style === 'reveal' || plan.style === 'stalk') && p.shown && !p.rushed && t < plan.rush) {
+      const near = Math.hypot(camera.position.x - p.x, camera.position.z - p.z)
+      if (near < 1.9 && gazeOff(camera, p.x, p.z) < 1) { skipTo(plan.rush); p.start = Math.max(1, near) }
+    }
+    if (t >= plan.rush && !p.rushed) {
       p.rushed = true
-      if (p.away > 0) placeFront(group, active.id, active.at, camera)
-      const output = effectsOutput()
-      if (output) playEncounterLunge(output.context, output.bus, active.duration)
+      if (plan.style === 'behind') { place(group, active.at, camera, 1.5); sound(playJumpScare) }
+      else if (plan.style === 'stalk') { if (p.away > 0) place(group, active.at, camera, 2); sound(playJumpScare) }
+      else if (plan.style === 'reveal') {
+        if (p.away > 0) place(group, active.at, camera, encounterDistance(active.id))
+        sound((c, b) => playEncounterLunge(c, b, active.duration))
+      }
     }
-    if (p.revealed && t < STAGE.lunge) {
+    if (p.shown && t < plan.rush && plan.style !== 'behind' && plan.style !== 'stalk') {
       // Looked away while it was there: it is in front of you again a moment later.
-      camera.getWorldDirection(look.current)
-      const off = offGaze([camera.position.x, camera.position.z], [look.current.x, look.current.z], [group.position.x, group.position.z])
-      p.away = off > .6 ? p.away + dt : 0
-      if (p.away > .2) placeFront(group, active.id, active.at, camera)
+      p.away = gazeOff(camera, group.position.x, group.position.z) > .6 ? p.away + dt : 0
+      if (p.away > .2) place(group, active.at, camera, standDistance(plan, active.id, t))
     }
-    const frame = stageFrame(active.id, t, p.start, p.seed)
-    flashlight.factor = frame.light
-    if (t >= STAGE.blackout) inputState.encounterHeld = false
-    if (p.revealed && t < STAGE.blackout) {
+    const frame = styleFrame(plan, active.id, t, p.start, p.seed)
+    flashlight.factor = Math.min(1.4, frame.light)
+    if (frame.held && !p.held) clearRoamingInput()
+    p.held = frame.held
+    inputState.encounterHeld = frame.held
+    if (frame.drag > 0) {
       // The gaze is dragged to it (first person underground: forward = -sin(yaw), -sin(pitch), -cos(yaw)).
       const dx = p.x - camera.position.x, dz = p.z - camera.position.z
       const want = Math.atan2(-dx, -dz), turn = Math.atan2(Math.sin(want - viewControls.yaw), Math.cos(want - viewControls.yaw))
-      const k = 1 - Math.exp(-dt * (frame.lunge > 0 ? 14 : 5))
+      const k = 1 - Math.exp(-dt * frame.drag)
       viewControls.yaw += turn * k
       viewControls.pitch += (0 - viewControls.pitch) * k
     }
@@ -255,20 +297,26 @@ export function InteriorEncounters() {
       group.rotation.y = Math.atan2(camera.position.x - x, camera.position.z - z)
     } else {
       group.position.set(p.x - p.dz * frame.shake, p.y + frame.rise, p.z + p.dx * frame.shake)
+      group.rotation.y = Math.atan2(camera.position.x - p.x, camera.position.z - p.z)
     }
     group.rotation.x = frame.tilt
     viewer.current.copy(camera.position)
     if (active.id === 12) group.worldToLocal(viewer.current)
     animate(active.id, child, frame.reveal, viewer.current)
+    if (active.id === 7) {
+      // The runner crosses the hall side-on in the long look; anywhere else it comes straight at you.
+      const runner = child.children.at(-1)!
+      if (plan.style !== 'reveal') { runner.position.set(0, 0, 0); runner.rotation.y = 1.25 } else runner.rotation.y = 0
+    }
     const dimmed = lighting.current
     if (dimmed) dimmed.lights.forEach((light,i) => { light.intensity = dimmed.intensity[i]! * frame.light })
     if (accent.current) {
-      // A cold side light that picks the creature out of the dark while it is there.
+      // A cold side light that picks the creature out of the dark while it is there (stronger on the far stalker).
       const s = encounterScale(active.id), facing = group.rotation.y
       accent.current.position.set(group.position.x + .8*s*Math.sin(facing) + .9*s*Math.cos(facing), p.y + 1.6*s,
         group.position.z + .8*s*Math.cos(facing) - .9*s*Math.sin(facing))
-      accent.current.distance = 4.5 * s
-      accent.current.intensity = frame.visible ? (active.id === 9 ? 4 : 9) * (frame.lunge > 0 ? 1.4 : 1) : 0
+      accent.current.distance = (plan.style === 'stalk' ? 7 : 4.5) * s
+      accent.current.intensity = frame.visible && !frame.behind ? (active.id === 9 ? 4 : 9) * (frame.lunge > 0 ? 1.4 : plan.style === 'stalk' ? 2.2 : 1) : 0
     }
   }, .65)
   const [x,y,z] = diamond

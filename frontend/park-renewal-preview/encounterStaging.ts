@@ -100,6 +100,128 @@ export function placeInView(eye: readonly [number, number], forward: readonly [n
   return [fallback[0], fallback[1]]
 }
 
+// ---------- styles ----------
+// The same build-up every time told players "here it comes" and after two scares nothing was frightening. Each
+// scare now draws one of five ways to happen, never the same twice in a row:
+//   pop     — no warning at all: it is simply there, an arm's length away, screaming, and the lights die
+//   behind  — breathing at your back; turn round and it is in your face (or it turns you round itself)
+//   stalk   — standing far down the hall; every time the lamps blink it is closer, until it is on you
+//   fakeout — the lamps stutter and the drone rises… then nothing, the light comes back; then it pops
+//   reveal  — the long look (build-up, the creature in plain view, the rush): the original, now the rare one
+export type StageStyle = 'pop' | 'behind' | 'stalk' | 'fakeout' | 'reveal'
+export const STAGE_STYLES: readonly StageStyle[] = ['pop', 'behind', 'stalk', 'fakeout', 'reveal']
+/** Creatures that stand free as a whole figure; the rest are wall, door, lift, water or face pieces. */
+const FIGURES = new Set([2, 3, 7, 9, 10])
+const WEIGHTS: Record<StageStyle, number> = { pop: .3, behind: .2, stalk: .2, fakeout: .15, reveal: .15 }
+
+/** Which styles suit encounter `id` (a wall of eyes cannot creep up behind you). */
+export function stylesFor(id: number): StageStyle[] {
+  return FIGURES.has(id) ? [...STAGE_STYLES] : ['pop', 'fakeout', 'reveal']
+}
+/** A weighted draw for `id`, never repeating `last` when there is another choice. */
+export function pickStyle(id: number, last: StageStyle | undefined, random: () => number = Math.random): StageStyle {
+  const options = stylesFor(id).filter(s => s !== last)
+  const total = options.reduce((sum, s) => sum + WEIGHTS[s], 0)
+  let r = random() * total
+  for (const s of options) if ((r -= WEIGHTS[s]) < 0) return s
+  return options[options.length - 1]!
+}
+
+/** Seconds into the scare at which each beat happens. `duration` is in ms like Encounter.duration. */
+export interface StagePlan {
+  style: StageStyle
+  duration: number
+  /** Drawn from here on. */
+  show: number
+  /** The rush starts. */
+  rush: number
+  /** Lights out, creature gone. */
+  dark: number
+  /** Stalk: the blinks at which it is suddenly closer. */
+  jumps: number[]
+  /** Fakeout: when the false alarm ends and the light comes back. */
+  calm: number
+}
+const POP = { rush: .05, dark: .55, after: .6 }
+/** The beats of a scare in `style`; `base` (ms) is the old duration, used by the long reveal only. */
+export function stagePlan(style: StageStyle, base: number, random: () => number = Math.random): StagePlan {
+  const plan = (show: number, rush: number, dark: number, end: number, extra: Partial<StagePlan> = {}): StagePlan =>
+    ({ style, duration: end * 1000, show, rush, dark, jumps: [], calm: 0, ...extra })
+  switch (style) {
+    case 'pop': return plan(0, POP.rush, POP.dark, POP.dark + POP.after)
+    case 'fakeout': {
+      const calm = 1.3 + random() * .3, at = calm + 1 + random() * 1.4
+      return plan(at, at + POP.rush, at + POP.dark, at + POP.dark + POP.after, { calm })
+    }
+    case 'stalk': {
+      const jumps = [1.2, 2.1, 2.8, 3.3].map(t => t + (random() - .5) * .2)
+      return plan(0, 3.55, 3.95, 4.6, { jumps })
+    }
+    // `rush` is when it turns you round if you have not looked; looking earlier moves the rush up.
+    case 'behind': return plan(0, 4.2, 4.7, 5.3)
+    case 'reveal': { const d = base / 1000; return plan(STAGE.reveal * d, STAGE.lunge * d, STAGE.blackout * d, d) }
+  }
+}
+/** The stalker's distance at each blink, as a share of how far off it first stood. */
+const STALK = [1, .72, .5, .33, .22]
+/** The stalker needs a long clear hall; with less than this in view it pops instead. */
+export const STALK_MIN = 5.5
+/** Metres ahead of the viewer the creature stands at second `t` (stalk steps in from `far`; the rest stand still). */
+export function standDistance(plan: StagePlan, id: number, t: number, far = 9) {
+  if (plan.style === 'reveal') return encounterDistance(id)
+  if (plan.style === 'stalk') return Math.max(1.8, far * STALK[plan.jumps.filter(j => t >= j).length]!)
+  if (plan.style === 'behind') return 1.7
+  return 1.75
+}
+
+export interface StyleFrame extends StageFrame {
+  /** Stalk: how many blinks have passed (it moves on each). */
+  step: number
+  /** Behind: it stands at your back until the rush. */
+  behind: boolean
+  /** How hard the gaze is dragged to it, per second (0: free). */
+  drag: number
+  /** The player cannot move. */
+  held: boolean
+}
+/** The state of a scare at second `t` of `plan`; `start` is how far away it stood when the rush began. */
+export function styleFrame(plan: StagePlan, id: number, t: number, start: number, seed = 0): StyleFrame {
+  const d = plan.duration / 1000
+  if (plan.style === 'reveal') {
+    const f = stageFrame(id, t / d, start, seed)
+    return { ...f, step: 0, behind: false, drag: f.visible ? (f.lunge > 0 ? 14 : 5) : 0, held: t < plan.dark }
+  }
+  const lunge = clamp((t - plan.rush) / (plan.dark - plan.rush))
+  const rush = ease(lunge)
+  const face = (FACE[id] ?? 0) * encounterScale(id)
+  const sink = face > EYE_HEIGHT + .1 ? face - EYE_HEIGHT : 0
+  const reach = Math.max(0, start - .8) * (LUNGE[id] ?? 1)
+  const flick = (k: number) => Math.sin(t * 173 + seed) * Math.sin(t * 61 + seed * 2) > k ? 1 : .12
+  const step = plan.jumps.filter(j => t >= j).length
+  let light: number
+  if (t >= plan.dark) light = t < plan.dark + .35 ? 0 : Math.min(1, (t - plan.dark - .35) * 2.5)
+  else if (plan.style === 'pop' || (plan.style === 'fakeout' && t >= plan.show)) light = t - plan.show < .07 ? 1.8 : .5 * flick(-.3)
+  else if (plan.style === 'fakeout') light = t < plan.calm ? (.3 + .6 * (1 - t / plan.calm)) * flick(.1) : 1
+  else if (plan.style === 'stalk') light = plan.jumps.some(j => t >= j - .1 && t < j + .12) ? 0 : t >= plan.rush ? .3 : .55
+  else light = t >= plan.rush ? .35 : .85 + .1 * Math.sin(t * 31 + seed)
+  const visible = t >= plan.show && t < plan.dark && !(plan.style === 'stalk' && plan.jumps.some(j => t >= j - .1 && t < j + .12))
+  return {
+    visible,
+    // Popped up creatures are already in their final pose; the stalker holds one pose with the figure in it.
+    reveal: plan.style === 'stalk' ? .55 : clamp((t - plan.show) / .25),
+    lunge,
+    advance: reach * lunge * lunge,
+    light,
+    shake: lunge > 0 ? Math.sin(t * 210 + seed) * .04 : 0,
+    tilt: 0,
+    rise: ((RISE[id] ?? 0) - sink) * (plan.style === 'pop' || plan.style === 'fakeout' ? Math.max(rush, .6) : rush),
+    step,
+    behind: plan.style === 'behind' && t < plan.rush,
+    drag: plan.style === 'behind' ? (t >= plan.rush - .6 ? 18 : 0) : visible ? (lunge > 0 ? 16 : plan.style === 'stalk' ? 1.5 : 9) : 0,
+    held: t < plan.dark && (plan.style === 'behind' ? t >= plan.rush - .6 : plan.style === 'fakeout' || t >= plan.show),
+  }
+}
+
 /** Angle in radians between where the viewer looks (flat) and the creature. */
 export function offGaze(eye: readonly [number, number], forward: readonly [number, number], at: readonly [number, number]) {
   const dx = at[0] - eye[0], dz = at[1] - eye[1], d = Math.hypot(dx, dz) || 1, f = Math.hypot(forward[0], forward[1]) || 1

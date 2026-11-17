@@ -234,6 +234,51 @@ export function playEncounterLunge(ctx: Ctx, bus: AudioNode, duration: number) {
   lungeHit(output(ctx, bus), ctx.currentTime + .01, (STAGE.blackout - STAGE.lunge) * duration / 1000)
 }
 
+// ---------- the other scare styles (encounterStaging.StageStyle) ----------
+/** No warning: a scream at full force right in your face, a crack and a boom that rings on in the dark. */
+export function playJumpScare(ctx: Ctx, bus: AudioNode) {
+  const o = output(ctx, bus), now = ctx.currentTime + .005
+  const real = clip(o, any('scream-a', 'scream-b'), now, { gain: 1, rate: .85 + Math.random() * .2, wet: .2 })
+  clip(o, any('roar-a', 'roar-low', 'snarl-a'), now, { gain: .7, rate: .75 + Math.random() * .15, wet: .25 })
+  clip(o, any('hit-low', 'hit-deep', 'hit-mid'), now, { gain: .9, wet: .25, offset: .35, until: now + 2.2, fadeOut: 1.6 })
+  noise(o, now, { type: 'highpass', freq: 300, gain: .7, attack: .002, release: .45, wet: .3 })
+  thud(o, now, .9, 52)
+  if (!real) shriek(o, now, .7, .16)
+}
+/** The false alarm: stutter, drone and heartbeat as usual… then silence, cut dead, and the lamps clunk back on. */
+export function playFakeout(ctx: Ctx, bus: AudioNode, calm: number) {
+  const o = output(ctx, bus), now = ctx.currentTime + .01
+  buildUp(o, now, calm)
+  clip(o, 'dread', now, { gain: .35, fadeIn: calm * .7, until: now + calm, fadeOut: .04, wet: .3 })
+  tone(o, now + calm, { wave: 'square', freq: 120, gain: .04, attack: .002, release: .12, filter: 1200, wet: .2 })
+  noise(o, now + calm, { type: 'bandpass', freq: 900, q: 2, gain: .1, attack: .002, release: .06, wet: .3 })
+}
+/** The stalker far down the hall: a low moan, far off, when you first see it. */
+export function playStalkStart(ctx: Ctx, bus: AudioNode) {
+  const o = output(ctx, bus), now = ctx.currentTime + .01
+  if (!clip(o, any('moan-a', 'moan-b'), now + .2, { gain: .35, rate: .7, wet: .85, until: now + 3, fadeOut: 1 })) growl(o, now + .2, 1.6, .06)
+}
+/** A blink of the lamps, and it is closer: the light cuts out with a clunk and a heavy step lands. */
+export function playStalkStep(ctx: Ctx, bus: AudioNode, step: number) {
+  const o = output(ctx, bus), now = ctx.currentTime + .005, near = Math.min(1, step / 4)
+  noise(o, now, { type: 'bandpass', freq: 1400, q: 3, gain: .14, attack: .002, release: .06, wet: .3 })
+  thud(o, now + .1, .35 + near * .45, 60 - near * 12)
+  clip(o, 'hit-low', now + .05, { gain: .25 + near * .45, offset: .3, until: now + .9 + near * .6, fadeOut: .6, wet: .3 })
+  if (step >= 3) clip(o, 'breath', now + .25, { gain: .5, rate: .75, wet: .15 })
+}
+/** Breathing at your back, closer and louder, for `len` seconds; `pan` is where it stands, as you hear it. */
+export function playBehind(ctx: Ctx, bus: AudioNode, len: number, pan: number) {
+  const o = output(ctx, bus), now = ctx.currentTime + .2
+  let n = 0
+  for (let t = 0; t < len - .3; t += 1.15, n++) {
+    const close = Math.min(1, (t + .5) / len)
+    if (!clip(o, 'breath', now + t, { gain: .25 + close * .45, rate: .7 + Math.random() * .1, pan: pan * (1 - close * .5), wet: .12 - close * .08 }))
+      noise(o, now + t, { type: 'bandpass', freq: 900, q: 1.2, gain: .05 + close * .1, attack: .3, release: .5, pan, wet: .1 })
+  }
+  whisper(o, now + .4, Math.min(2, len * .5), pan, .06)
+  if (n > 2) clip(o, 'growl-low', now + len - 1.2, { gain: .3, rate: .7, pan, wet: .1 })
+}
+
 /** The hall's presence between scares (HorrorPresence): you are not alone down here. */
 export type PresenceSound = 'footsteps' | 'whisper' | 'bang' | 'lampOut' | 'lampsBack' | 'vanish'
 export function playPresence(ctx: Ctx, bus: AudioNode, kind: PresenceSound, pan = 0) {

@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, type RefObject } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Vector3, type Group, type Object3D } from 'three'
 import { effectsOutput } from '../src/audio/bgm'
-import { playPresence, type PresenceSound } from './horrorAudio'
+import { playJumpScare, playPresence, type PresenceSound } from './horrorAudio'
+import { ScreamerPlan, preloadScreamers, showScreamer } from './horrorScreamer'
 import { HORROR_LAMPS } from './horrorGeometry'
 import { horrorGround, horrorWalkable } from './horrorPlan'
 import { lampOverride } from './horrorDressingPlan'
@@ -13,6 +14,7 @@ import { hoodGeometry, tatteredGeometry } from './encounterSculpt'
 // Between the scares the hall keeps telling you something is there (S15P31B105-450): steps coming up behind you, a
 // tall figure standing against a far lamp that is gone when you look straight at it, the lamps behind you going out
 // one by one, a whisper at one ear, a crash somewhere far off. Never during a scare, and never two at once.
+// It also flashes the 2D screamers (horrorScreamer) at their spots.
 
 type Kind = 'footsteps' | 'figure' | 'lampsOut' | 'whisper' | 'bang'
 const KINDS: readonly [Kind, number][] = [['footsteps', .26], ['figure', .26], ['lampsOut', .2], ['whisper', .16], ['bang', .12]]
@@ -42,13 +44,24 @@ export function HorrorPresence({ zone }: { zone: RefObject<Group | null> }) {
   const f = useMemo(() => new Vector3(), [])
   const cloth = useMemo(() => tatteredGeometry('presence', .4), [])
   const hood = useMemo(() => hoodGeometry(), [])
+  const screamers = useMemo(() => new ScreamerPlan(), [])
+  const inside = useRef(false)
   useEffect(() => () => { lampOverride.fill(1) }, [])
   useFrame(({ camera, clock }, dt) => {
     const now = clock.elapsedTime, st = state.current, fig = figure.current
     let shown = !!zone.current
     for (let n: Object3D | null = zone.current; n; n = n.parent) if (!n.visible) shown = false
     const end = () => { st.kind = undefined; if (fig) fig.visible = false; if (st.lamp >= 0) { lampOverride[st.lamp] = 1; st.lamp = -1 } }
-    if (!shown) { end(); lampOverride.fill(1); st.out = []; st.next = now + 6; return }
+    if (!shown) { end(); lampOverride.fill(1); st.out = []; st.next = now + 6; inside.current = false; return }
+    if (!inside.current) { inside.current = true; screamers.reset(); preloadScreamers() }
+    // A face that fills the screen as you pass certain spots (not during a 3D scare).
+    const scream = screamers.update({ x: camera.position.x, y: camera.position.y - 1.5, z: camera.position.z }, now, !!interiorVisit.active)
+    if (scream) {
+      showScreamer(scream)
+      const out = effectsOutput()
+      if (out) playJumpScare(out.context, out.bus)
+      end(); st.next = Math.max(st.next, now + 8)
+    }
     // Lamps put out behind you come back after a while, stuttering.
     if (st.out.length && now > st.back) { for (const i of st.out) lampOverride[i] = 1; sound('lampsBack'); st.out = [] }
     if (interiorVisit.active) { end(); st.next = Math.max(st.next, now + 6); return }
