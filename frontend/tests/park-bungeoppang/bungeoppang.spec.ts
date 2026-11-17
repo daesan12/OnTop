@@ -1,11 +1,18 @@
 import { test, expect } from '@playwright/test';
 import { parkFixture } from '../park-integration/fixture';
+import { loadRenewalFixtureMap } from '../park-xr/fixture';
 import { screenshot } from '../e2e/contractFixture';
 
 test('existing bungeoppang game opens at the new cart, cooks and returns to the same park', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', e => errors.push(e.message));
-  const server = await parkFixture(page);
+  const map = process.env.PARK_INTEGRATION_MAP === 'renewal' ? loadRenewalFixtureMap() : undefined;
+  const server = await parkFixture(page, {}, map);
+  const now = new Date().toISOString();
+  await page.route('**/api/v1/operations/status', route => route.fulfill({ json: { mode: 'NORMAL', notice: '',
+    maintenanceStartedAt: null, expectedOpenAt: null, version: 1, updatedAt: now, serverTime: now } }));
+  await page.route('**/api/v1/announcements', route => route.fulfill({ json: { announcements: [], serverTime: now,
+    refreshAt: new Date(Date.now() + 60000).toISOString() } }));
   await page.goto('/park');
   await expect.poll(() => page.evaluate(async () =>
     (await import('/tests/park-integration/probe.ts' as string)).sceneReady()), { timeout: 90000 }).toBe(true);
@@ -16,16 +23,25 @@ test('existing bungeoppang game opens at the new cart, cooks and returns to the 
     const { createV5PreviewService } = await import('/src/features/bungeoppang/serviceV5Preview.ts' as string);
     Object.assign(bungeoppangService, createV5PreviewService(() => .5));
     const { bungeoppangView } = await import('/src/features/bungeoppang/bungeoppangView.ts' as string);
-    return { x: bungeoppangView.standX, y: .8, z: bungeoppangView.standZ, yaw: Math.PI };
+    const { renewalBreadShop } = await import('/src/features/bungeoppang/layoutV5.ts' as string);
+    return { x: bungeoppangView.standX, y: renewalBreadShop?.reachPosition[1] ?? .8, z: bungeoppangView.standZ, yaw: Math.PI };
   });
   server.place(stand);
+  const { nearGrill, besideGrill } = await page.evaluate(async (y) => {
+    const { BUNG_GRILL: { center: [x, , z] } } = await import('/src/features/bungeoppang/bungeoppangView.ts' as string);
+    return { nearGrill: { x, y, z }, besideGrill: { x: x + .3, y, z } };
+  }, stand.y);
+  const visitor = (id: string) => page.evaluate(async (userId) =>
+    (await import('/tests/park-bungeoppang/probe.ts' as string)).visitorVisibility(userId), id);
+  server.setPeers([nearGrill]);
+  await expect.poll(() => visitor('102'), { timeout: 15000 }).toBe(true);
   await expect(page.getByRole('button', { name: 'E 붕어빵 굽기', exact: true })).toBeVisible();
   await page.locator('canvas').focus();
   await page.keyboard.press('KeyE');
   await expect(page.getByRole('region', { name: '붕어빵 굽기 시작' })).toBeVisible();
-  const guide = page.getByRole('region', { name: '붕어빵 단축키 안내' });
+  const guide = page.getByRole('region', { name: '붕어빵 조작과 점수 안내' });
   await expect(guide.locator('kbd')).toHaveText(['Q', 'W', 'E', 'A', 'S', 'D', '1', '2', '3', '4', 'Space', 'R']);
-  await expect(guide).toContainText('주문에 맞는 완성품 전달');
+  await expect(guide).toContainText('준비된 주문 전달');
   await screenshot(page, 'feedback-bungeoppang-guide');
   await page.getByRole('button', { name: '시작', exact: true }).click();
   const phase = () => page.evaluate(async () =>
@@ -33,6 +49,9 @@ test('existing bungeoppang game opens at the new cart, cooks and returns to the 
   await expect.poll(phase, { timeout: 20000 }).toBe('play');
   await expect.poll(() => page.evaluate(async () =>
     (await import('/tests/park-bungeoppang/probe.ts' as string)).cookingStageReady())).toBe(true);
+  await expect.poll(() => visitor('102')).toBe(false);
+  server.setPeers([nearGrill, besideGrill]);
+  await expect.poll(() => visitor('103')).toBe(false);
   await page.locator('canvas').focus();
   const points = await page.evaluate(async () =>
     (await import('/tests/park-bungeoppang/probe.ts' as string)).plateClickPoints());
@@ -56,6 +75,8 @@ test('existing bungeoppang game opens at the new cart, cooks and returns to the 
     return frames;
   });
   expect(exitFrames.some(frame => frame.cartVisible)).toBe(false);
+  await expect.poll(() => visitor('102')).toBe(true);
+  await expect.poll(() => visitor('103'), { timeout: 15000 }).toBe(true);
   await screenshot(page, 'feedback-new-park-return');
   expect(await page.evaluate(async () =>
     (await import('/src/world/inputOwnership.ts' as string)).inputState.minigameOpen)).toBe(false);
