@@ -2,9 +2,9 @@ import { useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Vector3, type Group, type Light, type Mesh, type Object3D, type PointLight } from 'three'
 import { effectsOutput } from '../src/audio/bgm'
-import { playEncounterStaging } from './horrorAudio'
+import { playEncounterLunge, playEncounterStaging } from './horrorAudio'
 import { diamond, interiorVisit, type Encounter } from './interiorEvents'
-import { encounterDistance, encounterScale, placeInView, stageFrame } from './encounterStaging'
+import { STAGE, encounterDistance, encounterScale, offGaze, placeInView, stageFrame } from './encounterStaging'
 import { horrorWalkable } from './horrorPlan'
 import { encounterModels, Shape } from './InteriorEncounterModels'
 import { useEncounterWarmup } from './encounterWarmup'
@@ -138,8 +138,17 @@ export function InteriorEncounters() {
   const viewer = useRef(new Vector3())
   const accent = useRef<PointLight>(null)
   // Where the creature first stands, which way it rushes (towards the viewer) and how far away it started.
-  const placed = useRef({ x: 0, y: 0, z: 0, dx: 0, dz: 0, start: 3, seed: 0 })
+  const placed = useRef({ x: 0, y: 0, z: 0, dx: 0, dz: 0, start: 3, seed: 0, revealed: false, rushed: false, away: 0 })
   const look = useRef(new Vector3())
+  /** Stand encounter `id` in the viewer's line of sight now (first person underground), facing them. */
+  const placeFront = (group: Group, id: number, at: readonly number[], camera: { position: Vector3; getWorldDirection: (v: Vector3) => Vector3 }) => {
+    camera.getWorldDirection(look.current)
+    const [x, z] = placeInView([camera.position.x, camera.position.z], [look.current.x, look.current.z],
+      encounterDistance(id), (px, pz) => horrorWalkable(px, pz, .45), [at[0]!, at[2]!])
+    const start = Math.hypot(camera.position.x - x, camera.position.z - z) || 1
+    Object.assign(placed.current, { x, z, dx: (camera.position.x - x) / start, dz: (camera.position.z - z) / start, start, away: 0 })
+    group.rotation.set(0, Math.atan2(camera.position.x - x, camera.position.z - z), 0)
+  }
   useEncounterWarmup(stage)
   useFrame(({camera}, dt) => {
     const active = interiorVisit.active
@@ -156,15 +165,12 @@ export function InteriorEncounters() {
       if (active) {
         const group = objects.current[active.id]
         if (group) {
-          // In the viewer's line of sight (first person underground), not wherever the anchor happened to be.
-          camera.getWorldDirection(look.current)
-          const [x, z] = placeInView([camera.position.x, camera.position.z], [look.current.x, look.current.z],
-            encounterDistance(active.id), (px, pz) => horrorWalkable(px, pz, .45), [active.at[0], active.at[2]])
-          const y = active.at[1] - .78, start = Math.hypot(camera.position.x - x, camera.position.z - z) || 1
-          placed.current = { x, y, z, dx: (camera.position.x - x) / start, dz: (camera.position.z - z) / start, start, seed: Math.random() * 10 }
-          group.position.set(x, y, z)
-          group.rotation.order = 'YXZ' // lean towards the viewer after facing them
-          group.rotation.set(0, Math.atan2(camera.position.x - x, camera.position.z - z), 0)
+          // In the viewer's line of sight (first person underground), not wherever the anchor happened to be; placed
+          // again when it shows and when it rushes, so turning during the build-up cannot leave it behind you.
+          Object.assign(placed.current, { y: active.at[1] - .78, seed: Math.random() * 10, revealed: false, rushed: false })
+          group.rotation.order = 'YXZ'
+          placeFront(group, active.id, active.at, camera)
+          group.position.set(placed.current.x, placed.current.y, placed.current.z)
           group.scale.setScalar(encounterScale(active.id))
           group.visible = false
           const lights: Light[] = []
@@ -189,12 +195,48 @@ export function InteriorEncounters() {
     if (!active || active.presentedAt === undefined) return
     const group = objects.current[active.id]
     if (!group) return
-    const t = clamp((performance.now() - active.presentedAt) / active.duration)
+    let t = clamp((performance.now() - active.presentedAt) / active.duration)
     const child = group.children[0]
     if (!child) return
-    const p = placed.current, frame = stageFrame(active.id, t, p.start, p.seed)
+    const p = placed.current
+    if (t >= STAGE.reveal && !p.revealed) { p.revealed = true; placeFront(group, active.id, active.at, camera) }
+    // Walk up to it and it does not wait: it lunges now.
+    if (p.revealed && !p.rushed && t < STAGE.lunge) {
+      camera.getWorldDirection(look.current)
+      const near = Math.hypot(camera.position.x - p.x, camera.position.z - p.z)
+      const ahead = offGaze([camera.position.x, camera.position.z], [look.current.x, look.current.z], [p.x, p.z]) < 1
+      if (near < 1.9 && ahead) {
+        active.presentedAt = performance.now() - STAGE.lunge * active.duration
+        t = STAGE.lunge
+        p.start = Math.max(1, near)
+      }
+    }
+    if (t >= STAGE.lunge && !p.rushed) {
+      p.rushed = true
+      if (p.away > 0) placeFront(group, active.id, active.at, camera)
+      const output = effectsOutput()
+      if (output) playEncounterLunge(output.context, output.bus, active.duration)
+    }
+    if (p.revealed && t < STAGE.lunge) {
+      // Looked away while it was there: it is in front of you again a moment later.
+      camera.getWorldDirection(look.current)
+      const off = offGaze([camera.position.x, camera.position.z], [look.current.x, look.current.z], [group.position.x, group.position.z])
+      p.away = off > .6 ? p.away + dt : 0
+      if (p.away > .2) placeFront(group, active.id, active.at, camera)
+    }
+    const frame = stageFrame(active.id, t, p.start, p.seed)
     group.visible = frame.visible
-    group.position.set(p.x + p.dx * frame.advance - p.dz * frame.shake, p.y + frame.rise, p.z + p.dz * frame.advance + p.dx * frame.shake)
+    if (frame.lunge > 0) {
+      // The rush ends a step in front of your eyes wherever you are now, so walking on cannot leave it behind.
+      camera.getWorldDirection(look.current)
+      const f = Math.hypot(look.current.x, look.current.z) || 1, reach = frame.advance / Math.max(.01, p.start - .8)
+      const tx = camera.position.x + look.current.x / f * .8, tz = camera.position.z + look.current.z / f * .8
+      const k = Math.min(1, reach), x = p.x + (tx - p.x) * k, z = p.z + (tz - p.z) * k
+      group.position.set(x - p.dz * frame.shake, p.y + frame.rise, z + p.dx * frame.shake)
+      group.rotation.y = Math.atan2(camera.position.x - x, camera.position.z - z)
+    } else {
+      group.position.set(p.x - p.dz * frame.shake, p.y + frame.rise, p.z + p.dx * frame.shake)
+    }
     group.rotation.x = frame.tilt
     viewer.current.copy(camera.position)
     if (active.id === 12) group.worldToLocal(viewer.current)

@@ -135,15 +135,18 @@ function lungeHit(o: Out, at: number, len: number) {
 }
 
 /**
- * The whole scare in sound, on the fractions encounterStaging uses: build-up, the creature's own sound timed to its
- * animation beats during the reveal, then the rush and the cut to black.
+ * The scare in sound, on the fractions encounterStaging uses: build-up, then the creature's own sound timed to its
+ * animation beats during the reveal. The rush has its own call (playEncounterLunge).
  */
 export function playEncounterStaging(ctx: Ctx, bus: AudioNode, id: number, duration: number, beats: readonly number[]) {
   const o = output(ctx, bus), now = ctx.currentTime + .01, d = duration / 1000
-  const reveal = STAGE.reveal * d, lunge = STAGE.lunge * d, blackout = STAGE.blackout * d
+  const reveal = STAGE.reveal * d, lunge = STAGE.lunge * d
   buildUp(o, now, reveal)
   playEncounterSound(ctx, bus, id, (lunge - reveal) * 1000, beats, reveal)
-  lungeHit(o, now + lunge, blackout - lunge)
+}
+/** The rush, played when it actually starts (on time, or early when you walk up to it). */
+export function playEncounterLunge(ctx: Ctx, bus: AudioNode, duration: number) {
+  lungeHit(output(ctx, bus), ctx.currentTime + .01, (STAGE.blackout - STAGE.lunge) * duration / 1000)
 }
 
 /** The hall's own sound while you are in it: a low drone, drips, distant groans and creaks. Call tick() each frame. */

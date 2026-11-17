@@ -88,7 +88,20 @@ export function placeInView(eye: readonly [number, number], forward: readonly [n
     const x = eye[0] + fx * d, z = eye[1] + fz * d
     if (walkable(x, z)) return [x, z]
   }
+  // Facing a wall up close: try a little to either side of the gaze before giving up.
+  for (const turn of [.25, -.25, .5, -.5]) {
+    const c = Math.cos(turn), s = Math.sin(turn), tx = fx * c - fz * s, tz = fx * s + fz * c
+    let ok = true
+    for (let d = .4; d <= 1.8 && ok; d += .2) ok = walkable(eye[0] + tx * d, eye[1] + tz * d)
+    if (ok) return [eye[0] + tx * 1.8, eye[1] + tz * 1.8]
+  }
   return [fallback[0], fallback[1]]
+}
+
+/** Angle in radians between where the viewer looks (flat) and the creature. */
+export function offGaze(eye: readonly [number, number], forward: readonly [number, number], at: readonly [number, number]) {
+  const dx = at[0] - eye[0], dz = at[1] - eye[1], d = Math.hypot(dx, dz) || 1, f = Math.hypot(forward[0], forward[1]) || 1
+  return Math.acos(Math.max(-1, Math.min(1, (dx * forward[0] + dz * forward[1]) / (d * f))))
 }
 
 export { ease as stageEase }
