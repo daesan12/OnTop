@@ -6,7 +6,7 @@ import { HORROR } from './horrorPlan'
  * damp bands, moss, water streaks, wet floor patches, rust and rot, and a distance haze that swallows the far hall.
  * Each patch is injected into a stock three.js material so the park's lights, tone mapping and fog stay in charge.
  */
-export const HAZE = { color: '#121917', density: .03, power: 1.5 } as const
+export const HAZE = { color: '#0a0e0d', density: .036, power: 1.5 } as const
 
 const noise = /* glsl */`
 float hHash(vec2 p){p=fract(p*vec2(123.34,456.21));p+=dot(p,p+45.32);return fract(p.x*p.y);}

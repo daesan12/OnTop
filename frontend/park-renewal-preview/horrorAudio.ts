@@ -149,6 +149,29 @@ export function playEncounterLunge(ctx: Ctx, bus: AudioNode, duration: number) {
   lungeHit(output(ctx, bus), ctx.currentTime + .01, (STAGE.blackout - STAGE.lunge) * duration / 1000)
 }
 
+/** The hall's presence between scares (HorrorPresence): you are not alone down here. */
+export type PresenceSound = 'footsteps' | 'whisper' | 'bang' | 'lampOut' | 'lampsBack' | 'vanish'
+export function playPresence(ctx: Ctx, bus: AudioNode, kind: PresenceSound, pan = 0) {
+  const o = output(ctx, bus), now = ctx.currentTime + .01
+  switch (kind) {
+    case 'footsteps': {
+      // Bare feet coming up behind you, closer each step, then nothing.
+      const n = 5 + Math.floor(Math.random() * 3)
+      for (let i = 0; i < n; i++) {
+        const near = (i + 1) / n, at = now + i * (.48 - near * .12)
+        noise(o, at, { type: 'lowpass', freq: 500 + near * 1300, gain: .05 + near * .22, attack: .002, release: .1, pan: pan * (1 - near * .4), wet: .8 - near * .4 })
+        tone(o, at, { wave: 'sine', freq: 120, to: 70, gain: .03 + near * .1, attack: .002, release: .08, pan, wet: .6 })
+      }
+      break
+    }
+    case 'whisper': whisper(o, now, 1.6, pan, .13); break
+    case 'bang': clank(o, now, .12); thud(o, now + .02, .35, 50); growl(o, now + .9, 1.4, .05); break
+    case 'lampOut': noise(o, now, { type: 'bandpass', freq: 1400, q: 3, gain: .12, attack: .002, release: .08, pan, wet: .5 }); tone(o, now, { wave: 'square', freq: 120, gain: .03, attack: .002, release: .15, filter: 900, pan, wet: .4 }); break
+    case 'lampsBack': for (let i = 0; i < 4; i++) tone(o, now + i * .09, { wave: 'square', freq: 118, gain: .025, attack: .002, release: .06, filter: 1200, pan, wet: .3 }); break
+    case 'vanish': noise(o, now, { type: 'highpass', freq: 1800, to: 5000, gain: .1, attack: .05, release: .5, pan, wet: .9 }); whisper(o, now, .8, pan, .08); break
+  }
+}
+
 /** The hall's own sound while you are in it: a low drone, drips, distant groans and creaks. Call tick() each frame. */
 export class UndergroundAmbience {
   private nodes: { gain: GainNode; sources: AudioScheduledSourceNode[] } | undefined

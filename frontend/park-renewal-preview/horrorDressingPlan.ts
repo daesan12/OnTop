@@ -153,3 +153,5 @@ export const CEILING_GRATE = { at: [-25, top - .05, -76] as V3, size: 1.5 }
 /** Effigy eyes (two backed stone figures on the east wall, horrorGeometry); they face into the hall (-x). */
 export const EFFIGY_EYES: V3[] = [-95, -61].flatMap(z => [[23.5 - .76, f + 3.08, z - .2], [23.5 - .76, f + 3.08, z + .2]] as V3[])
 export const LAMP_COUNT = HORROR_LAMPS.length
+/** Per-lamp multiplier the presence events use to put lamps out behind you (1 = normal). */
+export const lampOverride = new Float32Array(LAMP_COUNT).fill(1)

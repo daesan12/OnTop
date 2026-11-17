@@ -1,10 +1,12 @@
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Vector3, type Group, type Light, type Mesh, type Object3D, type PointLight } from 'three'
 import { effectsOutput } from '../src/audio/bgm'
 import { playEncounterLunge, playEncounterStaging } from './horrorAudio'
 import { diamond, interiorVisit, type Encounter } from './interiorEvents'
-import { STAGE, encounterDistance, encounterScale, offGaze, placeInView, stageFrame } from './encounterStaging'
+import { STAGE, encounterDistance, encounterScale, flashlight, offGaze, placeInView, stageFrame } from './encounterStaging'
+import { clearRoamingInput, inputState } from '../src/world/inputOwnership'
+import { viewControls } from '../src/world/cameraPerspective'
 import { horrorWalkable } from './horrorPlan'
 import { encounterModels, Shape } from './InteriorEncounterModels'
 import { useEncounterWarmup } from './encounterWarmup'
@@ -150,6 +152,8 @@ export function InteriorEncounters() {
     group.rotation.set(0, Math.atan2(camera.position.x - x, camera.position.z - z), 0)
   }
   useEncounterWarmup(stage)
+  // Never leave the player held if the underground unmounts mid-scare.
+  useEffect(() => () => { inputState.encounterHeld = false; flashlight.factor = 1 }, [])
   useFrame(({camera}, dt) => {
     const active = interiorVisit.active
     if (active !== previous.current) {
@@ -162,7 +166,12 @@ export function InteriorEncounters() {
         lighting.current = undefined
       }
       if (accent.current) accent.current.intensity = 0
+      inputState.encounterHeld = false
+      flashlight.factor = 1
       if (active) {
+        // Frozen in place for the whole scare: the keys let go and the walk stops.
+        inputState.encounterHeld = true
+        clearRoamingInput()
         const group = objects.current[active.id]
         if (group) {
           // In the viewer's line of sight (first person underground), not wherever the anchor happened to be; placed
@@ -225,6 +234,16 @@ export function InteriorEncounters() {
       if (p.away > .2) placeFront(group, active.id, active.at, camera)
     }
     const frame = stageFrame(active.id, t, p.start, p.seed)
+    flashlight.factor = frame.light
+    if (t >= STAGE.blackout) inputState.encounterHeld = false
+    if (p.revealed && t < STAGE.blackout) {
+      // The gaze is dragged to it (first person underground: forward = -sin(yaw), -sin(pitch), -cos(yaw)).
+      const dx = p.x - camera.position.x, dz = p.z - camera.position.z
+      const want = Math.atan2(-dx, -dz), turn = Math.atan2(Math.sin(want - viewControls.yaw), Math.cos(want - viewControls.yaw))
+      const k = 1 - Math.exp(-dt * (frame.lunge > 0 ? 14 : 5))
+      viewControls.yaw += turn * k
+      viewControls.pitch += (0 - viewControls.pitch) * k
+    }
     group.visible = frame.visible
     if (frame.lunge > 0) {
       // The rush ends a step in front of your eyes wherever you are now, so walking on cannot leave it behind.

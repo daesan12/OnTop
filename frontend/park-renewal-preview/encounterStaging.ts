@@ -6,6 +6,8 @@
 // Pure helpers here; InteriorEncounters drives them and horrorAudio follows the same fractions.
 
 export const STAGE = { reveal: .17, lunge: .8, blackout: .94 } as const
+/** Shared with the flashlight (HorrorZone): the scare dims and cuts it with the lamps. */
+export const flashlight = { factor: 1 }
 
 const clamp = (x: number) => Math.max(0, Math.min(1, x))
 const ease = (x: number) => { const n = clamp(x); return n * n * (3 - 2 * n) }
