@@ -5,7 +5,7 @@ import { loadRenewalFixtureMap } from './fixture'
 
 const helper = '/tests/park-xr/syntheticXR.ts'
 
-test('공원 VR을 유지하며 오목 착석부터 정산 후 퇴장까지 진행한다', async ({ page }, info) => {
+test('공원 VR을 유지하며 오목 착석부터 훈수 확인, 기권 및 정산 후 퇴장까지 진행한다', async ({ page }, info) => {
   const errors: string[] = []
   page.on('pageerror', error => errors.push(error.message))
   await page.addInitScript(() => Object.defineProperty(navigator, 'xr', { configurable: true,
@@ -13,7 +13,7 @@ test('공원 VR을 유지하며 오목 착석부터 정산 후 퇴장까지 진�
   const renewal = process.env.PARK_XR_MAP === 'renewal' ? loadRenewalFixtureMap() : undefined
   const anchor = renewal?.data.tables[0]
   const approach = anchor?.interactionPoints?.[0]
-  const server = await fixture(page, { generatedPark: true, omok: true, ownUserId: '101', manualLobby: true, tabletServer: true, carry: true,
+  const server = await fixture(page, { generatedPark: true, omok: true, ownUserId: '101', manualLobby: true, tabletServer: true, carry: true, forfeit: true, spectatorEvents: true,
     ...(renewal && anchor && approach ? { connectedMap: renewal.identity, mapVersion: renewal.identity.mapVersion,
       anchorId: anchor.id, position: { x: approach[0], y: approach[1] + .8, z: approach[2], yaw: 0 } } : {}),
   })
@@ -54,6 +54,8 @@ test('공원 VR을 유지하며 오목 착석부터 정산 후 퇴장까지 진�
   await select(lobby, 1109 / 1536, 765 / 940)
   await expect.poll(() => seen('TABLE_CONFIGURE')).toMatchObject({ gameCode: 'OMOK', selectedPlayers: 2, betAmountPerPlayer: 1 })
   await expect(page.getByText('참가 금액을 확인했어요', { exact: true })).toBeAttached()
+  const physicalTabletVisible = () => page.evaluate(async p => (await import(p)).visibleXRObject('table-preparation-tablet'), helper)
+  await expect.poll(physicalTabletVisible).toBe(false)
   const preparation = await page.evaluate(async p => (await import(p)).sceneFramePNG(), helper)
   await writeFile(info.outputPath('omok-vr-preparation.png'), Buffer.from(preparation.split(',')[1]!, 'base64'))
   await select(lobby, .5, 593 / 940)
@@ -65,14 +67,28 @@ test('공원 VR을 유지하며 오목 착석부터 정산 후 퇴장까지 진�
   await expect.poll(() => seen('TABLE_START')).toMatchObject({ actionId: expect.any(String) })
   server.omokColors('102')
   await expect.poll(() => visible(hud)).toBe(true)
+  expect(await physicalTabletVisible()).toBe(false)
   await expect.poll(() => page.evaluate(async p => (await import(p)).faceOmok(), helper)).toBe(true)
   await select('board', 7, 7)
   expect(seen('GAME_ACTION_SEND')).toBeUndefined()
   server.opponentMove()
+  server.spectatorEvent('ping')
+  server.spectatorEvent('chat')
+  await expect.poll(() => page.evaluate(async p => (await import(p)).omokPingVisible(), helper)).toBe(true)
+  const advice = await page.evaluate(async p => (await import(p)).sceneFramePNG(), helper)
+  await writeFile(info.outputPath('omok-vr-advice.png'), Buffer.from(advice.split(',')[1]!, 'base64'))
+  await select(hud, 815 / 960, 183 / 240)
+  await select('board', 7, 7)
+  expect(seen('GAME_ACTION_SEND')).toBeUndefined()
+  expect(seen('GAME_FORFEIT')).toBeUndefined()
+  await select(hud, 288 / 960, 183 / 240)
   await select('board', 7, 7)
   await expect.poll(() => seen('GAME_ACTION_SEND')).toMatchObject({ input: { x: 7, y: 7 } })
   expect(await snapshot()).toMatchObject({ active: true, mode: 'omok' })
-  server.finishGame()
+  await select(hud, 815 / 960, 183 / 240)
+  expect(seen('GAME_FORFEIT')).toBeUndefined()
+  await select(hud, 670 / 960, 183 / 240)
+  await expect.poll(() => seen('GAME_FORFEIT')).toMatchObject({ actionId: expect.any(String) })
   server.settle()
   server.nextRound()
   await expect.poll(() => visible(lobby)).toBe(true)
