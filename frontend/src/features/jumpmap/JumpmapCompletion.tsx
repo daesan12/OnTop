@@ -5,7 +5,7 @@ import { clearRoamingInput } from '../../world/inputOwnership'
 import coinImage from '../../assets/entry/yeopjeon-icon.webp'
 import './jumpmapCompletion.css'
 import './rewardFeedback.css'
-import { JumpmapRanking, jumpTime, type RankingLoader } from './JumpmapRanking'
+import { JumpmapRankingDialog, jumpTime, type RankingLoader } from './JumpmapRanking'
 import { DAILY_CAP, REWARDS, STAGES } from './activeCourse'
 
 /** Server-confirmed completion; closing restores park movement. */
@@ -20,10 +20,8 @@ export function JumpmapCompletion({ runCoins, todayEarned, settled, finishMs, lo
   const confirming = !settled || todayEarned === null || runCoins < fullReward && !capped
   useEffect(() => { clearRoamingInput(); return clearRoamingInput }, [])
   return createPortal(<div className="jumpmap jm-completion-root">
-    {rankingOpen ? <PaperPopup key="ranking" title="돌탑 타임어택 랭킹" label="돌탑 타임어택 랭킹" className="jm-completion-paper jm-ranking-paper"
-      onClose={returnToResult} closeLabel="랭킹 닫기">
-      <JumpmapRanking load={loadRankings} onBack={returnToResult}/>
-    </PaperPopup> : <PaperPopup key="result" title="돌탑 도전 완료" label="점프맵 완료" className="jm-completion-paper" onClose={onClose} closeLabel="완료 화면 닫기"
+    {rankingOpen ? <JumpmapRankingDialog load={loadRankings} onBack={returnToResult} />
+    : <PaperPopup key="result" title="돌탑 도전 완료" label="점프맵 완료" className="jm-completion-paper" onClose={onClose} closeLabel="완료 화면 닫기"
       initialFocusRef={returning.current ? rankingButton : undefined}>
       <h2>돌탑 도전 완료</h2>
       <p className="paper-subtitle">{STAGES.length===10?'마지막 오리를 지나 호수섬까지 완주했어요!':'마지막 연잎까지 멋지게 완주했어요!'}</p>

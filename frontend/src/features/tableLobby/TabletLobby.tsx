@@ -7,6 +7,7 @@ import { useParkRuntime } from '../../park/runtime/ParkRuntime'
 import { openManual } from '../manual/manualState'
 import { GAME_MANUAL } from './gatheringModel'
 import { STONE_RUMBLE_ANCHOR_ID } from '../../game/stone-rumble/entrance'
+import { loadStoneRumblePark } from '../../game/stone-rumble/loadPark'
 import { GAME_CONSTRUCTION_NOTICE, STONE_RUMBLE_ENABLED, isTableGamePlayable, TABLE_GAMES, TARGET_SCORES, tableTermsLabel, type TableGameCode } from './model'
 import { manualStartAllowed, preparationContext, readyWouldAutoStart, usePreparationPort } from './tabletModel'
 import { tabletProjection } from './tabletProjection'
@@ -79,6 +80,9 @@ function TabletSession({ tableId }: { tableId: string }) {
   const busy = s.pending || g.pending || g.busy || working || !s.connected || g.uncertain
   const canStand = active && !busy && !!mine
   const signature = table ? `${table.tableId}/${table.gameCode}/${table.targetScore}/${table.betAmountPerPlayer}/${approvedCount ?? ''}` : ''
+  useEffect(() => {
+    if (stoneRumble && active) void loadStoneRumblePark().catch(() => { /* 경기 시작은 배경 없이도 가능하다. */ })
+  }, [stoneRumble, active])
   useEffect(() => { setConfirmedBet(''); setBet(String(table?.betAmountPerPlayer ?? '')) }, [signature])
   useEffect(() => {
     const selected = TABLE_GAMES.find(game => game.code === table?.gameCode)

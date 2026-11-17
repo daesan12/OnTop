@@ -62,13 +62,15 @@ public class MoleAuditController {
     @Operation(summary = "두더지 플레이 기록 조회", tags = "ADMIN", security = @SecurityRequirement(name = "AccessJwt"))
     public ResponseEntity<List<MoleAuditDtos.Round>> search(@RequestParam String game,
             @RequestParam(required = false) Long userId, @RequestParam(required = false) Long roundId,
-            @RequestParam(required = false) LocalDate date) {
+            @RequestParam(required = false) LocalDate date, @RequestParam(required = false) String nickname) {
+        String name = nickname == null || nickname.isBlank() ? null : nickname.strip();
         if ((userId != null && userId <= 0) || (roundId != null && roundId <= 0)
-                || (userId == null && roundId == null && date == null)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "회원 ID, 판 ID 또는 날짜를 확인하세요.");
+                || (name != null && name.codePointCount(0, name.length()) > 8)
+                || (userId == null && roundId == null && date == null && name == null)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "닉네임, 회원 ID, 판 ID 또는 날짜를 확인하세요.");
         }
         return ResponseEntity.ok().cacheControl(CacheControl.noStore())
-                .body(requireAudit().search(game(game), userId, roundId, date));
+                .body(requireAudit().search(game(game), userId, roundId, date, name));
     }
 
     @GetMapping("/api/v1/admin/macro-analysis/mole/detections")

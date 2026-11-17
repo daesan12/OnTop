@@ -1,0 +1,128 @@
+.table-paper-popup.jm-ranking-paper {
+  box-sizing: border-box;
+  width: min(620px, calc(100vw - 36px));
+  padding: clamp(16px, 4vw, 30px);
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+
+.jm-ranking-paper::-webkit-scrollbar,
+.jm-ranking-board ol::-webkit-scrollbar { display: none; }
+.jm-ranking-paper > .paper-caption { display: none; }
+.table-paper-popup.jm-ranking-paper .paper-close {
+  top: 10px;
+  right: 10px;
+  z-index: 1;
+  background: #fff8e7;
+  border: 1px solid #c5b38b;
+  border-radius: 50%;
+  color: #163d29;
+}
+
+.jm-ranking {
+  display: grid;
+  gap: 16px;
+  text-align: left;
+  font: 500 15px/1.5 system-ui, 'Malgun Gothic', sans-serif;
+}
+
+.jm-ranking-heading {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding-inline-end: 34px;
+}
+
+.jm-ranking-paper .jm-ranking-heading h2 {
+  margin: 0;
+  font: 700 clamp(23px, 5vw, 34px)/1.2 'BusanDandiMyeongjo', serif;
+  word-break: keep-all;
+}
+
+.jm-ranking-heading p {
+  margin: 5px 0 0;
+  font-size: 14px;
+  color: #55513e;
+  word-break: keep-all;
+}
+
+.jm-ranking-medal {
+  display: block;
+  flex-shrink: 0;
+  width: 26px;
+  height: 31px;
+}
+
+.jm-ranking-heading .jm-ranking-medal { width: 52px; height: 62px; }
+
+.jm-my-record {
+  display: grid;
+  gap: 4px;
+  padding: 12px 16px;
+  border: 1px solid #a4af85;
+  border-radius: 12px;
+  background: #e3e8d3;
+}
+
+.jm-my-record h3 { margin: 0; font-size: 14px; }
+.jm-my-record p { margin: 0; }
+.jm-my-record > div { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 14px; }
+.jm-my-record strong { font-size: 23px; }
+.jm-my-record time { font-size: 19px; }
+.jm-ranking time { white-space: nowrap; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+.jm-ranking-board {
+  --ranking-columns: 64px minmax(0, 1fr) max-content;
+  border: 1px solid #c5b38b;
+  border-radius: 12px;
+  background: #fffaf0a6;
+}
+
+.jm-ranking-columns,
+.jm-ranking-board li {
+  display: grid;
+  grid-template-columns: var(--ranking-columns);
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+}
+
+.jm-ranking-columns {
+  border-radius: 11px 11px 0 0;
+  background: #e9dfc4;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.jm-ranking-columns span:first-child { text-align: center; }
+.jm-ranking-columns span:last-child, .jm-ranking-board time { justify-self: end; }
+
+.jm-ranking-board ol {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: min(345px, 43dvh);
+  overflow-y: auto;
+  scrollbar-width: none;
+  border-radius: 0 0 11px 11px;
+}
+
+.jm-ranking-board ol:focus-visible { outline: 2px solid #587761; outline-offset: 2px; }
+.jm-ranking-board li { min-height: 46px; border-top: 1px solid #d9cfb6; }
+.jm-ranking-board li[data-own='true'] { background: #e3e8d3; }
+.jm-ranking-place { display: flex; align-items: center; justify-content: center; gap: 4px; white-space: nowrap; }
+.jm-ranking-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.jm-ranking-status { margin: 0; text-align: center; }
+.jm-ranking-status p { margin: 0 0 8px; }
+.jm-ranking .paper-actions { margin: 0; }
+.jm-ranking .paper-actions button { font-size: 16px; }
+
+@media (max-width: 440px), (max-height: 600px) {
+  .jm-ranking { gap: 10px; font-size: 13px; }
+  .jm-ranking-heading { gap: 8px; }
+  .jm-ranking-heading p { font-size: 13px; }
+  .jm-ranking-heading .jm-ranking-medal { width: 37px; height: 45px; }
+  .jm-ranking-board { --ranking-columns: 48px minmax(0, 1fr) max-content; }
+  .jm-ranking-columns, .jm-ranking-board li { gap: 6px; padding-inline: 8px; }
+  .jm-ranking-place .jm-ranking-medal { width: 19px; height: 23px; }
+}

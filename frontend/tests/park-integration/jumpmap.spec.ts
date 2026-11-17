@@ -46,8 +46,17 @@ async function shot(page: Page, name: string, animations: 'allow' | 'disabled' =
 async function setup(page: Page, response: object | null = status) {
   const errors: string[] = []; page.on('pageerror', e => errors.push(e.message)); page.on('console', m => { if (m.type() === 'error' && /THREE|WebGL|shader|React/.test(m.text())) errors.push(m.text()) })
   const server = await parkFixture(page), tips: object[] = []
+  await page.route('**/api/v1/operations/status', r => {
+    const now = new Date().toISOString()
+    return r.fulfill({ json: { mode: 'NORMAL', notice: '', maintenanceStartedAt: null, expectedOpenAt: null,
+      version: 0, updatedAt: now, serverTime: now } })
+  })
   await page.route('**/api/v1/minigames/jumpmap/status?*', r => r.fulfill(response ? { json: response } : { status: 404, json: {} }))
-  await page.route('**/api/v1/minigames/jumpmap/tips', r => { tips.push(r.request().postDataJSON()); return r.fulfill({ status: 204 }) })
+  await page.route('**/api/v1/minigames/jumpmap/tips', r => {
+    expect(r.request().headers()['content-type']).toBe('application/json')
+    tips.push(r.request().postDataJSON())
+    return r.fulfill({ status: 204 })
+  })
   await page.goto('/park')
   await expect(page).toHaveTitle('OnTop')
   await expect(page).toHaveURL(/\/park$/)
@@ -62,6 +71,12 @@ async function setup(page: Page, response: object | null = status) {
   const start = () => emit('JUMPMAP_STARTED', 1, { courseVersion: COURSE_VERSION, rulesVersion: RULES_VERSION, serverTime: Date.now() })
   return { server, tips, errors, emit, start }
 }
+
+test('시작 안내를 JSON으로 저장한다', async ({ page }) => {
+  const { server, tips } = await setup(page)
+  server.place({ x: START.x, y: START.y + .8, z: START.z })
+  await expect.poll(() => tips, { timeout: 10_000 }).toContainEqual({ tips: ['START_SPOT'] })
+})
 
 test('ducks music and other effects during a run, keeps landings clear, and restores the mix on exit', async ({ page }) => {
   await page.addInitScript(() => {
@@ -245,9 +260,9 @@ test('stone medals and minute records stay readable while wheel scrolling a long
   const ranking = rankingPage.getByRole('list', { name: '완주 기록 순위' })
   await expect(ranking.getByRole('listitem')).toHaveCount(50)
   expect(rankingReads).toBe(1)
-  await expect(rankingPage.getByLabel('내 최고 기록').locator('time')).toHaveText('2분 04초')
+  await expect(rankingPage.getByLabel('내 최고 기록').locator('time')).toHaveText('2분 04.910초')
   expect((await probe(page)).state.result?.finishMs).toBe(124910)
-  expect(await ranking.locator('time').allTextContents()).toEqual(items.map(item=>`${Math.floor(item.finishMs/60000)}분 ${String(Math.floor(item.finishMs/1000)%60).padStart(2,'0')}초`))
+  expect(await ranking.locator('time').allTextContents()).toEqual(items.map(item=>`${Math.floor(item.finishMs/60000)}분 ${String(Math.floor(item.finishMs/1000)%60).padStart(2,'0')}.910초`))
   await expect(rankingPage.getByRole('button',{name:'타임어택 랭킹 접기',exact:true})).toHaveCount(0)
   expect(await ranking.locator('.jm-ranking-medal').evaluateAll(nodes => nodes.map(node => node.getAttribute('data-tier')))).toEqual(['1', '2', '3'])
   await expect(rankingPage.getByText(/서버가 확인/)).toHaveCount(0)

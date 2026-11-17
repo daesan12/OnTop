@@ -1,8 +1,6 @@
-import { RENEWAL_DISTANCE_LOD } from '../../src/park/mapSelection'
+import { BALLOON_RIDE_ENABLED, RENEWAL_DISTANCE_LOD } from '../../src/park/mapSelection'
+import { BalloonWayfindingLights } from '../../src/features/balloon/BalloonWayfinding'
 import { EntranceBuilding } from '../EntrancePavilion'
-import { ParkGachaKiosk } from '../ParkGachaKiosk'
-import { ParkMoleShop } from '../ParkMoleShop'
-import { RentalPairs } from '../RentalPairs'
 import { EntranceLandscape } from '../EntranceLandscape'
 import { CityBackdrop } from '../CityBackdrop'
 import { ScenicGround } from '../ScenicGround'
@@ -11,7 +9,7 @@ import { TableFurniture } from '../../src/features/tables/TableFurniture'
 import { TABLES } from '../../src/park/mapConfig'
 import { STONE_RUMBLE_ANCHOR_ID } from '../../src/game/stone-rumble/entrance'
 import { STONE_RUMBLE_ENABLED } from '../../src/features/tableLobby/model'
-import { lazy, memo, startTransition, Suspense, useLayoutEffect, useRef, useState, type RefObject } from 'react'
+import { lazy, memo, startTransition, Suspense, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Object3D, type Group } from 'three'
 import { authoritativePose, avatars, sampleAvatar, useSession } from '../../src/network/worldClient'
@@ -20,7 +18,7 @@ import { CAMERA, type QualityPreset } from '../../src/config'
 import { renewalMap } from '../../src/park/renewalMap'
 import { viewControls } from '../../src/world/cameraPerspective'
 import { welcomeFlight } from '../../src/features/welcomeTour/flight'
-import { createLakeProgress, LakeProgress } from '../lakeStages'
+import { createLakeProgress, LakeProgress, LakeStage } from '../lakeStages'
 import { LakeStreaming } from './LakeStreaming'
 import { PreviewTreeBatches } from '../PreviewTreeBatches'
 import { inAnnex } from '../interiorAccess'
@@ -28,7 +26,10 @@ import { interiorVisit, visitScope } from '../interiorEvents'
 import { preloadBungeoppangView } from '../../src/features/bungeoppang/loadBungeoppangView'
 import { preloadJumpRopeView } from '../../src/features/jumpRope/loadJumpRopeView'
 import { preloadGateSurroundings } from './preloadEntranceModels'
+import { ShaderPreparedGroup } from './ShaderPreparedGroup'
 import { collectJumpViewDrawables } from '../../src/features/jumpmap/preparation'
+import { useJumpmap } from '../../src/features/jumpmap/state'
+import { site } from '../plan'
 
 const HorrorZone = lazy(() => import('../HorrorZone').then(module => ({ default: module.HorrorZone })))
 const AnnexDetails = lazy(() => import('../InteriorDetails').then(module => ({ default: module.AnnexDetails })))
@@ -43,15 +44,16 @@ const bakery = renewalMap?.data.interactions.recreation?.find(anchor => anchor.i
 const jumpRopeShop = renewalMap?.data.interactions.recreation?.find(anchor => anchor.id === 'pigeon-jump-rope')
 const finalStage = 8
 const boardsPerStage = 4
+const balloonStation = site('balloon')
 const StableCityBackdrop = memo(CityBackdrop)
 const StableScenicDetails = lazy(() => import('../ScenicDetails').then(module => ({ default: memo(module.ScenicDetails) })))
 const StableScenicGround = memo(ScenicGround)
 const StableEntranceLandscape = memo(EntranceLandscape)
 const StableParkBoundary = memo(ParkBoundary)
 const StableEntranceBuilding = memo(EntranceBuilding)
-const StableGachaKiosk = memo(ParkGachaKiosk)
-const StableMoleShop = memo(ParkMoleShop)
-const StableRentalPairs = memo(RentalPairs)
+const StableGachaKiosk = lazy(() => import('../ParkGachaKiosk').then(module => ({ default: memo(module.ParkGachaKiosk) })))
+const StableMoleShop = lazy(() => import('../ParkMoleShop').then(module => ({ default: memo(module.ParkMoleShop) })))
+const StableRentalPairs = lazy(() => import('../RentalPairs').then(module => ({ default: memo(module.RentalPairs) })))
 const StableEntranceTrees = memo(PreviewTreeBatches)
 const StableBuildings = lazy(() => import('../Buildings').then(module => ({ default: memo(module.Buildings) })))
 const StableTable = memo(function StableTable({ index, boards }: { index: number; boards: boolean }) {
@@ -69,6 +71,12 @@ function atEntrance(pose = authoritativePose(useSession.getState().sessionId)) {
   return !pose || !!spawn && Math.hypot(pose.x-spawn[0], pose.z-spawn[2]) < 10 && Math.abs(pose.y-spawn[1]) < 2
 }
 
+function GateFacility({ children }: { children: ReactNode }) {
+  return <Suspense fallback={null}>
+    <ShaderPreparedGroup priority={.75}>{children}</ShaderPreparedGroup>
+  </Suspense>
+}
+
 export default function RenewalWorld({ quality, firstFrameAt, onDistantReady, groundMounted, entryPresented }: {
   quality: QualityPreset
   firstFrameAt: RefObject<number | null>
@@ -79,8 +87,8 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady, gr
   const surface = useRef<Group>(null), interior = useRef<Group>(null), annex = useRef<Group>(null)
   const loadInterior = useRef(false)
   const displayedPose = useRef({ x: 0, y: 0, z: 0, yaw: 0 })
-  const queuedAmbientShaders = useRef(false)
   const jumpViewDrawables = useRef<Object3D[] | undefined>(undefined)
+  const queuedLakeViewShaders = useRef(false)
   const jumpViewIndex = useRef(0)
   const jumpViewSelection = useRef<Object3D | undefined>(undefined)
   const queuedBakery = useRef(false)
@@ -153,11 +161,29 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady, gr
   useFrame(({ camera, scene, gl }) => {
     const root = surface.current
     if (!jumpEntrance || stage < finalStage || !root?.visible || !gl.extensions.has('KHR_parallel_shader_compile')) return
-    const pose = avatars.get(useSession.getState().sessionId)?.current
-    if (!pose || pose.y > jumpEntrance.y + 4 || Math.hypot(pose.x - jumpEntrance.x, pose.z - jumpEntrance.z) > 32) return
-    const objects = jumpViewDrawables.current ??= collectJumpViewDrawables(root, camera)
+    const { sessionId } = useSession.getState()
+    const pose = avatars.get(sessionId)?.current
+    if (!pose) return
+    const nearJumpEntrance = pose.y <= jumpEntrance.y + 4
+      && Math.hypot(pose.x - jumpEntrance.x, pose.z - jumpEntrance.z) <= 32
+    const { owner, run } = useJumpmap.getState()
+    const running = owner === sessionId && !!run
+    if (!nearJumpEntrance && !running) return
+    if (nearJumpEntrance) jumpViewDrawables.current ??= collectJumpViewDrawables(root, camera)
+
+    // The lake's streamed props did not exist when the entrance views were
+    // collected, so queue the steep kite views after those stages mount.
+    if (running && !queuedLakeViewShaders.current && lakeProgress.getStage() === LakeStage.Boats) {
+      queuedLakeViewShaders.current = true
+      const lakeDrawables = collectJumpViewDrawables(root, camera, true)
+      const queue = jumpViewDrawables.current ??= []
+      // Keep every queued object once, including those compiled at the entrance.
+      const queued = new Set(queue)
+      for (const object of lakeDrawables) if (!queued.has(object)) queue.push(object)
+    }
+    const objects = jumpViewDrawables.current
     const index = jumpViewIndex.current
-    if (index >= objects.length) return
+    if (!objects || index >= objects.length) return
     const selection = jumpViewSelection.current ??= new Object3D()
     const deadline = performance.now() + 2
     let end = index
@@ -171,7 +197,7 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady, gr
     jumpViewIndex.current = end
     if (end === objects.length) performance.mark('park-jump-view-shaders-submitted')
   }, .8)
-  useFrame(({ camera, scene, gl }) => {
+  useFrame(({ camera, scene }) => {
     const session = useSession.getState()
     const own = avatars.get(session.sessionId)
     let inside = false, inRoom = false
@@ -212,19 +238,12 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady, gr
     if (annex.current) annex.current.visible = roomVisible
     const daylight = scene.getObjectByName('renewal-exterior-lighting')
     if (daylight) daylight.visible = !visible && !roomVisible
-    if (stage >= 1 && !queuedAmbientShaders.current) {
-      queuedAmbientShaders.current = true
-      // Let the driver link the ambient animations before their first draw.
-      if (gl.extensions.has('KHR_parallel_shader_compile')) {
-        for (const name of ['mole-demo-impact-ring']) {
-          const object = surface.current?.getObjectByName(name)
-          if (object) gl.compile(object, camera, scene)
-        }
-      }
-    }
   }, .5)
   return <group name="renewal-220-world">
     <group ref={surface} name="renewal-park-surface">
+      {/* Inserting lights in stage four would relink shaders across the visible park. */}
+      {BALLOON_RIDE_ENABLED && <BalloonWayfindingLights x={balloonStation.x} z={balloonStation.z}
+        lit={entryPresented && stage >= 4} />}
       <LakeProgress.Provider value={lakeProgress}>
       <LakeStreaming progress={lakeProgress} />
       <StableCityBackdrop distanceLod={RENEWAL_DISTANCE_LOD} />
@@ -234,20 +253,22 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady, gr
         <OriginalPlaza />
         <StableEntranceTrees live />
         <StableEntranceBuilding id="pavilion" />
-        <StableEntranceBuilding id="fortune" />
-        <StableEntranceBuilding id="lottery" />
-        <StableGachaKiosk live />
-        <StableMoleShop optimizedReady={entryPresented && stage >= 2} />
-        <StableRentalPairs entrance />
         <StableEntranceLandscape quality={quality} showFitnessStations={entryPresented && stage >= 1} />
         <GroundMounted ready={groundMounted} />
       </Suspense>
       {entryPresented && stage >= 1 && (
         <>
+          <GateFacility><StableEntranceBuilding id="fortune" /></GateFacility>
+          <GateFacility><StableEntranceBuilding id="lottery" /></GateFacility>
           <Suspense fallback={null}><RenewalParkAdvertising /></Suspense>
           <Suspense fallback={null}><StableScenicDetails includeGround={false} includeTrees={false} includeLandscape={false} distantReady={stage >= 2} live /></Suspense>
         </>
       )}
+      {entryPresented && stage >= 2 && <>
+        <GateFacility><StableGachaKiosk live /></GateFacility>
+        <GateFacility><StableMoleShop optimizedReady={stage >= 3} /></GateFacility>
+      </>}
+      {entryPresented && stage >= 3 && <GateFacility><StableRentalPairs entrance /></GateFacility>}
       {entryPresented && stage >= 2 && <Suspense fallback={null}><StableBuildings live entrancePavilion={false} entranceDistricts={false} entranceFacilities={false} distantReady={distantReady} upperFacilitiesReady={stage >= 4}
         loadedRentalBatches={stage} /></Suspense>}
       {entryPresented && stage >= 3 && TABLES.map((anchor, index) => <Suspense key={anchor.id} fallback={null}>

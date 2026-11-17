@@ -5,7 +5,7 @@ import { buildServiceJumpPadArt, jumpArt, jumpStartArt, jumpFinishArt, jumpParti
 import type { JumpTheme } from '../../../park-renewal-preview/jump10Plan'
 import { creatureJumpArt } from '../../../park-renewal-preview/creatureJumpArt'
 import { renewalPadAt, renewalPadPose, renewalPadShown, syncRenewalMotion, updateRenewalContact } from './renewalMotion'
-import { avatars, sampleAvatar } from '../../network/worldClient'
+import { avatars, sampleAvatar, type Pose } from '../../network/worldClient'
 import { COURSE, FINISH, START, renewalCourse, targetFade, type CourseBlock } from './activeCourse'
 import { hits, onStep, standing, useJumpmap } from './state'
 import { applyLandingMotion, landingGeometry } from './landingMotion'
@@ -14,6 +14,7 @@ import { cameraWorldPosition, parkXRView } from '../../world/xrView'
 const groups = [...new Set(COURSE.map(b => b.theme))].map(theme => ({ theme, pads: COURSE.filter(b => b.theme === theme) }))
 const artByTheme = { ...jumpArt, ...(renewalCourse ? buildServiceJumpPadArt() : {}), ...creatureJumpArt }
 const clock = { value: 0 }
+type CourseFrame = { pose: Pose; running: boolean; motionTime: number; occupied: Set<number> }
 
 function scaleFor(pad: CourseBlock): [number, number] {
   if (!renewalCourse) return [1, 1]
@@ -49,10 +50,11 @@ function idlePadFade(block: number, playable: boolean) {
   return playable && block < renewalCourse.opaqueAtStart ? 1 : .32
 }
 
-function Batch({ theme, pads, art, enabled = true }: { theme: JumpTheme; pads: readonly CourseBlock[]; art?: Record<string, BufferGeometry>; enabled?: boolean }) {
+function Batch({ theme, pads, art, enabled = true, frame }: {
+  theme: JumpTheme; pads: readonly CourseBlock[]; art?: Record<string, BufferGeometry>; enabled?: boolean; frame: CourseFrame
+}) {
   const movingPad = theme === 'lily' || theme === 'mole' || theme === 'pigeon'
   const meshes = useRef<InstancedMesh[]>([])
-  const pose = useMemo(() => ({ x: 0, y: 0, z: 0, yaw: 0 }), [])
   const reduced = useMemo(() => matchMedia('(prefers-reduced-motion: reduce)'), [])
   const batches = useMemo(() => Object.entries(art ?? artByTheme[theme]).map(([finish, source]) => {
     const geometry = landingGeometry(source, theme)
@@ -87,14 +89,11 @@ function Batch({ theme, pads, art, enabled = true }: { theme: JumpTheme; pads: r
   }, [batches, enabled, pads])
   useFrame(({ camera }, dt) => {
     if (!enabled) return
-    const now = performance.now(); clock.value = now / 1000
-    const s = useJumpmap.getState(), own = avatars.get(s.owner)
-    if (own) sampleAvatar(own, now, pose)
+    const { pose, running, motionTime, occupied } = frame
     const dynamic = !!renewalCourse && !art
-    const occupied = dynamic ? undefined : new Set(standing.values())
     const eye = dynamic ? pose : cameraWorldPosition(camera)
     const dx = eye.x - pose.x, dy = eye.y - (pose.y + .4), dz = eye.z - pose.z, lengthSq = dx * dx + dy * dy + dz * dz
-    const motionTime = renewalCourse ? syncRenewalMotion() : 0
+    const fadeWeight = Math.exp(-Math.min(dt, .1) * 6)
     for (const [batchIndex, batch] of batches.entries()) {
       const mesh = meshes.current[batchIndex]
       const fade = batch.geometry.getAttribute('aFade') as InstancedBufferAttribute, hit = batch.geometry.getAttribute('aHit') as InstancedBufferAttribute, power = batch.geometry.getAttribute('aPower') as InstancedBufferAttribute
@@ -102,10 +101,10 @@ function Batch({ theme, pads, art, enabled = true }: { theme: JumpTheme; pads: r
       pads.forEach((p, i) => {
         let alpha: number
         if (dynamic) {
-          const motion = renewalPadPose(p, motionTime)
-          const shown = renewalPadShown(p.block) && motion.visible
-          alpha = shown ? (s.run ? 1 : idlePadFade(p.block, true)) : 0
-          if (mesh && movingPad) {
+          const motion = movingPad ? renewalPadPose(p, motionTime) : undefined
+          const shown = renewalPadShown(p.block) && motion?.visible !== false
+          alpha = shown ? (running ? 1 : idlePadFade(p.block, true)) : 0
+          if (mesh && motion) {
             const height = Math.fround(p.top + motion.offset)
             const index = i * 16 + 13
             if (mesh.instanceMatrix.array[index] !== height) {
@@ -116,8 +115,8 @@ function Batch({ theme, pads, art, enabled = true }: { theme: JumpTheme; pads: r
         } else {
           const along = lengthSq ? ((p.x - pose.x) * dx + (p.top - pose.y - .4) * dy + (p.z - pose.z) * dz) / lengthSq : 0
           const occluded = along > .03 && along < .97 && Math.hypot(p.x - pose.x - dx * along, p.top - pose.y - .4 - dy * along, p.z - pose.z - dz * along) < Math.max(p.halfX, p.halfZ) + .5
-          const target = art === jumpStartArt ? 1 : art ? s.run ? .8 : .4 : targetFade(p.top, pose.y - .8, !!s.run, occupied!.has(p.block), occluded)
-          alpha = parkXRView.active ? 1 : target + (fade.getX(i) - target) * Math.exp(-Math.min(dt, .1) * 6)
+          const target = art === jumpStartArt ? 1 : art ? running ? .8 : .4 : targetFade(p.top, pose.y - .8, running, occupied.has(p.block), occluded)
+          alpha = parkXRView.active ? 1 : target + (fade.getX(i) - target) * fadeWeight
         }
         if (fade.getX(i) !== Math.fround(alpha)) {
           fade.setX(i, alpha)
@@ -186,23 +185,37 @@ const finish = [{ ...marker[0]!, x: 0, z: 0, top: 0 }]
 export function ServiceJumpCourse() {
   const available = useJumpmap(s => s.available)
   const finishing = useJumpmap(s => s.run?.finalReached === true)
+  const [frame, feet] = useMemo((): [CourseFrame, { x: number; y: number; z: number }] => [
+    { pose: { x: 0, y: 0, z: 0, yaw: 0 }, running: false, motionTime: 0, occupied: new Set() },
+    { x: 0, y: 0, z: 0 },
+  ], [])
   useFrame(() => {
-    if (!renewalCourse) return
+    const now = performance.now()
+    clock.value = now / 1000
     const state = useJumpmap.getState()
     const own = avatars.get(state.owner)
-    const pose = own && sampleAvatar(own, performance.now(), { ...own.current })
-    const now = syncRenewalMotion()
-    updateRenewalContact(pose && renewalPadAt({ ...pose, y: pose.y - .8 }, now), now)
+    // Every pad batch reads the same frame. Sampling the predicted avatar in
+    // each batch used to re-enter the movement simulator once per theme.
+    if (own) sampleAvatar(own, now, frame.pose)
+    frame.running = !!state.run
+    if (renewalCourse) {
+      frame.motionTime = syncRenewalMotion()
+      feet.x = frame.pose.x; feet.y = frame.pose.y - .8; feet.z = frame.pose.z
+      updateRenewalContact(own && renewalPadAt(feet, frame.motionTime), frame.motionTime)
+    } else {
+      frame.occupied.clear()
+      for (const block of standing.values()) frame.occupied.add(block)
+    }
   }, -2)
   return <group name="service-jump-course" userData={{ cameraCollision: false }}>
-    {!renewalCourse && <Batch theme="gate" pads={marker} art={jumpStartArt} />}
+    {!renewalCourse && <Batch theme="gate" pads={marker} art={jumpStartArt} frame={frame} />}
     {/* Prepare GPU resources before the status request completes. Visibility and
         hit targets still follow server availability; physics uses its own contract. */}
-    {groups.map(g => <Batch key={g.theme} {...g} enabled={available} />)}
+    {groups.map(g => <Batch key={g.theme} {...g} enabled={available} frame={frame} />)}
     {renewalCourse ? finishing && <mesh name="jump-course-finish" position={[FINISH.x, FINISH.y, FINISH.z]} rotation={[-Math.PI / 2, 0, 0]}>
       <ringGeometry args={[1.75, 2, 48]} />
       <meshBasicMaterial color="#d2ad55" side={2} />
-    </mesh> : <Batch theme="gate" pads={finish} art={jumpFinishArt} enabled={available} />}
+    </mesh> : <Batch theme="gate" pads={finish} art={jumpFinishArt} enabled={available} frame={frame} />}
     <LandingEffects enabled={available} />
   </group>
 }

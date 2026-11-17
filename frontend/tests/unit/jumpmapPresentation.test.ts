@@ -12,7 +12,7 @@ beforeEach(() => {
     isFirstRun: true, seenTips: [], activeRunId: null, bestFinishMs: null }, 1000)
 })
 describe('repeat jumpmap feedback', () => {
-  it.each([[0,'0분 00초'],[59999,'0분 59초'],[60000,'1분 00초'],[124910,'2분 04초'],[124999,'2분 04초'],[30085,'0분 30초'],[145321,'2분 25초']])('완료·랭킹의 %d밀리초는 분·초로만 표시한다',(ms,expected)=>{
+  it.each([[0,'0분 00초'],[59999,'0분 59초'],[60000,'1분 00초'],[124910,'2분 04초'],[124999,'2분 04초'],[30085,'0분 30초'],[145321,'2분 25초']])('완료 화면의 %d밀리초는 분·초로만 표시한다',(ms,expected)=>{
     expect(jumpTime(ms as number)).toBe(expected)
   })
   it('starts on server first landing and immediately accepts another run after falling', () => {

@@ -8452,6 +8452,11 @@ paths:
         schema:
           type: string
           format: date
+      - name: nickname
+        in: query
+        required: false
+        schema:
+          type: string
       responses:
         "200":
           description: OK
@@ -13042,11 +13047,17 @@ components:
           type: string
         userId:
           type: string
+        nickname:
+          type: string
         startedAt:
           type: string
           format: date-time
         status:
           type: string
+        score:
+          type: integer
+          format: int32
+          nullable: true
         observedTaps:
           type: integer
           format: int32
@@ -13110,6 +13121,17 @@ components:
         p90:
           type: integer
           format: int32
+    MoleAuditEarlyReaction:
+      type: object
+      properties:
+        samples:
+          type: integer
+          format: int32
+        quickHits:
+          type: integer
+          format: int32
+        qualifies:
+          type: boolean
     MoleAuditEntry:
       type: object
       properties:
@@ -13163,6 +13185,12 @@ components:
           type: boolean
         steady:
           type: boolean
+        sustainedPace:
+          type: boolean
+          nullable: true
+        repeatedEarlyReaction:
+          type: boolean
+          nullable: true
         recordedAt:
           type: string
           format: date-time
@@ -13178,6 +13206,25 @@ components:
         spreadMs:
           type: integer
           format: int32
+        pace:
+          $ref: "#/components/schemas/SpeedMoleAuditPace"
+        earlyReaction:
+          $ref: "#/components/schemas/MoleAuditEarlyReaction"
+    SpeedMoleAuditPace:
+      type: object
+      properties:
+        taps:
+          type: integer
+          format: int32
+        hits:
+          type: integer
+          format: int32
+        p90IntervalMs:
+          type: integer
+          format: int32
+          nullable: true
+        qualifies:
+          type: boolean
     MoleTimingDetections:
       type: object
       properties:
@@ -13210,6 +13257,12 @@ components:
           type: integer
           format: int32
         steadyRounds:
+          type: integer
+          format: int32
+        sustainedPaceRounds:
+          type: integer
+          format: int32
+        repeatedEarlyReactionRounds:
           type: integer
           format: int32
         auditedRounds:

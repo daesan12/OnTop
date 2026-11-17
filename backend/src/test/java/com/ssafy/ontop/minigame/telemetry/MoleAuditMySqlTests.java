@@ -91,6 +91,15 @@ class MoleAuditMySqlTests {
             assertThat(found.statusCode()).isEqualTo(200);
             assertThat(found.headers().firstValue("Cache-Control")).hasValue("no-store");
             assertThat(mapper.readTree(found.body()).get(0).path("honeypotTaps").asInt()).isEqualTo(1);
+            String byNickname = "/api/v1/admin/macro-analysis/mole?game=" + game.path + "&nickname=audit101";
+            assertThat(send(byNickname, 101, null).statusCode()).isEqualTo(403);
+            var named = mapper.readTree(send(byNickname, 201, null).body());
+            assertThat(named.size()).isEqualTo(2);
+            assertThat(named.get(0).path("nickname").asText()).isEqualTo("audit101");
+            assertThat(named.get(0).path("score").asInt(-1)).isZero();
+            assertThat(mapper.readTree(send(byNickname + "&userId=102", 201, null).body()).size()).isZero();
+            assertThat(mapper.readTree(send(byNickname.replace("audit101", "audit10"), 201, null).body()).size())
+                    .isZero();
             var detail = send("/api/v1/admin/macro-analysis/mole/456?game=" + game.path + "&input=KEYBOARD", 201, null);
             assertThat(detail.statusCode()).isEqualTo(200);
             var value = mapper.readTree(detail.body());
@@ -154,17 +163,34 @@ class MoleAuditMySqlTests {
                 new MoleTimingSignals.Segment(0, null, null), new MoleTimingSignals.Segment(0, null, null)), true, false);
         var normal = new MoleTimingSignals.Signals(40, 320, List.of(new MoleTimingSignals.Segment(40, 320, 60),
                 new MoleTimingSignals.Segment(0, null, null), new MoleTimingSignals.Segment(0, null, null)), false, false);
+        var paceSegment = new MoleTimingSignals.Segment(159, 124, 27,
+                MoleTimingSignals.Pace.measured(160, 156, 158));
+        var paceSegments = List.of(paceSegment, paceSegment, paceSegment);
+        var paceOnly = new MoleTimingSignals.Signals(465, 400, paceSegments, false, false);
+        var paceAndFast = new MoleTimingSignals.Signals(465, 125, paceSegments, true, false);
+        var earlySegment = new MoleTimingSignals.Segment(20, 215, 65, null,
+                new MoleTimingSignals.EarlyReaction(20, 10, true));
+        var earlyOnly = new MoleTimingSignals.Signals(40, 215,
+                List.of(earlySegment, earlySegment, new MoleTimingSignals.Segment(0, null, null)), false, false);
         round(MoleAuditGame.SPEED, 601, 301, now);
         round(MoleAuditGame.SPEED, 602, 301, now);
         round(MoleAuditGame.SPEED, 603, 302, now);
         round(MoleAuditGame.MOLE, 604, 302, now);
+        round(MoleAuditGame.SPEED, 606, 302, now);
+        round(MoleAuditGame.SPEED, 607, 301, now);
+        round(MoleAuditGame.MOLE, 608, 302, now);
+        round(MoleAuditGame.SPEED, 609, 302, now);
         timingAudit.settled("speed-mole", 301, 601, 1, () -> steady, now.minusSeconds(2));
         timingAudit.settled("speed-mole", 301, 602, 1, () -> fast, now.minusSeconds(1));
         timingAudit.settled("speed-mole", 301, 602, 1, () -> normal, now);
         timingAudit.settled("speed-mole", 302, 603, 1, () -> normal, now);
         timingAudit.settled("whack-a-mole", 302, 604, 3, () -> steady, now);
+        timingAudit.settled("speed-mole", 302, 606, 1, () -> paceOnly, now);
+        timingAudit.settled("speed-mole", 301, 607, 1, () -> paceAndFast, now);
+        timingAudit.settled("whack-a-mole", 302, 608, 3, () -> earlyOnly, now);
+        timingAudit.settled("speed-mole", 302, 609, 1, () -> earlyOnly, now);
         await().atMost(Duration.ofSeconds(8)).until(() -> jdbc.queryForObject(
-                "SELECT COUNT(*) FROM mole_timing_audits WHERE round_id BETWEEN 601 AND 604", Integer.class) == 4);
+                "SELECT COUNT(*) FROM mole_timing_audits WHERE round_id BETWEEN 601 AND 609", Integer.class) == 8);
 
         String path = "/api/v1/admin/macro-analysis/mole/timing?game=speed-mole";
         assertThat(send(path, 0, null).statusCode()).isEqualTo(401);
@@ -173,24 +199,41 @@ class MoleAuditMySqlTests {
         assertThat(response.statusCode()).isEqualTo(200);
         assertThat(response.headers().firstValue("Cache-Control")).hasValue("no-store");
         var items = mapper.readTree(response.body()).path("items");
-        assertThat(items.size()).isEqualTo(1);
+        assertThat(items.size()).isEqualTo(2);
         var member = items.get(0);
         assertThat(member.path("userId").asText()).isEqualTo("301");
         assertThat(member.path("nickname").asText()).isEqualTo("audit301");
-        assertThat(member.path("flaggedRounds").asInt()).isEqualTo(2);
-        assertThat(member.path("fastRounds").asInt()).isEqualTo(1);
+        assertThat(member.path("flaggedRounds").asInt()).isEqualTo(3);
+        assertThat(member.path("fastRounds").asInt()).isEqualTo(2);
         assertThat(member.path("steadyRounds").asInt()).isEqualTo(1);
-        assertThat(member.path("auditedRounds").asInt()).isEqualTo(2);
+        assertThat(member.path("sustainedPaceRounds").asInt()).isEqualTo(1);
+        assertThat(member.path("auditedRounds").asInt()).isEqualTo(3);
         assertThat(member.path("lowestMedianReactionMs").asInt()).isEqualTo(120);
-        assertThat(member.path("latestRoundId").asText()).isEqualTo("602");
+        assertThat(member.path("latestRoundId").asText()).isEqualTo("607");
+        var paceMember = items.get(1);
+        assertThat(paceMember.path("userId").asText()).isEqualTo("302");
+        assertThat(paceMember.path("flaggedRounds").asInt()).isEqualTo(2);
+        assertThat(paceMember.path("sustainedPaceRounds").asInt()).isEqualTo(1);
+        assertThat(paceMember.path("repeatedEarlyReactionRounds").asInt()).isEqualTo(1);
+        assertThat(paceMember.path("fastRounds").asInt()).isZero();
+        assertThat(paceMember.path("steadyRounds").asInt()).isZero();
 
         var detail = mapper.readTree(send("/api/v1/admin/macro-analysis/mole/601?game=speed-mole&input=KEYBOARD",
                 201, null).body()).path("timing");
         assertThat(detail.path("steady").booleanValue()).isTrue();
+        assertThat(detail.path("sustainedPace").isNull()).isTrue();
+        assertThat(detail.path("repeatedEarlyReaction").isNull()).isTrue();
         assertThat(detail.path("medianReactionMs").asInt()).isEqualTo(210);
         assertThat(detail.path("segments").size()).isEqualTo(3);
         assertThat(detail.path("segments").get(1).path("spreadMs").asInt()).isEqualTo(2);
         assertThat(detail.path("segments").get(2).path("medianMs").isNull()).isTrue();
+        var paceDetail = mapper.readTree(send("/api/v1/admin/macro-analysis/mole/606?game=speed-mole&input=KEYBOARD",
+                201, null).body()).path("timing");
+        assertThat(paceDetail.path("sustainedPace").booleanValue()).isTrue();
+        assertThat(paceDetail.path("segments").get(0).path("pace").path("hits").asInt()).isEqualTo(156);
+        var moleItems = mapper.readTree(send("/api/v1/admin/macro-analysis/mole/timing?game=whack-a-mole",
+                201, null).body()).path("items");
+        assertThat(moleItems.get(0).path("repeatedEarlyReactionRounds").asInt()).isEqualTo(1);
         round(MoleAuditGame.SPEED, 605, 302, now);
         var withoutTiming = send("/api/v1/admin/macro-analysis/mole/605?game=speed-mole&input=KEYBOARD", 201, null);
         assertThat(withoutTiming.statusCode()).isEqualTo(200);

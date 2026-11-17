@@ -16,7 +16,7 @@
     "src/layout-preview/fountainPaving.ts": "b8955836fa9cb447e8d6f4523b0f81341cebdb1c292760b06a4f5ef63076c549",
     "src/layout-preview/jumpAudio.ts": "f5e622b72bda6876a12a72b883fa57f00260d24423bb412d362c9b0c6dede41a",
     "src/layout-preview/jumpCourse.ts": "849e5f641826f8fcee95da7c00d2fc057fda00e55882a7a8bd6e7ddc0dd05ab5",
-    "src/layout-preview/jumpGeometry.ts": "24cfffd5ddb4bfafad1e67a1e217df9608c1b0876b300d38acb084de4efb6d1b",
+    "src/layout-preview/jumpGeometry.ts": "069e3b64ccd54e53773eca51d5c00e2bc9cd5c01f140de27dcaf7d83af583192",
     "src/layout-preview/JumpHud.tsx": "0b470e2920f3a3d482b902441e7c784c76da74ace2c18e87fceed3e8ed7192d1",
     "src/layout-preview/jumpNavigation.ts": "199f815588101149550c36b2f513278ab288d955a982d79067c2b87899d7a60a",
     "src/layout-preview/jumpSimulation.ts": "dfcdb6e5493acd0ca7b69230d4b55ea2c7d5a29409a027c6f1b0e42e50f07428",

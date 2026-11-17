@@ -30,6 +30,9 @@ try {
   manifest.artifacts = [{ path: SERVER_MAP_PATH, sha256: sha256(content), bytes: Buffer.byteLength(content) }]
   manifest.validation = { ...manifest.validation, backendIntegration: 'local-renewal', liveServiceVersion: 'unchanged' }
   const baseBindings = JSON.parse(await readFile(resolve(root, 'public/park-bindings.generated.frontend-test.json'), 'utf8'))
+  // The frontend-test base has no emotes; without them the client disables every emote.
+  const { emotes } = JSON.parse(await readFile(resolve(root, 'public/park-bindings.generated.dev.json'), 'utf8'))
+  if (!Array.isArray(emotes) || !emotes.length) throw new Error('[park-renewal] DEV bindings have no emotes')
   const bindings = ['channel-1', 'channel-2'].flatMap(channelId => data.tables.map(({ id: anchorId }) => {
     const bytes = createHash('md5').update(channelId + '\0' + anchorId).digest()
     bytes[6] = (bytes[6] & 15) | 48
@@ -41,7 +44,7 @@ try {
   await Promise.all([
     writeFile(resolve(out, 'server-map.json'), content),
     writeFile(resolve(out, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n'),
-    writeFile(resolve(out, 'park-bindings.json'), JSON.stringify({ ...baseBindings, bindings }, null, 2) + '\n'),
+    writeFile(resolve(out, 'park-bindings.json'), JSON.stringify({ ...baseBindings, bindings, emotes }, null, 2) + '\n'),
   ])
   console.log(`[park-renewal] ${manifest.mapVersion} · ${manifest.counts.tables} tables · ${Buffer.byteLength(content)} bytes`)
 } finally {

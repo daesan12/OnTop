@@ -4,7 +4,7 @@ import {ParkAssetLoader} from '../src/world/art/assetLoader'
 import {Group,Mesh,MeshStandardMaterial} from 'three'
 import {PropModel} from '../src/world/art/PropModel'
 import {PropSign} from '../src/world/art/CraftedProp'
-import {BalloonWayfinding} from '../src/features/balloon/BalloonWayfinding'
+import {BalloonWayfinding, BalloonWayfindingLights} from '../src/features/balloon/BalloonWayfinding'
 import {ObservationTower} from './original/world/art/ObservationTower'
 import {StonePagoda} from '../src/world/art/StonePagoda'
 import {TraditionalMailbox} from '../src/world/art/TraditionalMailbox'
@@ -124,6 +124,17 @@ function StructureModel({kind,prepareShaders=false}:{kind:keyof typeof structure
  return prepareShaders ? <ShaderPreparedGroup priority={.75}>{model}</ShaderPreparedGroup> : model
 }
 function title(text:string){return(c:CanvasRenderingContext2D,w:number,h:number)=>{c.fillStyle='#eee3c8';c.fillRect(0,0,w,h);c.strokeStyle='#9e7b42';c.lineWidth=8;c.strokeRect(5,5,w-10,h-10);c.fillStyle='#284b3c';c.textAlign='center';c.textBaseline='middle';c.font=`700 ${h*.48}px "Malgun Gothic",sans-serif`;c.fillText(text,w/2,h/2,w*.91)}}
+function StationFurnishings({ live, showWayfinding, x, y, z }: {
+ live: boolean; showWayfinding: boolean; x: number; y: number; z: number
+}) {
+ const furnishings = <>
+  <ReferenceBench name="balloon-station-waiting-bench"
+    position={[STATION_BENCH.x, STATION_BENCH.floor, STATION_BENCH.z]} yaw={0} seatHeight={STATION_BENCH.seatHeight}/>
+  {showWayfinding && <BalloonWayfinding x={x} y={y} z={z}/>}
+ </>
+ return live ? <ShaderPreparedGroup batched priority={.75}>{furnishings}</ShaderPreparedGroup> : furnishings
+}
+
 function Ranking({live}:{live:boolean}){
  const art=useMemo(()=>buildRankingBoard(),[])
  return <group onClick={live?event=>{
@@ -183,18 +194,17 @@ export function Buildings({live=false,distantReady=true,upperFacilitiesReady=dis
    ? <FacilityOnApproach site={tower}><Suspense fallback={null}><FacilityGeometry id="tower"/></Suspense></FacilityOnApproach>
    : <Suspense fallback={null}><FacilityGeometry id="tower"/></Suspense>)}
  </group>
- {upperFacilitiesReady&&(live?<ShaderPreparedGroup><TowerFurniture/></ShaderPreparedGroup>:<TowerFurniture/>)}{entranceDistricts&&<PreservedFitness/>}<FitnessFence/>
+ {upperFacilitiesReady&&(live?<ShaderPreparedGroup batched priority={.75}><TowerFurniture/></ShaderPreparedGroup>:<TowerFurniture/>)}{entranceDistricts&&<PreservedFitness/>}<FitnessFence/>
+ {upperFacilitiesReady&&showBalloonWayfinding&&!live&&<BalloonWayfindingLights x={balloon.x} z={balloon.z} lit />}
  {upperFacilitiesReady&&<group name="enlarged-balloon-boarding-platform" userData={{keepOpaque:true}} position={[balloon.x,heightAt(balloon.x,balloon.z),balloon.z]}>
   <group name="balloon-station-model">
    <group scale={STATION_SCALE}>{live
-    ? <ShaderPreparedGroup priority={.75}><LocalFactory kind="station"/></ShaderPreparedGroup>
+    ? <ShaderPreparedGroup batched priority={.75}><LocalFactory kind="station"/></ShaderPreparedGroup>
     : <LocalFactory kind="station"/>}</group>
   </group>
-  <ReferenceBench name="balloon-station-waiting-bench"
-    position={[STATION_BENCH.x,STATION_BENCH.floor,STATION_BENCH.z]} yaw={0} seatHeight={STATION_BENCH.seatHeight}/>
-  {showBalloonWayfinding&&<BalloonWayfinding x={balloon.x} y={heightAt(balloon.x,balloon.z)} z={balloon.z}/>}
+  <StationFurnishings live={live} showWayfinding={showBalloonWayfinding} x={balloon.x} y={heightAt(balloon.x,balloon.z)} z={balloon.z}/>
   {showDockedBalloon&&<DockedBalloon trackFlights={live && BALLOON_RIDE_ENABLED}>
-   {live ? <ShaderPreparedGroup><LocalFactory kind="balloon"/></ShaderPreparedGroup> : <LocalFactory kind="balloon"/>}
+   {live ? <ShaderPreparedGroup batched priority={.75}><LocalFactory kind="balloon"/></ShaderPreparedGroup> : <LocalFactory kind="balloon"/>}
   </DockedBalloon>}
  </group>}
  {REST_PAVILIONS.map(([x,z],i)=><group key={i} name={'facility-rest-'+(i+1)} userData={{pavilionId:pavilionIdForSite('rest-'+(i+1))}} position={[x,heightAt(x,z),z]} rotation={[0,site('rest-'+(i+1)).yaw!,0]}><Suspense fallback={null}><StructureModel kind="pavilion"/></Suspense><PavilionIntermediateTreads/></group>)}
