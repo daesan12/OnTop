@@ -207,7 +207,8 @@ export function standDistance(plan: StagePlan, id: number, t: number, far = 9, e
     case 'behind': return 1.7
     case 'pounce': return 3
     case 'grab': return 1.6
-    case 'drop': return 1.5
+    // Far enough that the face hanging at eye level is in view, not a chest above it.
+    case 'drop': return 2.7
     case 'cage': return 2.2
     case 'sprint': return FAR_MAX.sprint!
     case 'shadow': return 2.6

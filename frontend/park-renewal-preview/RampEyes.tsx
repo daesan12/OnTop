@@ -1,117 +1,137 @@
 import { useEffect, useMemo, useRef, type RefObject } from 'react'
-import { useFrame } from '@react-three/fiber'
-import { CircleGeometry, Euler, Matrix4, Quaternion, SphereGeometry, Vector3, type Group, type InstancedMesh, type Object3D } from 'three'
+import { useFrame, useLoader } from '@react-three/fiber'
+import { Euler, InstancedBufferAttribute, Matrix4, PlaneGeometry, Quaternion, ShaderMaterial, SRGBColorSpace, TextureLoader, Vector3, type Group, type InstancedMesh, type Object3D } from 'three'
 import { effectsOutput } from '../src/audio/bgm'
 import { playEyes } from './horrorAudio'
-import { lumpGeometry } from './encounterSculpt'
-import { encounterFinishes } from './interiorEncounterMaterials'
-import { irisTexture, scleraTexture } from './encounterTextures'
+import { flashlight } from './encounterStaging'
 import { horrorGround } from './horrorPlan'
 import { interiorVisit } from './interiorEvents'
 import { rampEyeLayout, RAMP } from './rampEyesPlan'
 
-// The climb to the gallery (S15P31B105-450) is lined with eyes: both walls of the ramp, shut as you come to it,
-// opening in a wave around you as you climb and every one of them turning to follow you. They blink out of step;
-// near the top they all snap shut at once, and the silence is worse. One instanced mesh per part, so ~140 eyes cost
-// seven draw calls.
+// The climb to the gallery (S15P31B105-450) is lined with eyes. Real ones: photographs (Gemini) of two human eyes,
+// open and shut, set flat into the stone and fading into it at the edges, as if the wall had grown them. A
+// photograph looking straight out of a wall looks at you from wherever you stand, so every eye follows you. They are
+// shut as you come to the ramp, open in a wave around you as you climb, blink out of step, widen when you are close,
+// and near the top all snap shut at once. One instanced plane and one 1536×768 texture for all of them; they are lit
+// only by your torch (and a little of the dark), so out of its beam they are pale smudges, and in it they are eyes.
 
-const sclera = new SphereGeometry(.5, 20, 12)
-const iris = new CircleGeometry(.5, 20)
-const glint = new SphereGeometry(.016, 6, 4)
-const slit = new SphereGeometry(.5, 16, 10)
+const ATLAS = new URL('./textures/ramp-eyes.webp', import.meta.url).href
+const plane = new PlaneGeometry(1, .5)
 
-/** One part of an eye, in the eye's own frame (looking out along +z); `lid` parts close with the eyelid. */
-type Part = { key: string; at: [number, number, number]; scale: [number, number, number]; lid: boolean; pupil: boolean }
-// Human eyes, which is what makes them wrong: pale skin lids in a dark hollow, the white showing all the way round
-// (staring), bloodshot, a dead grey iris and a black pupil that widens as you come close.
-const PARTS: Part[] = [
-  { key: 'socket', at: [0, 0, -.01], scale: [.7, .44, .1], lid: false, pupil: false },
-  { key: 'slit', at: [0, 0, .045], scale: [.8, .42, .06], lid: false, pupil: false },
-  { key: 'sclera', at: [0, 0, .055], scale: [.74, .38, .16], lid: true, pupil: false },
-  { key: 'iris', at: [0, 0, .137], scale: [.2, .2, 1], lid: true, pupil: true },
-  { key: 'pupil', at: [0, 0, .139], scale: [.09, .09, 1], lid: true, pupil: true },
-  { key: 'glint', at: [-.035, .035, .145], scale: [1, 1, 1], lid: true, pupil: true },
-  { key: 'lid-up', at: [0, .175, .085], scale: [.44, .07, .07], lid: false, pupil: false },
-  { key: 'lid-low', at: [0, -.165, .08], scale: [.42, .05, .06], lid: false, pupil: false },
-]
+const vertex = /* glsl */`
+attribute float aOpen;
+attribute float aVariant;
+varying vec2 vUv;
+varying float vOpen;
+varying float vVariant;
+varying vec3 vWorld;
+void main() {
+  vUv = uv; vOpen = aOpen; vVariant = aVariant;
+  vec4 world = modelMatrix * instanceMatrix * vec4(position, 1.0);
+  vWorld = world.xyz;
+  gl_Position = projectionMatrix * viewMatrix * world;
+}`
+const fragment = /* glsl */`
+uniform sampler2D atlas;
+uniform vec3 eye;
+uniform vec3 look;
+uniform float torch;
+varying vec2 vUv;
+varying float vOpen;
+varying float vVariant;
+varying vec3 vWorld;
+vec3 tile(float column) {
+  vec2 uv = vec2(vUv.x * .5 + column * .5, vUv.y * .5 + (1. - vVariant) * .5);
+  return texture2D(atlas, uv).rgb;
+}
+void main() {
+  // The open eye and the shut one, cut by the lid: the shut picture wins from above and below the eye inwards.
+  vec3 open = tile(0.), shut = tile(1.);
+  float lid = smoothstep(vOpen - .15, vOpen + .15, abs(vUv.y - .5) * 2.4);
+  vec3 color = mix(open, shut, max(lid, 1. - smoothstep(.05, .35, vOpen)));
+  // Grown out of the stone: an oval that fades into the wall.
+  vec2 p = (vUv - .5) * 2.;
+  float edge = 1. - smoothstep(.62, 1., length(p));
+  // Torchlight only: a cone from your eyes, falling off with distance; the dark leaves a faint shape.
+  vec3 to = vWorld - eye;
+  float d = length(to);
+  float cone = smoothstep(.9, .975, dot(to / d, look)) * torch; // the torch: .46 rad, soft edge (HorrorZone)
+  float light = .035 + 1.9 * cone / (1. + .05 * d * d);
+  // The wet whites catch what little light there is.
+  float shine = smoothstep(.5, .8, dot(color, vec3(.33))) * .22 * vOpen;
+  gl_FragColor = vec4(color * light + color * shine, edge);
+  #include <colorspace_fragment>
+}`
 
 export function RampEyes({ zone }: { zone: RefObject<Group | null> }) {
   const eyes = useMemo(() => rampEyeLayout(), [])
-  const meshes = useRef<(InstancedMesh | null)[]>([])
-  const state = useRef({ inside: false, since: 0, shutAt: -1, shut: false, nextSound: 0, opened: 0 })
+  const texture = useLoader(TextureLoader, ATLAS)
+  const mesh = useRef<InstancedMesh>(null)
+  const state = useRef({ inside: false, since: 0, shut: false, nextSound: 0 })
   const open = useMemo(() => new Float32Array(eyes.length), [eyes])
   const blinkAt = useMemo(() => Float32Array.from(eyes, () => 2 + Math.random() * 8), [eyes])
-  // Darting: every eye flicks to a slightly different spot on you, out of step with the rest.
-  const dart = useMemo(() => ({ x: new Float32Array(eyes.length), y: new Float32Array(eyes.length), next: Float32Array.from(eyes, () => Math.random()) }), [eyes])
-  const pupilSize = useMemo(() => new Float32Array(eyes.length).fill(.09), [eyes])
-  const tmp = useMemo(() => ({ eye: new Matrix4(), part: new Matrix4(), out: new Matrix4(), q: new Quaternion(), e: new Euler(), v: new Vector3(), s: new Vector3(), local: new Vector3() }), [])
-  // Where each eye sits in the world, once.
-  const frames = useMemo(() => eyes.map(e => {
-    const q = new Quaternion().setFromEuler(new Euler(0, Math.atan2(e.nx, 0), e.roll))
-    return { m: new Matrix4().compose(new Vector3(e.x, horrorGround(e.x, e.z) + e.h, e.z), q, new Vector3(e.size, e.size, e.size)), inv: q.clone().invert() }
-  }), [eyes])
+  const openAttr = useMemo(() => new InstancedBufferAttribute(new Float32Array(eyes.length), 1), [eyes])
+  const variantAttr = useMemo(() => new InstancedBufferAttribute(Float32Array.from(eyes, e => e.variant), 1), [eyes])
+  const geometry = useMemo(() => {
+    const g = plane.clone()
+    g.setAttribute('aOpen', openAttr)
+    g.setAttribute('aVariant', variantAttr)
+    return g
+  }, [openAttr, variantAttr])
+  const material = useMemo(() => {
+    texture.colorSpace = SRGBColorSpace; texture.anisotropy = 4
+    return new ShaderMaterial({
+      uniforms: { atlas: { value: texture }, eye: { value: new Vector3() }, look: { value: new Vector3(0, 0, -1) }, torch: { value: 1 } },
+      vertexShader: vertex, fragmentShader: fragment, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2,
+    })
+  }, [texture])
+  const tmp = useMemo(() => ({ m: new Matrix4(), v: new Vector3(), s: new Vector3() }), [])
+  const placed = useMemo(() => eyes.map(e => ({
+    q: new Quaternion().setFromEuler(new Euler(0, Math.atan2(e.nx, 0), e.roll)),
+    at: new Vector3(e.x + e.nx * .012, horrorGround(e.x, e.z) + e.h, e.z),
+  })), [eyes])
 
-  useEffect(() => () => { state.current.inside = false }, [])
+  useEffect(() => () => { state.current.inside = false; material.dispose(); geometry.dispose() }, [material, geometry])
+
   useFrame(({ camera, clock }, dt) => {
+    const m = mesh.current
+    if (!m) return
     let shown = !!zone.current
     for (let n: Object3D | null = zone.current; n; n = n.parent) if (!n.visible) shown = false
-    const now = clock.elapsedTime, st = state.current, cx = camera.position.x, cy = camera.position.y, cz = camera.position.z
+    const now = clock.elapsedTime, st = state.current, cx = camera.position.x, cz = camera.position.z
     const onRamp = shown && cx > RAMP.x0 && cx < RAMP.x1 && cz < RAMP.z0 && cz > RAMP.z1 - 4
-    if (onRamp && !st.inside) Object.assign(st, { inside: true, since: now, shut: false, shutAt: -1, opened: 0 })
+    if (onRamp && !st.inside) Object.assign(st, { inside: true, since: now, shut: false })
     if (!onRamp && st.inside) st.inside = false
     // Nearly at the top they all shut at once; walk back down and they open again.
-    if (st.inside && !st.shut && cz < RAMP.top) { st.shut = true; st.shutAt = now; sound('shut') }
-    if (st.inside && st.shut && cz > RAMP.top + 3) { st.shut = false; st.since = now; st.opened = 0 }
+    if (st.inside && !st.shut && cz < RAMP.top) { st.shut = true; sound('shut') }
+    if (st.inside && st.shut && cz > RAMP.top + 3) { st.shut = false; st.since = now }
     let opening = 0
+    const opens = openAttr.array as Float32Array
     for (let i = 0; i < eyes.length; i++) {
       const e = eyes[i]!, d = Math.hypot(e.x - cx, e.z - cz)
-      let want = st.inside && !st.shut && d < 11 && now - st.since > e.delay + d * .05 ? 1 : 0
-      if (want && now > blinkAt[i]! && now < blinkAt[i]! + .16) want = .05
-      if (now > blinkAt[i]! + .16) blinkAt[i] = now + 3 + Math.random() * 9
+      let want = st.inside && !st.shut && d < 12 && now - st.since > e.delay + d * .05 ? 1 : 0
+      if (want && now > blinkAt[i]! && now < blinkAt[i]! + .14) want = 0
+      if (now > blinkAt[i]! + .14) blinkAt[i] = now + 3 + Math.random() * 9
       const was = open[i]!
-      open[i] = st.shut ? Math.max(0, was - dt * 14) : was + (want - was) * Math.min(1, dt * (want > was ? 7 : 12))
+      open[i] = st.shut ? Math.max(0, was - dt * 16) : was + (want - was) * Math.min(1, dt * (want > was ? 6 : 16))
       if (was < .3 && open[i]! >= .3) opening++
-      if (now > dart.next[i]!) { dart.x[i] = (Math.random() - .5) * .05; dart.y[i] = (Math.random() - .5) * .025; dart.next[i] = now + .15 + Math.random() * .9 }
-      pupilSize[i] = .07 + .06 * Math.max(0, 1 - d / 7)
+      // Close up, the eye widens on you.
+      const widen = 1 + .12 * open[i]! * Math.max(0, 1 - d / 3)
+      const p = placed[i]!
+      m.setMatrixAt(i, tmp.m.compose(p.at, p.q, tmp.s.set(e.size * e.flip, e.size * widen, 1)))
+      opens[i] = open[i]!
     }
+    m.instanceMatrix.needsUpdate = true
+    openAttr.needsUpdate = true
+    camera.getWorldDirection(tmp.v)
+    material.uniforms.eye!.value.copy(camera.position)
+    material.uniforms.look!.value.copy(tmp.v)
+    material.uniforms.torch!.value = flashlight.factor
+    m.visible = shown
     if (opening && now > st.nextSound) { sound('open', Math.min(6, opening)); st.nextSound = now + .35 }
     if (st.inside && !st.shut && now > st.nextSound + 2.5 && Math.random() < dt * .4) { sound('murmur'); st.nextSound = now + 1 }
-    // Lids and pupils: each part's instance = eye placement × (lid opening) × (pupil turned to you) × part.
-    for (let k = 0; k < PARTS.length; k++) {
-      const mesh = meshes.current[k], part = PARTS[k]!
-      if (!mesh) continue
-      if (!part.lid && mesh.userData.placed) continue
-      for (let i = 0; i < eyes.length; i++) {
-        const f = frames[i]!
-        let px = part.at[0], py = part.at[1]
-        if (part.pupil) {
-          tmp.local.set(cx, cy, cz).sub(tmp.v.setFromMatrixPosition(f.m)).applyQuaternion(f.inv).normalize()
-          px += Math.max(-.09, Math.min(.09, tmp.local.x * .12 + dart.x[i]!)); py += Math.max(-.04, Math.min(.04, tmp.local.y * .09 + dart.y[i]!))
-        }
-        const lid = part.lid ? .04 + .96 * open[i]! : 1
-        const sx = part.key === 'pupil' ? pupilSize[i]! : part.scale[0], sy = part.key === 'pupil' ? pupilSize[i]! : part.scale[1]
-        tmp.part.compose(tmp.v.set(px, py * lid, part.at[2]), tmp.q.identity(), tmp.s.set(sx, sy * lid, part.scale[2]))
-        mesh.setMatrixAt(i, tmp.out.multiplyMatrices(f.m, tmp.part))
-      }
-      mesh.instanceMatrix.needsUpdate = true
-      mesh.userData.placed = true
-    }
   })
-  const flesh = encounterFinishes.flesh
-  return <group name="ramp-eyes" userData={{ keepOpaque: true }}>
-    {PARTS.map((part, k) => {
-      const geometry = part.key === 'sclera' ? sclera : part.key === 'iris' || part.key === 'pupil' ? iris : part.key === 'glint' ? glint
-        : part.key === 'slit' ? slit : lumpGeometry(part.key === 'socket' ? 'socket' : part.key, 0, 0, .4)
-      return <instancedMesh key={part.key} ref={m => { meshes.current[k] = m }} args={[geometry, undefined, eyes.length]} frustumCulled={false}>
-        {part.key === 'sclera' ? <meshStandardMaterial map={scleraTexture()} roughness={.18} emissive="#ffb4a0" emissiveIntensity={.1} />
-          : part.key === 'iris' ? <meshStandardMaterial map={irisTexture('#6f7c80')} roughness={.1} emissive="#d8e4e8" emissiveIntensity={.06} />
-          : part.key === 'pupil' ? <meshBasicMaterial color="#020101" polygonOffset polygonOffsetFactor={-1} />
-          : part.key === 'glint' ? <meshBasicMaterial color="#fff4ea" toneMapped={false} />
-          : part.key === 'slit' || part.key === 'socket' ? <meshStandardMaterial color={part.key === 'slit' ? '#0b0404' : '#1d100d'} roughness={.6} />
-          : <meshStandardMaterial color={part.key === 'lid-up' ? '#7b6e66' : '#695c55'} map={flesh.texture} bumpMap={flesh.texture} bumpScale={flesh.bumpScale} roughness={.75} />}
-      </instancedMesh>
-    })}
-  </group>
+  return <instancedMesh ref={mesh} name="ramp-eyes" args={[geometry, material, eyes.length]} frustumCulled={false} userData={{ keepOpaque: true }} />
 }
 
 function sound(kind: 'open' | 'shut' | 'murmur', count = 1) {
