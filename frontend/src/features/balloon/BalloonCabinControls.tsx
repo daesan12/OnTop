@@ -14,11 +14,12 @@ const directionSeat = cabinSeats[0]
 const altitudeSeat = cabinSeats[2]
 
 export function BalloonCabinControls({ local, pilot }: {
-  local: RefObject<LocalCabinInput>; pilot?: string
+  local?: RefObject<LocalCabinInput>; pilot?: string
 }) {
   const stick = useRef<Group>(null)
   const lever = useRef<Group>(null)
   useFrame((_, delta) => {
+    if (!local) return
     let input = local.current.input
     if (pilot && pilot !== local.current.pilot) {
       const flight = useRemoteBalloons.getState().flights[pilot]

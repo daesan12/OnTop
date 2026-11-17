@@ -6,13 +6,14 @@ import { PaperPopup } from '../tableLobby/PaperPopup'
 import { BALLOON_FARE, CAPACITY } from './flight'
 import { availableCabinSeat } from './cabin'
 import {
-  boardLocalBalloon, cancelLocalBalloon, launchLocalBalloon, localBalloonFade, occupiedBalloonSeats,
+  boardLocalBalloon, cancelLocalBalloon, exitLocalBalloonAtDoor, launchLocalBalloon, localBalloonFade, occupiedBalloonSeats,
   changeLocalBalloonControl,
   returnLocalBalloon, showLocalBalloonManual, toggleLocalCabinMode, toggleLocalCabinPerspective, toggleLocalCabinSeat,
   useLocalBalloon, watchLocalBalloonSession,
 } from './localRide'
 import { useRemoteBalloons } from './remoteRide'
 import { roleOf, type ControlMode, type ControlRole } from './controls'
+import { focusParkCanvas } from '../../world/inputOwnership'
 import './localBalloon.css'
 
 function BalloonKeys({ direction, altitude, walking = false, seated = false }: {
@@ -193,6 +194,7 @@ export default function LocalBalloonHud() {
     className="park-balloon-paper park-balloon-guide" closeLabel="탑승 화면으로 돌아가기" onClose={() => showLocalBalloonManual(false)}>
     <ul className="park-balloon-manual">
       <li>1인당 {BALLOON_FARE}냥이에요. 새 열기구의 정원을 1~{CAPACITY}명으로 정하거나, 같은 채널에서 기다리는 열기구에 합류할 수 있어요.</li>
+      <li>승강장의 바구니 문 앞에서 <kbd>E</kbd>로 탑승 준비를 열어요. 출발 전이나 승강장에 착륙했을 때는 <kbd>E</kbd>로 내려요.</li>
       <li><kbd>WASD / 방향키</kbd>는 화면에서 바라보는 방향을 기준으로 이동해요. <kbd>Space</kbd>로 상승하고 <kbd>Shift</kbd>로 하강해요. 2인 분담에서는 두 역할을 나눠 맡아요.</li>
       <li><strong>조종 교대 제안</strong>을 받은 사람이 <kbd>E</kbd>로 수락하면 바로 교대해요. <kbd>F</kbd>를 눌러 조종석에서 일어나거나 빈 조종석을 잡을 수 있어요.</li>
       <li>조종석이 모두 비면 3초 뒤 추락해요. 바닥에 닿기 전에 조종석을 잡으면 다시 조종할 수 있어요.</li>
@@ -223,7 +225,10 @@ export default function LocalBalloonHud() {
   const time = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
 
   return <>
-    <aside className="park-balloon-hud" data-phase={phase} data-direction-seat={directing || undefined} aria-label="열기구 운항">
+    <aside className="park-balloon-hud" data-phase={phase} data-direction-seat={directing || undefined} aria-label="열기구 운항"
+      onClick={event => {
+        if (event.detail > 0 && event.target instanceof Element && event.target.closest('button')) focusParkCanvas('localBalloon')
+      }}>
       {phase === 'flying' && emptySeconds !== null && <BalloonWarning>{emptySeconds
         ? <>조종석이 비었어요 · <strong>{emptySeconds}초 뒤 추락</strong></>
         : <>추락 중이에요. 조종석을 잡아 주세요!</>}</BalloonWarning>}
@@ -236,7 +241,7 @@ export default function LocalBalloonHud() {
           <div className="park-balloon-actions">
             {isPilot && <button type="button" className="park-balloon-action-primary" disabled={launching}
               onClick={() => void launchLocalBalloon(soloDeparture)}>{soloDeparture ? '혼자 조종으로 출발' : '출발'}</button>}
-            <button type="button" disabled={launching} onClick={cancelLocalBalloon}>내리기</button>
+            <button type="button" disabled={launching} onClick={exitLocalBalloonAtDoor}><kbd>E</kbd> 내리기</button>
           </div>
         </> : phase === 'flying' ? <>
           <div className="park-balloon-hud-heading">
@@ -246,7 +251,7 @@ export default function LocalBalloonHud() {
           {directing ? <DirectionCockpitGuide />
             : <BalloonKeys walking={walkingInside} seated={seated} direction={walkingInside || controlRole !== 'altitude'}
                 altitude={!walkingInside && (controlsMode !== 'split' || controlRole === 'altitude')} />}
-          <span className="park-balloon-hud-note">드래그로 둘러보기</span>
+          <span className="park-balloon-hud-note">드래그로 둘러보기 · Enter 채팅</span>
           {paymentError && <span className="park-balloon-hud-note" role="alert">{paymentError}</span>}
           {boundary && <span className="park-balloon-hud-note" role="status">비행 구역 경계 · 공원 안쪽으로 돌아가세요</span>}
           <div className="park-balloon-hud-controls">
@@ -271,7 +276,12 @@ export default function LocalBalloonHud() {
         </> : phase === 'takeoff' ? <span role="status">이륙 중</span>
           : phase === 'returning' ? <span role="status">{reason === 'terrain'
             ? '이곳에는 내릴 수 없어 승강장으로 돌아갑니다.' : '승강장으로 돌아갑니다.'}</span>
-          : <span role="status">{landing === 'field' ? '착지했어요. 체험 종료 후 승강장으로 돌아갑니다.' : '승강장에 도착했어요.'} · {seconds}초</span>}
+          : <>
+            <span role="status">{landing === 'field' ? '착지했어요. 체험 종료 후 승강장으로 돌아갑니다.' : '승강장에 도착했어요.'} · {seconds}초</span>
+            {landing === 'dock' && <div className="park-balloon-actions">
+              <button type="button" onClick={exitLocalBalloonAtDoor}><kbd>E</kbd> 내리기</button>
+            </div>}
+          </>}
       </div>
     </aside>
     {fadeOverlay}

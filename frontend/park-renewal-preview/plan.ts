@@ -26,7 +26,11 @@ export const RENTAL_PAIR_SPACING=3.4
 export const RENTAL_VEHICLE_X=[-.9,0,.9] as const
 export const BALLOON_SCALE=1.45
 export const STATION_SCALE=1.7
-export const BALLOON_DOCK_OFFSET=[2.35*1.6*STATION_SCALE,.65*STATION_SCALE-.37*BALLOON_SCALE+.12,0] as const
+export const BALLOON_CABIN_FLOOR_HEIGHT=.905
+export const BALLOON_DOOR_X=-1.9*Math.cos(Math.PI/12)
+const balloonDockFloorGap=.025 // Keep the timber floor from fighting with the station deck.
+export const BALLOON_DOCK_OFFSET=[2.35*1.6*STATION_SCALE,.65*STATION_SCALE+balloonDockFloorGap-BALLOON_CABIN_FLOOR_HEIGHT*BALLOON_SCALE,0] as const
+export const BALLOON_DOOR_OFFSET_X=BALLOON_DOCK_OFFSET[0]+BALLOON_DOOR_X*BALLOON_SCALE
 const shelterScale=1.6*STATION_SCALE
 export const STATION_SHELTER={x:-2.15*shelterScale,z:-1.7*shelterScale,width:4.58*shelterScale,
  depth:2.95*shelterScale,floor:.9125*STATION_SCALE,entryWidth:7.8,entryRun:1.5} as const

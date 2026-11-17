@@ -31,6 +31,25 @@ class BalloonFlightsTests {
     private BalloonFlights flights;
 
     @Test
+    void 일인_수동_탑승은_출발_전까지_같은_탑승권으로_내렸다_다시_탈_수_있다() {
+        flights.authorize(PILOT, TICKET, NOW, NOW);
+        var boarding = flights.start(CHANNEL, PILOT, SESSION, TICKET, GROUND, DOCK, NOW, 0, 1, null, "solo");
+
+        assertThat(boarding.party().boarding()).isTrue();
+        assertThat(boarding.flight().cabin().x()).isNegative();
+        var stillBoarding = flights.update(CHANNEL, PILOT, SESSION, TICKET, new Flight(DOCK, true),
+                Duration.ofMillis(200).toNanos());
+        assertThat(stillBoarding.party().boarding()).isTrue();
+        flights.finish(PILOT, SESSION, TICKET);
+        assertThat(flights.ticketAvailable(PILOT, TICKET, NOW)).isTrue();
+        assertThat(flights.drainUsage()).isEmpty();
+
+        flights.start(CHANNEL, PILOT, SESSION, TICKET, GROUND, DOCK, NOW, 0, 1, null, "solo");
+        assertThat(flights.launch(CHANNEL, PILOT, SESSION, TICKET, NOW, 0).party().boarding()).isFalse();
+        assertThat(flights.ticketAvailable(PILOT, TICKET, NOW)).isFalse();
+    }
+
+    @Test
     void 분담_조종은_담당_입력만_반영하고_수락_시_두_좌석을_동시에_교대한다() {
         String guest = "102";
         UUID guestTicket = UUID.randomUUID();

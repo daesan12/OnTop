@@ -582,6 +582,7 @@ export function CameraRig() {
         center.y + orbitY * distance,
         center.z + orbitZ * distance,
       )
+      const orbitHeight = state.desired.y
       state.desired.y = Math.max(
         state.desired.y,
         groundHeight(state.desired.x, state.desired.z) + 0.3,
@@ -605,6 +606,8 @@ export function CameraRig() {
       }
       state.look.copy(center)
       if (RENEWAL_PARK_ENABLED) constrainMonumentStairCamera(state.desired, state.look)
+      // Keep the requested upward angle when the ground prevents the orbit from lowering.
+      if (orbitY < 0 && !wardrobeView.active) state.look.y += Math.max(0, state.desired.y - orbitHeight)
     }
     const targetFov = debrisAnchor ? 55 : tablet ? 43 : focusedAlkkagi ? ALKKAGI_FOV : gathering ? ownOmok ? 60 : CAMERA.fov : seated && oneCardPlayerViewActive(game) ? ONECARD_CAMERA.fov : diceFocus ? DICE_CAMERA.fov : ledgerFocus ? LEDGER_CAMERA.fov : diceSpectator ? DICE_SPECTATOR_CAMERA.fov : boardFocus || spectatorBoard ? GOMOKU.topDownFov : seated ? GOMOKU.seatedFov : CAMERA.fov
     const smoothingOmok = focusedOmok || ownOmok || state.omokTransition

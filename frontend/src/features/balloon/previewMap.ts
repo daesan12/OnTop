@@ -2,9 +2,8 @@ import RAPIER from '@dimforge/rapier3d-compat'
 import { preparePredictionEngine } from '../../network/predictionEngine'
 import { addGeneratedPredictionColliders } from '../../network/predictionMap'
 import { renewalGroundHeight, renewalMap } from '../../park/renewalMap'
-import { BALLOON_DOCK_OFFSET, BALLOON_SCALE, insidePark, inLake, LAKE, STATION_STAIRS } from '../../../park-renewal-preview/plan'
+import { BALLOON_DOCK_OFFSET, BALLOON_DOOR_OFFSET_X, BALLOON_SCALE, insidePark, inLake, LAKE, STATION_STAIRS } from '../../../park-renewal-preview/plan'
 import type { FlightMap, Point } from './flight'
-import { hasPassedBalloonGate } from './wayfinding'
 
 const data = renewalMap?.data
 const station = data?.interactions.construction.find(site => site.id === 'balloon')
@@ -32,7 +31,7 @@ function surface(x: number, z: number, from = 100) {
 startPoint.y = surface(startPoint.x, startPoint.z, deckHeight + .5).y
 
 export function canBoard(position: Point) {
-  return hasPassedBalloonGate(position.z, stationZ)
+  return position.x <= stationX + BALLOON_DOOR_OFFSET_X
     && Math.hypot(position.x - reachX, position.z - reachZ) <= stationAnchor.radius
     && Math.abs(position.y - deckHeight) <= stationAnchor.heightTolerance
 }

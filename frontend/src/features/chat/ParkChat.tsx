@@ -15,10 +15,12 @@ import { noteTourAction } from '../welcomeTour/state'
 import { displayNickname } from '../gameMaster/displayName'
 import { useChatTyping } from './useChatTyping'
 import { parkXRView } from '../../world/xrView'
+import { useLocalBalloon } from '../balloon/localRide'
 
 const textControl = (target: EventTarget | null) => target instanceof HTMLElement
   && !!target.closest('input,textarea,select,button,a,[contenteditable="true"],[role="button"]')
-const anotherPanel = () => Object.entries(inputState).some(([key, value]) => value && key !== 'chatOpen')
+const anotherPanel = () => Object.entries(inputState).some(([key, value]) => value && key !== 'chatOpen'
+  && !(key === 'localBalloon' && useLocalBalloon.getState().flight))
   || !!document.querySelector('dialog[open],[role="dialog"]:not(.table-tablet[data-active="true"])')
 
 export function ParkChat() {
@@ -67,7 +69,7 @@ function ChatPanel({ gameId }: { gameId: string }) {
     setPreviewUntil(preview ? Date.now() + CHAT.expandedDurationMs : 0)
     followLatest.current = true
     input.current?.blur()
-    if (restoreFocus) focusParkCanvas()
+    if (restoreFocus) focusParkCanvas(useLocalBalloon.getState().flight ? 'localBalloon' : undefined)
   }
   useEffect(() => {
     if (!open) return
