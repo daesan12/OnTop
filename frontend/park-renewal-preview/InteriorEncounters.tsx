@@ -2,11 +2,12 @@ import { useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Vector3, type Group, type Light, type Mesh, type Object3D, type PointLight } from 'three'
 import { effectsOutput } from '../src/audio/bgm'
+import { playEncounterSound } from './horrorAudio'
 import { diamond, interiorVisit, type Encounter } from './interiorEvents'
 import { encounterModels, Shape } from './InteriorEncounterModels'
+import { useEncounterWarmup } from './encounterWarmup'
 
 const types = Array.from({ length: 12 }, (_, i) => i + 1)
-const tones = [77,54,93,47,114,65,138,56,44,39,32,73]
 const beatsByScene = [
   [0,.19], [0,.24,.50], [.02,.42], [0,.12,.31], [.05,.28], [.17,.5],
   [0,.11,.21,.31,.47], [.04,.54], [0,.34,.55], [0,.14,.26,.38],
@@ -17,24 +18,7 @@ const ease = (x: number) => { const n = clamp(x); return n * n * (3 - 2*n) }
 
 function cue(id: number, duration: number) {
   const output = effectsOutput()
-  if (!output) return
-  const {context,bus} = output
-  const beats = beatsByScene[id-1] ?? []
-  for (const [index, delay] of beats.entries()) {
-    const at = context.currentTime + delay * duration / 1000
-    const osc = context.createOscillator(), gain = context.createGain()
-    osc.type = id === 2 || id === 7 ? 'triangle' : 'sine'
-    const hz = tones[id-1]!
-    osc.frequency.setValueAtTime(hz * (index ? 1.38 : 1), at)
-    osc.frequency.exponentialRampToValueAtTime(hz * .82, at + .27)
-    gain.gain.setValueAtTime(.001, at)
-    gain.gain.linearRampToValueAtTime(id >= 11 ? .026 : .034, at + .09)
-    gain.gain.exponentialRampToValueAtTime(.001, at + .31)
-    osc.connect(gain).connect(bus)
-    osc.start(at)
-    osc.stop(at + .32)
-    osc.onended = () => { osc.disconnect(); gain.disconnect() }
-  }
+  if (output) playEncounterSound(output.context, output.bus, id, duration, beatsByScene[id-1] ?? [])
 }
 
 function animate(id: number, scene: Object3D, t: number, viewer: Vector3) {
@@ -151,6 +135,7 @@ export function InteriorEncounters() {
   const stage = useRef<Group>(null)
   const viewer = useRef(new Vector3())
   const accent = useRef<PointLight>(null)
+  useEncounterWarmup(stage)
   useFrame(({camera}, dt) => {
     const active = interiorVisit.active
     if (active !== previous.current) {

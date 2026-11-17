@@ -224,7 +224,7 @@ const mistShader = (alpha: number, scale: number, speed: number) => ({
   fragmentShader: /* glsl */`uniform float uTime; varying vec3 vWorld;
     float hh(vec2 p){p=fract(p*vec2(123.34,456.21));p+=dot(p,p+45.32);return fract(p.x*p.y);}
     float nn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(hh(i),hh(i+vec2(1.,0.)),f.x),mix(hh(i+vec2(0.,1.)),hh(i+vec2(1.,1.)),f.x),f.y);}
-    float fb(vec2 p){float v=0.,a=.5;for(int i=0;i<4;i++){v+=a*nn(p);p=p*2.07+11.3;a*=.5;}return v;}
+    float fb(vec2 p){float v=0.,a=.5;for(int i=0;i<3;i++){v+=a*nn(p);p=p*2.07+11.3;a*=.5;}return v*1.143;}
     void main(){ vec2 p=vWorld.xz*${scale.toFixed(3)}; float n=fb(p+vec2(uTime*${speed.toFixed(3)},uTime*${(speed * .6).toFixed(3)}))*fb(p*1.7-uTime*${(speed * .8).toFixed(3)});
       float near=smoothstep(.6,3.5,length(vWorld-cameraPosition));
       gl_FragColor=vec4(vec3(.50,.58,.55),smoothstep(.12,.5,n)*${alpha.toFixed(3)}*near); }`,
@@ -235,12 +235,12 @@ const waterCompile = (shader: WebGLProgramParametersWithUniforms) => {
   shader.fragmentShader = 'uniform float uTime;\n' + shader.fragmentShader
     .replace('#include <normal_fragment_maps>', /* glsl */`#include <normal_fragment_maps>
       vec2 wq=vHorrorWorld.xz*1.6; float e=.08;
-      float w0=hFbm(wq+uTime*vec2(.13,.09)), wx=hFbm(wq+vec2(e,0.)+uTime*vec2(.13,.09)), wz=hFbm(wq+vec2(0.,e)+uTime*vec2(.13,.09));
+      float w0=hFbm2(wq+uTime*vec2(.13,.09)), wx=hFbm2(wq+vec2(e,0.)+uTime*vec2(.13,.09)), wz=hFbm2(wq+vec2(0.,e)+uTime*vec2(.13,.09));
       float ring=sin(length(vHorrorWorld.xz-vec2(${HORROR_CRYPT.x.toFixed(2)},${HORROR_CRYPT.z.toFixed(2)}))*7.-uTime*1.3)*.012;
       vec3 wn=normalize(vec3(-(wx-w0)/e*.09-ring,1.,-(wz-w0)/e*.09));
       normal=normalize((viewMatrix*vec4(wn,0.)).xyz);`)
     .replace('#include <emissivemap_fragment>', /* glsl */`#include <emissivemap_fragment>
-      float deep=hFbm(vHorrorWorld.xz*.35-uTime*.02);
+      float deep=hNoise(vHorrorWorld.xz*.35-uTime*.02);
       totalEmissiveRadiance+=vec3(.006,.03,.022)*smoothstep(.35,.75,deep);
       totalEmissiveRadiance+=vec3(.16,.21,.24)*smoothstep(1.7,.2,length(vHorrorWorld.xz-vec2(${HORROR_CRYPT.x.toFixed(2)},${HORROR_CRYPT.z.toFixed(2)})))*(.55+.45*hNoise(vHorrorWorld.xz*3.+uTime*.6));`)
 }

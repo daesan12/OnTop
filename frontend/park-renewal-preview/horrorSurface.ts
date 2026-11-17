@@ -12,7 +12,10 @@ const noise = /* glsl */`
 float hHash(vec2 p){p=fract(p*vec2(123.34,456.21));p+=dot(p,p+45.32);return fract(p.x*p.y);}
 float hNoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);
  return mix(mix(hHash(i),hHash(i+vec2(1.,0.)),f.x),mix(hHash(i+vec2(0.,1.)),hHash(i+vec2(1.,1.)),f.x),f.y);}
-float hFbm(vec2 p){float v=0.,a=.5;for(int i=0;i<4;i++){v+=a*hNoise(p);p=p*2.03+17.1;a*=.5;}return v;}
+// Two and three octaves are plenty at underground viewing distances (S15P31B105-450: keep the per-pixel cost low).
+float hFbm2(vec2 p){return hNoise(p)*.667+hNoise(p*2.03+17.1)*.333;}
+float hFbm3(vec2 p){return hNoise(p)*.571+hNoise(p*2.03+17.1)*.286+hNoise(p*4.12+51.4)*.143;}
+float hFbm(vec2 p){return hFbm3(p);}
 `
 const varyings = 'varying vec3 vHorrorWorld; varying vec3 vHorrorNormal;\n'
 const hazeColor = (() => { const c = HAZE.color; return [1, 3, 5].map(i => (parseInt(c.slice(i, i + 2), 16) / 255).toFixed(4)).join(',') })()
@@ -44,7 +47,8 @@ export function hazeOnly(strength = 1) {
 /**
  * Masonry for MeshStandardMaterial with vertex colours: courses of uneven blocks (each row offset at random),
  * chipped mortar, per-block tone, a damp band and moss where water collects, dark streaks running down from the
- * vault, and wet patches on the floor that are glossy enough to catch the lamps.
+ * vault, and wet patches on the floor that are glossy enough to catch the lamps. About nine value-noise lookups per
+ * pixel: the large-scale variation is shared, and wall-only / floor-only terms are only computed on those faces.
  */
 export function stoneSurface(shader: WebGLProgramParametersWithUniforms) {
   worldVaryings(shader)
@@ -61,20 +65,23 @@ export function stoneSurface(shader: WebGLProgramParametersWithUniforms) {
  vec2 he=min(hf,1.-hf)*hs;
  float hChip=hNoise(hp*7.3)*.05;
  float hMortar=smoothstep(.016+hChip,.05+hChip,min(he.x,he.y));
- float hTone=hHash(hc+11.3), hFine=hNoise(hp*5.7), hBig=hFbm(hp*.31+hw.y*.07);
+ float hTone=hHash(hc+11.3), hFine=hNoise(hp*5.7), hBig=hFbm3(hp*.31+hw.y*.07);
  float hHeight=hw.y-${f};
  vec3 hBase=diffuseColor.rgb*(.66+hTone*.46)*(.84+hFine*.26)*(.78+hBig*.4);
  hBase*=mix(.26,1.,hMortar);
- float hCrack=hWall?smoothstep(.985,1.,1.-abs(hNoise(hp*vec2(1.3,2.1)+hc)-.5)*2.)*step(.62,hTone):0.;
- hBase*=1.-hCrack*.55;
- float hDamp=hWall?1.-smoothstep(.0,1.3+hBig*1.4,hHeight):0.;
- float hMoss=smoothstep(.52,.74,hFbm(hp*.55+vec2(3.1,9.7)))*(hFloor?.55:1.)*(hRoof?.3:1.);
- hMoss=max(hMoss,hDamp*smoothstep(.35,.7,hFbm(hp*1.7)));
- float hStreak=hWall?smoothstep(.6,.92,hNoise(vec2(hp.x*2.4,hw.y*.06)))*smoothstep(2.5,8.5,hHeight)*(.5+hBig):0.;
+ float hMoss=smoothstep(.52,.74,hNoise(hp*.55+vec2(3.1,9.7))*.62+hBig*.38)*(hFloor?.55:1.)*(hRoof?.3:1.);
+ float hDamp=0., hStreak=0., hWet=0.;
+ if(hWall){
+  hBase*=1.-smoothstep(.985,1.,1.-abs(hNoise(hp*vec2(1.3,2.1)+hc)-.5)*2.)*step(.62,hTone)*.55;
+  hDamp=1.-smoothstep(.0,1.3+hBig*1.4,hHeight);
+  hMoss=max(hMoss,hDamp*smoothstep(.35,.7,hNoise(hp*1.7)));
+  hStreak=smoothstep(.6,.92,hNoise(vec2(hp.x*2.4,hw.y*.06)))*smoothstep(2.5,8.5,hHeight)*(.5+hBig);
+  hWet=hDamp*.45;
+ }
+ if(hFloor) hWet=smoothstep(.56,.64,hFbm2(hw.xz*.21+7.))*(1.-hMoss*.5);
  hBase=mix(hBase,hBase*vec3(.42,.56,.36),hMoss*.8);
  hBase=mix(hBase,hBase*vec3(.55,.6,.56),hDamp*.75);
  hBase*=1.-clamp(hStreak,0.,1.)*.5;
- float hWet=hFloor?smoothstep(.56,.64,hFbm(hw.xz*.21+7.))*(1.-hMoss*.5):hDamp*.45;
  hBase*=mix(1.,.5,hWet);
  diffuseColor.rgb=hBase;`)
     .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n roughnessFactor=mix(.93,.32,hWet);')
@@ -86,11 +93,11 @@ export function grimeSurface(kind: 'metal' | 'wood' | 'paint') {
   return (shader: WebGLProgramParametersWithUniforms) => {
     worldVaryings(shader)
     const body = kind === 'metal' ? /* glsl */`
- float gR=smoothstep(.5,.85,hFbm(vHorrorWorld.xz*3.1+vHorrorWorld.y*3.7));
+ float gR=smoothstep(.5,.85,hFbm2(vHorrorWorld.xz*3.1+vHorrorWorld.y*3.7));
  float gS=hNoise(vec2(vHorrorWorld.x*9.+vHorrorWorld.z*7.,vHorrorWorld.y*1.4));
  diffuseColor.rgb=mix(diffuseColor.rgb*.82,diffuseColor.rgb*vec3(.78,.5,.32),gR*.6)*(.84+gS*.22);`
       : kind === 'wood' ? /* glsl */`
- float gR=smoothstep(.4,.8,hFbm(vHorrorWorld.xz*.9+vHorrorWorld.y*2.3));
+ float gR=smoothstep(.4,.8,hFbm2(vHorrorWorld.xz*.9+vHorrorWorld.y*2.3));
  diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(.45,.5,.38),gR)*(.8+hNoise(vHorrorWorld.xy*9.)*.25);`
       : 'diffuseColor.rgb*=.85+hNoise(vHorrorWorld.xz*4.)*.25;'
     shader.fragmentShader = shader.fragmentShader

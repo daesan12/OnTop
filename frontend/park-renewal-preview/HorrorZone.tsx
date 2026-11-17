@@ -1,6 +1,8 @@
-import {useLayoutEffect,useRef,type RefObject} from 'react'
+import {useEffect,useLayoutEffect,useRef,type RefObject} from 'react'
 import {useFrame} from '@react-three/fiber'
-import {Color,Matrix4,type InstancedMesh,type PointLight} from 'three'
+import {Color,Matrix4,type Group,type InstancedMesh,type Object3D,type PointLight} from 'three'
+import {effectsOutput} from '../src/audio/bgm'
+import {UndergroundAmbience} from './horrorAudio'
 import {horrorGround} from './horrorPlan'
 import {horrorShell,horrorArt,horrorRamp,HORROR_LAMPS,HORROR_PENDANTS} from './horrorGeometry'
 import {HorrorStoneMaterial} from './HorrorStoneMaterial'
@@ -26,7 +28,20 @@ function Flicker({lights,bulbs}:{lights:RefObject<(PointLight|null)[]>;bulbs:Ref
  return null
 }
 
+/** The hall hums, drips and groans while it is on screen (horrorAudio); silent and released when you leave. */
+function Ambience({zone}:{zone:RefObject<Group|null>}){
+ const ambience=useRef(new UndergroundAmbience())
+ useEffect(()=>()=>{const out=effectsOutput();if(out)ambience.current.stop(out.context)},[])
+ useFrame(()=>{
+  const out=effectsOutput();if(!out)return
+  let shown=!!zone.current;for(let n:Object3D|null=zone.current;n;n=n.parent)if(!n.visible)shown=false
+  ambience.current.tick(out.context,out.bus,shown)
+ })
+ return null
+}
+
 export function HorrorZone(){
+ const zone=useRef<Group>(null)
  const lights=useRef<(PointLight|null)[]>([])
  const bulbs=useRef<InstancedMesh>(null)
  useLayoutEffect(()=>{
@@ -34,7 +49,7 @@ export function HorrorZone(){
   HORROR_LAMPS.forEach(([x,z],i)=>{mesh.setMatrixAt(i,new Matrix4().makeScale(.24,.44,.24).setPosition(x,horrorGround(x,z)+3,z));mesh.setColorAt(i,warm)})
   mesh.instanceMatrix.needsUpdate=true;mesh.computeBoundingSphere()
  },[])
- return <group name="underground-horror-zone">
+ return <group ref={zone} name="underground-horror-zone">
    <HallDetails/>
    <InteriorEncounters/>
    <ambientLight color="#8e9c94" intensity={.17}/>
@@ -49,5 +64,6 @@ export function HorrorZone(){
    {HORROR_PENDANTS.map(([x,z],i)=><pointLight key={'pendant-'+i} position={[x,12.1,z]} color={i===1?'#a7b49a':'#d5ae6c'} intensity={65} distance={27} decay={1.4}/>)}
    <HorrorDressing/>
    <Flicker lights={lights} bulbs={bulbs}/>
+   <Ambience zone={zone}/>
  </group>
 }
