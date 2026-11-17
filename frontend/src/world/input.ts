@@ -120,7 +120,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
   const rotate = (x: number, y: number) => {
     const scale = lookScale()
     viewControls.yaw -= x * 0.004 * scale
-    viewControls.pitch = Math.max(-0.2, Math.min(1.1, viewControls.pitch + y * 0.003 * scale))
+    viewControls.pitch = Math.max(-1.45, Math.min(1.1, viewControls.pitch + y * 0.003 * scale))
     // A mouse can dispatch several updates before a frame is rendered. Keep
     // the latest aim, and update prediction once with the final heading.
     if (hadMovement && !rotatedIntentFrame) rotatedIntentFrame = requestAnimationFrame(() => {
