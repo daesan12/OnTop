@@ -8,6 +8,7 @@ import { A_FRAME, A_FRAME_SIGNS } from '../../config/parkAdvertising'
 import { renewalAdSigns } from '../../../park-renewal-preview/live/advertisingPlacement'
 import { groundSurfaceHeight } from '../../../park-renewal-preview/groundSurface'
 import { BALLOON_RIDE_ENABLED } from '../../park/mapSelection'
+import { BALLOON_DOOR_OFFSET_X } from '../../../park-renewal-preview/plan'
 import { viewControls } from '../../world/cameraPerspective'
 import { tableBusy, useGame } from '../../game/store'
 import { panelOwnsKeys, roamingInput } from '../../world/inputOwnership'
@@ -156,6 +157,7 @@ export function getParkInteraction(preferredGuide?: typeof STONE_RUMBLE_GUIDE_ID
     // backend runtime capability below, not by the legacy construction marker.
     if(site.id===PARK_GACHA_MACHINE.id || RENEWAL_PARK_ENABLED && site.id.startsWith('mobility-'))continue
     if(!canReachConstruction(p.current,site.id))continue
+    if(site.id==='balloon' && BALLOON_RIDE_ENABLED && p.current.x > site.position[0] + BALLOON_DOOR_OFFSET_X) continue
     const [x,y,z]=site.reachPosition,distance=Math.hypot(p.current.x-x,p.current.z-z)
     // The deployed 220m map still classifies this anchor as construction.
     if (renewalMap && site.id === 'shooting') {

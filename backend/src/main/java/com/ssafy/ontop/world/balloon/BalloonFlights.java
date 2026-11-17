@@ -81,11 +81,11 @@ public final class BalloonFlights {
                 || mode != null && !mode.equals("solo") && !(mode.equals("split") && capacity >= 2)
                 || !ticketAvailable(pilot, ticketId, now) || !atStation(player)
                 || !inBounds(position) || !nearDock(position)) return null;
-        var state = new State(channel, pilot, new Flight(position, true));
+        var state = new State(channel, pilot, new Flight(position, true,
+                mode == null ? CabinPose.IDLE : CabinPose.DOORWAY));
         rides.put(pilot, new Ride(session, ticketId, at, at, state));
         if (capacity > 1 || mode != null) {
             var group = new Group(pilot, capacity, mode);
-            group.boarding = capacity > 1;
             groups.put(pilot, group);
         }
         holds.remove(pilot);
@@ -357,7 +357,9 @@ public final class BalloonFlights {
         Map<String, CabinPose> passengers = new LinkedHashMap<>();
         group.passengers.forEach((id, passenger) -> passengers.put(id, controlPose(group, id, passenger.cabin)));
         Flight flight = state.flight;
-        if (flight.aboard) flight = new Flight(flight.position, true, controlPose(group, state.pilotId, flight.cabin));
+        if (flight.aboard && !group.boarding) {
+            flight = new Flight(flight.position, true, controlPose(group, state.pilotId, flight.cabin));
+        }
         return new State(state.channelId, state.pilotId, flight,
                 new Party(group.capacity, group.boarding, Map.copyOf(passengers),
                         group.controls == null ? null : group.controls.snapshot(at)));
@@ -411,6 +413,7 @@ public final class BalloonFlights {
     public record Point(double x, double y, double z) { }
     public record CabinPose(double x, double z, double yaw, int seatIndex, boolean moving) {
         public static final CabinPose IDLE = new CabinPose(0, 0, Math.PI, -1, false);
+        private static final CabinPose DOORWAY = new CabinPose(-1.18, 0, Math.PI / 2, -1, false);
 
         boolean valid() {
             return Math.hypot(x, z) <= 1.38 && Math.abs(yaw) <= Math.PI

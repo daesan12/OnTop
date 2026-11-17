@@ -120,6 +120,21 @@ export function preparedAssetVisible(name:string){
  for(let node:import('three').Object3D|null=object;node;node=node.parent)if(!node.visible)return false
  return true
 }
+export function balloonCabinProbe(name: string) {
+ const root = _roots.get(document.querySelector('canvas')!)?.store.getState().scene.getObjectByName(name)
+ if (!root) return null
+ const seats = root.getObjectByName('balloon-cabin-benches')
+ const controls = root.getObjectByName('balloon-cabin-controls')
+ const door = root.getObjectByName('balloon-cabin-door-leaf')
+ if (!seats || !controls || !door) return null
+ return {
+  visible: preparedAssetVisible(name),
+  floor: seats.getWorldPosition(new Vector3()).y,
+  seats: seats.children.length,
+  controls: controls.children.length,
+  door: door.rotation.y,
+ }
+}
 export function detailProbe(){
  const {scene}=_roots.get(document.querySelector('canvas')!)!.store.getState()
  scene.updateMatrixWorld(true)

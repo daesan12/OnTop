@@ -6,7 +6,7 @@ const lightProfile=profile.filter((_,i)=>i%2===0||i===5);
 const sy=y=>5.5+(y-4.05)*1.45;
 function radiusAt(y){for(let i=1;i<profile.length;i++)if(profile[i][1]>=y){const a=profile[i-1],z=profile[i];return a[0]+(z[0]-a[0])*(y-a[1])/(z[1]-a[1]);}return .32;}
 export function createLowPolyBalloon(options={}){
- check(options);const {scale=1,quality='balanced',red='#bb5145',accent=red,cream='#f2dfb7',castShadow=true,decoration='festival'}=options;
+ check(options);const {scale=1,quality='balanced',red='#bb5145',accent=red,cream='#f2dfb7',castShadow=true,decoration='festival',basketDoor=false}=options;
  const simple=decoration==='simple';
  const b=new Builder(quality),across=quality==='light'?1:2,points=quality==='light'?lightProfile:profile;
  for(let gore=0;gore<12;gore++){
@@ -37,8 +37,18 @@ export function createLowPolyBalloon(options={}){
  b.cylinder('solid','#744c2d',[0,.18,0],1.9,1.82,.26,[0,0,0],n);
  b.cylinder('solid','#bd8b51',[0,.33,0],1.77,1.77,.08,[0,0,0],n);
  const innerRadius=1.7/Math.cos(Math.PI/n);
- for(let i=0;i<n;i++){const a=i/n*TAU,z=(i+1)/n*TAU,p=[];for(const y of [.37,1.28])for(const rr of [innerRadius,1.9])for(const t of [a,z])p.push(...radial(t,rr,y));b.surface('solid',i%3?'#ad7842':'#bc8a4f',p,[2,3,6,3,7,6,0,4,1,1,4,5,4,6,5,5,6,7,0,1,2,1,3,2]);}
- for(const y of [.36,.73,1.08,1.48])b.ring('solid',y===1.48?'#83532e':'#d09a58',[0,y,0],1.85,y===1.48?.095:.04,n);
+ const doorSegment=3*n/4;
+ for(let i=0;i<n;i++){
+  const a=(i-(basketDoor ? .5 : 0))/n*TAU,z=a+TAU/n,p=[];
+  if(!basketDoor || i!==doorSegment){
+   for(const y of [.37,1.28])for(const rr of [innerRadius,1.9])for(const t of [a,z])p.push(...radial(t,rr,y));
+   b.surface('solid',i%3?'#ad7842':'#bc8a4f',p,[2,3,6,3,7,6,0,4,1,1,4,5,4,6,5,5,6,7,0,1,2,1,3,2]);
+  }
+  if(basketDoor && i!==doorSegment)for(const y of [.36,.73,1.08,1.48]){
+   b.beam('solid',y===1.48?'#83532e':'#d09a58',radial(a,1.9,y),radial(z,1.9,y),y===1.48?.095:.04);
+  }
+ }
+ if(!basketDoor)for(const y of [.36,.73,1.08,1.48])b.ring('solid',y===1.48?'#83532e':'#d09a58',[0,y,0],1.85,y===1.48?.095:.04,n);
  for(const a of [Math.PI/4,Math.PI*3/4,Math.PI*5/4,Math.PI*7/4]){const foot=radial(a,1.84,1.27),top=radial(a,1.35,5.46);b.beam('solid','#d8b981',foot,top,.12);b.cylinder('solid','#805330',radial(a,1.84,1.35),.11,.11,.5,[0,0,0],6);}
  if(!simple){
   b.box('solid','#d29e60',[0,.83,1.94],[1.6,.72,.1]);
