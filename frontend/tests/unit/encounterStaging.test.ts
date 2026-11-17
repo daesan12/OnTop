@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { EYE_HEIGHT, SIDE, STAGE, STAGE_STYLES, lungeStop, strobe, encounterDistance, encounterScale, pickStyle, placeInView, stageFrame, stagePlan, standDistance, styleFrame, stylesFor } from '../../park-renewal-preview/encounterStaging'
+import { EYE_HEIGHT, FALL, SIDE, fallOffset, STAGE, STAGE_STYLES, lungeStop, strobe, encounterDistance, encounterScale, pickStyle, placeInView, stageFrame, stagePlan, standDistance, styleFrame, stylesFor } from '../../park-renewal-preview/encounterStaging'
 
 describe('underground encounter staging (S15P31B105-450)', () => {
   it('builds up in the dark, shows the creature, rushes, then cuts to black', () => {
@@ -48,13 +48,15 @@ describe('underground encounter staging (S15P31B105-450)', () => {
       seen.add(style); last = style
     }
     expect([...seen].sort()).toEqual([...STAGE_STYLES].sort())
-    for (const id of [1, 8, 11, 12]) expect(stylesFor(id)).toEqual(['pop', 'fakeout', 'reveal'])
+    for (const id of [1, 11, 12]) expect(stylesFor(id)).toEqual(['pop', 'fakeout', 'reveal'])
   })
 
   it('gives the statue, the beast, the shadow and the runner a scare of their own', () => {
     expect(stylesFor(2)).toEqual(['statue'])
     expect(stylesFor(4)).toEqual(['pounce'])
     expect(stylesFor(5)).toEqual(['grab'])
+    expect(stylesFor(3)).toEqual(['drop'])
+    expect(stylesFor(8)).toEqual(['cage'])
     expect(stylesFor(6)).toEqual(['shadow'])
     expect(stylesFor(7)).toContain('sprint')
     // A creature with one way to happen still gets it after another creature used it.
@@ -102,6 +104,25 @@ describe('underground encounter staging (S15P31B105-450)', () => {
     expect(styleFrame(plan, 7, .3, 11)).toMatchObject({ visible: false })
     expect(styleFrame(plan, 7, .3, 11).light).toBeLessThan(.1)
     expect(strobe(.1)).toBe(true)
+  })
+
+  it('drop: out of the dark overhead in a fifth of a second, the rope jolting at your face', () => {
+    const plan = stagePlan('drop', 3600)
+    expect(FALL.drop).toBeLessThanOrEqual(.2)
+    expect(fallOffset('drop', 0)).toBeGreaterThan(4)
+    expect(fallOffset('drop', FALL.drop)).toBeCloseTo(0, 5)
+    expect(Math.abs(fallOffset('drop', FALL.drop + .5))).toBeLessThan(.1)
+    expect(styleFrame(plan, 3, .05, 1.5)).toMatchObject({ visible: true, held: false })
+    expect(styleFrame(plan, 3, FALL.drop + .02, 1.5).held).toBe(true)
+    expect(styleFrame(plan, 3, FALL.drop + .02, 1.5).light).toBeGreaterThan(1)
+  })
+
+  it('cage: crashes down onto the floor, rattles, and stays standing on it', () => {
+    const plan = stagePlan('cage', 3600)
+    expect(styleFrame(plan, 8, 0, 2.2).rise).toBeGreaterThan(4)
+    expect(Math.abs(styleFrame(plan, 8, 1, 2.2).rise)).toBeLessThan(.1)
+    expect(Math.abs(styleFrame(plan, 8, .8, 2.2).shake)).toBeGreaterThan(0)
+    expect(styleFrame(plan, 8, .8, 2.2).advance).toBe(0)
   })
 
   it('grab: an arm out of the wall beside you; you are turned to it just before it reaches you', () => {

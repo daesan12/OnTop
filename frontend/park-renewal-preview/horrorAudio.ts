@@ -378,6 +378,31 @@ export function playBehind(ctx: Ctx, bus: AudioNode, len: number, pan: number) {
   if (n > 2) clip(o, 'growl-low', now + len - 1.2, { gain: .3, rate: .7, pan, wet: .1 })
 }
 
+/** The hanged one falls: rope whipping down out of the dark, snapping taut, then creaking as it swings. */
+export function playRopeDrop(ctx: Ctx, bus: AudioNode) {
+  const o = output(ctx, bus), now = ctx.currentTime + .005
+  whoosh(o, now, .22, 0, 0, .45)
+  noise(o, now + .2, { type: 'bandpass', freq: 700, q: 2, gain: .5, attack: .002, release: .12, wet: .3 })
+  thud(o, now + .2, .5, 90)
+  for (let i = 0; i < 4; i++) creak(o, now + .45 + i * .32, .3, 140 + Math.random() * 40, Math.sin(i) * .4, .09 - i * .015)
+}
+/** A cage dropping out of the dark on its chains: links rattling down, then (the strike is the crash) bars. */
+export function playCageDrop(ctx: Ctx, bus: AudioNode, rattle: number) {
+  const o = output(ctx, bus), now = ctx.currentTime + .005
+  for (let t = 0; t < .2; t += .02) clank(o, now + t, .03 + t * .2)
+  whoosh(o, now, .22, 0, 0, .3)
+  playCageRattle(ctx, bus, rattle, .25)
+}
+/** Something throwing itself against the bars: metal hammering, a scream muffled under a sack. */
+export function playCageRattle(ctx: Ctx, bus: AudioNode, len: number, delay = 0) {
+  const o = output(ctx, bus), now = ctx.currentTime + .005 + delay
+  for (let t = 0; t < len; t += .07 + Math.random() * .06) {
+    clank(o, now + t, .05 + Math.random() * .06)
+    thud(o, now + t, .15, 110 + Math.random() * 40)
+  }
+  if (!clip(o, 'scream-b', now + .1, { gain: .45, rate: .58, wet: .15, until: now + len, fadeOut: .2 })) shriek(o, now + .1, len, .05)
+  growl(o, now, len, .08)
+}
 /** A wall beside you cracks open: stone splitting, grit falling, then the arm tearing through. */
 export function playWallCrack(ctx: Ctx, bus: AudioNode) {
   const o = output(ctx, bus), now = ctx.currentTime + .01

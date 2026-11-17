@@ -16,11 +16,13 @@ export function rampEyeLayout(): RampEye[] {
       const up = (-58.5 - z) / 24
       const rows = 2 + (rnd(k++) < .45 + up * .4 ? 1 : 0)
       for (let r = 0; r < rows; r++) {
+        // Now and then one far too big, at head height.
+        const giant = rnd(k++) < .07
         eyes.push({
           x, nx,
           z: z + (rnd(k++) - .5) * .7,
-          h: .45 + r * 1.05 + rnd(k++) * .7,
-          size: .32 + rnd(k++) * .22 + up * .12,
+          h: giant ? 1.3 + rnd(k++) * .5 : .45 + r * 1.05 + rnd(k++) * .7,
+          size: giant ? .95 + rnd(k++) * .3 : .3 + rnd(k++) * .3 + up * .12,
           roll: (rnd(k++) - .5) * .7,
           delay: rnd(k++) * .7,
         })

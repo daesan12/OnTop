@@ -22,14 +22,17 @@ const slit = new SphereGeometry(.5, 16, 10)
 
 /** One part of an eye, in the eye's own frame (looking out along +z); `lid` parts close with the eyelid. */
 type Part = { key: string; at: [number, number, number]; scale: [number, number, number]; lid: boolean; pupil: boolean }
+// Human eyes, which is what makes them wrong: pale skin lids in a dark hollow, the white showing all the way round
+// (staring), bloodshot, a dead grey iris and a black pupil that widens as you come close.
 const PARTS: Part[] = [
-  { key: 'socket', at: [0, 0, 0], scale: [.56, .33, .13], lid: false, pupil: false },
-  { key: 'slit', at: [0, 0, .05], scale: [.78, .36, .06], lid: false, pupil: false },
-  { key: 'sclera', at: [0, 0, .055], scale: [.72, .32, .16], lid: true, pupil: false },
-  { key: 'iris', at: [0, 0, .137], scale: [.24, .24, 1], lid: true, pupil: true },
-  { key: 'glint', at: [-.04, .04, .142], scale: [1, 1, 1], lid: true, pupil: true },
-  { key: 'lid-up', at: [0, .14, .085], scale: [.42, .09, .085], lid: false, pupil: false },
-  { key: 'lid-low', at: [0, -.135, .08], scale: [.4, .065, .07], lid: false, pupil: false },
+  { key: 'socket', at: [0, 0, -.01], scale: [.7, .44, .1], lid: false, pupil: false },
+  { key: 'slit', at: [0, 0, .045], scale: [.8, .42, .06], lid: false, pupil: false },
+  { key: 'sclera', at: [0, 0, .055], scale: [.74, .38, .16], lid: true, pupil: false },
+  { key: 'iris', at: [0, 0, .137], scale: [.2, .2, 1], lid: true, pupil: true },
+  { key: 'pupil', at: [0, 0, .139], scale: [.09, .09, 1], lid: true, pupil: true },
+  { key: 'glint', at: [-.035, .035, .145], scale: [1, 1, 1], lid: true, pupil: true },
+  { key: 'lid-up', at: [0, .175, .085], scale: [.44, .07, .07], lid: false, pupil: false },
+  { key: 'lid-low', at: [0, -.165, .08], scale: [.42, .05, .06], lid: false, pupil: false },
 ]
 
 export function RampEyes({ zone }: { zone: RefObject<Group | null> }) {
@@ -38,6 +41,9 @@ export function RampEyes({ zone }: { zone: RefObject<Group | null> }) {
   const state = useRef({ inside: false, since: 0, shutAt: -1, shut: false, nextSound: 0, opened: 0 })
   const open = useMemo(() => new Float32Array(eyes.length), [eyes])
   const blinkAt = useMemo(() => Float32Array.from(eyes, () => 2 + Math.random() * 8), [eyes])
+  // Darting: every eye flicks to a slightly different spot on you, out of step with the rest.
+  const dart = useMemo(() => ({ x: new Float32Array(eyes.length), y: new Float32Array(eyes.length), next: Float32Array.from(eyes, () => Math.random()) }), [eyes])
+  const pupilSize = useMemo(() => new Float32Array(eyes.length).fill(.09), [eyes])
   const tmp = useMemo(() => ({ eye: new Matrix4(), part: new Matrix4(), out: new Matrix4(), q: new Quaternion(), e: new Euler(), v: new Vector3(), s: new Vector3(), local: new Vector3() }), [])
   // Where each eye sits in the world, once.
   const frames = useMemo(() => eyes.map(e => {
@@ -65,6 +71,8 @@ export function RampEyes({ zone }: { zone: RefObject<Group | null> }) {
       const was = open[i]!
       open[i] = st.shut ? Math.max(0, was - dt * 14) : was + (want - was) * Math.min(1, dt * (want > was ? 7 : 12))
       if (was < .3 && open[i]! >= .3) opening++
+      if (now > dart.next[i]!) { dart.x[i] = (Math.random() - .5) * .05; dart.y[i] = (Math.random() - .5) * .025; dart.next[i] = now + .15 + Math.random() * .9 }
+      pupilSize[i] = .07 + .06 * Math.max(0, 1 - d / 7)
     }
     if (opening && now > st.nextSound) { sound('open', Math.min(6, opening)); st.nextSound = now + .35 }
     if (st.inside && !st.shut && now > st.nextSound + 2.5 && Math.random() < dt * .4) { sound('murmur'); st.nextSound = now + 1 }
@@ -78,10 +86,11 @@ export function RampEyes({ zone }: { zone: RefObject<Group | null> }) {
         let px = part.at[0], py = part.at[1]
         if (part.pupil) {
           tmp.local.set(cx, cy, cz).sub(tmp.v.setFromMatrixPosition(f.m)).applyQuaternion(f.inv).normalize()
-          px += Math.max(-.078, Math.min(.078, tmp.local.x * .11)); py += Math.max(-.033, Math.min(.033, tmp.local.y * .08))
+          px += Math.max(-.09, Math.min(.09, tmp.local.x * .12 + dart.x[i]!)); py += Math.max(-.04, Math.min(.04, tmp.local.y * .09 + dart.y[i]!))
         }
         const lid = part.lid ? .04 + .96 * open[i]! : 1
-        tmp.part.compose(tmp.v.set(px, py * lid, part.at[2]), tmp.q.identity(), tmp.s.set(part.scale[0], part.scale[1] * lid, part.scale[2]))
+        const sx = part.key === 'pupil' ? pupilSize[i]! : part.scale[0], sy = part.key === 'pupil' ? pupilSize[i]! : part.scale[1]
+        tmp.part.compose(tmp.v.set(px, py * lid, part.at[2]), tmp.q.identity(), tmp.s.set(sx, sy * lid, part.scale[2]))
         mesh.setMatrixAt(i, tmp.out.multiplyMatrices(f.m, tmp.part))
       }
       mesh.instanceMatrix.needsUpdate = true
@@ -91,14 +100,15 @@ export function RampEyes({ zone }: { zone: RefObject<Group | null> }) {
   const flesh = encounterFinishes.flesh
   return <group name="ramp-eyes" userData={{ keepOpaque: true }}>
     {PARTS.map((part, k) => {
-      const geometry = part.key === 'sclera' ? sclera : part.key === 'iris' ? iris : part.key === 'glint' ? glint
+      const geometry = part.key === 'sclera' ? sclera : part.key === 'iris' || part.key === 'pupil' ? iris : part.key === 'glint' ? glint
         : part.key === 'slit' ? slit : lumpGeometry(part.key === 'socket' ? 'socket' : part.key, 0, 0, .4)
       return <instancedMesh key={part.key} ref={m => { meshes.current[k] = m }} args={[geometry, undefined, eyes.length]} frustumCulled={false}>
-        {part.key === 'sclera' ? <meshStandardMaterial map={scleraTexture()} roughness={.12} emissive="#ffffff" emissiveIntensity={.12} />
-          : part.key === 'iris' ? <meshStandardMaterial map={irisTexture('#8a6422')} roughness={.08} emissive="#ffffff" emissiveIntensity={.1} />
-          : part.key === 'glint' ? <meshBasicMaterial color="#fffaf0" toneMapped={false} />
-          : part.key === 'slit' ? <meshStandardMaterial color="#140707" roughness={.4} />
-          : <meshStandardMaterial color={part.key === 'socket' ? '#4a2724' : '#5c302c'} map={flesh.texture} bumpMap={flesh.texture} bumpScale={flesh.bumpScale} roughness={flesh.roughness} />}
+        {part.key === 'sclera' ? <meshStandardMaterial map={scleraTexture()} roughness={.18} emissive="#ffb4a0" emissiveIntensity={.1} />
+          : part.key === 'iris' ? <meshStandardMaterial map={irisTexture('#6f7c80')} roughness={.1} emissive="#d8e4e8" emissiveIntensity={.06} />
+          : part.key === 'pupil' ? <meshBasicMaterial color="#020101" polygonOffset polygonOffsetFactor={-1} />
+          : part.key === 'glint' ? <meshBasicMaterial color="#fff4ea" toneMapped={false} />
+          : part.key === 'slit' || part.key === 'socket' ? <meshStandardMaterial color={part.key === 'slit' ? '#0b0404' : '#1d100d'} roughness={.6} />
+          : <meshStandardMaterial color={part.key === 'lid-up' ? '#7b6e66' : '#695c55'} map={flesh.texture} bumpMap={flesh.texture} bumpScale={flesh.bumpScale} roughness={.75} />}
       </instancedMesh>
     })}
   </group>
