@@ -19,12 +19,14 @@ export class AvatarPoseCadence {
     ambient = false,
     crowded = false,
     crowdFrame?: number,
+    crowdedXR = false,
   ) {
     if (distance > 16) this.distant = true
     else if (distance < 12) this.distant = false
     const lively = active || (ambient && (own || !this.distant))
+    const crowdInterval = crowdedXR && distance > 6 ? 1 / 15 : 1 / 30
     const interval =
-      own ? 0 : active && !this.distant ? (crowded ? 1 / 30 : 0) : lively ? 1 / 15 : 1 / 12
+      own ? 0 : active && !this.distant ? (crowded ? crowdInterval : 0) : lively ? 1 / 15 : 1 / 12
     const changed = this.previousKey !== key || this.previousActive !== active
     const dt = Math.min(Math.max(0, delta), 0.1)
     this.quiet = changed || lively ? 0 : this.quiet + dt

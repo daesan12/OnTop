@@ -14,8 +14,11 @@ export function loadRenewalFixtureMap() {
 }
 
 /** Empty private HUD data for XR browser QA; no production authentication/API bypass. */
-export async function parkFixture(page: Page, options?: Parameters<typeof baseParkFixture>[1]) {
-  const map = process.env.PARK_XR_MAP === 'renewal' ? loadRenewalFixtureMap() : undefined
+export async function parkFixture(
+  page: Page,
+  options?: Parameters<typeof baseParkFixture>[1],
+  map = process.env.PARK_XR_MAP === 'renewal' ? loadRenewalFixtureMap() : undefined,
+) {
   const server = await baseParkFixture(page, options, map)
   await page.route('**/api/v1/events/winnings/me?*', route => route.fulfill({ json: [] }))
   await page.route('**/api/v1/notifications?*', route => route.fulfill({ json: { items: [], nextCursor: null, unreadCount: 0 } }))

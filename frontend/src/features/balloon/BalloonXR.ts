@@ -1,12 +1,10 @@
 import { Mesh, MeshBasicMaterial, PlaneGeometry, type Object3D, type Scene, type Vector3 } from 'three'
-import { renewalMap } from '../../park/renewalMap'
-import { canReachConstruction } from '../construction/model'
 import { XRCanvas } from '../parkXR/XRCanvas'
 import { paintGuideButton, TOUCH_GUIDE_COLORS } from '../vrGuide/touchControllerGuide'
+import { balloonEntrance, canReachBalloonDoor } from './boarding'
 import { BALLOON_FARE, type Point } from './flight'
 import { boardLocalBalloon, cancelLocalBalloon, openLocalBalloon, returnLocalBalloon, useLocalBalloon, XR_DOCK_HANDOFF_SECONDS } from './localRide'
 
-const station = renewalMap?.data.interactions.construction.find(site => site.id === 'balloon')
 const ticketLabel = `자동 비행 탑승 · ${BALLOON_FARE}냥`
 
 export class BalloonXR {
@@ -34,9 +32,9 @@ export class BalloonXR {
 
   update(position: Point, eye: Vector3, allowed: boolean) {
     const { flight, panel, paymentError, xrSightseeing } = useLocalBalloon.getState()
-    this.entry.mesh.visible = !!station && allowed && !flight && canReachConstruction(position, 'balloon')
-    if (station && this.entryVisible) {
-      const [x, y, z] = station.reachPosition
+    this.entry.mesh.visible = allowed && !flight && canReachBalloonDoor(position)
+    if (balloonEntrance && this.entryVisible) {
+      const { x, y, z } = balloonEntrance
       this.entry.mesh.position.set(x, y + 1.05, z - 1.1)
       const entry = this.entry.mesh.position
       this.entry.mesh.rotation.y = Math.atan2(eye.x - entry.x, eye.z - entry.z)

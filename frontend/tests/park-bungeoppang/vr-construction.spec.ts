@@ -42,7 +42,7 @@ test('꼬치왕 VR 선택·연결을 열고 헤드셋 연결 확인 후에만 �
   await expect(page.getByRole('button', { name: 'VR 요리 · 공사 중', exact: true })).toHaveCount(0);
   await vr.click();
   await expect(page.getByRole('button', { name: '준비 완료', exact: true })).toBeDisabled();
-  await page.getByRole('button', { name: '헤드셋 연결하기', exact: true }).click();
+  await page.getByRole('button', { name: '주방 화면 미리 보기', exact: true }).click();
   await expect(page.locator('.chef-stage')).toHaveAttribute('data-ready', 'true');
   await expect(page.getByTestId('chef-app')).toHaveAttribute('data-mode', 'vr');
   await expect(page.getByRole('button', { name: 'VR 시작', exact: true })).toBeEnabled();

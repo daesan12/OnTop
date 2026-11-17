@@ -36,10 +36,11 @@ function lights() {
 }
 const round = (value: number) => Math.round(value * 1000) / 1000
 function read(found: ReturnType<typeof lights>) {
-  const { camera } = root(), { sun, fill, points } = found
+  const { camera, gl } = root(), { sun, fill, points } = found
   const direction = sun ? sun.position.clone().sub(sun.target.position).normalize() : new Vector3()
   return {
     hour: round(environmentFrame.hour), night: round(environmentFrame.night), cameraLayers: camera.layers.mask,
+    exposure: round(gl.toneMappingExposure),
     sun: round(sun?.intensity ?? -1), sunColor: sun?.color.getHexString() ?? '', sunY: round(direction.y),
     fill: round(fill?.intensity ?? -1), fillColor: fill?.color.getHexString() ?? '',
     points: round(points.reduce((sum, light) => sum + (light.visible ? light.intensity : 0), 0)),
@@ -69,10 +70,10 @@ export function takeRenderLog() {
 }
 
 /** Inner playing-surface rectangle in CSS pixels, away from the frame and the stone bowls. */
-export function boardWoodRect() {
+export function boardWoodRect(game: 'omok' | 'alkkagi' = 'omok') {
   const { scene, camera, gl } = root()
-  const board = scene.getObjectByName('omok-board-' + omokCamera.anchorId)!
-  const rect = gl.domElement.getBoundingClientRect(), half = GOMOKU.boardSpan * .45 / 2
+  const board = scene.getObjectByName(game === 'alkkagi' ? 'alkkagi-world-board' : 'omok-board-' + omokCamera.anchorId)!
+  const rect = gl.domElement.getBoundingClientRect(), half = game === 'alkkagi' ? 1.4 : GOMOKU.boardSpan * .45 / 2
   const points = [[-half, -half], [half, half]].map(([x, z]) => {
     const p = board.localToWorld(new Vector3(x, .012, z)).project(camera)
     return [rect.left + (p.x + 1) * rect.width / 2, rect.top + (1 - p.y) * rect.height / 2]

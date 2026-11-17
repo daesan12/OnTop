@@ -3,12 +3,12 @@ import { boatQueueOpen } from '../duckBoat/controller'
 import { openBoatChooser } from '../duckBoat/model'
 import { authoritativePose, avatars, useSession } from '../../network/worldClient'
 import { parkRuntime } from '../../park/runtime/runtime'
+import { balloonEntrance, canReachBalloonDoor } from '../balloon/boarding'
 import { openLocalBalloon } from '../balloon/localRide'
 import { A_FRAME, A_FRAME_SIGNS } from '../../config/parkAdvertising'
 import { renewalAdSigns } from '../../../park-renewal-preview/live/advertisingPlacement'
 import { groundSurfaceHeight } from '../../../park-renewal-preview/groundSurface'
 import { BALLOON_RIDE_ENABLED } from '../../park/mapSelection'
-import { BALLOON_DOOR_OFFSET_X } from '../../../park-renewal-preview/plan'
 import { viewControls } from '../../world/cameraPerspective'
 import { tableBusy, useGame } from '../../game/store'
 import { panelOwnsKeys, roamingInput } from '../../world/inputOwnership'
@@ -89,7 +89,7 @@ const recreationLabels: Record<RenewalRecreationId, string> = {
 }
 
 export interface ParkInteraction {
-  kind: 'bench' | 'table' | 'fitness' | 'telescope' | 'boat' | 'feedback' | 'notes' | 'bungeoppang' | 'rps-roulette' | 'renewal-game' | 'spot-difference' | 'construction' | 'gacha' | 'ranking-board' | 'vr' | 'jumpmap-guide' | 'stone-rumble-guide' | 'avatar-pickup' | 'avatar-throw' | 'joke-judge' | 'interior-item' | 'interior-access' | 'advertisement'
+  kind: 'bench' | 'table' | 'fitness' | 'telescope' | 'boat' | 'balloon' | 'feedback' | 'notes' | 'bungeoppang' | 'rps-roulette' | 'renewal-game' | 'spot-difference' | 'construction' | 'gacha' | 'ranking-board' | 'vr' | 'jumpmap-guide' | 'stone-rumble-guide' | 'avatar-pickup' | 'avatar-throw' | 'joke-judge' | 'interior-item' | 'interior-access' | 'advertisement'
   id: string
   label: string
   seat?: 0 | 1
@@ -152,12 +152,17 @@ export function getParkInteraction(preferredGuide?: typeof STONE_RUMBLE_GUIDE_ID
     choices.push({ kind: 'advertisement', id: `a-frame-${sign.id}`, label: '광고 보기',
       occupied: false, available: true, distance, score: interactionScore(distance, { ...sign, y: sign.y + A_FRAME.panelY }) })
   }
+  if (BALLOON_RIDE_ENABLED && balloonEntrance && canReachBalloonDoor(p.current)) {
+    const distance = Math.hypot(p.current.x - balloonEntrance.x, p.current.z - balloonEntrance.z)
+    choices.push({ kind: 'balloon', id: 'balloon', label: '열기구 탑승',
+      occupied: false, available: true, distance, score: interactionScore(distance, balloonEntrance) })
+  }
   if(plazaKiosksEnabled)for(const site of constructionSites){
     // layout-shop is the visible gacha machine. Its E prompt is controlled by the
     // backend runtime capability below, not by the legacy construction marker.
     if(site.id===PARK_GACHA_MACHINE.id || RENEWAL_PARK_ENABLED && site.id.startsWith('mobility-'))continue
+    if (site.id === 'balloon' && BALLOON_RIDE_ENABLED) continue
     if(!canReachConstruction(p.current,site.id))continue
-    if(site.id==='balloon' && BALLOON_RIDE_ENABLED && p.current.x > site.position[0] + BALLOON_DOOR_OFFSET_X) continue
     const [x,y,z]=site.reachPosition,distance=Math.hypot(p.current.x-x,p.current.z-z)
     // The deployed 220m map still classifies this anchor as construction.
     if (renewalMap && site.id === 'shooting') {
@@ -165,7 +170,7 @@ export function getParkInteraction(preferredGuide?: typeof STONE_RUMBLE_GUIDE_ID
         occupied: false, available: true, distance, score: interactionScore(distance, { x, y: y + .5, z }) })
       continue
     }
-    const label = site.id === 'balloon' && BALLOON_RIDE_ENABLED ? '열기구 탑승' : site.id === 'layout-drink' ? '복권방 열기' : site.label
+    const label = site.id === 'layout-drink' ? '복권방 열기' : site.label
     choices.push({kind:'construction',id:site.id,label,occupied:false,available:true,distance,score:interactionScore(distance,{x,y,z})})
   }
   if (plazaKiosksEnabled && (RENEWAL_PARK_ENABLED || gachaInteractionEnabled(session.sessionId)) && canReachParkGacha(p.current)) {
@@ -290,10 +295,8 @@ export function interactWithPark(expectedId?: string): boolean {
   else if (target.kind === 'vr') openParkVrZone()
   else if (target.kind === 'gacha') openParkGacha()
   else if (target.kind === 'spot-difference') openSpotDifference()
-  else if (target.kind === 'construction') {
-    if (target.id === 'balloon' && BALLOON_RIDE_ENABLED) return openLocalBalloon()
-    openConstructionNotice(target.id)
-  }
+  else if (target.kind === 'balloon') return openLocalBalloon()
+  else if (target.kind === 'construction') openConstructionNotice(target.id)
   else if (target.kind === 'bungeoppang') openBungeoppang()
   else if (target.kind === 'rps-roulette') { if (canOpenRpsRoulette()) openArcade() }
   else if (target.kind === 'renewal-game') {

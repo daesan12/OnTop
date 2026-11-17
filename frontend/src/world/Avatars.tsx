@@ -6,7 +6,7 @@ import { localBalloonRider, useLocalBalloon } from '../features/balloon/localRid
 import { remoteBalloonRider } from '../features/balloon/remoteRide'
 import { useFrame, useLoader, useThree } from '@react-three/fiber'
 import { Group, Matrix4, Vector3 } from 'three'
-import { cameraWorldPosition, parkXRView } from './xrView'
+import { cameraWorldPosition, PARK_XR_CROWD_THRESHOLD, parkXRView } from './xrView'
 import { ParkAssetLoader } from './art/assetLoader'
 import { characterUrls } from './worldAssets'
 import { createSafeCharacterRig } from './art/safeCharacterRig'
@@ -20,7 +20,7 @@ import { SwimmingRipples } from './SwimmingRipples'
 import { AvatarPoseCadence } from '../performance/avatarPoseCadence'
 import { CHARACTER, TABLES } from '../park/mapConfig'
 import { FartCloud } from './art/FartCloud'
-import { bungeoppangReturnOpacity } from '../features/bungeoppang/bungeoppangView'
+import { bungeoppangCookingView, bungeoppangReturnOpacity } from '../features/bungeoppang/bungeoppangView'
 import { createAvatarOpacity } from './avatarOpacity'
 import { avatarMenuRaycast } from './avatarMenuPicking'
 import { useAvatarFrameSampler } from './AvatarPoseFrame'
@@ -181,11 +181,11 @@ function Avatar({
     const seated = avatar.seatIndex >= 0
     const seatTable = seated && avatar.tableId ? TABLES.find(table => table.id === avatar.tableId) : undefined
     const own = id === useSession.getState().sessionId
+    const crowdedXR = !own && parkXRView.active && crowded
     const localBalloon = useLocalBalloon.getState()
     const localPilot = localBalloon.flight && localBalloon.owner === localBalloon.leader
       ? { id: localBalloon.owner, position: localBalloon.flight.position } : undefined
     const balloonRider = own ? localBalloonRider(id) : remoteBalloonRider(id, frameAt, localPilot)
-    // Hide only this client's own model; other clients retain the full avatar.
     const ownAvatar = !own && useJumpmap.getState().run ? avatars.get(useSession.getState().sessionId) : undefined
     const ownPose = ownAvatar && samplePose(ownAvatar, frameAt, overlapPose)
     const overlap = !!ownPose && Math.hypot(pose.x - ownPose.x, pose.z - ownPose.z) < .7 && Math.abs(pose.y - ownPose.y) < 1.8
@@ -193,6 +193,8 @@ function Avatar({
     overlapOpacity.current = targetOpacity + (overlapOpacity.current - targetOpacity) * Math.exp(-Math.min(delta, .1) * 6)
     if (Math.abs(overlapOpacity.current - targetOpacity) < .001) overlapOpacity.current = targetOpacity
     const opacity = own ? bungeoppangReturnOpacity(frameAt, reducedMotion.matches) : overlapOpacity.current
+    // Keep park visitors out of the cooking camera until it returns to the park.
+    const hiddenForCooking = !own && bungeoppangCookingView(frameAt)
     const gateFrameAt = firstGateFrameAt?.current
     // Give the first render and walking input a turn before compiling fade-only variants.
     if (gateFrameAt != null && (frameAt - gateFrameAt >= 1000 || (opacity > 0 && opacity < 1))) {
@@ -208,7 +210,8 @@ function Avatar({
     const visibleOutsideXR = !hideBalloonRider && (!!balloonRider || !!debrisMotion
       || !(own && ((avatar.tableId && seated && !gatheringCameraActive() || avatar.benchId && seated || avatar.telescopeId)
       || roamingFirstPerson(avatar, !!useGame.getState().watchedGameId))))
-    root.current.visible = firstAppearanceReady.current && opacity > 0 && (ownXR ? !!avatar.vehicle : visibleOutsideXR)
+    root.current.visible = !hiddenForCooking && firstAppearanceReady.current && opacity > 0
+      && (ownXR ? !!avatar.vehicle : visibleOutsideXR)
     appearance.current?.set(root.current.visible ? opacity : 1)
     root.current.userData.appearanceOpacity = root.current.visible ? opacity : 0
     if (balloonRider) {
@@ -228,7 +231,7 @@ function Avatar({
     // The visitors parent has an identity transform; this position is already
     // in world space. Avoid walking/updating the ancestor matrices per avatar.
     const distance = cameraWorldPosition(camera).distanceTo(root.current.position)
-    model.lod(distance)
+    model.lod(distance, crowdedXR)
     const now = estimatedServerTime()
     const reaction = gameReaction(id, avatar, now)
     const holdingCards = seated && oneCardHeldCount(id, avatar.tableId) > 0
@@ -250,6 +253,7 @@ function Avatar({
       !reaction && avatarPoseAmbient(displayAvatar),
       crowded && !carryAnimation && !reaction && !seated && !displayAvatar.emote && !displayAvatar.fitnessId && !displayAvatar.telescopeId,
       crowdFrame.current,
+      crowdedXR,
     )
     if (!poseDelta) return
     const partner = avatars.get(carriedPartner.current.id)
@@ -317,23 +321,24 @@ export function Avatars({
   const mounted = useMemo(() => new Set(mountedPeers), [mountedPeers])
   const wanted = useMemo(() => new Set(ids.filter(id => id !== ownId)), [ids, ownId])
   const needsPeers = RENEWAL_PARK_ENABLED && (mounted.size !== wanted.size || mountedPeers.some(id => !wanted.has(id)))
+  const crowded = RENEWAL_PARK_ENABLED && ids.length >= PARK_XR_CROWD_THRESHOLD
   useLayoutEffect(() => { pendingPeers.current = false }, [mountedPeers])
   useFrame(() => {
     if (firstGateFrameAt?.current === null || !needsPeers || pendingPeers.current) return
     const next = mountedPeers.filter(id => wanted.has(id))
     // Cloning several skeletons at once can monopolize a render frame on join.
-    // Retain existing peers and admit at most four new rigs per rendered frame.
+    // A busy VR session has less time to clone rigs before the next input frame.
+    const limit = parkXRView.active && crowded ? 1 : 4
     let admitted = 0
     for (const id of wanted) {
       if (mounted.has(id)) continue
       next.push(id)
-      if (++admitted === 4) break
+      if (++admitted === limit) break
     }
     if (!admitted && next.length === mountedPeers.length) return
     pendingPeers.current = true
     startTransition(() => setMountedPeers(next))
   }, -2.5)
-  const crowded = RENEWAL_PARK_ENABLED && ids.length >= 20
   const crowdFrame = useRef(0)
   useFrame(() => { crowdFrame.current++ }, -1.25)
   const samplePose = useAvatarFrameSampler()

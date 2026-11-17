@@ -3,7 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 export default defineConfig({
-  testDir: './tests/skewer-coop', testMatch: ['greeting-turn.spec.ts', 'feedback.spec.ts', 'pause.spec.ts', 'restart-modal.spec.ts'], workers: 1, timeout: 60000,
+  testDir: './tests/skewer-coop', testMatch: ['greeting-turn.spec.ts', 'feedback.spec.ts', 'pause.spec.ts', 'restart-modal.spec.ts', 'vr-start.spec.ts'], workers: 1, timeout: 60000,
   outputDir: path.join(os.tmpdir(), 'ontop-skewer-vr-greeting-results'),
   use: { baseURL: 'http://127.0.0.1:5272', viewport: { width: 1440, height: 900 },
     launchOptions: { executablePath: process.env.CHROME_BIN

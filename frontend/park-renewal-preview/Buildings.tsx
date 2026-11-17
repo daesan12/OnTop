@@ -167,10 +167,10 @@ function PublicBreadShop({ children }: { children: ReactNode }) {
 
 export function Buildings({live=false,distantReady=true,upperFacilitiesReady=distantReady,loadedRentalBatches=distantRentalBatches,entrancePavilion=true,entranceDistricts=true,entranceFacilities=true,showDockedBalloon=true,showBalloonWayfinding=live&&BALLOON_RIDE_ENABLED}:{showDockedBalloon?:boolean;showBalloonWayfinding?:boolean;live?:boolean;distantReady?:boolean;upperFacilitiesReady?:boolean;loadedRentalBatches?:number;entrancePavilion?:boolean;entranceDistricts?:boolean;entranceFacilities?:boolean}){const mailbox=site('mailbox'),jump=site('jump'),tower=site('tower'),balloon=site('balloon');return <group name="detail-220-buildings">
  {SITES.filter(s=>s.asset&&models[s.asset]&&(distantReady||s.asset!=='stele')&&(entrancePavilion||s.id!=='pavilion')&&(entranceFacilities||s.id!=='fortune'&&s.id!=='lottery')).map(s=>{const isDock=s.asset==='dock',fit=['bread','pigeon','cafe'].includes(s.asset!),yaw=facilityYaw(s);const model=<group key={s.id} name={'facility-'+s.id} userData={{siteId:s.id,legacyFacilityIds:legacyIdsForSite(s.id),pavilionId:pavilionIdForSite(s.id)}} position={[s.x,isDock?LAKE.y:facilityGroundY(s)+.1,s.z]} rotation={[0,yaw,0]} scale={isDock?DOCK_SCALE:s.asset==='stele'?1.45:1} onClick={s.id==='stele'?e=>{e.stopPropagation();window.dispatchEvent(new Event('park-select-jump'))}:undefined}><Suspense fallback={null}><Model kind={s.asset!} fit={fit} prepareShaders={live&&s.asset==='stele'}/></Suspense></group>;return isDock?<LakePart key={s.id} at={LakeStage.Dock}>{model}</LakePart>:live&&s.asset==='bread'?<PublicBreadShop key={s.id}>{model}</PublicBreadShop>:model})}
- {entranceFacilities&&<RentalPairs entrance/>}
+ {entranceFacilities&&<><RentalPairs area="gate"/><RentalPairs area="nearby"/></>}
  {distantReady&&(live
-  ? Array.from({length:Math.min(loadedRentalBatches,distantRentalBatches)},(_, batch)=><ShaderPreparedGroup key={batch}><RentalPairs entrance={false} batch={batch}/></ShaderPreparedGroup>)
-  : <RentalPairs entrance={false}/>)}
+  ? Array.from({length:Math.min(loadedRentalBatches,distantRentalBatches)},(_, batch)=><ShaderPreparedGroup key={batch}><RentalPairs area="distant" batch={batch}/></ShaderPreparedGroup>)
+  : <RentalPairs area="distant"/>)}
 
  {entranceFacilities&&<ParkGachaKiosk live={live}/>}
  {entranceFacilities&&<ParkMoleShop optimizedReady={distantReady}/>}

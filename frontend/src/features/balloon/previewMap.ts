@@ -2,16 +2,16 @@ import RAPIER from '@dimforge/rapier3d-compat'
 import { preparePredictionEngine } from '../../network/predictionEngine'
 import { addGeneratedPredictionColliders } from '../../network/predictionMap'
 import { renewalGroundHeight, renewalMap } from '../../park/renewalMap'
-import { BALLOON_DOCK_OFFSET, BALLOON_DOOR_OFFSET_X, BALLOON_SCALE, insidePark, inLake, LAKE, STATION_STAIRS } from '../../../park-renewal-preview/plan'
+import { BALLOON_DOCK_OFFSET, BALLOON_SCALE, insidePark, inLake, LAKE, STATION_STAIRS } from '../../../park-renewal-preview/plan'
+import { balloonEntrance, canReachBalloonDoor } from './boarding'
 import type { FlightMap, Point } from './flight'
 
 const data = renewalMap?.data
 const station = data?.interactions.construction.find(site => site.id === 'balloon')
-if (!data || !station) throw new Error('220m 공원의 열기구 승강장 정보를 찾을 수 없습니다.')
+if (!data || !station || !balloonEntrance) throw new Error('220m 공원의 열기구 승강장 정보를 찾을 수 없습니다.')
 
-export const stationAnchor = station
 const [stationX, , stationZ] = station.position
-const [reachX, reachY, reachZ] = station.reachPosition
+const { x: reachX, y: reachY, z: reachZ } = balloonEntrance
 const deckHeight = reachY - .8
 export const stationExit = { x: reachX, y: deckHeight, z: reachZ }
 export const startPoint = { x: reachX, y: deckHeight, z: stationZ + STATION_STAIRS.zBottom + 1 }
@@ -31,9 +31,7 @@ function surface(x: number, z: number, from = 100) {
 startPoint.y = surface(startPoint.x, startPoint.z, deckHeight + .5).y
 
 export function canBoard(position: Point) {
-  return position.x <= stationX + BALLOON_DOOR_OFFSET_X
-    && Math.hypot(position.x - reachX, position.z - reachZ) <= stationAnchor.radius
-    && Math.abs(position.y - deckHeight) <= stationAnchor.heightTolerance
+  return canReachBalloonDoor({ ...position, y: position.y + .8 })
 }
 
 export function moveWalker(walker: Point, dx: number, dz: number): Point {

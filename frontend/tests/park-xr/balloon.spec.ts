@@ -1,8 +1,16 @@
 import { expect, test, type Page } from '@playwright/test'
 import { writeFile } from 'node:fs/promises'
+import { BALLOON_DOOR_OFFSET_X } from '../../park-renewal-preview/plan'
 import { loadRenewalFixtureMap, parkFixture } from './fixture'
 
 const helper = '/tests/park-xr/syntheticXR.ts'
+
+const station = loadRenewalFixtureMap().data.interactions.construction.find(site => site.id === 'balloon')!
+const doorApproach = {
+  x: station.position[0] + BALLOON_DOOR_OFFSET_X - .65,
+  y: station.reachPosition[1],
+  z: station.position[2],
+}
 
 async function mockParkStatus(page: Page) {
   const now = new Date().toISOString()
@@ -54,11 +62,21 @@ test('220m 공원 PC에서 E로 열기구 문을 오가고 같은 내부에서 �
   await page.keyboard.press('Escape')
   await expect(ad).toBeHidden()
 
-  const station = loadRenewalFixtureMap().data.interactions.construction.find(site => site.id === 'balloon')!
-  const [x, y, z] = station.reachPosition
-  server.place({ x, y, z })
-  await setCamera(station.yaw, .32)
-  await expect(page.getByRole('button', { name: 'E 열기구 탑승', exact: true })).toBeVisible()
+  const boardHint = page.getByRole('button', { name: 'E 열기구 탑승', exact: true })
+  const { y } = doorApproach
+  server.place(doorApproach)
+  await setCamera(-Math.PI / 2, .32)
+  await expect(boardHint).toBeVisible()
+  const [oldX, oldY, oldZ] = station.reachPosition
+  expect(oldZ).not.toBeCloseTo(doorApproach.z)
+  server.place({ x: oldX, y: oldY, z: oldZ })
+  await expect(boardHint).toBeHidden()
+  await page.keyboard.press('e')
+  await expect(page.getByRole('dialog', { name: '하늘언덕 열기구 탑승 준비' })).toBeHidden()
+  server.place({ ...doorApproach, x: doorApproach.x - 2.2 })
+  await expect(boardHint).toBeHidden()
+  server.place({ ...doorApproach, x: doorApproach.x - 1.8 })
+  await expect(boardHint).toBeVisible()
   const probe = '/tests/park-integration/probe.ts'
   const visible = (name: string) => page.evaluate(async ({ probe, name }) => (await import(probe)).preparedAssetVisible(name), { probe, name })
   const cabin = (name: string) => page.evaluate(async ({ probe, name }) => (await import(probe)).balloonCabinProbe(name), { probe, name })
@@ -136,9 +154,8 @@ test('220m 공원에서 VR 열기구에 탑승해 자동 비행하고 B로 승�
   const visible = (name: string) => page.evaluate(async ({ helper, name }) => (await import(helper)).visibleXRObject(name), { helper, name })
   await expect.poll(async () => (await snapshot()).active).toBe(true)
   expect(await visible('park-xr-balloon-entry')).toBe(false)
-  const station = loadRenewalFixtureMap().data.interactions.construction.find(site => site.id === 'balloon')!
-  const [x, y, z] = station.reachPosition
-  server.place({ x, y, z })
+  const { y } = doorApproach
+  server.place(doorApproach)
   await expect.poll(() => visible('park-xr-balloon-entry')).toBe(true)
   await page.evaluate(async p => {
     const xr = await import(p)

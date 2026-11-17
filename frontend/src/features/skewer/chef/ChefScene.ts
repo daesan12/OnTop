@@ -43,10 +43,10 @@ export class ChefScene {
   private readonly world = new RestaurantSet()
   private readonly foods = new FoodModels()
   private readonly hall = new ChefHall()
-  private readonly renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' })
+  private readonly renderer: THREE.WebGLRenderer
   private readonly camera = new THREE.PerspectiveCamera(48, 1, .05, 45)
   private readonly dolly = new THREE.Group()
-  private readonly post: RestaurantPost
+  private readonly post?: RestaurantPost
   private readonly env: THREE.WebGLRenderTarget
   private readonly geometry = new Set<THREE.BufferGeometry>()
   private readonly materials = new Set<THREE.Material>()
@@ -69,6 +69,7 @@ export class ChefScene {
   private undoTarget!: THREE.Mesh
   private undoRing!: THREE.Mesh
   private submitHint!: THREE.Mesh
+  private submitTarget!: THREE.Mesh
   private hover: Pick | null = null
   private pointerPosition: THREE.Vector2 | null = null
   private arrivals: { root: THREE.Group; started: number }[] = []
@@ -129,22 +130,26 @@ export class ChefScene {
   private readonly controllers: THREE.XRTargetRaySpace[] = []
   private readonly held = new Map<number, Held>()
   private readonly onEndListeners: (() => void)[] = []
-  private readonly observer: ResizeObserver
+  private readonly observer?: ResizeObserver
   private readonly marker: THREE.Mesh
   private view: ChefView; private mode: ChefMode; private disposed = false; private session: XRSession | null = null
   private releaseVR?: () => void
   private owner: number | null = null; private signature = ''; private passSignature = ''; private boardSignature = ''; private timerSecond = -1; private last = 0
-  constructor(private host: HTMLElement, initial: ChefView, mode: ChefMode, private step: (dt: number) => ChefView, private action: (action: ChefAction) => void, private notice: (s: string) => void, private xrChanged: (active: boolean) => void, private beforeXR?: () => Promise<() => void>) {
+  constructor(private host: HTMLElement, initial: ChefView, mode: ChefMode, private step: (dt: number) => ChefView, private action: (action: ChefAction) => void, private notice: (s: string) => void, private xrChanged: (active: boolean) => void, private beforeXR?: () => Promise<() => void>, private sharedRenderer?: THREE.WebGLRenderer) {
+    this.renderer = sharedRenderer ?? new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' })
     this.view = initial; this.mode = mode; this.previousCompleted = initial.completed ?? 0; this.previousOrders = initial.visible.map(job => ({ ...job, recipe: [...job.recipe] }))
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5)); this.renderer.outputColorSpace = THREE.SRGBColorSpace
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping; this.renderer.toneMappingExposure = .9
-    this.renderer.shadowMap.enabled = true; this.renderer.shadowMap.type = THREE.PCFShadowMap
-    this.renderer.localClippingEnabled = true; this.renderer.xr.enabled = true; this.renderer.xr.setReferenceSpaceType('local-floor')
-    this.renderer.domElement.setAttribute('role', 'img'); this.renderer.domElement.setAttribute('aria-label', '실제 3D 요리 주방과 여섯 가지 음식 재료')
-    this.renderer.domElement.tabIndex = 0
-    this.renderer.domElement.addEventListener('webglcontextlost', this.contextLost); this.renderer.domElement.addEventListener('pointerdown', this.pointer)
-    this.renderer.domElement.addEventListener('pointermove', this.pointerMove); this.renderer.domElement.addEventListener('pointerleave', this.pointerLeave)
-    host.append(this.renderer.domElement); this.scene.background = new THREE.Color('#b5c5b7'); this.scene.add(this.kitchen, this.dolly); this.kitchen.add(this.world.root)
+    if (!sharedRenderer) {
+      this.renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5)); this.renderer.outputColorSpace = THREE.SRGBColorSpace
+      this.renderer.toneMapping = THREE.ACESFilmicToneMapping; this.renderer.toneMappingExposure = .9
+      this.renderer.shadowMap.enabled = true; this.renderer.shadowMap.type = THREE.PCFShadowMap
+      this.renderer.localClippingEnabled = true; this.renderer.xr.enabled = true; this.renderer.xr.setReferenceSpaceType('local-floor')
+      this.renderer.domElement.setAttribute('role', 'img'); this.renderer.domElement.setAttribute('aria-label', '실제 3D 요리 주방과 여섯 가지 음식 재료')
+      this.renderer.domElement.tabIndex = 0
+      this.renderer.domElement.addEventListener('webglcontextlost', this.contextLost); this.renderer.domElement.addEventListener('pointerdown', this.pointer)
+      this.renderer.domElement.addEventListener('pointermove', this.pointerMove); this.renderer.domElement.addEventListener('pointerleave', this.pointerLeave)
+      host.append(this.renderer.domElement)
+    }
+    this.scene.background = new THREE.Color('#b5c5b7'); this.scene.add(this.kitchen, this.dolly); this.kitchen.add(this.world.root)
     this.dolly.add(this.camera)
     const pmrem = new THREE.PMREMGenerator(this.renderer), room = new RoomEnvironment()
     this.env = pmrem.fromScene(room, .04); room.dispose(); pmrem.dispose(); this.scene.environment = this.env.texture; this.scene.environmentIntensity = .18
@@ -152,7 +157,7 @@ export class ChefScene {
     const key = new THREE.DirectionalLight('#ffe3b2', 2.5); key.position.set(-3, 7, 3); key.castShadow = true
     key.shadow.mapSize.set(2048, 2048); Object.assign(key.shadow.camera, { left: -6, right: 6, top: 6, bottom: -6, far: 20 }); key.shadow.normalBias = .012
     const fill = new THREE.DirectionalLight('#cbd7d4', .45); fill.position.set(4, 5, -3); this.scene.add(key, fill)
-    this.post = new RestaurantPost(this.renderer, this.scene, this.camera, .11)
+    if (!sharedRenderer) this.post = new RestaurantPost(this.renderer, this.scene, this.camera, .11)
     this.buildKitchen(); this.buildVRPause(); this.buildRuntimeNotice(); this.kitchen.add(this.hall.root, this.skewer, this.pass); this.skewer.position.copy(HOME); this.skewer.add(this.assembled)
     const stick = this.world.cylinder(.012, 2.6, '#ad763c'); stick.rotation.z = Math.PI / 2; this.skewer.add(stick)
     const handle = this.world.cylinder(.07, .42, '#744323'); handle.rotation.z = Math.PI / 2; this.world.place(this.skewer, handle, -1.51, 0, 0)
@@ -194,8 +199,11 @@ export class ChefScene {
     this.world.batchStatic(new Set<THREE.Object3D>([...this.pantryGroups.values(), ...this.halos.values(),
       this.passFurniture, this.grillStation, this.restartRequest, this.restartReply, ...this.pickables]))
     this.world.wood([this.world.material('#b77b43'), this.world.material('#825030'), this.world.material('#744323')], undefined, true)
-    this.observer = new ResizeObserver(this.resize); this.observer.observe(host); this.resize()
-    this.renderer.setAnimationLoop(this.render); host.dataset.ready = 'true'; host.dataset.geometry = 'live-three-kitchen'
+    if (!sharedRenderer) {
+      this.observer = new ResizeObserver(this.resize); this.observer.observe(host); this.resize()
+      this.renderer.setAnimationLoop(this.render)
+    }
+    host.dataset.ready = 'true'; host.dataset.geometry = 'live-three-kitchen'
   }
   private mesh(g: THREE.BufferGeometry, m: THREE.Material) { this.geometry.add(g); this.materials.add(m); const mesh = new THREE.Mesh(g, m); mesh.castShadow = mesh.receiveShadow = true; return mesh }
   private texture(canvas: HTMLCanvasElement) { const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace; texture.anisotropy = Math.min(8, this.renderer.capabilities.getMaxAnisotropy()); this.textures.add(texture); return texture }
@@ -376,12 +384,16 @@ export class ChefScene {
       }
     }
     const passSign = a.place(this.passFurniture, this.labelStyle === 'minimal' ? new THREE.Group() : a.box(.73, .20, .045, this.labelStyle === 'wood' || this.labelStyle === 'menu' ? '#68452d' : '#ac7d49', .012), 2.59, 1.49, -1.48)
+    passSign.name = 'chef-pass-sign'
     a.place(passSign, this.sign('전달대', .70, .18, undefined, true), 0, 0, .025)
     if (this.labelStyle !== 'minimal') for (const x of [-.27, .27]) a.place(this.passFurniture, a.box(.035, .24, .04, '#68452d'), 2.59 + x, 1.28, -1.49)
     this.passFurniture.add(this.spatialControls); this.spatialControls.add(this.passGlow)
     this.submitCanvas.width = 768; this.submitCanvas.height = 190; this.submitTexture = this.texture(this.submitCanvas)
     this.submitHint = this.mesh(new THREE.PlaneGeometry(1.12, .28), new THREE.MeshBasicMaterial({ map: this.submitTexture, transparent: true, side: THREE.DoubleSide, toneMapped: false })); a.place(this.spatialControls, this.submitHint, 2.59, 1.96, -1.10)
-    this.hitBox(this.spatialControls, new THREE.Vector3(2.59, 1.30, -1.22), new THREE.Vector3(1.65, .27, .75), { action: 'submit' })
+    this.submitHint.name = 'chef-submit-hint'
+    this.submitHint.userData.pick = { action: 'submit' } satisfies Pick
+    this.pickables.push(this.submitHint)
+    this.submitTarget = this.hitBox(this.spatialControls, new THREE.Vector3(2.59, 1.30, -1.22), new THREE.Vector3(1.65, .27, .75), { action: 'submit' })
     if (this.view.cooperative) {
       this.coopCanvas.width = 768; this.coopCanvas.height = 190; this.coopTexture = this.texture(this.coopCanvas)
       this.coopPanel = new THREE.Group(); r.add(this.coopPanel)
@@ -570,7 +582,7 @@ export class ChefScene {
       ctx.fillStyle = active ? '#fff0d1' : '#ead8b9'; ctx.textAlign = 'center'; ctx.font = '700 53px "Malgun Gothic",sans-serif'; ctx.fillText(label, 384, 85, 720)
       ctx.font = '700 30px "Malgun Gothic",sans-serif'; ctx.fillText(sub, 384, 144, 720); texture.needsUpdate = true
     }
-    paint(this.submitCanvas, this.submitTexture, p.submitReady ? '완성 접시 놓기' : p.submitLabel, `트리거 · 전달대 ${this.view.pass.length} / 2`, p.submitReady)
+    paint(this.submitCanvas, this.submitTexture, p.submitLabel, `트리거 · 전달대 ${this.view.pass.length} / 2`, p.submitReady)
     if (this.coopTexture) {
       if (coop?.phase === 'FINISHED') {
         const ctx = this.coopCanvas.getContext('2d')!
@@ -682,6 +694,8 @@ export class ChefScene {
       this.undoTarget.position.set((lastPosition + .06) * 2.1, .02, .04)
       this.undoHint.position.copy(this.undoTarget.position)
     }
+    // Cover the trays and their sign in VR, using the original target in desktop mode.
+    this.submitTarget.scale.set(vr ? 1.1 : 1, vr ? 2.6 : 1, vr ? 1.25 : 1)
     this.scene.updateMatrixWorld(true)
     this.hover = null
     if (vr && this.session) {
@@ -696,7 +710,7 @@ export class ChefScene {
     }
     const focusedAction = this.hover && 'action' in this.hover ? this.hover.action : ''
     this.undoHint.visible = this.undoTarget.visible && focusedAction === 'unthread'
-    this.submitHint.visible = vr && focusedAction === 'submit'
+    this.submitHint.visible = vr && (focusedAction === 'submit' || p.submitReady && !!p.guide?.complete)
     this.passGlow.children.forEach((slot, i) => { slot.visible = vr && i >= this.view.pass.length && (p.submitReady || focusedAction === 'submit') })
     this.host.dataset.focusedAction = focusedAction
     this.host.dataset.completed = String(this.view.completed ?? 0)
@@ -722,13 +736,24 @@ export class ChefScene {
   }
   private setupControllers() {
     for (let i = 0; i < 2; i++) {
-      const c = this.renderer.xr.getController(i); this.controllers.push(c); this.dolly.add(c)
-      const grip = this.renderer.xr.getControllerGrip(i); grip.add(this.controllerModel()); this.dolly.add(grip)
+      const c = this.renderer.xr.getController(i), grip = this.renderer.xr.getControllerGrip(i)
+      const parent = c.parent, gripParent = grip.parent
+      const previous = [...c.children, ...grip.children].map(child => ({ child, visible: child.visible }))
+      previous.forEach(({ child }) => { child.visible = false })
+      this.controllers.push(c); this.dolly.add(c)
+      const model = this.controllerModel(); grip.add(model); this.dolly.add(grip)
       const line = this.mesh(new THREE.CylinderGeometry(.0015, .0015, 1, 6), new THREE.MeshBasicMaterial({ color: '#7cc9df', transparent: true, opacity: .65 })); line.rotation.x = Math.PI / 2; line.position.z = -.5; c.add(line)
+      this.onEndListeners.push(() => {
+        model.removeFromParent(); line.removeFromParent(); c.removeFromParent(); grip.removeFromParent()
+        parent?.add(c); gripParent?.add(grip)
+        previous.forEach(({ child, visible }) => { child.visible = visible })
+      })
       const start = () => {
-        if (this.owner === i || this.held.has(i)) return
+        if (this.sharedRenderer && (!c.visible || this.session?.visibilityState !== 'visible')) return
+        if (this.held.has(i)) return
         const hit = this.controllerHit(i), pick = hit?.object.userData.pick as Pick | undefined
         if (!pick) return
+        if (this.owner === i && (!('action' in pick) || pick.action !== 'submit')) return
         if ('ingredient' in pick) {
           if (chefPresentation(this.view).blocked || availablePieces(this.view.skewer, pick.ingredient) <= 0 || !this.view.visible.length) return
           const root = this.foods.create(pick.ingredient); root.scale.setScalar(2.1 * VR_KITCHEN_SCALE * VR_SKEWER_SCALE); root.rotation.y = Math.PI / 2; root.position.z = -.18; c.add(root); this.held.set(i, { ingredient: pick.ingredient, root }); this.action({ type: 'select', ingredient: pick.ingredient })
@@ -737,7 +762,7 @@ export class ChefScene {
       }
       const end = () => {
         const held = this.held.get(i); if (!held) return
-        const good = this.heldReady(held), p = chefPresentation(this.view)
+        const good = (!this.sharedRenderer || c.visible && this.session?.visibilityState === 'visible') && this.heldReady(held), p = chefPresentation(this.view)
         held.root.removeFromParent(); this.held.delete(i)
         if (p.blocked) this.showNotice(p.title)
         else if (good) { this.feedback = ''; this.action({ type: 'thread', ingredient: held.ingredient }) }
@@ -782,16 +807,29 @@ export class ChefScene {
     try {
       this.releaseVR = await this.beforeXR?.()
       if (this.disposed) { this.releaseVR?.(); this.releaseVR = undefined; await session.end(); return }
-      this.session = session; session.addEventListener('end', this.sessionEnded); session.addEventListener('visibilitychange', this.greetingInterrupted)
-      this.showVRGuide(false)
-      this.kitchen.scale.setScalar(VR_KITCHEN_SCALE); this.kitchen.position.y = VR_COUNTER_HEIGHT - COUNTER_TOP * VR_KITCHEN_SCALE
-      this.returnStick()
-      this.marker.scale.setScalar(1.65); this.marker.renderOrder = 151
-      ;(this.marker.material as THREE.MeshBasicMaterial).depthTest = false
-      this.dolly.position.set(0, 0, .95); this.camera.position.set(0, 0, 0); this.camera.rotation.set(0, 0, 0)
+      this.attachXR(session)
       await this.renderer.xr.setSession(session); this.renderer.xr.setFoveation(1); this.xrChanged(true); this.timerSecond = -1
     }
     catch (e) { await session.end().catch(() => undefined); this.sessionEnded(); throw e }
+  }
+  attachXR(session: XRSession, viewer?: { position: THREE.Vector3; rotation: THREE.Quaternion }) {
+    this.session = session; session.addEventListener('end', this.sessionEnded); session.addEventListener('visibilitychange', this.greetingInterrupted)
+    this.showVRGuide(false)
+    this.kitchen.scale.setScalar(VR_KITCHEN_SCALE); this.kitchen.position.y = VR_COUNTER_HEIGHT - COUNTER_TOP * VR_KITCHEN_SCALE
+    this.returnStick()
+    this.marker.scale.setScalar(1.65); this.marker.renderOrder = 151
+    ;(this.marker.material as THREE.MeshBasicMaterial).depthTest = false
+    this.dolly.position.set(0, 0, .95); this.camera.position.set(0, 0, 0); this.camera.rotation.set(0, 0, 0)
+    if (viewer) {
+      // The park session keeps its original floor space. Put the kitchen in front
+      // of the current head position without changing that space or its floor.
+      const forward = this.v.set(0, 0, -1).applyQuaternion(viewer.rotation)
+      const yaw = Math.hypot(forward.x, forward.z) > .01 ? Math.atan2(forward.x, -forward.z) : 0
+      this.dolly.rotation.y = yaw
+      const offset = this.v.copy(viewer.position).applyQuaternion(this.dolly.quaternion)
+      this.dolly.position.x -= offset.x
+      this.dolly.position.z -= offset.z
+    }
   }
   private sessionEnded = () => {
     this.pauseButton.reset(); this.pauseRoot.visible = false; this.runtimeRoot.visible = false
@@ -808,7 +846,7 @@ export class ChefScene {
     this.session?.removeEventListener('end', this.sessionEnded); this.session = null; this.held.forEach(h => h.root.removeFromParent()); this.held.clear(); this.returnStick(); this.kitchen.scale.setScalar(1); this.kitchen.position.y = 0; this.setMode(this.mode); this.timerSecond = -1; this.xrChanged(false); this.resize()
   }
   private project(name: string, x: number, y: number, z: number) { this.v.set(x, y, z).project(this.camera); this.host.style.setProperty(`--chef-${name}-x`, `${(this.v.x + 1) * 50}%`); this.host.style.setProperty(`--chef-${name}-y`, `${(1 - this.v.y) * 50}%`) }
-  private resize = () => { if (this.session || this.disposed) return; const { width, height } = this.host.getBoundingClientRect(); if (!height) return; this.setMode(this.mode); this.camera.aspect = width / height; this.camera.updateProjectionMatrix(); this.renderer.setSize(width, height, false); this.post.resize(width, height) }
+  private resize = () => { if (this.session || this.disposed || this.sharedRenderer) return; const { width, height } = this.host.getBoundingClientRect(); if (!height) return; this.setMode(this.mode); this.camera.aspect = width / height; this.camera.updateProjectionMatrix(); this.renderer.setSize(width, height, false); this.post?.resize(width, height) }
   private contextLost = (e: Event) => { e.preventDefault(); this.showNotice('3D 화면 연결이 중단됐어요. 새로고침해 주세요.') }
   private greetingInterrupted = () => { this.greetingTurn.invalidate(); this.pauseButton.reset() }
   private bindGreetingSpace(space: XRReferenceSpace | null) {
@@ -852,7 +890,7 @@ export class ChefScene {
     this.host.dataset.greetingTurn = String(Math.round(this.greetingTurn.progress * 100))
     this.host.dataset.greetingInput = this.mode === 'vr' ? 'physical-turn' : 'button'
   }
-  private render = (time?: number, frame?: XRFrame) => {
+  render = (time?: number, frame?: XRFrame) => {
     if (this.disposed) return
     const now = time ?? performance.now(), dt = this.last ? Math.min(.1, (now - this.last) / 1000) : 0; this.last = now
     this.view = this.step(this.guideRoot.visible || this.session && this.session.visibilityState !== 'visible' ? 0 : dt)
@@ -987,7 +1025,7 @@ export class ChefScene {
     this.guideButton.getWorldPosition(this.v2); this.project('guide', this.v2.x, this.v2.y, this.v2.z)
     this.guideRoot.localToWorld(this.v2.set(0, -.407, .02)); this.project('guide-close', this.v2.x, this.v2.y, this.v2.z)
     if (this.session) this.renderer.render(this.scene, this.camera)
-    else this.post.render()
+    else this.post?.render()
   }
   dispose() {
     this.pauseButton.reset()
@@ -995,11 +1033,17 @@ export class ChefScene {
     this.releaseVR?.(); this.releaseVR = undefined
     this.greetingImage.onload = this.missedGreetingImage.onload = null
     this.guideImage.onload = this.guidePaper.onload = null
-    this.disposed = true; this.renderer.setAnimationLoop(null); this.observer.disconnect(); this.onEndListeners.forEach(fn => fn()); this.renderer.domElement.removeEventListener('pointerdown', this.pointer); this.renderer.domElement.removeEventListener('pointermove', this.pointerMove); this.renderer.domElement.removeEventListener('pointerleave', this.pointerLeave); this.renderer.domElement.removeEventListener('webglcontextlost', this.contextLost)
-    if (this.session) { this.session.removeEventListener('end', this.sessionEnded); void this.session.end().catch(() => undefined) }
+    this.disposed = true; this.onEndListeners.forEach(fn => fn())
+    this.held.forEach(held => held.root.removeFromParent()); this.held.clear()
+    if (!this.sharedRenderer) {
+      this.renderer.setAnimationLoop(null); this.observer?.disconnect()
+      this.renderer.domElement.removeEventListener('pointerdown', this.pointer); this.renderer.domElement.removeEventListener('pointermove', this.pointerMove); this.renderer.domElement.removeEventListener('pointerleave', this.pointerLeave); this.renderer.domElement.removeEventListener('webglcontextlost', this.contextLost)
+    }
+    if (this.session) { this.session.removeEventListener('end', this.sessionEnded); if (!this.sharedRenderer) void this.session.end().catch(() => undefined) }
     if (this.sound) void this.sound.close().catch(() => undefined)
     disposeRestaurantShadows(this.scene)
     this.controllerModels.forEach(disposeTouchModel)
-    this.geometry.forEach(g => g.dispose()); this.materials.forEach(m => m.dispose()); this.textures.forEach(t => t.dispose()); this.hall.dispose(); this.foods.dispose(); this.world.dispose(); this.env.dispose(); this.post.dispose(); this.renderer.dispose(); this.renderer.domElement.remove()
+    this.geometry.forEach(g => g.dispose()); this.materials.forEach(m => m.dispose()); this.textures.forEach(t => t.dispose()); this.hall.dispose(); this.foods.dispose(); this.world.dispose(); this.env.dispose(); this.post?.dispose()
+    if (!this.sharedRenderer) { this.renderer.dispose(); this.renderer.domElement.remove() }
   }
 }
