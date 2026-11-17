@@ -607,9 +607,10 @@ export async function fixture(
       if (facilities.handle(type, payload, requestId)) return
       if (follow.handle(type, payload, requestId)) return
       if (type === 'WORLD_INTERACTION_SET') {
-        interactionBusy = payload.busy === true
+        const vrActive = payload.vrActive === true
+        interactionBusy = payload.busy === true || vrActive
         if (interactionBusy) for (const id of Object.keys(carries)) carries[id] = null
-        emit(ws, 'WORLD_INTERACTION_STATE', { channelId: 'fixture-channel', busy: interactionBusy }, requestId)
+        emit(ws, 'WORLD_INTERACTION_STATE', { channelId: 'fixture-channel', busy: interactionBusy, vrActive }, requestId)
         world(ws); return
       }
       if (type === 'WORLD_MYROOM_SET') {
