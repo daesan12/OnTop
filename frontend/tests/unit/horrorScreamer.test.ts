@@ -1,7 +1,8 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { SCREAMERS, SCREAMER_SPOTS, ScreamerPlan } from '../../park-renewal-preview/horrorScreamer'
+import { FACES, SCREAMERS, SCREAMER_SPOTS, ScreamerPlan, nextScreamer } from '../../park-renewal-preview/horrorScreamer'
+import { STRIKE_FLAVORS, nextFlavor } from '../../park-renewal-preview/horrorAudio'
 import { horrorWalkable } from '../../park-renewal-preview/horrorPlan'
 
 const dir = fileURLToPath(new URL('../../park-renewal-preview/screamers/', import.meta.url))
@@ -44,6 +45,19 @@ describe('underground screamers (S15P31B105-450)', () => {
     expect(plan.update({ x, y, z }, 10, true)).toBeUndefined()
     expect(plan.update({ x, y, z }, 12, false)).toBeUndefined()
     expect(plan.update({ x, y, z }, 16, false)).toBeDefined()
+  })
+
+  it('picks the least recently seen picture, and only faces at the lens when a face is wanted', () => {
+    expect(FACES).not.toContain('cctv')
+    expect(FACES.length).toBeGreaterThanOrEqual(6)
+    for (let i = 0; i < 20; i++) expect(FACES).toContain(nextScreamer(true))
+    expect(Object.keys(SCREAMERS)).toContain(nextScreamer(false, () => 0, ['ghost']))
+    expect(nextScreamer(false, () => 0, Object.keys(SCREAMERS).filter(n => n !== 'red') as never)).toBe('red')
+  })
+
+  it('never strikes with the same sound twice in a row', () => {
+    let last = nextFlavor()
+    for (let i = 0; i < 50; i++) { const f = nextFlavor(); expect(f).not.toBe(last); expect(STRIKE_FLAVORS).toContain(f); last = f }
   })
 
   it('leaves some spots dead each visit', () => {

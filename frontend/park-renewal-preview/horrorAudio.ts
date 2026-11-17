@@ -9,7 +9,7 @@ import { STAGE } from './encounterStaging'
 type Ctx = BaseAudioContext
 interface Out { ctx: Ctx; dry: AudioNode; wet: AudioNode }
 
-const kits = new WeakMap<Ctx, { noise: AudioBuffer; reverb: ConvolverNode; master: DynamicsCompressorNode; bus: AudioNode }>()
+const kits = new WeakMap<Ctx, { noise: AudioBuffer; reverb: ConvolverNode; master: DynamicsCompressorNode; muffle: BiquadFilterNode; bus: AudioNode }>()
 /** Shared noise, reverb and a gentle limiter per audio context and bus. */
 function kit(ctx: Ctx, bus: AudioNode) {
   let k = kits.get(ctx)
@@ -26,8 +26,10 @@ function kit(ctx: Ctx, bus: AudioNode) {
     const master = ctx.createDynamicsCompressor()
     master.threshold.value = -16; master.knee.value = 10; master.ratio.value = 6; master.attack.value = .004; master.release.value = .25
     const wetGain = ctx.createGain(); wetGain.gain.value = .55
-    reverb.connect(wetGain).connect(master); master.connect(bus)
-    k = { noise, reverb, master, bus }
+    // Wide open normally; closed down for a moment after a scare, as if your ears were ringing (aftermath).
+    const muffle = ctx.createBiquadFilter(); muffle.type = 'lowpass'; muffle.frequency.value = 20000; muffle.Q.value = .5
+    reverb.connect(wetGain).connect(master); master.connect(muffle).connect(bus)
+    k = { noise, reverb, master, muffle, bus }
     kits.set(ctx, k)
   }
   return k
@@ -232,6 +234,72 @@ export function playEncounterStaging(ctx: Ctx, bus: AudioNode, id: number, durat
 /** The rush, played when it actually starts (on time, or early when you walk up to it). */
 export function playEncounterLunge(ctx: Ctx, bus: AudioNode, duration: number) {
   lungeHit(output(ctx, bus), ctx.currentTime + .01, (STAGE.blackout - STAGE.lunge) * duration / 1000)
+}
+
+// ---------- strikes ----------
+// The moment it gets you. A roar every time wore off fast, so the strike sound changes each time:
+//   scream  — a recorded scream right in your ear over a roar and a boom
+//   screech — a cluster of screeching strings, the horror-film stab, over a sub drop
+//   static  — the sound tears: a wall of stuttering radio static and a distorted drone
+//   boom    — no voice at all: one enormous impact, metal ringing in the dark
+// and every strike is followed by the aftermath: everything muffled as if your ears had gone, a thin ringing tone and
+// your own heartbeat, fading back over a few seconds.
+export type StrikeFlavor = 'scream' | 'screech' | 'static' | 'boom'
+export const STRIKE_FLAVORS: readonly StrikeFlavor[] = ['scream', 'screech', 'static', 'boom']
+let lastFlavor: StrikeFlavor | undefined
+/** A strike flavor that is not the one just used. */
+export function nextFlavor(random: () => number = Math.random): StrikeFlavor {
+  const options = STRIKE_FLAVORS.filter(f => f !== lastFlavor)
+  lastFlavor = options[Math.floor(random() * options.length)]!
+  return lastFlavor
+}
+const screech = (o: Out, at: number, len: number, gain = .09) => {
+  for (const [f, d] of [[1480, 0], [1568, 12], [1661, -9], [1760, 7], [2093, -15], [988, 5]] as const)
+    tone(o, at, { wave: 'sawtooth', freq: f, to: f * 1.06, detune: d, filter: 5200, q: 1.2, gain, attack: .008, hold: len * .35, release: len * .65, vibrato: .045, wet: .45 })
+  noise(o, at, { type: 'bandpass', freq: 3200, q: 2, gain: gain * 2.5, attack: .005, hold: len * .3, release: len * .6, wobble: .6, wet: .4 })
+}
+const staticBurst = (o: Out, at: number, len: number) => {
+  for (let t = 0; t < len; t += .035 + Math.random() * .03)
+    noise(o, at + t, { type: 'bandpass', freq: 900 + Math.random() * 3200, q: .4, gain: .35 + Math.random() * .35, attack: .002, release: .03 + Math.random() * .03, pan: Math.random() * 1.2 - .6, wet: .15 })
+  tone(o, at, { wave: 'square', freq: 55, to: 41, filter: 700, gain: .22, attack: .005, hold: len * .7, release: .3, vibrato: .2, wet: .2 })
+  tone(o, at, { wave: 'sawtooth', freq: 3950, gain: .03, attack: .002, hold: len * .8, release: .1, wet: .1 })
+}
+/** The strike sound. */
+export function playStrike(ctx: Ctx, bus: AudioNode, flavor: StrikeFlavor) {
+  const o = output(ctx, bus), now = ctx.currentTime + .005
+  switch (flavor) {
+    case 'scream': playJumpScare(ctx, bus); return
+    case 'screech':
+      screech(o, now, 1.1)
+      thud(o, now, .9, 46)
+      clip(o, 'hit-deep', now, { gain: .7, offset: .35, until: now + 2, fadeOut: 1.5, wet: .3 })
+      return
+    case 'static':
+      staticBurst(o, now, .75)
+      if (!clip(o, 'scream-b', now + .05, { gain: .55, rate: .62, wet: .1, until: now + .8, fadeOut: .1 })) shriek(o, now, .6, .08)
+      return
+    case 'boom':
+      noise(o, now, { type: 'lowpass', freq: 5000, to: 120, gain: .9, attack: .002, release: .9, wet: .5 })
+      thud(o, now, 1, 40); thud(o, now + .015, .7, 70)
+      clank(o, now + .01, .2)
+      clip(o, 'hit-low', now, { gain: 1, offset: .3, until: now + 2.6, fadeOut: 2, wet: .45 })
+      return
+  }
+}
+/** After the strike: muffled hearing, a ringing tone and a pounding heart, over `len` seconds. */
+export function playAftermath(ctx: Ctx, bus: AudioNode, len = 3) {
+  const k = kit(ctx, bus), o = output(ctx, bus), now = ctx.currentTime + .01
+  k.muffle.frequency.cancelScheduledValues(now)
+  k.muffle.frequency.setValueAtTime(240, now)
+  k.muffle.frequency.setValueAtTime(240, now + len * .35)
+  k.muffle.frequency.exponentialRampToValueAtTime(20000, now + len)
+  // The ring and the heartbeat are inside your head: they bypass the muffle.
+  const ring = ctx.createOscillator(), g = ctx.createGain()
+  ring.frequency.value = 3650 + Math.random() * 300
+  g.gain.setValueAtTime(.0001, now); g.gain.exponentialRampToValueAtTime(.022, now + .08); g.gain.exponentialRampToValueAtTime(.0001, now + len)
+  ring.connect(g).connect(bus); ring.start(now); ring.stop(now + len + .05)
+  ring.onended = () => { ring.disconnect(); g.disconnect() }
+  heartbeat({ ...o, dry: bus, wet: bus }, now + .25, Math.round(len / .55), .55)
 }
 
 // ---------- the other scare styles (encounterStaging.StageStyle) ----------

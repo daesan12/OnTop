@@ -2,8 +2,9 @@ import { useEffect, useMemo, useRef, type RefObject } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Vector3, type Group, type Object3D } from 'three'
 import { effectsOutput } from '../src/audio/bgm'
-import { playJumpScare, playPresence, type PresenceSound } from './horrorAudio'
-import { ScreamerPlan, preloadScreamers, showScreamer } from './horrorScreamer'
+import { playPresence, type PresenceSound } from './horrorAudio'
+import { ScreamerPlan, preloadScreamers } from './horrorScreamer'
+import { strike } from './horrorStrike'
 import { HORROR_LAMPS } from './horrorGeometry'
 import { horrorGround, horrorWalkable } from './horrorPlan'
 import { lampOverride } from './horrorDressingPlan'
@@ -57,9 +58,7 @@ export function HorrorPresence({ zone }: { zone: RefObject<Group | null> }) {
     // A face that fills the screen as you pass certain spots (not during a 3D scare).
     const scream = screamers.update({ x: camera.position.x, y: camera.position.y - 1.5, z: camera.position.z }, now, !!interiorVisit.active)
     if (scream) {
-      showScreamer(scream)
-      const out = effectsOutput()
-      if (out) playJumpScare(out.context, out.bus)
+      strike({ image: scream })
       end(); st.next = Math.max(st.next, now + 8)
     }
     // Lamps put out behind you come back after a while, stuttering.
