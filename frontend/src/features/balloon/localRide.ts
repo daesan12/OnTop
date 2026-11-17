@@ -5,7 +5,7 @@ import { BALLOON_RIDE_ENABLED } from '../../park/mapSelection'
 import { parkRuntime } from '../../park/runtime/runtime'
 import { clearRoamingInput, inputState } from '../../world/inputOwnership'
 import { BalloonFareError, buyBalloonTicket, completeBalloonTicket } from './fare'
-import { createFlight, REMOVE_SECONDS, returnToDock, stepFlight, stepSightseeingFlight, stepUncrewedFlight, takeOff } from './flight'
+import { createFlight, DOCK_REMOVE_SECONDS, returnToDock, stepFlight, stepSightseeingFlight, stepUncrewedFlight, takeOff } from './flight'
 import type { BalloonBoarding, Flight, FlightMap, Input, Point } from './flight'
 import { clearRemoteBalloons, sampleRemoteBalloon, useRemoteBalloons, watchOwnBalloonEnd } from './remoteRide'
 import { cabinRider, cabinSeats, idleCabin, sightseeingCabin, SIGHTSEEING_STEP_HEIGHT, toggleCabinSeat, walkCabin, type BalloonRiderPose, type CabinPose } from './cabin'
@@ -312,7 +312,7 @@ export function localBalloonRider(id: string): BalloonRiderPose | null {
   if (!pose) return atExit(flight.exit)
   if (xrSightseeing) return flight.seconds > XR_DOCK_HANDOFF_SECONDS
     ? basket : { ...basket, x: pose.x, y: pose.y - .8, z: pose.z }
-  const step = Math.min(1, (REMOVE_SECONDS - flight.seconds) / DOCK_STEP_SECONDS)
+  const step = Math.min(1, (DOCK_REMOVE_SECONDS - flight.seconds) / DOCK_STEP_SECONDS)
   const progress = step * step * (3 - 2 * step)
   return {
     ...basket,

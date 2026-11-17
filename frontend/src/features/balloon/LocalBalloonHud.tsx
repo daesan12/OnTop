@@ -13,6 +13,7 @@ import {
 } from './localRide'
 import { useRemoteBalloons } from './remoteRide'
 import { roleOf, type ControlMode, type ControlRole } from './controls'
+import { focusParkCanvas } from '../../world/inputOwnership'
 import './localBalloon.css'
 
 function BalloonKeys({ direction, altitude, walking = false, seated = false }: {
@@ -223,7 +224,10 @@ export default function LocalBalloonHud() {
   const time = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
 
   return <>
-    <aside className="park-balloon-hud" data-phase={phase} data-direction-seat={directing || undefined} aria-label="열기구 운항">
+    <aside className="park-balloon-hud" data-phase={phase} data-direction-seat={directing || undefined} aria-label="열기구 운항"
+      onClick={event => {
+        if (event.detail > 0 && event.target instanceof Element && event.target.closest('button')) focusParkCanvas('localBalloon')
+      }}>
       {phase === 'flying' && emptySeconds !== null && <BalloonWarning>{emptySeconds
         ? <>조종석이 비었어요 · <strong>{emptySeconds}초 뒤 추락</strong></>
         : <>추락 중이에요. 조종석을 잡아 주세요!</>}</BalloonWarning>}
@@ -246,7 +250,7 @@ export default function LocalBalloonHud() {
           {directing ? <DirectionCockpitGuide />
             : <BalloonKeys walking={walkingInside} seated={seated} direction={walkingInside || controlRole !== 'altitude'}
                 altitude={!walkingInside && (controlsMode !== 'split' || controlRole === 'altitude')} />}
-          <span className="park-balloon-hud-note">드래그로 둘러보기</span>
+          <span className="park-balloon-hud-note">드래그로 둘러보기 · Enter 채팅</span>
           {paymentError && <span className="park-balloon-hud-note" role="alert">{paymentError}</span>}
           {boundary && <span className="park-balloon-hud-note" role="status">비행 구역 경계 · 공원 안쪽으로 돌아가세요</span>}
           <div className="park-balloon-hud-controls">

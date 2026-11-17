@@ -3,7 +3,7 @@ import { useFrame, useThree } from '@react-three/fiber'
 import { useShallow } from 'zustand/react/shallow'
 import type { Group } from 'three'
 import { BALLOON_SCALE } from '../../../park-renewal-preview/plan'
-import { textInputOwnsKeys } from '../../world/inputOwnership'
+import { panelOwnsKeys, textInputOwnsKeys } from '../../world/inputOwnership'
 import { interactLocalBalloonCabin, tickLocalBalloon, toggleLocalCabinMode, toggleLocalCabinPerspective, useLocalBalloon } from './localRide'
 import { sampleRemoteBalloon, useRemoteBalloons } from './remoteRide'
 import { useBalloonModel } from './useBalloonModel'
@@ -65,7 +65,7 @@ export default function LocalBalloonScene() {
     }
     const pointerEnd = (event: PointerEvent) => { if (pointer?.id === event.pointerId) pointer = null }
     const down = (event: KeyboardEvent) => {
-      if (event.isComposing || event.ctrlKey || event.altKey || event.metaKey
+      if (event.defaultPrevented || event.isComposing || event.ctrlKey || event.altKey || event.metaKey || panelOwnsKeys('localBalloon')
         || textInputOwnsKeys(event.target) || useLocalBalloon.getState().xrSightseeing
         || useLocalBalloon.getState().flight?.phase !== 'flying') return
       if (event.code === 'KeyF' || event.code === 'KeyE' || event.code === 'KeyV') {
