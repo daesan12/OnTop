@@ -11,7 +11,8 @@ import { balloonScale, flightMap, startPoint } from './previewMap'
 import { cameraDrag, isPassenger, occupancy, usePreview } from './previewStore'
 import { useBalloonModel } from './useBalloonModel'
 import { balloonCanLook, CABIN_LOOK_HEIGHT, dragCabinCamera, setBalloonOrbit } from './cabinCamera'
-import { CABIN_FLOOR_HEIGHT } from './cabin'
+import { CABIN_FLOOR_HEIGHT, doorwayCabin } from './cabin'
+import { BalloonCabin } from './BalloonCabin'
 
 const slots = [[-.65, -.65], [.65, -.65], [-.65, .65], [.65, .65]] as const
 function Riders() {
@@ -30,6 +31,13 @@ function Riders() {
       passengerRef.current.position.set(flight.position.x, flight.position.y, flight.position.z)
       passengerRef.current.visible = flight.phase !== 'removed' && flight.phase !== 'landed'
       passengerRef.current.children.forEach((child, index) => { child.visible = index < occupancy(boarded) })
+      const rider = passengerRef.current.children[0]
+      if (rider) {
+        const atDoor = boarded && flight.phase === 'boarding' && !isPassenger
+        rider.position.set((atDoor ? doorwayCabin.x : slots[0][0]) * balloonScale, CABIN_FLOOR_HEIGHT * balloonScale,
+          (atDoor ? doorwayCabin.z : slots[0][1]) * balloonScale)
+        rider.rotation.y = atDoor ? doorwayCabin.yaw : Math.PI
+      }
     }
   })
 
@@ -45,6 +53,7 @@ function Riders() {
 
 function ParkScene() {
   const balloonRef = useRef<Group>(null)
+  const doorOpen = usePreview(s => s.flight.phase === 'boarding' || s.flight.phase === 'landed')
   useBalloonModel(balloonRef)
   const cameraGoal = useRef(new Vector3())
   const target = useRef(new Vector3())
@@ -87,7 +96,9 @@ function ParkScene() {
     <directionalLight position={[-100, 190, 90]} intensity={2.2} color="#fff0d6" />
     <ScenicDetails />
     <Buildings showDockedBalloon={false} showBalloonWayfinding />
-    <group ref={balloonRef} scale={balloonScale} position={[flightMap.dock.x, flightMap.dock.y, flightMap.dock.z]} />
+    <group ref={balloonRef} scale={balloonScale} position={[flightMap.dock.x, flightMap.dock.y, flightMap.dock.z]}>
+      <BalloonCabin doorOpen={doorOpen} />
+    </group>
     <Suspense fallback={null}><Riders /></Suspense>
   </>
 }

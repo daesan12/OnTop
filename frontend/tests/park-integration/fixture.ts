@@ -96,16 +96,28 @@ export async function parkFixture(page:Page,options:{holdConfirmation?:boolean;s
   await page.routeWebSocket('**/ws/tables?**',ws=>{
     socket=ws
     let dx=0,dz=0
+    let balloonPosition: { x: unknown; y: unknown; z: unknown } | undefined
+    let balloonParty: { capacity: unknown; boarding: boolean; passengers: object; controls: null } | undefined
     const tick=setInterval(()=>{if(position.moving&&!options.clientPositions){const step=(position.running?9:6.25)*.05;position.x+=dx*step;position.z+=dz*step;world()}},50)
     ws.onClose((code,reason)=>{clearInterval(tick);ws.close({code,reason})})
     ws.onMessage(raw=>{
       const r=JSON.parse(String(raw));requests.push(r)
       if (options.balloonSupported && (r.type === 'WORLD_BALLOON_START' || r.type === 'WORLD_BALLOON_POSE')) {
         const { x, y, z, cabin } = r.payload
+        balloonPosition = { x, y, z }
+        if (r.type === 'WORLD_BALLOON_START' && r.payload.mode) {
+          balloonParty = { capacity: r.payload.capacity, boarding: true, passengers: {}, controls: null }
+        }
         emit('WORLD_BALLOON_STATE', { channelId: 'channel-1', pilotId: '101',
-          flight: { position: { x, y, z }, aboard: r.payload.aboard ?? true, cabin } }, r.requestId)
+          flight: { position: balloonPosition, aboard: r.payload.aboard ?? true, cabin }, party: balloonParty }, r.requestId)
+      }
+      if (options.balloonSupported && r.type === 'WORLD_BALLOON_LAUNCH' && balloonParty && balloonPosition) {
+        balloonParty = { ...balloonParty, boarding: false }
+        emit('WORLD_BALLOON_STATE', { channelId: 'channel-1', pilotId: '101',
+          flight: { position: balloonPosition, aboard: true }, party: balloonParty }, r.requestId)
       }
       if (options.balloonSupported && r.type === 'WORLD_BALLOON_END') {
+        balloonParty = undefined
         emit('WORLD_BALLOON_STATE', { channelId: 'channel-1', pilotId: '101', flight: null }, r.requestId)
       }
       if(r.type==='WORLD_TIME_CHECK')emit('WORLD_TIME_STATE',{serverNow:Date.now(),cycleEpochMs:options.environmentEpochMs??0,cycleDurationMs:1200000,timeZone:'Asia/Seoul'},r.requestId)

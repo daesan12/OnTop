@@ -146,19 +146,39 @@
   .stone-loading-stones { grid-column: 1 / -1; grid-row: 2; }
 }
 
-@media (min-width: 621px) and (max-height: 540px) {
-  .stone-loading-tips { padding: 12px; }
-  .stone-loading-heading { margin-bottom: 9px; }
-  .stone-loading-heading h1 { font-size: clamp(29px, 4vw, 42px); }
-  .stone-loading-heading > svg { width: 26px; }
-  .stone-loading-sheet { padding: 12px 16px; }
-  .stone-tip-picture { max-height: 47dvh; }
-  .stone-tip-copy { padding-top: 2px; }
-  .stone-tip-controls { margin-top: 9px; }
-  .stone-tip-nav { margin-top: 6px; }
-  .stone-loading-tips .stone-tip-nav button { min-height: 32px; }
-  .stone-loading-progress { margin-top: 11px; padding-top: 9px; }
+@media (min-width: 621px) and (max-height: 1000px), (orientation: landscape) and (max-height: 540px) {
+  .stone-loading-tips { padding: clamp(10px, 2.6dvh, 24px); }
+  .stone-loading-heading { margin-bottom: clamp(7px, 2dvh, 18px); }
+  .stone-loading-heading h1 { font-size: clamp(28px, min(5vw, 8.6dvh), 78px); }
+  .stone-loading-heading > svg { width: clamp(23px, min(3.5vw, 6dvh), 54px); }
+  .stone-loading-sheet { --stone-tip-width: 71dvh; padding: clamp(10px, 2.8dvh, 28px); }
+  .stone-loading-sheet:has(.stone-loading-retry) { --stone-tip-width: 64dvh; }
+  .stone-tip-layout { grid-template-columns: minmax(0, min(54%, var(--stone-tip-width))) minmax(0, 1fr); gap: clamp(12px, 2.5dvh, 28px); }
+  .stone-tip-picture { aspect-ratio: 8 / 5; }
+  .stone-tip-copy { padding-top: 0; }
+  .stone-tip-copy p { line-height: 1.55; }
+  .stone-tip-controls { margin-top: clamp(8px, 1.8dvh, 18px); }
+  .stone-tip-nav { margin: clamp(6px, 1.2dvh, 12px) 0 0; }
+  .stone-loading-progress { margin-top: clamp(8px, 1.8dvh, 18px); padding-top: clamp(7px, 1.5dvh, 16px); }
   .stone-loading-progress p { margin-top: 6px; }
+}
+
+@media (orientation: landscape) and (max-height: 540px) {
+  .stone-loading-sheet { --stone-tip-width: 66dvh; }
+  .stone-loading-sheet:has(.stone-loading-retry) { --stone-tip-width: 48dvh; }
+  .stone-tip-copy h2 { margin-bottom: 6px; }
+  .stone-tip-copy .stone-tip-detail { margin-top: 6px; }
+  .stone-loading-tips .stone-tip-nav button, .stone-loading-tips .stone-loading-retry { min-height: 34px; }
+  .stone-loading-tips .stone-tip-nav button { padding-inline: 4px; word-break: keep-all; }
+}
+
+@media (max-width: 620px) and (orientation: portrait) and (max-height: 720px) {
+  .stone-loading-heading { margin-bottom: 10px; }
+  .stone-tip-layout { gap: 10px; }
+  .stone-tip-picture { width: min(100%, 43dvh); margin-inline: auto; }
+  .stone-loading-sheet:has(.stone-loading-retry) .stone-tip-picture { width: min(100%, 33dvh); }
+  .stone-tip-controls { margin-top: 8px; }
+  .stone-loading-progress { margin-top: 12px; padding-top: 9px; }
 }
 
 @media (prefers-reduced-motion: no-preference) {

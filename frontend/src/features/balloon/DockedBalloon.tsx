@@ -6,6 +6,7 @@ import { useSession } from '../../network/worldClient'
 import type { Point } from './flight'
 import { useLocalBalloon } from './localRide'
 import { sampleRemoteBalloon, useRemoteBalloons } from './remoteRide'
+import { BalloonCabin } from './BalloonCabin'
 
 type DockBounds = { group: Group; origin: Vector3; sections: Box3[] }
 
@@ -78,5 +79,6 @@ export function DockedBalloon({ children, trackFlights }: { children: ReactNode;
   return <group ref={root} name="docked-balloon" position={BALLOON_DOCK_OFFSET}
     scale={BALLOON_SCALE} visible={!trackFlights}>
     {children}
+    <BalloonCabin doorOpen />
   </group>
 }

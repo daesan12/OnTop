@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { mkdir } from 'node:fs/promises'
 import path from 'node:path'
+import { SERVER_SPEED } from '../../src/features/skewer/serviceHall/plan'
 
 for (const reverse of [false, true]) test(`서빙 지터·중복 응답에서 ${reverse ? '180도 방향 전환' : '직선 이동'}을 부드럽게 표시한다`, async ({ page }) => {
   const errors: string[] = []
@@ -12,12 +13,16 @@ for (const reverse of [false, true]) test(`서빙 지터·중복 응답에서 ${
   await expect(host).toHaveAttribute('data-fixture-ready', 'true')
   await expect(host).toHaveAttribute('data-server-model', 'sculpted', { timeout: 45000 })
   const result = await page.evaluate(reverse => Reflect.get(window, 'movementQA').run(reverse) as {
-    minStep: number; maxStep: number; maxTurn: number; moving: boolean }, reverse)
-  expect(result.maxStep).toBeLessThanOrEqual(5.8 / 60 + .000001)
+    minStep: number; maxStep: number; maxTurn: number; startMs: number; reverseMs: number; moving: boolean }, reverse)
+  expect(result.startMs).toBeLessThan(130)
+  expect(result.maxStep).toBeLessThanOrEqual(SERVER_SPEED / 60 + .000001)
   if (!reverse) {
     expect(result.minStep).toBeGreaterThan(.09)
     expect(result.maxStep - result.minStep).toBeLessThan(.000001)
-  } else expect(result.maxTurn).toBeLessThan(Math.PI / 3)
+  } else {
+    expect(result.reverseMs).toBeLessThan(160)
+    expect(result.maxTurn).toBeLessThan(Math.PI / 3)
+  }
   expect(result.moving).toBe(true)
   const resumed = await page.evaluate(() => Reflect.get(window, 'movementQA').resume() as { expected: { x: number; z: number }; displayed: { x: number; z: number } })
   expect(resumed.displayed).toEqual(resumed.expected)

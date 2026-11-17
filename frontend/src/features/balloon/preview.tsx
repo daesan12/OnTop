@@ -14,7 +14,11 @@ function usePreviewKeyboard() {
     function down(event: KeyboardEvent) {
       const state = usePreview.getState()
       if (state.popup || event.isComposing || event.altKey || event.ctrlKey || event.metaKey) return
-      if (event.code === 'KeyE' && !event.repeat) state.open()
+      if (event.code === 'KeyE' && !event.repeat) {
+        event.preventDefault()
+        if (state.boarded && state.flight.phase === 'boarding') state.cancel()
+        else state.open()
+      }
       if (!movementKeys.has(event.code) || event.target instanceof HTMLButtonElement && event.code === 'Space') return
       event.preventDefault()
       keys.add(event.code)
@@ -114,7 +118,7 @@ function RideHud() {
       <Seats occupied={occupancy(true)} />
       <p>출발까지 {wait}초</p>
       {!isPassenger ? <button className="balloon-primary" type="button" onClick={start}>출발하기</button> : null}
-      <button className="balloon-cancel" type="button" onClick={cancel}>탑승 취소</button>
+        <button className="balloon-cancel" type="button" onClick={cancel}><kbd>E</kbd> 내리기</button>
     </aside> : null}
     {phase === 'takeoff' ? <div className="balloon-bottom">
       <p className="balloon-hint" role="status">탑승 요금 결제 완료 · 이륙 중</p>

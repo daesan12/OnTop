@@ -20,6 +20,14 @@ import './tableOrderLabels.css'
 import './serviceInventory.css'
 
 const anchor = (name: string) => ({ left: `var(--hall-${name}-x,50%)`, top: `var(--hall-${name}-y,50%)` }) as CSSProperties
+const movementKeys = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowLeft', 'ArrowDown', 'ArrowRight']
+function keyboardDirection(keys: Set<string>) {
+  return {
+    dx: Number(keys.has('KeyD') || keys.has('ArrowRight')) - Number(keys.has('KeyA') || keys.has('ArrowLeft')),
+    dz: Number(keys.has('KeyS') || keys.has('ArrowDown')) - Number(keys.has('KeyW') || keys.has('ArrowUp')),
+  }
+}
+
 export default function ServiceHallPage({ driver, inputBlocked = false, onPause, onRestart }: {
   driver?: HallDriver; inputBlocked?: boolean; onPause?: () => void; onRestart?: () => void
 } = {}) {
@@ -30,27 +38,44 @@ export default function ServiceHallPage({ driver, inputBlocked = false, onPause,
   const [restartOpen, setRestartOpen] = useState(false)
   const blockedRef = useRef(false); blockedRef.current = inputBlocked || localPaused || restartOpen
   const [view, setView] = useState(() => model.current!.view()), [error, setError] = useState('')
+  const clearMovement = () => {
+    keys.current.clear()
+    model.current!.setMovement?.(0, 0)
+  }
   useEffect(() => {
     if (!host.current) return
     let scene: ServiceScene | undefined, publishedAt = 0, wasStopped = false
     const stopped = () => guide.current?.open || blockedRef.current || document.hidden
+    const sendMovement = () => {
+      const { dx, dz } = keyboardDirection(keys.current)
+      model.current!.setMovement?.(dx, dz)
+    }
     const keydown = (event: KeyboardEvent) => {
       if (event.ctrlKey || event.altKey || event.metaKey || event.isComposing || stopped() || storage.current?.open || event.target instanceof Element && event.target.closest('input,textarea,select,[contenteditable=true],dialog,[role=dialog]')) return
       if (event.code === 'Escape' && !event.repeat && !driver?.online && !model.current!.view().finished) {
-        event.preventDefault(); keys.current.clear(); model.current!.release(); blockedRef.current = true; setLocalPaused(true); return
+        event.preventDefault(); clearMovement(); model.current!.release(); blockedRef.current = true; setLocalPaused(true); return
       }
-      if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowLeft', 'ArrowDown', 'ArrowRight'].includes(event.code)) { event.preventDefault(); keys.current.add(event.code) }
+      if (movementKeys.includes(event.code)) {
+        event.preventDefault()
+        if (!keys.current.has(event.code)) { keys.current.add(event.code); sendMovement() }
+      }
       if (event.code === 'KeyE' && !event.repeat) { event.preventDefault(); model.current!.press() }
       if (event.code === 'KeyR' && !event.repeat) { event.preventDefault(); model.current!.pressSecondary() }
     }
-    const keyup = (event: KeyboardEvent) => { keys.current.delete(event.code); if (event.code === 'KeyE') model.current!.release() }
-    const blur = () => { keys.current.clear(); model.current!.release() }
+    const keyup = (event: KeyboardEvent) => {
+      if (keys.current.delete(event.code)) sendMovement()
+      if (event.code === 'KeyE') model.current!.release()
+    }
+    const blur = () => { clearMovement(); model.current!.release() }
     try {
       scene = new ServiceScene(host.current, dt => {
-        const k = keys.current, dx = Number(k.has('KeyD') || k.has('ArrowRight')) - Number(k.has('KeyA') || k.has('ArrowLeft')), dz = Number(k.has('KeyS') || k.has('ArrowDown')) - Number(k.has('KeyW') || k.has('ArrowUp'))
         const stop = !!stopped()
-        if (stop) keys.current.clear()
-        if (!stop) model.current!.step(wasStopped ? 0 : dt, dx, dz)
+        if (stop) {
+          if (!wasStopped) clearMovement()
+        } else {
+          const { dx, dz } = keyboardDirection(keys.current)
+          model.current!.step(wasStopped ? 0 : dt, dx, dz)
+        }
         wasStopped = stop
         const current = model.current!.view(), now = performance.now()
         if (now - publishedAt > 80) { setView(current); publishedAt = now }
@@ -61,7 +86,7 @@ export default function ServiceHallPage({ driver, inputBlocked = false, onPause,
     return () => { scene?.dispose(); disposeMenuArt(); window.removeEventListener('keydown', keydown); window.removeEventListener('keyup', keyup); window.removeEventListener('blur', blur) }
   }, [])
   useEffect(() => {
-    if (view.storageOpen && !storage.current?.open) { keys.current.clear(); storage.current?.showModal() }
+    if (view.storageOpen && !storage.current?.open) { clearMovement(); storage.current?.showModal() }
     else if (!view.storageOpen && storage.current?.open) storage.current.close()
   }, [view.storageOpen])
   const message = useTransientMessage(view.message)
@@ -107,9 +132,9 @@ export default function ServiceHallPage({ driver, inputBlocked = false, onPause,
     </div>
     <ServiceHud view={view} paused={inputBlocked || localPaused || restartOpen} />
     <GameTools disabled={inputBlocked} helpLabel="서빙 이용 안내" restartLabel={driver?.online ? '다시 시작 요청' : '다시 시작'}
-      onPause={!driver?.online || onPause ? () => { keys.current.clear(); model.current!.release(); if (onPause) onPause(); else setLocalPaused(true) } : undefined}
-      onHelp={() => { keys.current.clear(); model.current!.release(); guide.current?.showModal(); setView(model.current!.view()) }}
-      onRestart={!driver?.online || onRestart ? () => { keys.current.clear(); model.current!.release(); if (onRestart) onRestart(); else setRestartOpen(true) } : undefined} />
+      onPause={!driver?.online || onPause ? () => { clearMovement(); model.current!.release(); if (onPause) onPause(); else setLocalPaused(true) } : undefined}
+      onHelp={() => { clearMovement(); model.current!.release(); guide.current?.showModal(); setView(model.current!.view()) }}
+      onRestart={!driver?.online || onRestart ? () => { clearMovement(); model.current!.release(); if (onRestart) onRestart(); else setRestartOpen(true) } : undefined} />
     {message ? <p className={`service-feedback${message.startsWith('오배송') ? ' is-misdelivery' : ''}`} role="status">{message}</p> : null}
     {error ? <p className="service-error" role="alert">{error}</p> : null}
     {!driver?.online ? <ExitConfirmation open={localPaused} onContinue={() => setLocalPaused(false)} onExit={() => location.assign('/vr-zone.html')} /> : null}

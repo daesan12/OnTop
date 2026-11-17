@@ -5,7 +5,10 @@ import type { CoopClient } from './client'
 import { PositionPlayback } from '../serviceHall/rendering/PositionPlayback'
 import { chefRuntimeNotice } from '../chef/vrNotice'
 
-export type HallDriver = Pick<HallPreview, 'view' | 'step' | 'navigate' | 'nearest' | 'blockedReason' | 'actionLabel' | 'press' | 'secondaryLabel' | 'secondaryBlockedReason' | 'pressSecondary' | 'closeStorage' | 'takeStored' | 'release'> & { online?: boolean }
+export type HallDriver = Pick<HallPreview, 'view' | 'step' | 'navigate' | 'nearest' | 'blockedReason' | 'actionLabel' | 'press' | 'secondaryLabel' | 'secondaryBlockedReason' | 'pressSecondary' | 'closeStorage' | 'takeStored' | 'release'> & {
+  online?: boolean
+  setMovement?(dx: number, dz: number): void
+}
 export type ChefDriver = Pick<ChefPreview, 'view' | 'step' | 'action'> & { online?: boolean }
 
 class TimedFeedback {
@@ -22,7 +25,8 @@ export class OnlineHall implements HallDriver {
   private feedback = new TimedFeedback()
   readonly online = true
   private helper = new HallPreview()
-  private playback = new PositionPlayback()
+  // 60ms 서버 틱에 도착 지터와 렌더 프레임 여유를 더한다.
+  private playback = new PositionPlayback(.11)
   private storageOpen = false
   private movementAt = 0
   private lastMove = '0.00:0.00'
@@ -50,8 +54,8 @@ export class OnlineHall implements HallDriver {
     }
     if (snapshot.version !== this.lastVersion) {
       this.lastVersion = snapshot.version
-      // 확인되지 않은 입력을 누적하면 100ms 서버 틱마다 뒤로 보정되어 시선도 반전된다.
-      // 충돌·위치는 서버값을 따르고 프레임 사이의 부드러운 표시는 HallMotion이 담당한다.
+      // 확인되지 않은 입력을 누적하면 서버 좌표가 도착할 때 뒤로 보정되어 시선도 반전된다.
+      // 서버가 확정한 좌표 사이만 보간한다.
       this.playback.push(hall.position, snapshot.publicState.elapsed)
     }
     this.helper.tables = hall.tables; this.helper.carry = hall.carry; this.helper.pass = hall.pass
@@ -59,13 +63,17 @@ export class OnlineHall implements HallDriver {
     this.helper.washer = hall.washer; this.helper.held = hall.held; this.helper.elapsed = snapshot.publicState.elapsed
     if (snapshot.publicState.phase === 'FINISHED' || snapshot.publicState.paused) this.storageOpen = false
   }
-  step(_dt: number, dx = 0, dz = 0) {
+  step(dt: number, dx = 0, dz = 0) {
     this.sync()
     const position = this.client.snapshot?.privateState.hall?.position
     // Page는 화면 복귀 첫 프레임에 dt=0을 보낸다. 렌더가 멈춘 동안의 서버 시간을 재생하지 않는다.
-    if ((!this.client.playable || _dt === 0 || _dt > .25) && position)
+    const reset = !this.client.playable || dt === 0 || dt > .25
+    if (reset && position)
       this.playback.reset(position, this.client.snapshot?.publicState.elapsed)
-    this.helper.position = this.playback.step(_dt)
+    this.helper.position = this.playback.step(reset ? 0 : dt)
+    this.setMovement(dx, dz)
+  }
+  setMovement(dx: number, dz: number) {
     if (!this.client.playable || this.storageOpen) { dx = 0; dz = 0 }
     const now = performance.now(), value = `${dx.toFixed(2)}:${dz.toFixed(2)}`
     // Direction changes must not wait for the held-input heartbeat.
