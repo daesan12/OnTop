@@ -247,13 +247,14 @@ export const encounterModels: Record<number, ReactNode> = {
   </>,
   // 5. Out of a crack in the wall, a long grey arm reaches for you, every finger too long by a joint.
   5: <>
-    <Shape at={[0,1.02,-.08]} size={[.75,.89,.14]} color="#2a2c2c" rotation={[0,0,-.09]} />
+    <group name="crack-wall"><Shape at={[0,1.02,-.08]} size={[.75,.89,.14]} color="#2a2c2c" rotation={[0,0,-.09]} /></group>
     <mesh geometry={crackGeometry()} position={[0, 1.02, -.006]} rotation={[0, 0, -.09]} dispose={null}><Glow color="#020202" /></mesh>
-    <group name="reaching-hand">
+    {/* Pivots at the crack so the arm can be aimed at you; turned so the arm itself runs along that aim. */}
+    <group name="reaching-hand" position={[0, 1.02, 0]}><group rotation={[0, -.69, 0]}><group position={[0, -1.02, 0]}>
       <Limb id="reach-arm" points={[[-.05, 1, -.02], [.15, 1.03, .22], [.3, 1.08, .4]]} radii={[.05, .042, .034]} color="#9d978a" glow={.08} />
       {[0, 1].map(k => <Rod key={k} from={[-.02 + k * .02, 1.02 + k * .015, .02]} to={[.25, 1.09 - k * .02, .36]} width={.0045} color="#53505a" />)}
       <Hand id="reach" at={[.3, 1.08, .4]} dir={[.55, .05, .85]} roll={1.35} style={{ finger: .23, spread: .2, curl: .32, thick: .009 }} color="#9d978a" />
-    </group>
+    </group></group></group>
   </>,
   // 6. Your shadow on the wall is not yours: it grows, cocks its head and lifts arms that end in too many fingers.
   6: <>

@@ -2,9 +2,9 @@ import { useEffect, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Raycaster, Vector3, type Group, type Light, type Mesh, type Object3D, type PointLight } from 'three'
 import { effectsOutput } from '../src/audio/bgm'
-import { playBehind, playEncounterLunge, playEncounterStaging, playFakeout, playJumpScare, playPounceCrouch, playSprint, playStalkStart, playStalkStep, playStoneStep } from './horrorAudio'
+import { playWallCrack, playBehind, playEncounterLunge, playEncounterStaging, playFakeout, playJumpScare, playPounceCrouch, playSprint, playStalkStart, playStalkStep, playStoneStep } from './horrorAudio'
 import { diamond, interiorVisit, type Encounter } from './interiorEvents'
-import { FAR_MIN, encounterDistance, encounterScale, farStart, flashlight, lungeStop, offGaze, placeInView, stagePlan, standDistance, styleFrame } from './encounterStaging'
+import { FAR_MIN, SIDE, encounterDistance, encounterScale, farStart, flashlight, lungeStop, offGaze, placeInView, stagePlan, standDistance, styleFrame } from './encounterStaging'
 import { preloadScreamers } from './horrorScreamer'
 import { strike } from './horrorStrike'
 import { clearRoamingInput, inputState } from '../src/world/inputOwnership'
@@ -153,10 +153,11 @@ export function InteriorEncounters() {
   const ray = useRef(new Raycaster()), rayFrom = useRef(new Vector3()), rayDir = useRef(new Vector3())
   type Viewer = { position: Vector3; getWorldDirection: (v: Vector3) => Vector3 }
   /** Stand the creature `distance` m along the viewer's line of sight (or straight behind them), facing them. */
-  const place = (group: Group, at: readonly number[], camera: Viewer, distance: number, behind = false) => {
+  const place = (group: Group, at: readonly number[], camera: Viewer, distance: number, behind = false, turn = 0) => {
     camera.getWorldDirection(look.current)
-    const s = behind ? -1 : 1
-    const [x, z] = placeInView([camera.position.x, camera.position.z], [look.current.x * s, look.current.z * s],
+    const s = behind ? -1 : 1, c = Math.cos(turn), sn = Math.sin(turn)
+    const lx = look.current.x * c - look.current.z * sn, lz = look.current.x * sn + look.current.z * c
+    const [x, z] = placeInView([camera.position.x, camera.position.z], [lx * s, lz * s],
       distance, (px, pz) => horrorWalkable(px, pz, .45), [at[0]!, at[2]!])
     const start = Math.hypot(camera.position.x - x, camera.position.z - z) || 1
     Object.assign(placed.current, { x, z, dx: (camera.position.x - x) / start, dz: (camera.position.z - z) / start, start, away: 0 })
@@ -167,7 +168,7 @@ export function InteriorEncounters() {
    * standing in the hall. Rays against what is actually drawn (the walk map misses some walls, such as the ramp's), at
    * chest height; false when no upright, opaque surface faces you 1.4–4.5 m off (it then has its own slab of wall).
    */
-  const placeOnWall = (group: Group, camera: Viewer, scene: Object3D, ahead = false) => {
+  const placeOnWall = (group: Group, camera: Viewer, scene: Object3D, mode: 'ahead' | 'side' | 'near' = 'side') => {
     camera.getWorldDirection(look.current)
     const cx = camera.position.x, cz = camera.position.z, fl = Math.hypot(look.current.x, look.current.z) || 1
     const fx = look.current.x / fl, fz = look.current.z / fl
@@ -184,16 +185,19 @@ export function InteriorEncounters() {
         return materials.every(m => !m.transparent)
       })
     }
-    for (const a of ahead ? [0, .15, -.15, .3, -.3, .45, -.45] : [.45, -.45, .7, -.7, .25, -.25, .95, -.95, 0]) {
+    const angles = mode === 'ahead' ? [0, .15, -.15, .3, -.3, .45, -.45] : mode === 'near' ? [.6, -.6, .85, -.85, .4, -.4, 1.1, -1.1] : [.45, -.45, .7, -.7, .25, -.25, .95, -.95, 0]
+    const near = mode === 'near' ? 1.1 : 1.4, reach = mode === 'near' ? 3 : 4.5
+    for (const a of angles) {
       const c = Math.cos(a), sn = Math.sin(a), dx = fx * c - fz * sn, dz = fx * sn + fz * c
-      const hit = cast(dx, dz, 4.5)
-      if (!hit?.face || hit.distance < 1.4) continue
+      const hit = cast(dx, dz, reach)
+      if (!hit?.face || hit.distance < near) continue
       const n = rayDir.current.copy(hit.face.normal).transformDirection(hit.object.matrixWorld)
       if (Math.abs(n.y) > .35) continue
       const nl = Math.hypot(n.x, n.z), nx = n.x / nl, nz = n.z / nl
       if (-(dx * nx + dz * nz) < .3) continue
       // The whole figure must show: both of its edges on the same open stretch of wall, nothing in between.
-      const clear = [-.65, .65].every(k => {
+      const half = mode === 'near' ? .35 : .65
+      const clear = [-half, half].every(k => {
         const ex = hit.point.x - nz * k - cx, ez = hit.point.z + nx * k - cz, want = Math.hypot(ex, ez)
         const edge = cast(ex, ez, want + .5)
         return !!edge && Math.abs(edge.distance - want) < .2
@@ -212,9 +216,10 @@ export function InteriorEncounters() {
   }
   const put = (group: Group, active: Encounter, camera: Viewer, distance: number, behind = false) => {
     const scene = stage.current?.parent
-    if (active.id === 6 && !behind && scene && placeOnWall(group, camera, scene, active.plan.style === 'shadow')) return
+    const wallMode = active.plan.style === 'shadow' ? 'ahead' : active.plan.style === 'grab' ? 'near' : 'side'
+    if ((active.id === 6 || active.id === 5) && !behind && scene && placeOnWall(group, camera, scene, wallMode)) return
     placed.current.wall = false
-    place(group, active.at, camera, distance, behind)
+    place(group, active.at, camera, distance, behind, SIDE[active.plan.style] !== undefined ? SIDE[active.plan.style]! * (Math.random() < .5 ? -1 : 1) : 0)
   }
   const gazeOff = (camera: Viewer, x: number, z: number) => {
     camera.getWorldDirection(look.current)
@@ -283,6 +288,7 @@ export function InteriorEncounters() {
           case 'sprint': sound((c, b) => playSprint(c, b, plan.rush, plan.dark - plan.rush)); break
           case 'statue': sound((c, b) => playStoneStep(c, b, 0)); break
           case 'shadow': sound((c, b) => playBehind(c, b, plan.rush, placed.current.pan)); break
+          case 'grab': sound(playWallCrack); break
         }
       }
       previous.current = active
@@ -354,17 +360,17 @@ export function InteriorEncounters() {
         sound((c, b) => playEncounterLunge(c, b, active.duration))
       }
     }
-    if (p.shown && t < plan.rush && (plan.style === 'pop' || plan.style === 'fakeout' || plan.style === 'reveal' || plan.style === 'pounce')) {
+    if (p.shown && t < plan.rush && (plan.style === 'pop' || plan.style === 'fakeout' || plan.style === 'reveal')) {
       // Looked away while it was there: it is in front of you again a moment later.
       p.away = gazeOff(camera, group.position.x, group.position.z) > .6 ? p.away + dt : 0
       if (p.away > .2) put(group, active, camera, standDistance(plan, active.id, t))
     }
     // The strike: the moment it gets you (horrorStrike), with a different sound each time and the aftermath. The
     // runner and the long look bring their own sound; the beast roars; the shadow and some others are a face.
-    const strikeAt = plan.style === 'pop' || plan.style === 'fakeout' ? plan.show : plan.style === 'sprint' ? plan.dark - .05 : plan.rush
+    const strikeAt = plan.style === 'pop' || plan.style === 'fakeout' ? plan.show : plan.style === 'sprint' ? plan.dark - .05 : plan.style === 'grab' ? plan.dark - .12 : plan.rush
     if (t >= strikeAt && !p.struck) {
       p.struck = true
-      strike({ image: p.image, silent: plan.style === 'sprint' || plan.style === 'reveal' || plan.style === 'pounce', flavor: plan.style === 'pounce' ? 'boom' : undefined })
+      strike({ image: p.image, silent: plan.style === 'sprint' || plan.style === 'reveal' || plan.style === 'pounce', flavor: plan.style === 'pounce' ? 'boom' : plan.style === 'grab' ? 'scream' : undefined })
     }
     const frame = styleFrame(plan, active.id, t, p.start, p.seed)
     flashlight.factor = Math.min(1.4, frame.light)
@@ -386,10 +392,12 @@ export function InteriorEncounters() {
       // The long look slides it in along the wall; the shadow of what is behind you just grows, as it comes closer.
       const u = plan.style === 'reveal' && plan.rush > plan.show ? 1 - Math.max(0, Math.min(1, (t - plan.show) / (plan.rush - plan.show))) : 0
       const grow = plan.style === 'shadow' ? 1.1 + .35 * Math.min(1, t / plan.rush) : 1
-      const slide = 1.1 * u * u, scale = encounterScale(active.id) * grow * (1 + .7 * frame.lunge), off = .07 * scale + .012
+      const hand = active.id === 5
+      const slide = 1.1 * u * u, scale = encounterScale(active.id) * grow * (hand ? 1 : 1 + .7 * frame.lunge), off = hand ? .02 : .07 * scale + .012
       // Its cocked head (1.58 up the plane) at your eye line, however large it grows; the legs end at the floor
       // like a cast shadow.
-      group.position.set(p.x + p.tx * slide + p.nx * off, p.y + 1.45 - 1.58 * scale, p.z + p.tz * slide + p.nz * off)
+      // The crack (1.02 up) is at your eye line too.
+      group.position.set(p.x + p.tx * slide + p.nx * off, p.y + 1.45 - (hand ? 1.02 : 1.58) * scale, p.z + p.tz * slide + p.nz * off)
       group.rotation.set(0, p.yaw, 0)
       group.scale.setScalar(scale)
     } else if (frame.lunge > 0) {
@@ -422,6 +430,18 @@ export function InteriorEncounters() {
     if (active.id === 6) {
       const board = child.getObjectByName('shadow-board')
       if (board) board.visible = !p.wall
+    }
+    if (active.id === 5) {
+      // On a real wall it needs no slab of its own; the arm bursts out of the crack, then stretches to your face.
+      const slab = child.getObjectByName('crack-wall'), arm = child.getObjectByName('reaching-hand')
+      if (slab) slab.visible = !p.wall
+      if (arm && plan.style === 'grab') {
+        // Out of the crack straight at your face, then stretching all the way to it.
+        arm.position.x = 0
+        arm.lookAt(camera.position)
+        const burst = Math.min(1, Math.max(0, (t - .25) / .2)), reach = Math.max(1, (p.start - .35) / (.4 * encounterScale(5)))
+        arm.scale.set(1, 1, .05 + .95 * burst * burst + (reach - 1) * frame.lunge * frame.lunge)
+      } else if (arm) arm.scale.set(1, 1, 1)
     }
     const dimmed = lighting.current
     if (dimmed) dimmed.lights.forEach((light,i) => { light.intensity = dimmed.intensity[i]! * frame.light })

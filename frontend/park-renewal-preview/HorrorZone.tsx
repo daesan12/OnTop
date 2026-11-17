@@ -13,6 +13,7 @@ import {InteriorEncounters} from './InteriorEncounters'
 import {lampFlicker,lampOverride,DYING_LAMPS} from './horrorDressingPlan'
 import {flashlight} from './encounterStaging'
 import {HorrorPresence} from './HorrorPresence'
+import {RampEyes} from './RampEyes'
 
 const lampLights=HORROR_LAMPS.map((p,i)=>({p,i})).filter(({i})=>i%2===0)
 const warm=new Color('#ffb46a'),sick=new Color('#9fd1b0'),bulb=new Color()
@@ -91,5 +92,6 @@ export function HorrorZone(){
    <Flicker lights={lights} bulbs={bulbs}/>
    <Ambience zone={zone}/>
    <HorrorPresence zone={zone}/>
+   <RampEyes zone={zone}/>
  </group>
 }

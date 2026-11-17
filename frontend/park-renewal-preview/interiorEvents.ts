@@ -5,7 +5,9 @@ import { pickStyle, stagePlan, type StagePlan, type StageStyle } from './encount
 type Position = { x: number; y: number; z: number; interiorExitReady?: boolean }
 type Point = readonly [number, number, number]
 export type Encounter = { id: number; at: Point; duration: number; plan: StagePlan; presentedAt?: number }
-const pool = Array.from({ length: 12 }, (_, i) => i + 1)
+// S15P31B105-450: 12 (the eyes) is no longer a scare that pops up; the climb to the gallery is lined with them
+// (RampEyes), so it is never drawn.
+const pool = Array.from({ length: 11 }, (_, i) => i + 1)
 export const diamond: Point = [18.1, 7.95, -76.5]
 export const visitScope = (user: string, room: string) => user && room ? user + ':' + room : ''
 

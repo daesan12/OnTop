@@ -115,19 +115,20 @@ export function placeInView(eye: readonly [number, number], forward: readonly [n
 //   fakeout — the lamps stutter and the drone rises… then nothing, the light comes back; then it pops
 //   reveal  — the long look (build-up, the creature in plain view, the rush): the original, now the rare one
 // and three creatures have a way of their own:
-//   pounce  — 4, the beast: crouched in the dark a few steps off, snarling, then it leaps at your face
-//   sprint  — 7, the runner: at the far end of the hall, then flat out at you under a strobing lamp
+//   pounce  — 4, the beast: a snarl off to one side, out of sight, and it leaps into your face from there
+//   sprint  — 7, the runner: the lights die; in each strobe flash it is closer, running, until it is on you
+//   grab    — 5, the hand: a wall beside you cracks and a long arm bursts out of it, reaching for your face
 //   statue  — 2, the statue: closer at every blink, and closer whenever you look away; then it screams
 //   shadow  — 6, on the wall in front of you, the shadow of something standing right behind you, arms rising over
 //             your head; turn round (or be turned round) and a face fills the screen
 // You are only held still at the moment it strikes: a freeze before anything shows gave the scare away.
-export type StageStyle = 'pop' | 'behind' | 'stalk' | 'fakeout' | 'reveal' | 'pounce' | 'sprint' | 'statue' | 'shadow'
+export type StageStyle = 'pop' | 'behind' | 'stalk' | 'fakeout' | 'reveal' | 'pounce' | 'sprint' | 'statue' | 'shadow' | 'grab'
 export const STAGE_STYLES: readonly StageStyle[] = ['pop', 'behind', 'stalk', 'fakeout', 'reveal']
 /** Creatures that stand free as a whole figure; the rest are wall, door, lift, water or face pieces. */
 const FIGURES = new Set([3, 9, 10])
 /** Creatures whose own character makes the scare. */
-const SIGNATURE: Record<number, StageStyle[]> = { 2: ['statue'], 4: ['pounce'], 6: ['shadow'], 7: ['sprint', 'behind'] }
-const WEIGHTS: Record<StageStyle, number> = { pop: .3, behind: .2, stalk: .2, fakeout: .15, reveal: .15, pounce: 1, sprint: .6, statue: 1, shadow: 1 }
+const SIGNATURE: Record<number, StageStyle[]> = { 2: ['statue'], 4: ['pounce'], 5: ['grab'], 6: ['shadow'], 7: ['sprint', 'behind'] }
+const WEIGHTS: Record<StageStyle, number> = { pop: .3, behind: .2, stalk: .2, fakeout: .15, reveal: .15, pounce: 1, sprint: .6, statue: 1, shadow: 1, grab: 1 }
 
 /** Which styles suit encounter `id` (a wall of eyes cannot creep up behind you). */
 export function stylesFor(id: number): StageStyle[] {
@@ -173,8 +174,9 @@ export function stagePlan(style: StageStyle, base: number, random: () => number 
     // `rush` is when it turns you round if you have not looked; looking earlier moves the rush up.
     case 'behind': return plan(0, 4.2, 4.7, 5.3)
     case 'reveal': { const d = base / 1000; return plan(STAGE.reveal * d, STAGE.lunge * d, STAGE.blackout * d, d) }
-    case 'pounce': return plan(0, .95, 1.4, 2)
-    case 'sprint': return plan(0, .25, 1.35, 1.95)
+    case 'pounce': return plan(0, .7, 1.15, 1.8)
+    case 'sprint': return plan(0, .1, 1.75, 2.4)
+    case 'grab': return plan(0, .8, 1.25, 1.9)
     case 'statue': return plan(0, 3.9, 4.3, 4.9, { jumps: jitter([1.3, 2.4, 3.3]) })
     // `rush` is when it turns you round; turning round yourself moves it up.
     case 'shadow': return plan(0, 3, 3.45, 4.1)
@@ -186,7 +188,7 @@ const STATUE = [1, .72, .52, .38, .3, .25]
 /** Styles that need a long clear hall in view; with less than this they pop instead. */
 export const FAR_MIN: Partial<Record<StageStyle, number>> = { stalk: 5.5, sprint: 6, statue: 3.2 }
 /** Upper bound on how far off the far styles start. */
-const FAR_MAX: Partial<Record<StageStyle, number>> = { stalk: 9, sprint: 13, statue: 6.5 }
+const FAR_MAX: Partial<Record<StageStyle, number>> = { stalk: 9, sprint: 11, statue: 6.5 }
 export const STALK_MIN = FAR_MIN.stalk!
 /**
  * Metres ahead of the viewer the creature stands at second `t`: the stalker and the statue step in from `far` (the
@@ -199,12 +201,17 @@ export function standDistance(plan: StagePlan, id: number, t: number, far = 9, e
     case 'stalk': return Math.max(1.8, far * STALK[Math.min(4, blinks)]!)
     case 'statue': return Math.max(2.2, far * STATUE[Math.min(5, blinks + extra)]!)
     case 'behind': return 1.7
-    case 'pounce': return 4.2
+    case 'pounce': return 3
+    case 'grab': return 1.6
     case 'sprint': return FAR_MAX.sprint!
     case 'shadow': return 2.6
     default: return 1.75
   }
 }
+/** Radians off your line of sight the creature starts (either side): the beast leaps in from out of view. */
+export const SIDE: Partial<Record<StageStyle, number>> = { pounce: 1.25 }
+/** The runner is only seen in the strobe: a flash every .3 s. */
+export const strobe = (t: number) => t >= .05 && (t - .05) % .3 < .11
 /** How far off a far style may start (the clear distance found, capped). */
 export const farStart = (style: StageStyle, clear: number) => Math.min(FAR_MAX[style] ?? clear, clear)
 
@@ -238,11 +245,12 @@ export function styleFrame(plan: StagePlan, id: number, t: number, start: number
   else if (style === 'pop' || (style === 'fakeout' && t >= plan.show)) light = t - plan.show < .07 ? 1.8 : .5 * flick(-.3)
   else if (style === 'fakeout') light = t < plan.calm ? (.3 + .6 * (1 - t / plan.calm)) * flick(.1) : 1
   else if (style === 'stalk' || style === 'statue') light = blink ? 0 : t >= plan.rush ? .3 : .55
-  else if (style === 'pounce') light = t >= plan.rush ? .32 : .38 + .08 * Math.sin(t * 23 + seed)
-  else if (style === 'sprint') light = t >= plan.rush ? .55 * flick(-.2) : .7 * flick(-.6)
+  else if (style === 'pounce') light = t >= plan.rush ? .32 : .5 + .08 * Math.sin(t * 23 + seed)
+  else if (style === 'sprint') light = strobe(t) ? 1.3 : .03
+  else if (style === 'grab') light = t >= plan.rush ? .45 : .7 * flick(-.7)
   else if (style === 'shadow') light = t >= plan.rush ? 0 : t < .12 ? .15 : .8
   else light = t >= plan.rush ? .35 : .85 + .1 * Math.sin(t * 31 + seed)
-  const visible = t >= plan.show && t < (style === 'shadow' ? plan.rush : plan.dark) && !blink
+  const visible = t >= plan.show && t < (style === 'shadow' ? plan.rush : plan.dark) && !blink && (style !== 'sprint' || strobe(t))
   // How much of the way the face has come down to eye level (tall creatures sink so you see the face, not a chest).
   const lowered = style === 'pop' || style === 'fakeout' ? 1
     : style === 'behind' ? (lunge > 0 ? 1 : 0)
@@ -258,10 +266,10 @@ export function styleFrame(plan: StagePlan, id: number, t: number, start: number
   return {
     visible,
     // Popped up creatures are already in their final pose; the stalker and the runner hold one with the figure in it.
-    reveal: style === 'stalk' || style === 'sprint' ? .55 : style === 'statue' || style === 'pounce' ? 1
+    reveal: style === 'stalk' || style === 'sprint' || style === 'grab' ? .55 : style === 'statue' || style === 'pounce' ? 1
       : style === 'shadow' ? .12 * clamp(t / plan.rush) : clamp((t - plan.show) / .25), // the shadow grows, not stretches
     lunge,
-    advance: style === 'sprint' ? reach * lunge : style === 'pounce' ? reach * rush : reach * lunge * lunge,
+    advance: style === 'grab' ? 0 : style === 'sprint' ? reach * lunge : style === 'pounce' ? reach * rush : reach * lunge * lunge,
     light,
     shake: lunge > 0 ? Math.sin(t * 210 + seed) * .04 : style === 'pounce' ? Math.sin(t * 90 + seed) * .012 : 0,
     tilt: style === 'pounce' ? -.35 * Math.sin(Math.PI * Math.min(1, lunge * 1.2)) : 0,
@@ -269,6 +277,8 @@ export function styleFrame(plan: StagePlan, id: number, t: number, start: number
     step,
     behind: style === 'behind' && t < plan.rush,
     drag: style === 'behind' || style === 'shadow' ? (t >= plan.rush - .6 && t < plan.dark ? 18 : 0)
+      : style === 'grab' ? (t >= plan.rush - .25 && t < plan.dark ? 18 : 0)
+      : style === 'pounce' ? 0
       : style === 'statue' ? (lunge > 0 ? 16 : 0)
       : visible ? (lunge > 0 ? 16 : style === 'stalk' ? 1.5 : style === 'sprint' ? 10 : 9) : 0,
     // Held only from the instant it strikes (a pop strikes as it shows; behind and shadow as they turn you round).

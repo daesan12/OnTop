@@ -378,6 +378,35 @@ export function playBehind(ctx: Ctx, bus: AudioNode, len: number, pan: number) {
   if (n > 2) clip(o, 'growl-low', now + len - 1.2, { gain: .3, rate: .7, pan, wet: .1 })
 }
 
+/** A wall beside you cracks open: stone splitting, grit falling, then the arm tearing through. */
+export function playWallCrack(ctx: Ctx, bus: AudioNode) {
+  const o = output(ctx, bus), now = ctx.currentTime + .01
+  crackle(o, now, 10, .25, .4)
+  noise(o, now, { type: 'lowpass', freq: 900, to: 200, gain: .3, attack: .005, release: .4, wet: .4 })
+  thud(o, now + .25, .6, 62)
+  scrape(o, now + .25, .5, 0, .35)
+  if (!clip(o, 'snarl-a', now + .3, { gain: .5, rate: 1.15, wet: .2 })) growl(o, now + .3, .5, .1)
+  crackle(o, now + .3, 8, .4, .3)
+}
+
+/** The ramp's eyes (RampEyes): wet lids parting around you, a murmur among them, all of them slapping shut. */
+export function playEyes(ctx: Ctx, bus: AudioNode, kind: 'open' | 'shut' | 'murmur', count = 1) {
+  const o = output(ctx, bus), now = ctx.currentTime + .01
+  if (kind === 'open') {
+    for (let i = 0; i < count; i++) {
+      const at = now + Math.random() * .3, pan = Math.random() < .5 ? -.7 : .7
+      noise(o, at, { type: 'bandpass', freq: 1400 + Math.random() * 900, to: 600, q: 6, gain: .07, attack: .01, release: .12, pan, wet: .5 })
+      tone(o, at, { wave: 'sine', freq: 320, to: 140, gain: .03, attack: .005, release: .1, pan, wet: .4 })
+    }
+  } else if (kind === 'murmur') {
+    whisper(o, now, 2.2, -.8, .05); whisper(o, now + .3, 2, .8, .05)
+  } else {
+    // Every lid at once: a wet slap down both walls, a thud, then nothing.
+    for (let i = 0; i < 14; i++) squelch(o, now + Math.random() * .06, .12 + Math.random() * .08)
+    thud(o, now + .03, .6, 50)
+  }
+}
+
 /** The hall's presence between scares (HorrorPresence): you are not alone down here. */
 export type PresenceSound = 'footsteps' | 'whisper' | 'bang' | 'lampOut' | 'lampsBack' | 'vanish'
 export function playPresence(ctx: Ctx, bus: AudioNode, kind: PresenceSound, pan = 0) {

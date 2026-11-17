@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { EYE_HEIGHT, STAGE, STAGE_STYLES, lungeStop, encounterDistance, encounterScale, pickStyle, placeInView, stageFrame, stagePlan, standDistance, styleFrame, stylesFor } from '../../park-renewal-preview/encounterStaging'
+import { EYE_HEIGHT, SIDE, STAGE, STAGE_STYLES, lungeStop, strobe, encounterDistance, encounterScale, pickStyle, placeInView, stageFrame, stagePlan, standDistance, styleFrame, stylesFor } from '../../park-renewal-preview/encounterStaging'
 
 describe('underground encounter staging (S15P31B105-450)', () => {
   it('builds up in the dark, shows the creature, rushes, then cuts to black', () => {
@@ -48,12 +48,13 @@ describe('underground encounter staging (S15P31B105-450)', () => {
       seen.add(style); last = style
     }
     expect([...seen].sort()).toEqual([...STAGE_STYLES].sort())
-    for (const id of [1, 5, 8, 11, 12]) expect(stylesFor(id)).toEqual(['pop', 'fakeout', 'reveal'])
+    for (const id of [1, 8, 11, 12]) expect(stylesFor(id)).toEqual(['pop', 'fakeout', 'reveal'])
   })
 
   it('gives the statue, the beast, the shadow and the runner a scare of their own', () => {
     expect(stylesFor(2)).toEqual(['statue'])
     expect(stylesFor(4)).toEqual(['pounce'])
+    expect(stylesFor(5)).toEqual(['grab'])
     expect(stylesFor(6)).toEqual(['shadow'])
     expect(stylesFor(7)).toContain('sprint')
     // A creature with one way to happen still gets it after another creature used it.
@@ -78,17 +79,36 @@ describe('underground encounter staging (S15P31B105-450)', () => {
     expect(styleFrame(plan, 6, plan.rush + .05, 2.6)).toMatchObject({ visible: false, light: 0 })
   })
 
-  it('pounce: crouched a few steps off, then a leap that ends at your face', () => {
+  it('pounce: out of sight to one side, then a leap that ends at your face', () => {
     const plan = stagePlan('pounce', 3600)
-    expect(standDistance(plan, 4, 0)).toBeGreaterThan(3.5)
-    const crouch = styleFrame(plan, 4, plan.rush / 2, 4.2)
+    expect(SIDE.pounce).toBeGreaterThan(1)
+    expect(styleFrame(plan, 4, .2, 3).drag).toBe(0)
+    expect(standDistance(plan, 4, 0)).toBeGreaterThan(2.5)
+    const crouch = styleFrame(plan, 4, plan.rush / 2, 3)
     expect(crouch).toMatchObject({ visible: true, advance: 0 })
     expect(crouch.rise).toBeLessThan(0)
-    const mid = styleFrame(plan, 4, (plan.rush + plan.dark) / 2, 4.2)
+    const mid = styleFrame(plan, 4, (plan.rush + plan.dark) / 2, 3)
     expect(mid.rise).toBeGreaterThan(0)
     // It stops with its jaws (a metre ahead of its feet) at your face, not its body through the camera.
-    expect(styleFrame(plan, 4, plan.dark - .001, 4.2).advance).toBeCloseTo(4.2 - lungeStop(4), 1)
+    expect(styleFrame(plan, 4, plan.dark - .001, 3).advance).toBeCloseTo(3 - lungeStop(4), 1)
     expect(lungeStop(4)).toBeGreaterThan(1.5)
+  })
+
+  it('sprint: only ever seen in the strobe, closer at every flash, in the dark between', () => {
+    const plan = stagePlan('sprint', 3600)
+    const flashes = [.1, .4, .7, 1, 1.3].map(t => styleFrame(plan, 7, t, 11))
+    for (const f of flashes) expect(f).toMatchObject({ visible: true })
+    for (let i = 1; i < flashes.length; i++) expect(flashes[i]!.advance).toBeGreaterThan(flashes[i - 1]!.advance)
+    expect(styleFrame(plan, 7, .3, 11)).toMatchObject({ visible: false })
+    expect(styleFrame(plan, 7, .3, 11).light).toBeLessThan(.1)
+    expect(strobe(.1)).toBe(true)
+  })
+
+  it('grab: an arm out of the wall beside you; you are turned to it just before it reaches you', () => {
+    const plan = stagePlan('grab', 3600)
+    expect(styleFrame(plan, 5, .3, 1.6)).toMatchObject({ visible: true, drag: 0, held: false, advance: 0 })
+    expect(styleFrame(plan, 5, plan.rush - .1, 1.6).drag).toBeGreaterThan(10)
+    expect(styleFrame(plan, 5, plan.rush + .1, 1.6).held).toBe(true)
   })
 
   it('sprint: from the far end of the hall at a steady run', () => {
