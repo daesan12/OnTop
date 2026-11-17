@@ -9,9 +9,9 @@ export function loadRenewalParkWorld() {
     performance.mark('park-world-module-start')
     const worldModule = import('../../park-renewal-preview/live/RenewalWorld')
     void import('../../park-renewal-preview/static/store').catch(() => {})
-    // The first frame needs this pavilion. Its URL does not depend on map admission.
+    // Start both first-frame model requests while the world module loads.
     const entranceModels = import('../../park-renewal-preview/live/preloadEntranceModels')
-    void entranceModels.then(module => module.preloadEntrancePavilion()).catch(() => {})
+    void entranceModels.then(module => module.preloadEntranceModels()).catch(() => {})
     const facilities = fetch(new URL('../../park-renewal-preview/static/facilities.bin.gz', import.meta.url), {
       cache: 'force-cache', priority: 'low', signal: AbortSignal.timeout(10000),
     })
