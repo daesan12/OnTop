@@ -27,7 +27,7 @@ export const StoneRumbleGuide = memo(function StoneRumbleGuide() {
 
   const close = () => {
     closeStoneRumbleGuide()
-    requestAnimationFrame(focusParkCanvas)
+    requestAnimationFrame(() => focusParkCanvas())
   }
   return createPortal(<PaperPopup title="미니게임 · 준비 안내" label="돌탑 생존전 준비 안내"
     className="stone-rumble-guide" closeLabel="돌탑 생존전 안내 닫기" onClose={close} initialFocusRef={scrollArea}>

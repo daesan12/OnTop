@@ -5,12 +5,16 @@ export const BALLOON_FARE = 100
 export const WAIT_SECONDS = 12
 export const FLIGHT_SECONDS = 90
 export const REMOVE_SECONDS = 5
+export const DOCK_REMOVE_SECONDS = 1
 
 export const BORDER_MARGIN = 8
 export const WARNING_MARGIN = 17
 export const MAX_ALTITUDE = 72
 const CRUISE_HEIGHT = 54
 const TAKEOFF_RISE = 10
+// Keep desktop return speeds within the server's horizontal and vertical pose limits.
+const RETURN_HORIZONTAL_SPEED = 20
+const RETURN_VERTICAL_SPEED = 10
 
 export type Point = { x: number; y: number; z: number }
 export type BalloonBoarding = { capacity: number; mode?: ControlMode } | { leaderId: string }
@@ -51,8 +55,8 @@ function approach(value: number, target: number, step: number) {
   return value + Math.sign(target - value) * Math.min(step, Math.abs(target - value))
 }
 
-function land(flight: Flight, position: Point, exit: Point, landing: 'dock' | 'field'): Flight {
-  return { ...flight, phase: 'landed', position, exit, seconds: REMOVE_SECONDS, atBoundary: false, landing }
+function land(flight: Flight, position: Point, exit: Point, landing: 'dock' | 'field', seconds = REMOVE_SECONDS): Flight {
+  return { ...flight, phase: 'landed', position, exit, seconds, atBoundary: false, landing }
 }
 
 export function stepUncrewedFlight(flight: Flight, waiting: boolean, dt: number, map: FlightMap): Flight {
@@ -117,16 +121,16 @@ export function stepFlight(flight: Flight, input: Input, dt: number, map: Flight
     const distance = Math.hypot(dock.x - x, dock.z - z)
     const returnHeight = sightseeing ? SIGHTSEEING_HEIGHT : CRUISE_HEIGHT
     if (distance > 0 && y < returnHeight) {
-      return { ...flight, position: { x, y: approach(y, returnHeight, (sightseeing ? 2.6 : 8) * dt), z } }
+      return { ...flight, position: { x, y: approach(y, returnHeight, (sightseeing ? 2.6 : RETURN_VERTICAL_SPEED) * dt), z } }
     }
     if (distance > 0) {
-      const speed = sightseeing ? Math.min(5, Math.max(.6, distance / 2)) : 17
+      const speed = sightseeing ? Math.min(5, Math.max(.6, distance / 2)) : RETURN_HORIZONTAL_SPEED
       const progress = Math.min(1, speed * dt / distance)
       const position = progress === 1 ? { ...dock, y } : { x: x + (dock.x - x) * progress, y, z: z + (dock.z - z) * progress }
       return { ...flight, position }
     }
-    const altitude = approach(y, dock.y, (sightseeing ? Math.min(3, Math.max(.5, (y - dock.y) / 2)) : 7) * dt)
-    if (altitude === dock.y) return land(flight, dock, map.dockExit, 'dock')
+    const altitude = approach(y, dock.y, (sightseeing ? Math.min(3, Math.max(.5, (y - dock.y) / 2)) : RETURN_VERTICAL_SPEED) * dt)
+    if (altitude === dock.y) return land(flight, dock, map.dockExit, 'dock', sightseeing ? REMOVE_SECONDS : DOCK_REMOVE_SECONDS)
     return { ...flight, position: { x, y: altitude, z } }
   }
   if (phase === 'landed') return { ...flight, phase: seconds === 0 ? 'removed' : phase, seconds }

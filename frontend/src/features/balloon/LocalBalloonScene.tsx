@@ -3,15 +3,15 @@ import { useFrame, useThree } from '@react-three/fiber'
 import { useShallow } from 'zustand/react/shallow'
 import type { Group } from 'three'
 import { BALLOON_SCALE } from '../../../park-renewal-preview/plan'
-import { textInputOwnsKeys } from '../../world/inputOwnership'
-import { interactLocalBalloonCabin, tickLocalBalloon, toggleLocalCabinMode, toggleLocalCabinPerspective, useLocalBalloon } from './localRide'
+import { panelOwnsKeys, textInputOwnsKeys } from '../../world/inputOwnership'
+import { exitLocalBalloonAtDoor, interactLocalBalloonCabin, tickLocalBalloon, toggleLocalCabinMode, toggleLocalCabinPerspective, useLocalBalloon } from './localRide'
 import { sampleRemoteBalloon, useRemoteBalloons } from './remoteRide'
 import { useBalloonModel } from './useBalloonModel'
-import { BalloonCabinSeats } from './BalloonCabinSeats'
+import { BalloonCabin } from './BalloonCabin'
 import { balloonCanLook, cabinCamera, dragCabinCamera } from './cabinCamera'
 import { cameraRelativeMove } from '../../network/movementInput'
 import { useSession } from '../../network/worldClient'
-import { BalloonCabinControls, type LocalCabinInput } from './BalloonCabinControls'
+import type { LocalCabinInput } from './BalloonCabinControls'
 import { stoppedFlightInput } from './controls'
 import { CABIN_FLOOR_HEIGHT, sightseeingCabin, SIGHTSEEING_STEP_HEIGHT } from './cabin'
 
@@ -22,6 +22,7 @@ const keys = new Set([
 
 function RemoteBalloon({ pilot, local }: { pilot: string; local: RefObject<LocalCabinInput> }) {
   const root = useRef<Group>(null)
+  const doorOpen = useRemoteBalloons(state => !!state.flights[pilot]?.party?.boarding || state.flights[pilot]?.aboard === false)
   useBalloonModel(root)
   useFrame(() => {
     const position = sampleRemoteBalloon(pilot)
@@ -29,8 +30,7 @@ function RemoteBalloon({ pilot, local }: { pilot: string; local: RefObject<Local
     root.current.position.set(position.x, position.y, position.z)
   }, -1.8)
   return <group ref={root} name={`remote-balloon-${pilot}`} scale={BALLOON_SCALE}>
-    <BalloonCabinSeats />
-    <BalloonCabinControls pilot={pilot} local={local} />
+    <BalloonCabin doorOpen={doorOpen} pilot={pilot} local={local} />
   </group>
 }
 
@@ -43,6 +43,7 @@ export default function LocalBalloonScene() {
   const canvas = useThree(state => state.gl.domElement)
   const ownId = useSession(state => state.sessionId)
   const sightseeing = useLocalBalloon(state => state.xrSightseeing)
+  const doorOpen = useLocalBalloon(state => state.flight?.phase === 'boarding' || state.flight?.phase === 'landed')
   const remotePilots = useRemoteBalloons(useShallow(state => Object.keys(state.flights).filter(id => id !== ownId)))
   useEffect(() => {
     const input = held.current
@@ -65,9 +66,13 @@ export default function LocalBalloonScene() {
     }
     const pointerEnd = (event: PointerEvent) => { if (pointer?.id === event.pointerId) pointer = null }
     const down = (event: KeyboardEvent) => {
-      if (event.isComposing || event.ctrlKey || event.altKey || event.metaKey
-        || textInputOwnsKeys(event.target) || useLocalBalloon.getState().xrSightseeing
-        || useLocalBalloon.getState().flight?.phase !== 'flying') return
+      if (event.defaultPrevented || event.isComposing || event.ctrlKey || event.altKey || event.metaKey || panelOwnsKeys('localBalloon')
+        || textInputOwnsKeys(event.target) || useLocalBalloon.getState().xrSightseeing) return
+      if (event.code === 'KeyE' && !event.repeat && exitLocalBalloonAtDoor()) {
+        event.preventDefault()
+        return
+      }
+      if (useLocalBalloon.getState().flight?.phase !== 'flying') return
       if (event.code === 'KeyF' || event.code === 'KeyE' || event.code === 'KeyV') {
         event.preventDefault()
         if (!event.repeat) {
@@ -123,8 +128,7 @@ export default function LocalBalloonScene() {
 
   return <>
     <group ref={root} name="local-balloon-ride" scale={BALLOON_SCALE} visible={false}>
-      <BalloonCabinSeats />
-      <BalloonCabinControls local={cabinInput} />
+      <BalloonCabin doorOpen={doorOpen} local={cabinInput} />
       {sightseeing && <mesh position={[sightseeingCabin.x, CABIN_FLOOR_HEIGHT + SIGHTSEEING_STEP_HEIGHT / 2, sightseeingCabin.z]}
         castShadow receiveShadow>
         <boxGeometry args={[.66, SIGHTSEEING_STEP_HEIGHT, .55]} />

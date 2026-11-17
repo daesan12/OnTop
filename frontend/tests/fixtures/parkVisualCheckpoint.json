@@ -1,4 +1,8 @@
 {
+  "seasonalSkyReview20261117": {
+    "file": "src/world/ParkSky.tsx",
+    "reason": "사용자 피드백에 따라 게임 날짜별 관측 별자리 선택과 표시를 추가했다."
+  },
   "mergedVisualSourceReview20261116": {
     "date": "2026-11-16",
     "referenceCommit": "a956234ac6d3ef21e84e79e4f48ca417e03c7119",
@@ -107,7 +111,7 @@
     "src/world/art/ornamentTextures.ts": "c18057496f55f78c6841bed0bc405d8476ddd9eb654b831c81c1a38d7593a181",
     "src/world/art/OutdoorMetal.tsx": "66a0fded7da2ff9bc2a9bb7fa1b6c388fd0bf999e128ea41eaa87ad08278f3f5",
     "src/world/art/ParkActivities.tsx": "9308815288254a6eb9786de0da15fbedbbabbcf70ed370362719b0f018bfeaa4",
-    "src/world/art/ParkAdvertising.tsx": "2a0ff37ca2eae9da2285d6e6cc505067f3ffa6d85abff009ff2fa9266276804c",
+    "src/world/art/ParkAdvertising.tsx": "0316c8a53e6cf1f28c3460ce6fa7866ad4e6769b45bdaf30f966c9e7c8b2f1f9",
     "src/world/art/ParkBoundary.tsx": "c9f4312011e6083a80d1d78fc0dc2268afddf5a691262ab164e86d77944ebff8",
     "src/world/art/ParkFountain.tsx": "ed7a046d55ca3c2c696ecd9c17b530325e75bf58372bd93a3c825c3bafdbebf8",
     "src/world/art/ParkFurniture.tsx": "85329c27193a60462670a78fb1609304ce069c9d57a07adf0c5b7a9e942d683e",
@@ -177,7 +181,7 @@
     "src/config/telescopes.ts": "f7a1cf883f2033895c9cea01f8873038c6b6e176cf1d71e0d9e5ef22ed1a278d",
     "src/config/world.ts": "514d1c22d5d95fa54abf3674ea84a0978fe22f938937aef4d33a82ed6b15877c",
     "src/world/worldAssets.ts": "1eb126fcd5c864fc06044db5bc9c4ecabdb195bc2a264951aeb3b898a7800e7d",
-    "src/world/ParkSky.tsx": "6853522a5789f23e47d2c826a0b7b690843fed81adb79ba698323fce544b182d",
+    "src/world/ParkSky.tsx": "f65424a6e1ed81dad57138d0097390b59d88ba56c82911c8eb6527cf57595a8e",
     "src/world/EnvironmentScene.tsx": "5aa6d51ee10543cb44404be97647cac6943c425ba96d467eb5a6918b54b621aa",
     "src/world/SimpleParkEnvironment.tsx": "65cb3943df60007aca022c1051a2c0b7638fd8774bc4e1dde15267732a148c19",
     "src/features/tables/MainPavilionTable.tsx": "b575e34d9585fd57b102933d2c0008f1a304d6e4187f9824d2fe1ec18ba29673",

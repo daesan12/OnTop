@@ -116,11 +116,11 @@ function Poster({
         <mesh
           key={side}
           name="park-static-advertisement"
-          onClick={(e) => {
+          onClick={name === 'air-balloon' ? (e) => {
             e.stopPropagation()
             if (e.delta < 5)
               window.dispatchEvent(new Event('ontap-open-pickus'))
-          }}
+          } : undefined}
           position={[0, y, side * 0.017]}
           rotation={[0, side < 0 ? Math.PI : 0, 0]}
           scale={[width, width / imageAspect, 1]}

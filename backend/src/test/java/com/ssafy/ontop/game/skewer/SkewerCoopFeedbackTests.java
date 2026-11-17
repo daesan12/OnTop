@@ -99,7 +99,7 @@ class SkewerCoopFeedbackTests {
             double before = match.privateView(101).at("/hall/position/x").asDouble();
             match.tick(time, user -> true);
             double after = match.privateView(101).at("/hall/position/x").asDouble();
-            assertThat(after - before).isCloseTo(.58, org.assertj.core.data.Offset.offset(.000001));
+            assertThat(after - before).isCloseTo(.60, org.assertj.core.data.Offset.offset(.000001));
         }
     }
 
@@ -187,7 +187,7 @@ class SkewerCoopFeedbackTests {
         for (var direction : List.of(new SkewerCoopMatch.Point(1, 0), new SkewerCoopMatch.Point(-1, 0),
                 new SkewerCoopMatch.Point(0, 1), new SkewerCoopMatch.Point(0, -1),
                 new SkewerCoopMatch.Point(1, 1))) {
-            for (double seconds : new double[] {0, .016, .05, .1, .5}) {
+            for (double seconds : new double[] {0, .016, .06, .1, .5}) {
                 var match = playing();
                 ReflectionTestUtils.setField(match, "position", new SkewerCoopMatch.Point(0, 1.25));
                 match.act(101, mapper.valueToTree(Map.of("type", "MOVE", "dx", direction.x(),
@@ -196,7 +196,7 @@ class SkewerCoopFeedbackTests {
                 ReflectionTestUtils.invokeMethod(match, "move", seconds);
 
                 var position = (SkewerCoopMatch.Point) ReflectionTestUtils.getField(match, "position");
-                double distance = Math.min(.1, seconds) * 5.8;
+                double distance = Math.min(.1, seconds) * 6.0;
                 double length = Math.hypot(direction.x(), direction.z());
                 assertThat(position.x()).isCloseTo(distance * direction.x() / length,
                         org.assertj.core.data.Offset.offset(.000001));

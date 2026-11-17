@@ -1,13 +1,12 @@
 import { useLayoutEffect, type RefObject } from 'react'
 import { Mesh, type BufferGeometry, type Group, type Material } from 'three'
 import { factory } from '../../../park-renewal-preview/assetFactories'
-import { CABIN_FLOOR_HEIGHT } from './cabin'
 
 export function useBalloonModel(root: RefObject<Group | null>) {
   useLayoutEffect(() => {
     const parent = root.current
     if (!parent) return
-    const balloon = factory('balloon', { cabinFloorY: CABIN_FLOOR_HEIGHT })
+    const balloon = factory('balloon')
     parent.add(balloon)
 
     return () => {

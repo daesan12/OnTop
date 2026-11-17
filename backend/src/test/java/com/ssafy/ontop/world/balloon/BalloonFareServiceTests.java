@@ -41,11 +41,12 @@ class BalloonFareServiceTests {
         var prepared = mock(PreparedParkMap.class);
         when(map.prepared()).thenReturn(Optional.of(prepared));
         when(prepared.constructionSites()).thenReturn(new ObjectMapper().readTree("""
-                [{"id":"balloon","reachPosition":[-40,22.8,-54],"radius":2,"heightTolerance":1.4}]
+                [{"id":"balloon","position":[-40,22.1,-76],"reachPosition":[-40,23.905,-61.952],
+                  "radius":3,"heightTolerance":0.7}]
                 """));
         ReflectionTestUtils.setField(wallet, "id", 2L);
         when(wallets.findForUpdateByUserId(123)).thenReturn(Optional.of(wallet));
-        when(channels.positionOf("123")).thenReturn(new WorldChannelRegistry.Position(1, -40, 22.8, -54, 0));
+        when(channels.positionOf("123")).thenReturn(new WorldChannelRegistry.Position(1, -36.92, 23.905, -76, 0));
         service = new BalloonFareService(wallets, transactions, channels, map);
     }
 
@@ -90,7 +91,17 @@ class BalloonFareServiceTests {
 
     @Test
     void 승강장과_높이가_다르면_결제를_거절한다() {
-        when(channels.positionOf("123")).thenReturn(new WorldChannelRegistry.Position(1, -40, 8, -54, 0));
+        when(channels.positionOf("123")).thenReturn(new WorldChannelRegistry.Position(1, -36.92, 8, -76, 0));
+
+        assertThatThrownBy(() -> service.buy(123, REQUEST))
+                .isInstanceOfSatisfying(BalloonFareService.Rejected.class,
+                        failure -> assertThat(failure.code()).isEqualTo("BALLOON_STATION_REQUIRED"));
+        verifyNoInteractions(wallets, transactions);
+    }
+
+    @Test
+    void 이전_승강장_안내_지점에서는_결제를_거절한다() {
+        when(channels.positionOf("123")).thenReturn(new WorldChannelRegistry.Position(1, -40, 23.905, -61.952, 0));
 
         assertThatThrownBy(() -> service.buy(123, REQUEST))
                 .isInstanceOfSatisfying(BalloonFareService.Rejected.class,
