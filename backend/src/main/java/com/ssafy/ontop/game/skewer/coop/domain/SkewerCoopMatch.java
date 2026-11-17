@@ -752,7 +752,7 @@ public final class SkewerCoopMatch {
         double remaining = Math.min(.1, Math.max(0, seconds)) * SERVER_SPEED;
         // 짧은 경유점에 도착해도 이번 틱의 남은 이동량을 다음 구간에 사용한다.
         // 작은 단위로 기존 축별 충돌 검사를 유지해 가구 모서리를 건너뛰지 않는다.
-        // 정상 경로는 0.25 간격이고 틱당 최대 0.58을 0.1씩 이동하므로 경유점 정리까지 여유를 둔다.
+        // 정상 경로는 0.25 간격이고 틱당 최대 0.60을 0.1씩 이동하므로 경유점 정리까지 여유를 둔다.
         // 중복·극소 간격 경유점도 같은 상한에 포함하며, 미처리 경로는 다음 틱에 이어간다.
         for (int iteration = 0; iteration < MAX_MOVEMENT_ITERATIONS && remaining > .000001; iteration++) {
             if (!path.isEmpty() && position.distance(path.getFirst()) < .000001) {

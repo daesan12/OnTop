@@ -24,7 +24,8 @@ export class PositionPlayback {
     if (this.samples.length > 32) this.samples.shift()
   }
   step(seconds: number): Point {
-    this.clock += Math.max(0, Math.min(.1, seconds))
+    // 재생 시각은 실제 경과 시간을 따라야 느린 프레임마다 지연이 누적되지 않는다.
+    this.clock += Math.max(0, seconds)
     const at = this.clock - this.delaySeconds
     while (this.samples.length > 2 && this.samples[1].at <= at) this.samples.shift()
     const a = this.samples[0], b = this.samples[1]

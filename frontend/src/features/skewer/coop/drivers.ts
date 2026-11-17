@@ -5,7 +5,10 @@ import type { CoopClient } from './client'
 import { PositionPlayback } from '../serviceHall/rendering/PositionPlayback'
 import { chefRuntimeNotice } from '../chef/vrNotice'
 
-export type HallDriver = Pick<HallPreview, 'view' | 'step' | 'navigate' | 'nearest' | 'blockedReason' | 'actionLabel' | 'press' | 'secondaryLabel' | 'secondaryBlockedReason' | 'pressSecondary' | 'closeStorage' | 'takeStored' | 'release'> & { online?: boolean }
+export type HallDriver = Pick<HallPreview, 'view' | 'step' | 'navigate' | 'nearest' | 'blockedReason' | 'actionLabel' | 'press' | 'secondaryLabel' | 'secondaryBlockedReason' | 'pressSecondary' | 'closeStorage' | 'takeStored' | 'release'> & {
+  online?: boolean
+  setMovement?(dx: number, dz: number): void
+}
 export type ChefDriver = Pick<ChefPreview, 'view' | 'step' | 'action'> & { online?: boolean }
 
 class TimedFeedback {
@@ -60,13 +63,17 @@ export class OnlineHall implements HallDriver {
     this.helper.washer = hall.washer; this.helper.held = hall.held; this.helper.elapsed = snapshot.publicState.elapsed
     if (snapshot.publicState.phase === 'FINISHED' || snapshot.publicState.paused) this.storageOpen = false
   }
-  step(_dt: number, dx = 0, dz = 0) {
+  step(dt: number, dx = 0, dz = 0) {
     this.sync()
     const position = this.client.snapshot?.privateState.hall?.position
     // Page는 화면 복귀 첫 프레임에 dt=0을 보낸다. 렌더가 멈춘 동안의 서버 시간을 재생하지 않는다.
-    if ((!this.client.playable || _dt === 0 || _dt > .25) && position)
+    const reset = !this.client.playable || dt === 0 || dt > .25
+    if (reset && position)
       this.playback.reset(position, this.client.snapshot?.publicState.elapsed)
-    this.helper.position = this.playback.step(_dt)
+    this.helper.position = this.playback.step(reset ? 0 : dt)
+    this.setMovement(dx, dz)
+  }
+  setMovement(dx: number, dz: number) {
     if (!this.client.playable || this.storageOpen) { dx = 0; dz = 0 }
     const now = performance.now(), value = `${dx.toFixed(2)}:${dz.toFixed(2)}`
     // Direction changes must not wait for the held-input heartbeat.
