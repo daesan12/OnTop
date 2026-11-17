@@ -20,21 +20,23 @@ describe('협동 홀 입력의 서버 판정 경계', () => {
     driver.navigate({ x: 8, z: 0 })
     expect(act).not.toHaveBeenCalled()
   })
-  it('시작과 방향 전환은 이동 유지 주기를 기다리지 않고 다음 프레임에 보낸다', async () => {
+  it('시작과 방향 전환은 렌더 프레임을 기다리지 않고 보내며 다음 프레임에 중복하지 않는다', async () => {
     const clock = vi.spyOn(performance, 'now')
     try {
       const { driver, act } = fixture()
       clock.mockReturnValue(10)
+      driver.step(0)
+      driver.setMovement(1, 0)
       driver.step(1 / 60, 1, 0)
       await Promise.resolve()
       clock.mockReturnValue(26)
-      driver.step(1 / 60, -1, 0)
+      driver.setMovement(-1, 0)
       await Promise.resolve()
       clock.mockReturnValue(42)
-      driver.step(1 / 60, 0, 1)
+      driver.setMovement(0, 1)
       await Promise.resolve()
       clock.mockReturnValue(58)
-      driver.step(1 / 60, 0, 0)
+      driver.setMovement(0, 0)
       expect(act.mock.calls.map(([input]) => input)).toEqual([
         { type: 'MOVE', dx: 1, dz: 0 }, { type: 'MOVE', dx: -1, dz: 0 },
         { type: 'MOVE', dx: 0, dz: 1 }, { type: 'MOVE', dx: 0, dz: 0 },
@@ -91,9 +93,10 @@ describe('협동 홀 입력의 서버 판정 경계', () => {
     let previous = start.x, sample = 0
     for (let frame = 0; frame <= 120; frame++) {
       const next = sample + 1
-      if (frame === next * 6 + (next % 2 ? 2 : 0)) {
-        sample = next; hall.position = { x: start.x + sample * .58, z: start.z }
-        client.snapshot.publicState.elapsed = sample * .1; client.snapshot.version++
+      const time = next * .06, delay = next % 2 ? .032 : .008
+      if (frame === Math.ceil((time + delay) * 60)) {
+        sample = next; hall.position = { x: start.x + time * 6, z: start.z }
+        client.snapshot.publicState.elapsed = time; client.snapshot.version++
       }
       if (frame % 4 === 0) client.snapshot.version++
       driver.step(1 / 60, 1, 0)
@@ -103,6 +106,17 @@ describe('협동 홀 입력의 서버 판정 경계', () => {
     }
     expect(Math.min(...steps)).toBeGreaterThan(.09)
     expect(Math.max(...steps) - Math.min(...steps)).toBeLessThan(.000001)
+  })
+  it('느린 렌더 프레임에서도 실제 경과 시간만큼 재생해 이동 지연이 누적되지 않는다', () => {
+    const { client, driver, hall } = fixture()
+    const start = hall.position.x
+    driver.step(0)
+    for (const elapsed of [.2, .4, .6]) {
+      hall.position = { x: start + elapsed * 6, z: hall.position.z }
+      client.snapshot.publicState.elapsed = elapsed; client.snapshot.version++
+      driver.step(.2, 1, 0)
+      expect(driver.view().position.x).toBeCloseTo(start + (elapsed - .11) * 6, 6)
+    }
   })
   it.each([0, .6])('화면 복귀·긴 프레임 공백 dt=%s 뒤 서버 시각을 다시 맞춘다', dt => {
     const { client, driver, hall } = fixture()

@@ -3,6 +3,7 @@ import type { CoopClient } from '../../../src/features/skewer/coop/client'
 import type { CoopSnapshot } from '../../../src/features/skewer/coop/contracts'
 import { HallPreview } from '../../../src/features/skewer/serviceHall/previewModel'
 import type { HallView } from '../../../src/features/skewer/serviceHall/previewModel'
+import { SERVER_SPEED } from '../../../src/features/skewer/serviceHall/plan'
 import { ServiceScene } from '../../../src/features/skewer/serviceHall/rendering/ServiceScene'
 import type { HallMotion } from '../../../src/features/skewer/serviceHall/rendering/HallMotion'
 import type { WebGLRenderer } from 'three'
@@ -32,19 +33,25 @@ Reflect.set(window, 'movementQA', {
     snapshot.publicState.elapsed = 0; hall.position = { x: -3, z: 1.25 }; snapshot.version++
     driver.step(0); internal.update(driver.view(), 0)
     const steps: number[] = [], turns: number[] = []
+    const turnFrame = 48, turnAt = .84
+    let firstMoveFrame = 0, firstReverseFrame = 0
     let sample = 0, before = { ...hall.position }, yaw = internal.serverMotion.yaw
     for (let frame = 1; frame <= 120; frame++) {
       const next = sample + 1
-      if (frame === next * 6 + (next % 2 ? 2 : 0)) {
+      const time = next * .06, delay = next % 2 ? .032 : .008
+      if (frame === Math.ceil((time + delay) * 60)) {
         sample = next
-        const time = sample * .1
-        hall.position = { x: -3 + 5.8 * (reverse && time > .8 ? 1.6 - time : time), z: 1.25 }
+        const travelTime = reverse && time > turnAt ? 2 * turnAt - time : time
+        hall.position = { x: -3 + SERVER_SPEED * travelTime, z: 1.25 }
         snapshot.publicState.elapsed = time; snapshot.version++
       }
       if (frame % 4 === 0) snapshot.version++ // 같은 서버 틱의 MOVE 확인 응답.
-      driver.step(1 / 60, reverse && frame > 48 ? -1 : 1, 0)
+      driver.step(1 / 60, reverse && frame > turnFrame ? -1 : 1, 0)
       internal.update(driver.view(), 1 / 60)
       const motion = internal.serverMotion
+      const dx = motion.position.x - before.x
+      if (!firstMoveFrame && dx > .000001) firstMoveFrame = frame
+      if (!firstReverseFrame && dx < -.000001) firstReverseFrame = frame
       if (frame > 30) {
         steps.push(Math.hypot(motion.position.x - before.x, motion.position.z - before.z))
         turns.push(Math.abs(Math.atan2(Math.sin(motion.yaw - yaw), Math.cos(motion.yaw - yaw))))
@@ -53,6 +60,8 @@ Reflect.set(window, 'movementQA', {
     }
     internal.post.render()
     return { minStep: Math.min(...steps), maxStep: Math.max(...steps), maxTurn: Math.max(...turns),
+      startMs: firstMoveFrame ? (firstMoveFrame - 1) * 1000 / 60 : Infinity,
+      reverseMs: firstReverseFrame ? (firstReverseFrame - turnFrame - 1) * 1000 / 60 : Infinity,
       end: { ...internal.serverMotion.position }, moving: internal.serverMotion.moving }
   },
 })
