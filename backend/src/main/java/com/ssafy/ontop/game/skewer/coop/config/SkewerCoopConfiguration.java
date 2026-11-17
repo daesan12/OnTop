@@ -59,7 +59,7 @@ public class SkewerCoopConfiguration {
                 // 예약 작업 밖으로 예외가 나가면 이후 모든 틱이 취소되므로 경계에서 격리한다.
                 log.error("꼬치왕 틱 오류가 발생했습니다. 다음 주기에 다시 실행합니다.", exception);
             }
-        }, 100, 100, TimeUnit.MILLISECONDS);
+        }, 60, 60, TimeUnit.MILLISECONDS);
         Runnable persist = () -> {
             try {
                 engine.persistTerminalResults();

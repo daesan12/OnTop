@@ -91,9 +91,10 @@ describe('협동 홀 입력의 서버 판정 경계', () => {
     let previous = start.x, sample = 0
     for (let frame = 0; frame <= 120; frame++) {
       const next = sample + 1
-      if (frame === next * 6 + (next % 2 ? 2 : 0)) {
-        sample = next; hall.position = { x: start.x + sample * .58, z: start.z }
-        client.snapshot.publicState.elapsed = sample * .1; client.snapshot.version++
+      const time = next * .06, delay = next % 2 ? .032 : .008
+      if (frame === Math.ceil((time + delay) * 60)) {
+        sample = next; hall.position = { x: start.x + time * 6, z: start.z }
+        client.snapshot.publicState.elapsed = time; client.snapshot.version++
       }
       if (frame % 4 === 0) client.snapshot.version++
       driver.step(1 / 60, 1, 0)

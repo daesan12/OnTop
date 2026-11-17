@@ -22,7 +22,8 @@ export class OnlineHall implements HallDriver {
   private feedback = new TimedFeedback()
   readonly online = true
   private helper = new HallPreview()
-  private playback = new PositionPlayback()
+  // 60ms 서버 틱에 도착 지터와 렌더 프레임 여유를 더한다.
+  private playback = new PositionPlayback(.11)
   private storageOpen = false
   private movementAt = 0
   private lastMove = '0.00:0.00'
@@ -50,8 +51,8 @@ export class OnlineHall implements HallDriver {
     }
     if (snapshot.version !== this.lastVersion) {
       this.lastVersion = snapshot.version
-      // 확인되지 않은 입력을 누적하면 100ms 서버 틱마다 뒤로 보정되어 시선도 반전된다.
-      // 충돌·위치는 서버값을 따르고 프레임 사이의 부드러운 표시는 HallMotion이 담당한다.
+      // 확인되지 않은 입력을 누적하면 서버 좌표가 도착할 때 뒤로 보정되어 시선도 반전된다.
+      // 서버가 확정한 좌표 사이만 보간한다.
       this.playback.push(hall.position, snapshot.publicState.elapsed)
     }
     this.helper.tables = hall.tables; this.helper.carry = hall.carry; this.helper.pass = hall.pass

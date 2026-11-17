@@ -5,6 +5,8 @@ export class PositionPlayback {
   private clock = 0
   private serverAt?: number
   private samples: { at: number; point: Point }[] = []
+  constructor(private readonly delaySeconds = .15) {}
+
   reset(point: Point, serverAt?: number) {
     this.serverAt = Number.isFinite(serverAt) ? serverAt : undefined
     this.samples = [{ at: this.clock, point: { ...point } }]
@@ -23,8 +25,7 @@ export class PositionPlayback {
   }
   step(seconds: number): Point {
     this.clock += Math.max(0, Math.min(.1, seconds))
-    // 100ms 틱과 약 30ms 도착 지터를 다음 렌더 프레임까지 흡수한다.
-    const at = this.clock - .15
+    const at = this.clock - this.delaySeconds
     while (this.samples.length > 2 && this.samples[1].at <= at) this.samples.shift()
     const a = this.samples[0], b = this.samples[1]
     if (!a) return { x: 0, z: 0 }

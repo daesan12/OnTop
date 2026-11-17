@@ -29,7 +29,7 @@ public final class SkewerCoopMatch {
     public static final int WRONG_DELIVERY_PENALTY = 10;
     private static final long RESTART_RESPONSE_MILLIS = 15_000;
     private static final int MAX_MOVEMENT_ITERATIONS = 16;
-    private static final double SERVER_SPEED = 5.8;
+    private static final double SERVER_SPEED = 6.0;
     private static final int[] POINTS = {100, 100, 240, 160, 160, 240};
     private static final double[] TABLE_X = {-7.5, 0, 7.5, -7.5, 0, 7.5};
     private static final Map<String, Point> STATIONS = Map.of(
