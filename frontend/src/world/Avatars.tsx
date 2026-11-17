@@ -20,7 +20,7 @@ import { SwimmingRipples } from './SwimmingRipples'
 import { AvatarPoseCadence } from '../performance/avatarPoseCadence'
 import { CHARACTER, TABLES } from '../park/mapConfig'
 import { FartCloud } from './art/FartCloud'
-import { bungeoppangReturnOpacity } from '../features/bungeoppang/bungeoppangView'
+import { bungeoppangCookingView, bungeoppangReturnOpacity } from '../features/bungeoppang/bungeoppangView'
 import { createAvatarOpacity } from './avatarOpacity'
 import { avatarMenuRaycast } from './avatarMenuPicking'
 import { useAvatarFrameSampler } from './AvatarPoseFrame'
@@ -186,7 +186,6 @@ function Avatar({
     const localPilot = localBalloon.flight && localBalloon.owner === localBalloon.leader
       ? { id: localBalloon.owner, position: localBalloon.flight.position } : undefined
     const balloonRider = own ? localBalloonRider(id) : remoteBalloonRider(id, frameAt, localPilot)
-    // Hide only this client's own model; other clients retain the full avatar.
     const ownAvatar = !own && useJumpmap.getState().run ? avatars.get(useSession.getState().sessionId) : undefined
     const ownPose = ownAvatar && samplePose(ownAvatar, frameAt, overlapPose)
     const overlap = !!ownPose && Math.hypot(pose.x - ownPose.x, pose.z - ownPose.z) < .7 && Math.abs(pose.y - ownPose.y) < 1.8
@@ -194,6 +193,8 @@ function Avatar({
     overlapOpacity.current = targetOpacity + (overlapOpacity.current - targetOpacity) * Math.exp(-Math.min(delta, .1) * 6)
     if (Math.abs(overlapOpacity.current - targetOpacity) < .001) overlapOpacity.current = targetOpacity
     const opacity = own ? bungeoppangReturnOpacity(frameAt, reducedMotion.matches) : overlapOpacity.current
+    // Keep park visitors out of the cooking camera until it returns to the park.
+    const hiddenForCooking = !own && bungeoppangCookingView(frameAt)
     const gateFrameAt = firstGateFrameAt?.current
     // Give the first render and walking input a turn before compiling fade-only variants.
     if (gateFrameAt != null && (frameAt - gateFrameAt >= 1000 || (opacity > 0 && opacity < 1))) {
@@ -209,7 +210,8 @@ function Avatar({
     const visibleOutsideXR = !hideBalloonRider && (!!balloonRider || !!debrisMotion
       || !(own && ((avatar.tableId && seated && !gatheringCameraActive() || avatar.benchId && seated || avatar.telescopeId)
       || roamingFirstPerson(avatar, !!useGame.getState().watchedGameId))))
-    root.current.visible = firstAppearanceReady.current && opacity > 0 && (ownXR ? !!avatar.vehicle : visibleOutsideXR)
+    root.current.visible = !hiddenForCooking && firstAppearanceReady.current && opacity > 0
+      && (ownXR ? !!avatar.vehicle : visibleOutsideXR)
     appearance.current?.set(root.current.visible ? opacity : 1)
     root.current.userData.appearanceOpacity = root.current.visible ? opacity : 0
     if (balloonRider) {

@@ -4,6 +4,7 @@ import type { Point } from './flight'
 
 const station = renewalMap?.data.interactions.construction.find(site => site.id === 'balloon')
 const doorX = station ? station.position[0] + BALLOON_DOOR_OFFSET_X : 0
+const BOARDING_RADIUS = 2
 
 // Mirrors BalloonStation on the server. The map anchor supplies the platform and deck height.
 export const balloonEntrance = station && {
@@ -14,6 +15,6 @@ export const balloonEntrance = station && {
 
 export function canReachBalloonDoor(position: Point) {
   return !!station && !!balloonEntrance && position.x <= doorX
-    && Math.hypot(position.x - balloonEntrance.x, position.z - balloonEntrance.z) <= 1.6
+    && Math.hypot(position.x - balloonEntrance.x, position.z - balloonEntrance.z) <= BOARDING_RADIUS
     && Math.abs(position.y - balloonEntrance.y) <= station.heightTolerance
 }

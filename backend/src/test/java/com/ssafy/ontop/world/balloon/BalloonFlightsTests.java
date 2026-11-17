@@ -42,6 +42,16 @@ class BalloonFlightsTests {
     }
 
     @Test
+    void 열기구_문_앞에서_반경을_벗어나면_거절하고_넓어진_범위에서는_탑승한다() {
+        var outside = new Position(1, GROUND.x() - 2.2, GROUND.y(), GROUND.z(), 0);
+        var nearDoor = new Position(1, GROUND.x() - 1.8, GROUND.y(), GROUND.z(), 0);
+        flights.authorize(PILOT, TICKET, NOW, NOW);
+
+        assertThat(flights.start(CHANNEL, PILOT, SESSION, TICKET, outside, DOCK, NOW, 0)).isNull();
+        assertThat(flights.start(CHANNEL, PILOT, SESSION, TICKET, nearDoor, DOCK, NOW, 0)).isNotNull();
+    }
+
+    @Test
     void 일인_수동_탑승은_출발_전까지_같은_탑승권으로_내렸다_다시_탈_수_있다() {
         flights.authorize(PILOT, TICKET, NOW, NOW);
         var boarding = flights.start(CHANNEL, PILOT, SESSION, TICKET, GROUND, DOCK, NOW, 0, 1, null, "solo");

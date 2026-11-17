@@ -7,6 +7,11 @@ export function cookingStageReady() {
   return !!canvas && !!_roots.get(canvas)?.store.getState().scene.getObjectByName('bungeoppang-cooking-stage');
 }
 
+export function visitorVisibility(id: string) {
+  const canvas = document.querySelector('canvas');
+  return (canvas && _roots.get(canvas)?.store.getState().scene.getObjectByName(`avatar-${id}`)?.visible) ?? null;
+}
+
 export function plateClickPoints() {
   const { camera, gl } = [..._roots.values()][0]!.store.getState();
   const rect = gl.domElement.getBoundingClientRect();

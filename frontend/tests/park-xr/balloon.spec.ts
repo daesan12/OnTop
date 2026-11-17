@@ -73,7 +73,9 @@ test('220m 공원 PC에서 E로 열기구 문을 오가고 같은 내부에서 �
   await expect(boardHint).toBeHidden()
   await page.keyboard.press('e')
   await expect(page.getByRole('dialog', { name: '하늘언덕 열기구 탑승 준비' })).toBeHidden()
-  server.place(doorApproach)
+  server.place({ ...doorApproach, x: doorApproach.x - 2.2 })
+  await expect(boardHint).toBeHidden()
+  server.place({ ...doorApproach, x: doorApproach.x - 1.8 })
   await expect(boardHint).toBeVisible()
   const probe = '/tests/park-integration/probe.ts'
   const visible = (name: string) => page.evaluate(async ({ probe, name }) => (await import(probe)).preparedAssetVisible(name), { probe, name })

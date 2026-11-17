@@ -8,7 +8,7 @@ record BalloonStation(double x, double y, double z, double deckReachY, double he
     // World-space door offset from the docked model in frontend/park-renewal-preview/plan.ts.
     private static final double DOOR_OFFSET_X = 3.7308743485736175;
     private static final double APPROACH_OFFSET = .65;
-    private static final double BOARDING_RADIUS = 1.6;
+    private static final double BOARDING_RADIUS = 2.0;
 
     static BalloonStation findIn(PreparedParkMap map) {
         for (JsonNode anchor : map.constructionSites()) {
