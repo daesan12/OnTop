@@ -1,6 +1,7 @@
 import { cameraWorldPosition } from './xrView'
-import { useEffect, useMemo, useRef } from 'react'
-import { useFrame } from '@react-three/fiber'
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
+import { useFrame, useThree } from '@react-three/fiber'
+import { registerBoardFocusNightLights } from './boardFocusLighting'
 import {
   ShaderMaterial,
   type MeshStandardMaterial,
@@ -98,6 +99,11 @@ export function NightLighting({ quality, placements }: {
     x, y: floor + 3.7, z, strength: 24, color: ENVIRONMENT.palette.path,
   })) ?? defaultCandidates, [placements])
   const preset = ENVIRONMENT_QUALITY[quality]
+  const scene = useThree(state => state.scene)
+  const group = useRef<Group>(null)
+  useLayoutEffect(() => {
+    if (group.current) return registerBoardFocusNightLights(scene, group.current)
+  }, [scene])
   const lights = useRef<(PointLight | null)[]>([])
   const poolsGroup = useRef<Group>(null)
   const state = useMemo(
@@ -175,7 +181,7 @@ export function NightLighting({ quality, placements }: {
     }
   })
   return (
-    <group name="night-lighting">
+    <group ref={group} name="night-lighting">
       {!placements && <TraditionalPavilionLanterns />}
       {!placements && <group ref={poolsGroup}>
         <Instances
