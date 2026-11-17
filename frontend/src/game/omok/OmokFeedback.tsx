@@ -5,6 +5,7 @@ import { useSession } from '../../network/worldClient'
 import { ParkChat } from '../../features/chat/ParkChat'
 import { inputState } from '../../world/inputOwnership'
 import { useManual } from '../../features/manual/manualState'
+import { useParkXR } from '../../features/parkXR/state'
 import { useDisplayGame as useGame } from '../displayGame'
 import { OMOK_FOCUS_LAYER, omokSpectatorFrame } from '../../world/omokCamera'
 import { omokSpectatorViewport } from '../cameraState'
@@ -114,7 +115,8 @@ function Ping({ ping, focused }: { ping: DisplayEvent<PingEvent>; focused: boole
 }
 export function OmokPings({ gameId, focused }: { gameId: string; focused: boolean }) {
   const pings = useOmokEvents(s => s.pings)
-  return <>{pings.filter(p => p.gameId === gameId).map(p => <Ping key={p.eventId} ping={p} focused={focused} />)}</>
+  const inVR = useParkXR(s => s.phase === 'active')
+  return <>{pings.filter(p => p.gameId === gameId).map(p => <Ping key={p.eventId} ping={p} focused={focused && !inVR} />)}</>
 }
 
 /** All games share the same Enter/send/Escape lifecycle and private game feed. */
