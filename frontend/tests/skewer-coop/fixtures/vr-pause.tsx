@@ -62,6 +62,7 @@ const transport: CoopTransport = {
 }
 let session: XRSession | null = null, renderer: WebGLRenderer | null = null, scene: Scene | null = null, kitchen: ChefScene | null = null
 let tracked = true, frames = 0, requested = 0, timer: ReturnType<typeof setInterval> | undefined
+let requestedWithActivation = false
 let yaw = 0, clock = performance.now(), renderFrame: (() => void) | undefined
 const space = new EventTarget() as XRReferenceSpace
 const right = { handedness: 'right', gamepad: { mapping: 'xr-standard', buttons: Array.from({ length: 6 }, () => ({ pressed: false })) } } as unknown as XRInputSource
@@ -69,6 +70,7 @@ Object.defineProperty(navigator, 'xr', { configurable: true, value: {
   isSessionSupported: async () => true,
   requestSession: async () => {
     requested++
+    requestedWithActivation = navigator.userActivation.isActive
     if (rejectSession) { rejectSession = false; throw new DOMException('VR 접근 권한을 허용해 주세요.', 'SecurityError') }
     const created = Object.assign(new EventTarget(), { visibilityState: 'visible', inputSources: [right], end: async () => { session = null; created.dispatchEvent(new Event('end')) } }) as unknown as XRSession
     session = created; return created
@@ -156,7 +158,7 @@ Reflect.set(window, 'vrPauseQA', {
     publish()
   },
   connection: (value: boolean) => { connected = value },
-  snapshot: () => ({ calls: [...calls], modalCalls, frames, requested, rendererAttached: !!renderer, protected: !!session, protectionReleased, paused: state.publicState.paused, answered: state.publicState.greeting.answered }),
+  snapshot: () => ({ calls: [...calls], modalCalls, frames, requested, requestedWithActivation, rendererAttached: !!renderer, protected: !!session, protectionReleased, paused: state.publicState.paused, answered: state.publicState.greeting.answered }),
 })
 function App() {
   const [closed, setClosed] = useState(false)

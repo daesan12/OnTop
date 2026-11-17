@@ -105,7 +105,7 @@ test('대기실 장비 점검 종료는 방을 유지하고 준비를 취소하�
   const room = page.getByTestId('skewer-coop')
   await expect(room).toHaveAttribute('data-phase', 'WAITING')
   await page.getByRole('button', { name: 'VR로 요리하기', exact: true }).click()
-  await page.getByRole('button', { name: '헤드셋 연결하기', exact: true }).click()
+  await page.getByRole('button', { name: '주방 화면 미리 보기', exact: true }).click()
   await page.getByRole('button', { name: '모의 VR 연결', exact: true }).click()
   await page.getByRole('button', { name: '준비 완료', exact: true }).click()
   await expect(page.getByRole('button', { name: '준비 취소', exact: true })).toBeEnabled()
