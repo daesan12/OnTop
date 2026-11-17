@@ -94,6 +94,7 @@ export async function parkFixture(page:Page,options:{holdConfirmation?:boolean;s
     const body=p==='/api/v1/auth/refresh'?{accessToken:'park-fixture'}:p==='/api/v1/users/me'?{userId:101,nickname:'새 맵 검증',characterGender:'MALE'}:p==='/api/v1/auth/websocket-ticket'?{ticket:'park-fixture',expiresIn:30}:p==='/api/v1/channels'?{items:[{channelId:'channel-1',name:'새 공원 검증',capacity:16,currentUsers:1,joinable:true}]}:p==='/api/v1/tables'?{tables:bindings.map(b=>({tableId:b.tableId,capacity:4,minimumPlayers:2,occupiedSeats:0,availableSeats:4,readyCount:0,allReady:false,status:'WAITING',joinable:true,gameCode:null,targetScore:null,betAmountPerPlayer:null,gameId:null}))}:p==='/api/v1/wallets/me'?{balance:100,reservedBalance:0,availableBalance:100}:p==='/api/v1/notes'?{notes:[]}:null
     await route.fulfill(p==='/api/v1/notes'?{json:{notes}}:body?{json:body}:{status:404,json:{message:'Not part of this fixture'}})
   })
+  let handleRequest: ((request: typeof requests[number]) => boolean) | undefined
   await page.routeWebSocket('**/ws/tables?**',ws=>{
     socket=ws
     let dx=0,dz=0
@@ -103,6 +104,7 @@ export async function parkFixture(page:Page,options:{holdConfirmation?:boolean;s
     ws.onClose((code,reason)=>{clearInterval(tick);ws.close({code,reason})})
     ws.onMessage(raw=>{
       const r=JSON.parse(String(raw));requests.push(r)
+      if (handleRequest?.(r)) return
       if (options.balloonSupported && (r.type === 'WORLD_BALLOON_START' || r.type === 'WORLD_BALLOON_POSE')) {
         const { x, y, z, cabin } = r.payload
         balloonPosition = { x, y, z }
@@ -156,7 +158,7 @@ export async function parkFixture(page:Page,options:{holdConfirmation?:boolean;s
     emit('CONNECTED',{userId:'101',...(options.omitMap?{}:{map:options.serverMap??mapIdentity}),mapVerificationRequired:true,
       ...(options.vrMobilityAvailable ? { mobilityAvailable: true, vrMobilityAvailable: true } : {})})
   })
-  return {emit,requests,restRequests,
+  return {emit,requests,restRequests, interceptRequest: (handler: typeof handleRequest) => { handleRequest = handler },
     setPeers:(positions: readonly (Pick<typeof position,'x'|'y'|'z'> & Partial<Pick<typeof position,'moving'>>)[])=>{
       peers=positions.map((p,i)=>({userId:String(102+i),position:{...position,moving:false,running:false,swimming:false,...p}}))
       world()

@@ -31,6 +31,7 @@ import { NightLighting } from './NightLighting'
 import { BoardFocusLighting } from './boardFocusLighting'
 import { CameraRig } from './CameraRig'
 import { ParkXRBridge } from '../features/parkXR/ParkXRBridge'
+import { parkXRView } from './xrView'
 
 import { Avatars } from './Avatars'
 import {JokeJudgeActor} from '../features/ai/JokeJudgeActor'
@@ -109,7 +110,8 @@ function SceneReady({ mounted, groundMounted, onReady }: {
       startup.disposed = true
     }
   }, [startup])
-  useFrame(({ gl, scene, camera }) => {
+  useFrame(({ gl, scene, camera }, _delta, frame) => {
+    if (parkXRView.renderKitchen?.(frame)) return
     if (startup.phase !== 'presented') {
       const session = useSession.getState()
       const ownsCamera = !!session.roomId && !!avatars.get(session.sessionId)?.connected

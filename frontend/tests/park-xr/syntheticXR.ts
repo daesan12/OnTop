@@ -1,7 +1,7 @@
 /** Browser-only XR frame/session simulation. No production hooks or auth bypass. */
 import { _roots, advance } from '@react-three/fiber'
 import { Group, Matrix4, Quaternion, Vector3 } from 'three'
-import type { Mesh, MeshBasicMaterial, PlaneGeometry, ShaderMaterial } from 'three'
+import type { Mesh, MeshBasicMaterial, Object3D, PlaneGeometry, ShaderMaterial } from 'three'
 import type { JumpmapXRAction, JumpmapXRView } from '../../src/features/jumpmap/xrModel'
 import { parkXRView } from '../../src/world/xrView'
 import { useParkXR } from '../../src/features/parkXR/state'
@@ -9,11 +9,13 @@ import { XRNames } from '../../src/features/parkXR/xrNames'
 import { avatars, sampleAvatar, useSession } from '../../src/network/worldClient'
 import { inputState } from '../../src/world/inputOwnership'
 import { useXRComfort } from '../../src/features/parkXR/comfort'
+import { stonePoint } from '../../src/game/omokPresentation'
 
 let left: Gamepad, right: Gamepad, session: XRSession
 let timer: ReturnType<typeof setInterval>
 let targetAction: JumpmapXRAction | 'skewer-entry' | 'skewer-entry-edge' | null = null
 let canvasTarget: { name: string; u: number; v: number } | null = null
+let boardTarget: { x: number; y: number } | null = null
 let endDeferred = false, finishEnd: (() => void) | undefined
 const viewerRotation = new Quaternion()
 let turnSamples: number[] = []
@@ -116,7 +118,8 @@ export function install(options: { haptics?: boolean; frameStep?: number } = {})
   // Exercise our bridge and the real park intent/socket path while keeping desktop WebGL rendering.
   state.gl.xr.setSession = async value => { current = value }
   state.gl.xr.getSession = () => current
-  state.gl.xr.getReferenceSpace = () => ({}) as XRReferenceSpace
+  const space = new EventTarget() as XRReferenceSpace
+  state.gl.xr.getReferenceSpace = () => space
   navigator.xr!.requestSession = async () => {
     left = pad('left'); right = pad('right')
     session = Object.assign(new EventTarget(), { visibilityState: 'visible', inputSources: [
@@ -129,8 +132,8 @@ export function install(options: { haptics?: boolean; frameStep?: number } = {})
       state.setFrameloop('always')
     } }) as unknown as XRSession
     state.setFrameloop('never')
-    tracked = true; targetAction = null; canvasTarget = null; viewerRotation.identity(); turnSamples = []; endDeferred = false; finishEnd = undefined
-    const frame = { getViewerPose: () => tracked ? ({ transform: {
+    tracked = true; targetAction = null; canvasTarget = boardTarget = null; viewerRotation.identity(); turnSamples = []; endDeferred = false; finishEnd = undefined
+    const frame = { session, getViewerPose: () => tracked ? ({ transform: {
       position: { x: .3, y: viewerHeight, z: -.2 }, orientation: viewerRotation,
     } }) : null, getPose: () => {
       const { scene } = root(), rig = scene.getObjectByName('park-xr-rig')!
@@ -139,7 +142,11 @@ export function install(options: { haptics?: boolean; frameStep?: number } = {})
       const index = view?.buttons.findIndex(b => b.id === targetAction) ?? -1
       const position = { x: .55, y: 1.35, z: -.45 }
       let point: Vector3
-      if (canvasTarget) {
+      const board = boardTarget && omokBoard()
+      if (board && boardTarget) {
+        const [x, , z] = stonePoint(boardTarget.x, boardTarget.y)
+        point = board.localToWorld(new Vector3(x, .0005, z))
+      } else if (canvasTarget) {
         const mesh = scene.getObjectByName(canvasTarget.name) as import('three').Mesh<import('three').PlaneGeometry>
         const { width, height } = mesh.geometry.parameters
         point = mesh.localToWorld(new Vector3((canvasTarget.u - .5) * width, (.5 - canvasTarget.v) * height, 0))
@@ -180,8 +187,45 @@ export function buttons({ run = false, guide = false, chat = false, trigger = fa
   Object.assign(right.buttons[0]!, { pressed: trigger, value: Number(trigger) })
 }
 export function aim(action: JumpmapXRAction | 'skewer-entry' | 'skewer-entry-edge' | null) { targetAction = action }
-export function aimCanvas(name: string, u: number, v: number) { canvasTarget = { name, u, v } }
+export function aimCanvas(name: string, u: number, v: number) { boardTarget = null; canvasTarget = { name, u, v } }
+function omokBoard() {
+  const { bindings, roomId, tableId } = useSession.getState()
+  const anchor = bindings.find(b => b.channelId === roomId && b.tableId === tableId)?.anchorId
+  return root().scene.getObjectByName('omok-board-' + anchor)
+}
+export function aimOmok(x: number, y: number) { canvasTarget = null; boardTarget = { x, y } }
+export function faceOmok() {
+  const board = omokBoard()
+  if (!board?.getObjectByName('gomoku-playing-surface')) return false
+  const point = board.getWorldPosition(new Vector3())
+  lookAt(point.x, point.y + .1, point.z)
+  return true
+}
 export function visibleXRObject(name: string) { return !!root().scene.getObjectByName(name)?.visible }
+export function selectKitchen(action: string) {
+  const { gl } = root()
+  const original = gl.render
+  let target: Object3D | undefined
+  gl.render = (scene, camera) => {
+    scene.traverseVisible(node => { if (node.userData.pick?.action === action) target = node })
+    original.call(gl, scene, camera)
+  }
+  try { parkXRView.renderKitchen?.() }
+  finally { gl.render = original }
+  if (!target) return false
+  const controller = gl.xr.getController(1)
+  const point = target.getWorldPosition(new Vector3())
+  controller.visible = true
+  controller.position.set(.25, 1.3, -.15)
+  controller.parent!.worldToLocal(point)
+  controller.quaternion.setFromUnitVectors(new Vector3(0, 0, -1), point.sub(controller.position).normalize())
+  controller.updateMatrix()
+  controller.updateWorldMatrix(true, true)
+  const data = session.inputSources[1]!
+  controller.dispatchEvent({ type: 'selectstart', data })
+  controller.dispatchEvent({ type: 'selectend', data })
+  return true
+}
 export function xrCanvasInView(name: string) {
   const { scene, camera } = root()
   const mesh = scene.getObjectByName(name) as import('three').Mesh<import('three').PlaneGeometry> | undefined
