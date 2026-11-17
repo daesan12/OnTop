@@ -165,7 +165,7 @@ export class ParkXRController {
         release?.(); await granted.end(); return
       }
       this.releaseVR = release
-      if (kind === 'omok') this.omok ??= new OmokXR(this.headAnchor)
+      if (kind === 'omok') this.omok ??= new OmokXR(this.headAnchor, this.scene)
       else {
         this.telescope ??= new TelescopeXR(this.scene, this.headAnchor)
         this.omokLobby ??= new OmokLobbyXR(this.headAnchor)
@@ -431,7 +431,7 @@ export class ParkXRController {
     if (immersivePanel) this.panel.setVisible(false)
     this.chat?.update(!playingOmok)
     if (playingOmok) {
-      this.omok ??= new OmokXR(this.headAnchor)
+      this.omok ??= new OmokXR(this.headAnchor, this.scene)
       this.omok.update()
     } else this.omok?.hide()
     const parkEntriesAllowed = !this.panel.blocking && !immersivePanel && !usingMobility && !avatar.vehicle

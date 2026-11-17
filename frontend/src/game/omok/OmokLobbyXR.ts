@@ -12,7 +12,8 @@ import { tableEntry } from '../../features/tableLobby/tableEntry'
 import { canReachTable } from '../../features/tableLobby/tableReach'
 import { manualStartAllowed, preparationContext, usePreparationPort } from '../../features/tableLobby/tabletModel'
 import { useTabletStartStatus } from '../../features/tableLobby/TabletLobbyClient'
-import { paintGuideButton, paintGuidePaper, TOUCH_GUIDE_COLORS } from '../../features/vrGuide/touchControllerGuide'
+import { drawWebPanel, loadPanelArt, loadPanelFont, panelBox, panelButton, panelPhoto } from '../../features/parkXR/webPanelArt'
+import coinSrc from '../../assets/entry/yeopjeon-icon.webp'
 import { ownOmokGame } from './OmokXR'
 
 interface Button {
@@ -22,16 +23,22 @@ interface Button {
   height: number
   label: string
   run: () => void
+  secondary: boolean
 }
-type Label = { text: string; y: number; size?: number }
+type Label = { text: string; y: number; size?: number; x: number; max: number }
+type RosterCard = { name: string; ready: boolean; occupied: boolean }
 const width = 1536, height = 940
 const money = (value: number | null | undefined) => value == null ? '—' : value.toLocaleString('ko-KR') + '냥'
 
 export class OmokLobbyXR {
   private readonly panel = new XRCanvas(width, height, 1.43)
   private readonly paper = new Image()
+  private readonly gameArt = loadPanelArt('/art/tablet/games.webp', () => this.draw())
+  private readonly coinArt = loadPanelArt(coinSrc, () => this.draw())
   private buttons: Button[] = []
   private labels: Label[] = []
+  private roster: RosterCard[] = []
+  private display: 'entry' | 'edit' | 'ready' = 'entry'
   private hover = -1
   private signature = ''
   private target: { anchorId: string; tableId: string } | null = null
@@ -54,6 +61,7 @@ export class OmokLobbyXR {
     parent.add(this.panel.mesh)
     this.paper.onload = () => this.draw()
     this.paper.src = '/art/tablet/hanji.webp'
+    loadPanelFont(() => { if (this.visible) this.draw() })
   }
 
   get seated() {
@@ -82,7 +90,7 @@ export class OmokLobbyXR {
     this.editing = false; this.bet = ''; this.confirmed = false; this.terms = ''; this.error = ''
     this.balanceKey = ''; this.balanceRequest?.abort()
   }
-  dispose() { this.reset(); this.paper.onload = null; this.panel.dispose() }
+  dispose() { this.reset(); this.paper.onload = this.gameArt.onload = this.coinArt.onload = null; this.panel.dispose() }
 
   private async run(job: () => Promise<boolean>) {
     if (this.working || useSession.getState().pending) return
@@ -131,10 +139,10 @@ export class OmokLobbyXR {
     }
     this.wasSeated = this.seated
     if (this.playing) { this.hide(); return }
-    this.labels = []; this.buttons = []
-    const text = (text: string, y: number, size?: number) => this.labels.push({ text, y, size })
-    const button = (label: string, x: number, y: number, width: number, run: () => void, height = 90) =>
-      this.buttons.push({ label, x, y, width, height, run })
+    this.labels = []; this.buttons = []; this.roster = []; this.display = 'entry'
+    const text = (text: string, y: number, size?: number, x = width / 2, max = 1360) => this.labels.push({ text, y, size, x, max })
+    const button = (label: string, x: number, y: number, width: number, run: () => void, height = 90, secondary = false) =>
+      this.buttons.push({ label, x, y, width, height, run, secondary })
     const full = (label: string, y: number, run: () => void) => button(label, 88, y, 1360, run)
     if (!this.seated) {
       this.target = allowEntry ? this.nearbyTable(position) : null
@@ -149,7 +157,8 @@ export class OmokLobbyXR {
     }
     const table = s.tableStates[s.tableId], mine = table?.seats.find(seat => seat.userId === s.sessionId)
     const busy = this.working || s.pending || g.pending || g.uncertain
-    text('온탑 오목', 98, 66)
+    text('온탑', 82, 48)
+    text('오목', 143, 70)
     const gathering = getGathering()
     if (gathering?.finished) {
       text(gathering.headline, 320, 62)
@@ -184,8 +193,8 @@ export class OmokLobbyXR {
       const hasOtherGame = !!table.gameCode && table.gameCode !== 'OMOK'
       const balanceText = this.balance.status === 'ready' ? '사용 가능 ' + money(this.balance.available)
         : this.balance.status === 'error' ? '잔액을 확인하지 못했어요' : '사용 가능 잔액 확인 중…'
-      text(balanceText, 188)
-      if (this.balance.status === 'error' && canAct) button('잔액 다시 확인', 1040, 138, 408, () => void this.refreshBalance(), 74)
+      text(balanceText, 207, 37)
+      if (this.balance.status === 'error' && canAct) button('잔액 다시 확인', 1040, 153, 408, () => void this.refreshBalance(), 74, true)
       if (uncertain) {
         text('게임 시작 상태를 확인해 주세요', 415)
         if (!busy && port?.recoverStart) full('시작 상태 확인', 710, () => void this.run(() => port.recoverStart!(preparationContext(table))))
@@ -194,17 +203,20 @@ export class OmokLobbyXR {
       } else if (!port) {
         text('오목 준비 화면을 연결하고 있어요', 415)
       } else if (host && (!configured || this.editing)) {
-        text('1인 참가 판돈  ' + money(amount), 302, 62)
+        this.display = 'edit'
+        text('다섯 돌을 이어 만드는 한 수', 589, 36, 395, 560)
+        text('참가 인원 · 2인', 658, 41, 395, 560)
+        text('1인 참가 판돈  ' + money(amount), 309, 51, 1140, 545)
         for (let key = 1; key <= 12; key++) {
           const label = key <= 9 ? String(key) : key === 10 ? '지우기' : key === 11 ? '0' : '모두 지우기'
-          if (canAct) button(label, 88 + ((key - 1) % 3) * 456, 348 + Math.floor((key - 1) / 3) * 90, 448, () => {
+          if (canAct) button(label, 780 + ((key - 1) % 3) * 224, 348 + Math.floor((key - 1) / 3) * 90, 212, () => {
             if (key === 10) this.bet = this.bet.slice(0, -1)
             else if (key === 12) this.bet = ''
             else if (this.bet.length < 15) this.bet = (this.bet === '0' ? '' : this.bet) + label
-          }, 82)
+          }, 82, true)
         }
         if (canAct && occupied.length <= 2 && amount != null && canAffordBet(this.balance, amount))
-          button('판돈 확정', 770, 720, 678, () => void this.run(async () => {
+          button('선택하고 준비하기', 770, 720, 678, () => void this.run(async () => {
             const epoch = this.epoch
             const ok = await port.configure(preparationContext(table), { gameCode: 'OMOK', playerCount: 2, betAmountPerPlayer: amount })
             if (ok && this.epoch === epoch) { this.editing = false; this.confirmed = false }
@@ -217,14 +229,15 @@ export class OmokLobbyXR {
       } else if (!configured) {
         text('방장이 1인 참가 판돈을 정하고 있어요', 415)
       } else {
-        text('1인 참가 판돈  ' + money(savedBet), 302, 62)
-        occupied.slice(0, 2).forEach((seat, i) => {
-          const name = seat.userId === s.sessionId ? '나' : s.profiles[seat.userId!]?.nickname ?? '상대'
-          text(name + (seat.ready ? ' · 준비 완료' : ' · 준비 대기'), 405 + i * 73, 52)
+        this.display = 'ready'
+        text('1인 참가 판돈', 439, 36, 768, 465)
+        text(money(savedBet), 501, 63, 768, 340)
+        this.roster = table.seats.slice(0, 2).map(seat => {
+          const name = seat.userId === s.sessionId ? '나' : seat.userId ? s.profiles[seat.userId]?.nickname ?? '상대' : '빈자리'
+          return { name: name + (seat.userId && seat.userId === table.selectorUserId ? ' · 방장' : ''), ready: seat.ready, occupied: !!seat.userId }
         })
-        if (occupied.length < 2) text('상대를 기다리고 있어요', 478, 52)
         if (canAct && !mine.ready && canAffordBet(this.balance, savedBet)) {
-          if (!this.confirmed) full('참가 금액 확인', 548, () => { this.confirmed = true })
+          if (!this.confirmed) button('□ 참가 금액을 확인했어요', 88, 548, 1360, () => { this.confirmed = true }, 90, true)
           else full('준비 완료', 548, () => {
             const current = useSession.getState().tableStates[table.tableId]
             if (current?.gameCode === 'OMOK' && current.betAmountPerPlayer === savedBet && current.selectorUserId === table.selectorUserId
@@ -241,7 +254,7 @@ export class OmokLobbyXR {
           button('게임 시작', 770, 548, 678, () => void this.run(() => port.start(preparationContext(table))))
         else if (!host && table.allReady) text('방장이 게임을 시작해요', 682, 40)
       }
-      if (canAct) button('일어나기', 88, 720, 310, () => void this.run(parkRuntime.leaveTable))
+      if (canAct) button('일어나기', 88, 720, 310, () => void this.run(parkRuntime.leaveTable), 90, true)
       text(this.working ? '서버 응답을 기다리고 있어요…' : this.error || startFailureNotice(g.start), 882, 38)
     }
     this.present()
@@ -279,20 +292,40 @@ export class OmokLobbyXR {
     this.panel.mesh.visible = true
     this.panel.mesh.scale.setScalar(this.seated ? 1 : .65)
     this.panel.mesh.position.y = this.seated ? -.12 : -.37
-    const signature = JSON.stringify([this.target?.tableId, this.labels, this.buttons.map(b => b.label)])
+    const signature = JSON.stringify([this.target?.tableId, this.display, this.roster, this.labels, this.buttons.map(b => b.label)])
     if (signature === this.signature) return
     this.signature = signature
     this.hover = -1; this.draw()
   }
   private draw() {
     const ctx = this.panel.canvas.getContext('2d')!
-    paintGuidePaper(ctx, height, this.paper)
-    for (const { text, y, size = 49 } of this.labels) {
-      ctx.textAlign = 'center'; ctx.fillStyle = TOUCH_GUIDE_COLORS.ink
-      ctx.font = `700 ${size}px "Malgun Gothic", sans-serif`
-      ctx.fillText(text, width / 2, y, 1360)
+    drawWebPanel(ctx, this.paper)
+    if (this.display === 'edit') {
+      panelBox(ctx, 88, 244, 610, 454, '#fff6db', '#d2ab5c')
+      panelPhoto(ctx, this.gameArt, 109, 267, 568, 267, .5, true)
+      panelBox(ctx, 780, 244, 668, 93, '#fff8e8', '#b7a17b', 11)
+    } else if (this.display === 'ready') {
+      panelBox(ctx, 493, 244, 550, 279, '#fff3cb', '#cfaa58')
+      panelPhoto(ctx, this.gameArt, 519, 261, 498, 132, .5, true)
+      this.roster.forEach(({ name, ready, occupied }, i) => {
+        const x = i === 0 ? 88 : 1062
+        panelBox(ctx, x, 244, 386, 279, '#fff8e8', '#c4af80')
+        panelBox(ctx, x + 18, 278, 350, 81, '#263e2f', '#263e2f', 12)
+        ctx.textAlign = 'center'; ctx.fillStyle = '#fff8e7'; ctx.font = '700 39px "Malgun Gothic", sans-serif'
+        ctx.fillText(name, x + 193, 333, 328)
+        panelBox(ctx, x + 40, 400, 306, 69, ready ? '#dbe7bc' : '#ede8d4', '#b9c49b', 28)
+        ctx.fillStyle = '#205536'; ctx.font = '700 36px "Malgun Gothic", sans-serif'
+        ctx.fillText(ready ? '✓ 준비 완료' : occupied ? '준비 대기' : '참가 대기', x + 193, 447, 275)
+      })
     }
-    this.buttons.forEach((b, index) => paintGuideButton(ctx, b.x, b.y, b.width, b.height, b.label, this.hover === index))
+    if (this.display !== 'entry' && this.coinArt.complete && this.coinArt.naturalWidth)
+      ctx.drawImage(this.coinArt, this.display === 'edit' ? 803 : 557, this.display === 'edit' ? 267 : 451, 50, 50)
+    for (const { text, y, size = 49, x, max } of this.labels) {
+      ctx.textAlign = 'center'; ctx.fillStyle = '#123b2a'
+      ctx.font = `700 ${size}px ${size >= 48 ? 'BusanDandiMyeongjo, serif' : '"Malgun Gothic", sans-serif'}`
+      ctx.fillText(text, x, y, max)
+    }
+    this.buttons.forEach((b, index) => panelButton(ctx, b.x, b.y, b.width, b.height, b.label, this.hover === index, b.secondary ? 'secondary' : 'primary'))
     this.panel.texture.needsUpdate = true
   }
 }

@@ -1,11 +1,11 @@
-import type { Object3D, Vector3 } from 'three'
+import { Raycaster, Vector3, type Object3D } from 'three'
 import { useSession } from '../../network/worldClient'
 import { parkRuntime } from '../../park/runtime/runtime'
 import { XRCanvas } from '../../features/parkXR/XRCanvas'
-import { paintGuidePaper, TOUCH_GUIDE_COLORS } from '../../features/vrGuide/touchControllerGuide'
+import { drawWebPanel, loadPanelArt, loadPanelFont } from '../../features/parkXR/webPanelArt'
 import { canPlace, useGame } from '../store'
+import { omokCell, stonePoint } from '../omokPresentation'
 
-const firstX = 80, firstY = 125, gap = 57
 type Cell = { x: number; y: number }
 
 export function ownOmokGame() {
@@ -13,68 +13,78 @@ export function ownOmokGame() {
   return game?.omok && game.role === 'PLAYER' && game.gameId === permittedGameId ? game : null
 }
 
-/** The player's board uses the live table store and the same move command as the desktop board. */
+/** Aim at the same pavilion board and cell grid the desktop player sees. */
 export class OmokXR {
-  private readonly panel = new XRCanvas(960, 1024, .89)
-  private hover: Cell | null = null
+  private readonly panel = new XRCanvas(960, 240, .88)
+  private readonly ray = new Raycaster()
+  private readonly local = new Vector3()
+  private readonly paper = loadPanelArt('/art/tablet/hanji.webp', () => { this.signature = '' })
+  private board?: Object3D
+  private pickSurface?: Object3D
+  private preview?: Object3D
   private signature = ''
 
-  constructor(parent: Object3D) {
+  constructor(parent: Object3D, private readonly scene: Object3D) {
     this.panel.mesh.name = 'park-xr-omok'
-    this.panel.mesh.position.set(0, 0, -1.4)
+    this.panel.mesh.position.set(0, .39, -1.4)
     parent.add(this.panel.mesh)
+    loadPanelFont(() => { this.signature = '' })
   }
 
-  hide() { this.panel.mesh.visible = false; this.hover = null }
-  dispose() { this.panel.dispose() }
+  hide() {
+    this.panel.mesh.visible = false
+    if (this.preview) this.preview.visible = false
+    this.board = this.pickSurface = this.preview = undefined
+  }
+  dispose() { this.hide(); this.paper.onload = null; this.panel.dispose() }
 
   update() {
-    const game = ownOmokGame(), own = useSession.getState().sessionId
+    const game = ownOmokGame(), session = useSession.getState()
     const state = useGame.getState(), model = game?.omok
-    this.panel.mesh.visible = !!model
-    if (!model) return
+    if (!game || !model) { this.hide(); return }
+    const anchor = session.bindings.find(b => b.channelId === session.roomId && b.tableId === session.tableId)?.anchorId
+    const name = 'omok-board-' + anchor
+    if (this.board?.name !== name || !this.board?.parent) {
+      if (this.preview) this.preview.visible = false
+      this.board = anchor ? this.scene.getObjectByName(name) : undefined
+      this.pickSurface = this.board?.getObjectByName('omok-pick-surface')
+      this.preview = this.board?.getObjectByName('omok-hover')
+    }
+    this.panel.mesh.visible = true
+    const own = session.sessionId
     const deadline = model.turnDeadline ? Math.max(0, Math.ceil((Date.parse(model.turnDeadline) - Date.now()) / 1000)) : 0
-    const hovered = this.hover && canPlace(own, this.hover.x, this.hover.y) ? this.hover : null
     const turn = model.status === 'FINISHED' ? model.winnerUserId ? model.winnerUserId === own ? '승리' : '패배' : '무승부'
       : state.pending ? '착수 확인 중' : state.uncertain || state.recovery !== 'RESTORED' ? '경기 상태 확인 중'
         : model.undo || model.draw ? '요청 확인은 B로 일반 화면에서' : `${model.turnUserId === own ? '내 차례' : '상대 차례'} · ${deadline}초`
-    const signature = JSON.stringify([game.gameId, game.version, turn, hovered, state.error])
+    const help = state.error || (this.board ? '탁자 위 교차점 · 검지 트리거' : '탁자 위 오목판을 불러오고 있어요')
+    const signature = JSON.stringify([turn, model.blackUserId === own, help])
     if (this.signature === signature) return
     this.signature = signature
     const ctx = this.panel.canvas.getContext('2d')!
-    ctx.save(); ctx.scale(960 / 1536, 1); paintGuidePaper(ctx, 1024); ctx.restore()
-    ctx.fillStyle = TOUCH_GUIDE_COLORS.ink; ctx.textAlign = 'center'; ctx.font = 'bold 42px sans-serif'
-    ctx.fillText(`오목 · ${model.blackUserId === own ? '흑돌' : '백돌'} · ${turn}`, 480, 78, 860)
-    ctx.fillStyle = '#e5ba80'; ctx.fillRect(48, 94, 864, 860)
-    ctx.strokeStyle = '#51351b'; ctx.lineWidth = 2; ctx.beginPath()
-    for (let index = 0; index < 15; index++) {
-      const x = firstX + index * gap, y = firstY + index * gap
-      ctx.moveTo(x, firstY); ctx.lineTo(x, firstY + 14 * gap)
-      ctx.moveTo(firstX, y); ctx.lineTo(firstX + 14 * gap, y)
-    }
-    ctx.stroke()
-    const dot = (col: number, row: number, fill: string, radius: number) => {
-      ctx.beginPath(); ctx.arc(firstX + col * gap, firstY + row * gap, radius, 0, Math.PI * 2)
-      ctx.fillStyle = fill; ctx.fill(); ctx.stroke()
-    }
-    for (const x of [3, 7, 11]) for (const y of [3, 7, 11]) dot(x, y, '#51351b', 4)
-    model.board.forEach((row, y) => row.forEach((stone, x) => { if (stone) dot(x, y, stone === 1 ? '#222522' : '#fff8e7', 23) }))
-    if (model.lastMove) dot(model.lastMove.x, model.lastMove.y, '#c46932', 6)
-    if (model.blackUserId === own) for (const point of model.forbiddenMoves ?? []) dot(point.x, point.y, '#ad4d35', 5)
-    if (hovered) dot(hovered.x, hovered.y, '#4c885b', 15)
-    ctx.fillStyle = TOUCH_GUIDE_COLORS.ink; ctx.font = '30px sans-serif'
-    ctx.fillText(state.error || '교차점을 검지 트리거로 선택 · B 일반 화면', 480, 1000, 860)
+    drawWebPanel(ctx, this.paper)
+    ctx.fillStyle = '#123b2a'; ctx.textAlign = 'center'; ctx.font = '700 57px BusanDandiMyeongjo, serif'
+    ctx.fillText(turn, 480, 105, 860)
+    ctx.font = '500 37px "Malgun Gothic", sans-serif'
+    ctx.fillText(`${model.blackUserId === own ? '흑돌' : '백돌'} · ${help}`, 480, 175, 860)
     this.panel.texture.needsUpdate = true
   }
 
   hit(origin: Vector3, direction: Vector3): Cell | null {
-    const hit = this.panel.point(origin, direction)
+    if (!this.board || !this.pickSurface) return null
+    this.pickSurface.updateWorldMatrix(true, false)
+    this.ray.set(origin, direction)
+    const hit = this.ray.intersectObject(this.pickSurface, false)[0]
     if (!hit) return null
-    const x = Math.round((hit.x - firstX) / gap), y = Math.round((hit.y - firstY) / gap)
-    return x >= 0 && x < 15 && y >= 0 && y < 15 ? { x, y } : null
+    const p = this.board.worldToLocal(this.local.copy(hit.point))
+    return omokCell(p.x, p.z)
   }
 
-  setHover(cell: Cell | null) { this.hover = cell }
+  setHover(cell: Cell | null) {
+    if (!this.preview) return
+    const valid = cell && canPlace(useSession.getState().sessionId, cell.x, cell.y)
+    this.preview.visible = !!valid
+    if (cell && valid) this.preview.position.set(...stonePoint(cell.x, cell.y))
+  }
 
   select(cell: Cell) {
     const session = useSession.getState()

@@ -9,11 +9,13 @@ import { XRNames } from '../../src/features/parkXR/xrNames'
 import { avatars, sampleAvatar, useSession } from '../../src/network/worldClient'
 import { inputState } from '../../src/world/inputOwnership'
 import { useXRComfort } from '../../src/features/parkXR/comfort'
+import { stonePoint } from '../../src/game/omokPresentation'
 
 let left: Gamepad, right: Gamepad, session: XRSession
 let timer: ReturnType<typeof setInterval>
 let targetAction: JumpmapXRAction | 'skewer-entry' | 'skewer-entry-edge' | null = null
 let canvasTarget: { name: string; u: number; v: number } | null = null
+let boardTarget: { x: number; y: number } | null = null
 let endDeferred = false, finishEnd: (() => void) | undefined
 const viewerRotation = new Quaternion()
 let turnSamples: number[] = []
@@ -130,7 +132,7 @@ export function install(options: { haptics?: boolean; frameStep?: number } = {})
       state.setFrameloop('always')
     } }) as unknown as XRSession
     state.setFrameloop('never')
-    tracked = true; targetAction = null; canvasTarget = null; viewerRotation.identity(); turnSamples = []; endDeferred = false; finishEnd = undefined
+    tracked = true; targetAction = null; canvasTarget = boardTarget = null; viewerRotation.identity(); turnSamples = []; endDeferred = false; finishEnd = undefined
     const frame = { session, getViewerPose: () => tracked ? ({ transform: {
       position: { x: .3, y: viewerHeight, z: -.2 }, orientation: viewerRotation,
     } }) : null, getPose: () => {
@@ -140,7 +142,11 @@ export function install(options: { haptics?: boolean; frameStep?: number } = {})
       const index = view?.buttons.findIndex(b => b.id === targetAction) ?? -1
       const position = { x: .55, y: 1.35, z: -.45 }
       let point: Vector3
-      if (canvasTarget) {
+      const board = boardTarget && omokBoard()
+      if (board && boardTarget) {
+        const [x, , z] = stonePoint(boardTarget.x, boardTarget.y)
+        point = board.localToWorld(new Vector3(x, .0005, z))
+      } else if (canvasTarget) {
         const mesh = scene.getObjectByName(canvasTarget.name) as import('three').Mesh<import('three').PlaneGeometry>
         const { width, height } = mesh.geometry.parameters
         point = mesh.localToWorld(new Vector3((canvasTarget.u - .5) * width, (.5 - canvasTarget.v) * height, 0))
@@ -181,7 +187,20 @@ export function buttons({ run = false, guide = false, chat = false, trigger = fa
   Object.assign(right.buttons[0]!, { pressed: trigger, value: Number(trigger) })
 }
 export function aim(action: JumpmapXRAction | 'skewer-entry' | 'skewer-entry-edge' | null) { targetAction = action }
-export function aimCanvas(name: string, u: number, v: number) { canvasTarget = { name, u, v } }
+export function aimCanvas(name: string, u: number, v: number) { boardTarget = null; canvasTarget = { name, u, v } }
+function omokBoard() {
+  const { bindings, roomId, tableId } = useSession.getState()
+  const anchor = bindings.find(b => b.channelId === roomId && b.tableId === tableId)?.anchorId
+  return root().scene.getObjectByName('omok-board-' + anchor)
+}
+export function aimOmok(x: number, y: number) { canvasTarget = null; boardTarget = { x, y } }
+export function faceOmok() {
+  const board = omokBoard()
+  if (!board?.getObjectByName('gomoku-playing-surface')) return false
+  const point = board.getWorldPosition(new Vector3())
+  lookAt(point.x, point.y + .1, point.z)
+  return true
+}
 export function visibleXRObject(name: string) { return !!root().scene.getObjectByName(name)?.visible }
 export function selectKitchen(action: string) {
   const { gl } = root()
