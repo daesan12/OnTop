@@ -2,8 +2,10 @@ import { useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Vector3, type Group, type Light, type Mesh, type Object3D, type PointLight } from 'three'
 import { effectsOutput } from '../src/audio/bgm'
-import { playEncounterSound } from './horrorAudio'
+import { playEncounterStaging } from './horrorAudio'
 import { diamond, interiorVisit, type Encounter } from './interiorEvents'
+import { encounterDistance, encounterScale, placeInView, stageFrame } from './encounterStaging'
+import { horrorWalkable } from './horrorPlan'
 import { encounterModels, Shape } from './InteriorEncounterModels'
 import { useEncounterWarmup } from './encounterWarmup'
 
@@ -18,7 +20,7 @@ const ease = (x: number) => { const n = clamp(x); return n * n * (3 - 2*n) }
 
 function cue(id: number, duration: number) {
   const output = effectsOutput()
-  if (output) playEncounterSound(output.context, output.bus, id, duration, beatsByScene[id-1] ?? [])
+  if (output) playEncounterStaging(output.context, output.bus, id, duration, beatsByScene[id-1] ?? [])
 }
 
 function animate(id: number, scene: Object3D, t: number, viewer: Vector3) {
@@ -135,13 +137,16 @@ export function InteriorEncounters() {
   const stage = useRef<Group>(null)
   const viewer = useRef(new Vector3())
   const accent = useRef<PointLight>(null)
+  // Where the creature first stands, which way it rushes (towards the viewer) and how far away it started.
+  const placed = useRef({ x: 0, y: 0, z: 0, dx: 0, dz: 0, start: 3, seed: 0 })
+  const look = useRef(new Vector3())
   useEncounterWarmup(stage)
   useFrame(({camera}, dt) => {
     const active = interiorVisit.active
     if (active !== previous.current) {
       if (previous.current) {
         const old = objects.current[previous.current.id]
-        if (old) old.visible = false
+        if (old) { old.visible = false; old.scale.setScalar(1); old.rotation.x = 0 }
       }
       if (lighting.current) {
         lighting.current.lights.forEach((light, i) => { light.intensity = lighting.current!.intensity[i]! })
@@ -151,26 +156,25 @@ export function InteriorEncounters() {
       if (active) {
         const group = objects.current[active.id]
         if (group) {
-          const [x,y,z] = active.at
-          group.position.set(x,y-.78,z)
-          group.rotation.y = Math.atan2(camera.position.x-x,camera.position.z-z)
-          group.visible = true
-          if (accent.current) {
-            const facing = group.rotation.y
-            accent.current.position.set(x + .65*Math.sin(facing) + .7*Math.cos(facing), y+.77,
-              z + .65*Math.cos(facing) - .7*Math.sin(facing))
-            accent.current.color.set(active.id === 11 ? '#a0bdad' : '#e5bc93')
-            accent.current.intensity = active.id === 9 ? 2.6 : active.id === 12 ? 8 : 6
-          }
+          // In the viewer's line of sight (first person underground), not wherever the anchor happened to be.
+          camera.getWorldDirection(look.current)
+          const [x, z] = placeInView([camera.position.x, camera.position.z], [look.current.x, look.current.z],
+            encounterDistance(active.id), (px, pz) => horrorWalkable(px, pz, .45), [active.at[0], active.at[2]])
+          const y = active.at[1] - .78, start = Math.hypot(camera.position.x - x, camera.position.z - z) || 1
+          placed.current = { x, y, z, dx: (camera.position.x - x) / start, dz: (camera.position.z - z) / start, start, seed: Math.random() * 10 }
+          group.position.set(x, y, z)
+          group.rotation.order = 'YXZ' // lean towards the viewer after facing them
+          group.rotation.set(0, Math.atan2(camera.position.x - x, camera.position.z - z), 0)
+          group.scale.setScalar(encounterScale(active.id))
+          group.visible = false
+          const lights: Light[] = []
+          stage.current?.parent?.traverse(object => {
+            const light = object as Light
+            if (light.isLight && light !== accent.current && light.position.distanceTo(group.position) < 16) lights.push(light)
+          })
+          lighting.current = { lights, intensity: lights.map(light => light.intensity) }
+          if (accent.current) accent.current.color.set(active.id === 11 ? '#a0bdad' : '#e5bc93')
           active.presentedAt = performance.now()
-          if (active.id === 9 || active.id === 12) {
-            const lights: Light[] = []
-            stage.current?.parent?.traverse(object => {
-              const light = object as Light
-              if (light.isLight && light !== accent.current && light.position.distanceTo(group.position) < 13) lights.push(light)
-            })
-            lighting.current = { lights, intensity: lights.map(light => light.intensity) }
-          }
           cue(active.id, active.duration)
         }
       }
@@ -188,18 +192,27 @@ export function InteriorEncounters() {
     const t = clamp((performance.now() - active.presentedAt) / active.duration)
     const child = group.children[0]
     if (!child) return
+    const p = placed.current, frame = stageFrame(active.id, t, p.start, p.seed)
+    group.visible = frame.visible
+    group.position.set(p.x + p.dx * frame.advance - p.dz * frame.shake, p.y + frame.rise, p.z + p.dz * frame.advance + p.dx * frame.shake)
+    group.rotation.x = frame.tilt
     viewer.current.copy(camera.position)
     if (active.id === 12) group.worldToLocal(viewer.current)
-    animate(active.id, child, t, viewer.current)
+    animate(active.id, child, frame.reveal, viewer.current)
     const dimmed = lighting.current
-    if (dimmed) {
-      const intensity = 1 - (active.id === 9 ? .34 : .21) * ease(t*1.8)
-      dimmed.lights.forEach((light,i) => { light.intensity = dimmed.intensity[i]! * intensity })
+    if (dimmed) dimmed.lights.forEach((light,i) => { light.intensity = dimmed.intensity[i]! * frame.light })
+    if (accent.current) {
+      // A cold side light that picks the creature out of the dark while it is there.
+      const s = encounterScale(active.id), facing = group.rotation.y
+      accent.current.position.set(group.position.x + .8*s*Math.sin(facing) + .9*s*Math.cos(facing), p.y + 1.6*s,
+        group.position.z + .8*s*Math.cos(facing) - .9*s*Math.sin(facing))
+      accent.current.distance = 4.5 * s
+      accent.current.intensity = frame.visible ? (active.id === 9 ? 4 : 9) * (frame.lunge > 0 ? 1.4 : 1) : 0
     }
   }, .65)
   const [x,y,z] = diamond
   return <group ref={stage}>
-    <pointLight ref={accent} intensity={0} distance={3.8} decay={2} />
+    <pointLight ref={accent} intensity={0} distance={5} decay={2} />
     <Shape at={[x,y-.62,z]} size={[.64,1.04,.64]} color="#5a5750" />
     <mesh position={[x,y,z]} ref={gem} rotation={[0,0,.14]}>
       <octahedronGeometry args={[.31,0]} /><meshBasicMaterial color="#99f6ef" />

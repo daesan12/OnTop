@@ -20,11 +20,14 @@ const ascent: Point[] = [[-52,8.7,-61], [-52,10.3,-70], [-52,11.65,-78]]
 const gallery: Point[] = [[-44.8,12.65,-91],[-18,12.65,-91],[18,12.65,-83],
   [18,12.65,-62],[10,12.65,-54],[-22,12.65,-54],[-45,12.65,-66],[-45,12.65,-84]]
 const exit: Point[] = [[-52.9,12.65,-90.75], [-56.4,12.65,-90.3], [-56.9,12.65,-88]]
-const encounterDuration = 1900
-const encounterSpacing = 2600
-const departureDuration = 720
-const finaleDuration = 1100
-const departureTimeout = 7000
+// S15P31B105-450: build-up, a long look and a rush (encounterStaging), spread across the hall instead of five
+// scares in the first sixty metres.
+const encounterDuration = 3600
+const encounterSpacing = 11000
+const upperSpacing = 5000
+const departureDuration = 2600
+const finaleDuration = 3400
+const departureTimeout = 14000
 
 function near(p: Position, [x,y,z]: Point, radius: number) {
   return Math.abs(p.y-y) < 1.35 && Math.hypot(p.x-x,p.z-z) <= radius
@@ -105,7 +108,7 @@ export class InteriorVisit {
       submit()
       return
     }
-    if (!visible || this.active || (!this.upperVisited && now - this.lastAt < encounterSpacing)) return
+    if (!visible || this.active || now - this.lastAt < (this.upperVisited ? upperSpacing : encounterSpacing)) return
     const nearby: Point = ahead ?? [p.x, p.y, p.z]
     if (this.upperVisited && pending.includes(12)) return this.fire(12, nearby, now)
 

@@ -3,6 +3,8 @@
 // timed to the beats its animation already uses, and the hall itself hums: a low drone, dripping water, distant
 // groans and the odd metal creak. Everything goes through the park's effects bus, so the SFX volume and mute apply.
 
+import { STAGE } from './encounterStaging'
+
 type Ctx = BaseAudioContext
 interface Out { ctx: Ctx; dry: AudioNode; wet: AudioNode }
 
@@ -97,8 +99,8 @@ const growl = (o: Out, at: number, len: number, gain = .14) => { for (const f of
 const squelch = (o: Out, at: number, gain = .18) => { noise(o, at, { type: 'bandpass', freq: 900, to: 300, q: 5, gain, attack: .01, release: .18, wet: .4 }); tone(o, at, { wave: 'sine', freq: 240, to: 90, gain: gain * .6, attack: .005, release: .15, wet: .3 }) }
 
 /** The stinger for encounter `id`, `duration` ms long, starting now. `beats` are the animation's beat fractions. */
-export function playEncounterSound(ctx: Ctx, bus: AudioNode, id: number, duration: number, beats: readonly number[]) {
-  const o = output(ctx, bus), now = ctx.currentTime + .01, d = duration / 1000, at = (fraction: number) => now + fraction * d
+export function playEncounterSound(ctx: Ctx, bus: AudioNode, id: number, duration: number, beats: readonly number[], delay = 0) {
+  const o = output(ctx, bus), now = ctx.currentTime + .01 + delay, d = duration / 1000, at = (fraction: number) => now + fraction * d
   switch (id) {
     case 1: noise(o, now, { type: 'highpass', freq: 900, to: 3800, gain: .18, attack: .25, release: .2, wet: .5 }); whisper(o, at(.12), d * .7, -.6, .14); drone(o, now, d, 49, .14); break
     case 2: beats.forEach((b, i) => { scrape(o, at(b), .32, 0, .32 + i * .06); thud(o, at(b) + .2, .38 + i * .08, 62) }); drone(o, now, d, 38, .12); break
@@ -113,6 +115,35 @@ export function playEncounterSound(ctx: Ctx, bus: AudioNode, id: number, duratio
     case 11: splash(o, now, .55); noise(o, at(.25), { type: 'lowpass', freq: 600, to: 200, gain: .14, attack: .2, hold: .3, release: .5, wobble: .8, wet: .5 }); whisper(o, at(.4), d * .5, .2, .1); break
     case 12: beats.forEach((b, i) => squelch(o, at(b), .22 + i * .02)); drone(o, now, d, 45, .12); whisper(o, at(.3), d * .6, .5, .05); break
   }
+}
+
+/** Lamps stutter with an electric buzz, the heart starts to pound and a drone rises: something is coming. */
+function buildUp(o: Out, at: number, len: number) {
+  for (let t = 0; t < len; t += .07 + Math.random() * .06)
+    tone(o, at + t, { wave: 'square', freq: 118 + Math.random() * 6, filter: 1400, q: 2, gain: .035 * Math.random(), attack: .003, release: .05, wet: .2 })
+  crackle(o, at, 6, len, .18)
+  heartbeat(o, at + .05, Math.max(1, Math.round(len / .5)), .5)
+  drone(o, at, len + .5, 34, .16)
+  tone(o, at, { wave: 'sine', freq: 3100, gain: .012, attack: len * .8, release: .3, wet: .1 }) // ringing in the ears
+}
+/** The rush: a shriek right in your face, a hit, then the dark swallows it. */
+function lungeHit(o: Out, at: number, len: number) {
+  shriek(o, at, len + .25, .13)
+  noise(o, at, { type: 'bandpass', freq: 1800, to: 700, q: .8, gain: .5, attack: .02, hold: len * .6, release: .3, wobble: .5, wet: .3 })
+  thud(o, at + len, .7, 58)
+  noise(o, at + len, { type: 'lowpass', freq: 3000, to: 200, gain: .45, attack: .002, release: .5, wet: .6 })
+}
+
+/**
+ * The whole scare in sound, on the fractions encounterStaging uses: build-up, the creature's own sound timed to its
+ * animation beats during the reveal, then the rush and the cut to black.
+ */
+export function playEncounterStaging(ctx: Ctx, bus: AudioNode, id: number, duration: number, beats: readonly number[]) {
+  const o = output(ctx, bus), now = ctx.currentTime + .01, d = duration / 1000
+  const reveal = STAGE.reveal * d, lunge = STAGE.lunge * d, blackout = STAGE.blackout * d
+  buildUp(o, now, reveal)
+  playEncounterSound(ctx, bus, id, (lunge - reveal) * 1000, beats, reveal)
+  lungeHit(o, now + lunge, blackout - lunge)
 }
 
 /** The hall's own sound while you are in it: a low drone, drips, distant groans and creaks. Call tick() each frame. */
