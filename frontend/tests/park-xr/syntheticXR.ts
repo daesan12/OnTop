@@ -1,7 +1,7 @@
 /** Browser-only XR frame/session simulation. No production hooks or auth bypass. */
 import { _roots, advance } from '@react-three/fiber'
 import { Group, Matrix4, Quaternion, Vector3 } from 'three'
-import type { Mesh, MeshBasicMaterial, PlaneGeometry, ShaderMaterial } from 'three'
+import type { Mesh, MeshBasicMaterial, Object3D, PlaneGeometry, ShaderMaterial } from 'three'
 import type { JumpmapXRAction, JumpmapXRView } from '../../src/features/jumpmap/xrModel'
 import { parkXRView } from '../../src/world/xrView'
 import { useParkXR } from '../../src/features/parkXR/state'
@@ -116,7 +116,8 @@ export function install(options: { haptics?: boolean; frameStep?: number } = {})
   // Exercise our bridge and the real park intent/socket path while keeping desktop WebGL rendering.
   state.gl.xr.setSession = async value => { current = value }
   state.gl.xr.getSession = () => current
-  state.gl.xr.getReferenceSpace = () => ({}) as XRReferenceSpace
+  const space = new EventTarget() as XRReferenceSpace
+  state.gl.xr.getReferenceSpace = () => space
   navigator.xr!.requestSession = async () => {
     left = pad('left'); right = pad('right')
     session = Object.assign(new EventTarget(), { visibilityState: 'visible', inputSources: [
@@ -130,7 +131,7 @@ export function install(options: { haptics?: boolean; frameStep?: number } = {})
     } }) as unknown as XRSession
     state.setFrameloop('never')
     tracked = true; targetAction = null; canvasTarget = null; viewerRotation.identity(); turnSamples = []; endDeferred = false; finishEnd = undefined
-    const frame = { getViewerPose: () => tracked ? ({ transform: {
+    const frame = { session, getViewerPose: () => tracked ? ({ transform: {
       position: { x: .3, y: viewerHeight, z: -.2 }, orientation: viewerRotation,
     } }) : null, getPose: () => {
       const { scene } = root(), rig = scene.getObjectByName('park-xr-rig')!
@@ -182,6 +183,30 @@ export function buttons({ run = false, guide = false, chat = false, trigger = fa
 export function aim(action: JumpmapXRAction | 'skewer-entry' | 'skewer-entry-edge' | null) { targetAction = action }
 export function aimCanvas(name: string, u: number, v: number) { canvasTarget = { name, u, v } }
 export function visibleXRObject(name: string) { return !!root().scene.getObjectByName(name)?.visible }
+export function selectKitchen(action: string) {
+  const { gl } = root()
+  const original = gl.render
+  let target: Object3D | undefined
+  gl.render = (scene, camera) => {
+    scene.traverseVisible(node => { if (node.userData.pick?.action === action) target = node })
+    original.call(gl, scene, camera)
+  }
+  try { parkXRView.renderKitchen?.() }
+  finally { gl.render = original }
+  if (!target) return false
+  const controller = gl.xr.getController(1)
+  const point = target.getWorldPosition(new Vector3())
+  controller.visible = true
+  controller.position.set(.25, 1.3, -.15)
+  controller.parent!.worldToLocal(point)
+  controller.quaternion.setFromUnitVectors(new Vector3(0, 0, -1), point.sub(controller.position).normalize())
+  controller.updateMatrix()
+  controller.updateWorldMatrix(true, true)
+  const data = session.inputSources[1]!
+  controller.dispatchEvent({ type: 'selectstart', data })
+  controller.dispatchEvent({ type: 'selectend', data })
+  return true
+}
 export function xrCanvasInView(name: string) {
   const { scene, camera } = root()
   const mesh = scene.getObjectByName(name) as import('three').Mesh<import('three').PlaneGeometry> | undefined

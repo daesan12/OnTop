@@ -1,6 +1,8 @@
 import { expect, test, type Page } from '@playwright/test'
 import { writeFile } from 'node:fs/promises'
 import { parkFixture } from './fixture'
+import { ChefPreview } from '../../src/features/skewer/chef/model'
+import type { CoopSnapshot } from '../../src/features/skewer/coop/contracts'
 
 const xr = '/tests/park-xr/syntheticXR.ts'
 const state = (page: Page) => page.evaluate(async p => (await import(p)).snapshot(), xr)
@@ -84,43 +86,118 @@ test('정면 팁 없이 연속·정밀 회전하고 X 안내를 닫으면 다시
   expect(errors).toEqual([])
 })
 
-test('입구 밖에서는 버튼이 없고 입구에서는 키보드 없이 트리거로 협동 방에 진입한다', async ({ page }, info) => {
+async function aimSelect(page: Page, x: number, y: number) {
+  await page.evaluate(async ({ p, x, y }) => {
+    const helper = await import(p)
+    helper.buttons({})
+    helper.aimCanvas('park-xr-skewer-lobby', x / 1536, y / 1024)
+    await new Promise(resolve => setTimeout(resolve, 130))
+    helper.buttons({ trigger: true })
+    await new Promise(resolve => setTimeout(resolve, 130))
+    helper.buttons({})
+  }, { p: xr, x, y })
+}
+
+async function openSkewer(page: Page, server: Awaited<ReturnType<typeof enter>>['server']) {
+  await approach(page, server)
+  await page.evaluate(async p => {
+    const helper = await import(p); helper.buttons({}); helper.aim('skewer-entry-edge')
+  }, xr)
+  await page.waitForTimeout(140)
+  await page.evaluate(async p => (await import(p)).buttons({ trigger: true }), xr)
+  await expect.poll(() => page.evaluate(async p => (await import(p)).xrCanvasInView('park-xr-skewer-lobby'), xr)).toBe(true)
+  await page.evaluate(async p => (await import(p)).buttons({}), xr)
+}
+
+test('공원 VR에서 방을 만들고 비밀 가게에 참가해 같은 세션에서 주방 준비를 완료한다', async ({ page }, info) => {
   const { server, errors } = await enter(page)
   expect((await state(page)).skewerEntryVisible).toBe(false)
-  await approach(page, server)
+  const gameId = 'skewer-coop-00000000-0000-4000-8000-000000000001'
+  const createdId = 'skewer-coop-00000000-0000-4000-8000-000000000002'
+  const room = { gameId, players: 1, locked: true, mine: false, roomName: '친구의 꼬치집', hostNickname: '서빙 친구' }
+  const chef = new ChefPreview().view()
+  let snapshot: CoopSnapshot | null = null
+  const joins: Record<string, unknown>[] = []
+  const actions: Record<string, unknown>[] = []
+  const make = (id: string): CoopSnapshot => ({
+    gameId: id, version: 1, registered: true, privateState: { role: '' },
+    publicState: { gameCode: 'SKEWER_COOP', channelId: 'channel-1', roomName: id === gameId ? room.roomName : '함께 여는 꼬치집', phase: 'WAITING',
+      remaining: 240, elapsed: 0, countdown: 0, score: 0, served: 0, paused: false, actionVersion: 1, chefVR: false, entryFee: 0,
+      rankingEligible: true, rewardStatus: 'SERVER_SETTLEMENT', message: '', endReason: null,
+      players: [{ userId: '101', role: '', ready: false, connected: true },
+        ...(id === gameId ? [{ userId: '202', role: 'server' as const, ready: true, connected: true }] : [])],
+      greeting: { active: false, index: 0, remaining: 0, answered: false, responded: 0, speech: false },
+    },
+  })
+  await page.route('**/api/v1/minigames/skewer/coop/rooms?**', route => route.fulfill({ json: { rooms: [room], mine: snapshot } }))
+  await page.route('**/api/v1/minigames/skewer/coop/rooms', route => {
+    const payload = route.request().postDataJSON()
+    joins.push(payload)
+    if (payload.gameId && payload.password !== '123Q') return route.fulfill({ status: 403, json: { code: 'SKEWER_COOP_PASSWORD_INVALID' } })
+    snapshot = make(payload.gameId ?? createdId)
+    return route.fulfill({ json: snapshot })
+  })
+  await page.route('**/api/v1/minigames/skewer/coop/leave', route => {
+    snapshot = null
+    return route.fulfill({ json: {} })
+  })
+  server.interceptRequest(({ type, payload, requestId }) => {
+    const current = snapshot
+    if (!current) return false
+    if (type === 'GAME_RECONNECT_CHECK') {
+      server.emit('GAME_CONNECTION_STATE', { status: 'RESTORED', gameId: current.gameId, version: current.version, state: current }, requestId)
+      return true
+    }
+    if (type === 'GAME_STATE_CHECK') { server.emit('GAME_STATE', current as unknown as Record<string, unknown>, requestId); return true }
+    if (type !== 'GAME_ACTION_SEND') return false
+    const input = payload.input as Record<string, unknown>
+    actions.push(input)
+    if (input.type === 'ROLE') {
+      current.privateState = { role: 'chef', chef }
+      current.publicState.players[0]!.role = 'chef'
+    } else if (input.type === 'CHEF_MODE') current.publicState.chefVR = input.vr === true
+    else if (input.type === 'READY') {
+      current.publicState.players[0]!.ready = input.ready === true
+      current.publicState.phase = 'COUNTDOWN'
+      current.publicState.countdown = 3
+    }
+    current.version++; current.publicState.actionVersion++
+    server.emit('GAME_ACTION_RESULT', { gameId: current.gameId, actionId: payload.actionId, version: current.version }, requestId)
+    server.emit('GAME_STATE', current as unknown as Record<string, unknown>)
+    return true
+  })
+  await openSkewer(page, server)
   const frame = await page.evaluate(async p => (await import(p)).sceneFramePNG(), xr)
-  await writeFile(info.outputPath('skewer-vr-entry.png'), Buffer.from(frame.split(',')[1]!, 'base64'))
-  await page.evaluate(async p => (await import(p)).aim('skewer-entry-edge'), xr)
-  await page.waitForTimeout(100)
-  await page.evaluate(async p => (await import(p)).buttons({ trigger: true }), xr)
-  await expect(page.getByRole('button', { name: /방 만들기/ }).first()).toBeVisible()
-  await expect.poll(async () => (await state(page)).active).toBe(false)
-  expect((await state(page)).ownsInput).toBe(false)
-  await expect.poll(() => server.requests.some(r => r.type === 'WORLD_INTERACTION_SET' && r.payload.vrActive === false)).toBe(true)
-  await page.screenshot({ path: info.outputPath('skewer-coop-from-vr.png') })
+  await writeFile(info.outputPath('skewer-coop-from-vr.png'), Buffer.from(frame.split(',')[1]!, 'base64'))
+  await aimSelect(page, 420, 753)
+  await aimSelect(page, 1180, 763)
+  await expect.poll(() => joins[0]).toMatchObject({ channelId: 'channel-1', roomName: '함께 여는 꼬치집', password: '' })
+  await aimSelect(page, 750, 753)
+  await expect.poll(() => snapshot).toBeNull()
+  await aimSelect(page, 750, 310)
+  for (const x of [194, 320, 446]) await aimSelect(page, x, 282)
+  await aimSelect(page, 575, 645)
+  await aimSelect(page, 194, 375)
+  await aimSelect(page, 1180, 763)
+  await expect.poll(() => joins[1]).toMatchObject({ channelId: 'channel-1', gameId, password: '123Q' })
+  await aimSelect(page, 750, 552)
+  await expect.poll(() => actions.at(-1)).toEqual({ type: 'ROLE', role: 'chef' })
+  await aimSelect(page, 750, 552)
+  await expect.poll(() => actions.at(-1), { timeout: 15000 }).toEqual({ type: 'CHEF_MODE', vr: true })
+  await expect.poll(() => page.evaluate(async p => (await import(p)).selectKitchen('coop'), xr)).toBe(true)
+  await expect.poll(() => actions.at(-1)).toEqual({ type: 'READY', ready: true })
+  expect((await state(page)).active).toBe(true)
+  expect(server.requests.filter(r => r.type === 'WORLD_INTERACTION_SET' && r.payload.vrActive === false)).toHaveLength(0)
+  await expect(page.getByRole('button', { name: /방 만들기/ })).toHaveCount(0)
   await expect(page.locator('vite-error-overlay')).toHaveCount(0)
   expect(errors).toEqual([])
 })
 
-for (const cancel of ['B', 'interrupt'] as const) test(`입구 선택 후 XR 종료 대기 중 ${cancel}로 취소하면 협동 방을 열지 않는다`, async ({ page }) => {
+test('꼬치왕 로비에서 B를 누르면 공원 VR로 돌아온다', async ({ page }) => {
   const { server, errors } = await enter(page)
-  await approach(page, server)
-  await page.evaluate(async p => {
-    const helper = await import(p); helper.holdEnd(); helper.aim('skewer-entry')
-  }, xr)
-  await page.waitForTimeout(100)
-  await page.evaluate(async p => (await import(p)).buttons({ trigger: true }), xr)
-  await expect.poll(async () => (await state(page)).phase).toBe('ending')
-  await page.evaluate(async ({ p, cancel }) => {
-    const helper = await import(p)
-    if (cancel === 'B') helper.input(0, false, 0, true)
-    else helper.visibility('visible-blurred')
-  }, { p: xr, cancel })
-  await page.waitForTimeout(100)
-  await page.evaluate(async p => (await import(p)).completeEnd(), xr)
-  await expect.poll(async () => (await state(page)).phase).toBe('idle')
-  expect(await page.evaluate(async () => (await import('/src/features/vrZone/parkBridge.ts' as string)).parkVrZone.store.getState().phase)).toBe('closed')
-  await expect(page.getByRole('button', { name: /방 만들기/ })).toHaveCount(0)
-  expect((await state(page)).ownsInput).toBe(false)
+  await openSkewer(page, server)
+  await page.evaluate(async p => (await import(p)).input(0, false, 0, true), xr)
+  await expect.poll(() => page.evaluate(async p => (await import(p)).visibleXRObject('park-xr-skewer-lobby'), xr)).toBe(false)
+  expect((await state(page)).active).toBe(true)
   expect(errors).toEqual([])
 })
