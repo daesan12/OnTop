@@ -35,7 +35,6 @@ async function enterKitchenVR(page: Page, start = true) {
   await page.getByRole('button', { name: '준비 완료', exact: true }).scrollIntoViewIfNeeded()
   await capture(page, 'chef-vr-ready-controls')
   await page.getByRole('button', { name: '헤드셋 연결하기', exact: true }).click()
-  await page.getByRole('button', { name: 'VR 시작', exact: true }).click()
   await expect.poll(() => pauseCommand(page, 'snapshot')).toMatchObject({ requested: 1, rendererAttached: true, protected: true })
   await expect.poll(async () => (await pauseCommand(page, 'snapshot') as { frames: number }).frames).toBeGreaterThan(1)
   if (start) {

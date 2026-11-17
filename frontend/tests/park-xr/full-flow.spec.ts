@@ -113,7 +113,7 @@ test('전체 VR 화면 검토: 공원 진입부터 점프맵 결과·종료와 �
   await page.getByRole('button', { name: 'VR로 요리하기', exact: true }).click()
   await expect(page.getByRole('button', { name: /헤드셋 연결하기/ })).toBeVisible()
   await screenshot('chef-05-ready-guide')
-  await page.getByRole('button', { name: /헤드셋 연결하기/ }).click()
+  await page.getByRole('button', { name: '주방 화면 미리 보기', exact: true }).click()
   await expect(page.locator('.chef-stage')).toHaveAttribute('data-ready', 'true')
   await screenshot('chef-06-equipment')
   await page.getByRole('button', { name: '요리사 이용 안내', exact: true }).click()

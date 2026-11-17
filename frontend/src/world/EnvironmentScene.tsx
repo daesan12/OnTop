@@ -16,6 +16,7 @@ import {
 } from './environmentState'
 
 type EnvironmentProps = { fixedTime?: number; matchServiceBrightness?: boolean }
+export const PARK_SERVICE_DAY_EXPOSURE = .72
 
 function DetailedEnvironmentScene({ fixedTime, matchServiceBrightness }: EnvironmentProps = {}) {
   const scene = useThree((state) => state.scene)
@@ -63,7 +64,7 @@ function DetailedEnvironmentScene({ fixedTime, matchServiceBrightness }: Environ
     scene.environmentIntensity = 0.08 + frame.daylight * 0.42
     if (matchServiceBrightness) {
       // Keep the detailed sky and materials while matching the service map's paving exposure.
-      gl.toneMappingExposure = 0.72 + 0.095 * frame.night
+      gl.toneMappingExposure = PARK_SERVICE_DAY_EXPOSURE + 0.095 * frame.night
     }
     // Keep diagnostics on scene metadata, without subscriptions or React reconciliation.
     scene.userData.environment = frame

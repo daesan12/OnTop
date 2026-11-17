@@ -1,18 +1,19 @@
 import { useFrame } from '@react-three/fiber'
+import { useRef } from 'react'
 import { Color, Vector3, type Camera, type DirectionalLight, type HemisphereLight, type Light, type Object3D, type Scene } from 'three'
 import { SIMPLE_MAP } from './art/mapRenderProfile'
 import { simpleEnvironmentPalette } from './simpleEnvironmentPalette'
 import { OMOK_FOCUS_LAYER } from './omokCamera'
 
-/** Rendering only. CameraRig raises this on frames that draw the omok play or spectator top view. */
-export const omokFocusLighting = { requested: false }
+/** CameraRig requests this lighting for Omok and Alkkagi play and spectator board views. */
+export const boardFocusLighting = { requested: false }
 
 /**
- * The omok top view keeps park noon whatever the park hour is: the board and stones look the same at
+ * The board view keeps park noon whatever the park hour is: the board and stones look the same at
  * night, dawn and dusk. Only values change; light count, visibility and layers stay as the park set them,
  * so no material program is rebuilt when the view switches.
  */
-export const OMOK_FOCUS_LIGHT = {
+export const BOARD_FOCUS_LIGHT = {
   sun: { intensity: 2.5, color: new Color('#fff3df'), direction: new Vector3(0, 1, .3).normalize(), distance: 75 },
   fill: SIMPLE_MAP
     ? { intensity: simpleEnvironmentPalette.dayFill, sky: new Color(simpleEnvironmentPalette.dayLight), ground: new Color(simpleEnvironmentPalette.dayGround) }
@@ -28,32 +29,38 @@ let savedEnvironment = 0, applied = false, wasApplied = false
 const isHemisphere = (light: Object3D): light is HemisphereLight => (light as HemisphereLight).isHemisphereLight === true
 const isDirectional = (light: Object3D): light is DirectionalLight => (light as DirectionalLight).isDirectionalLight === true
 const PARK_LIGHT_LAYERS = 1 | 1 << OMOK_FOCUS_LAYER
+const nightGroups = new WeakMap<Scene, Set<Object3D>>()
 
-/**
- * The park's day/night lights, found without touching their components: ParkSun's sun and the
- * environment fill sit at the scene root on the park + focus layers, NightLighting's lamps in its group.
- * A shallow scan of the scene root only, on omok frames only.
- */
+/** Night lights can mount under the renewal map's streamed scenery. */
+export function registerBoardFocusNightLights(scene: Scene, group: Object3D) {
+  let groups = nightGroups.get(scene)
+  if (!groups) nightGroups.set(scene, groups = new Set())
+  groups.add(group)
+  return () => { groups.delete(group) }
+}
+
 export function parkLights(scene: Scene, out: Light[] = found) {
   out.length = 0
   for (const child of scene.children) {
-    if ((isDirectional(child) || isHemisphere(child)) && child.layers.mask === PARK_LIGHT_LAYERS) out.push(child)
-    else if (child.name === 'night-lighting')
-      for (const lamp of child.children) if ((lamp as Light).isLight && lamp.userData.warmNightLight) out.push(lamp as Light)
+    if (child.name !== 'park-exterior-lighting' && child.name !== 'renewal-exterior-lighting') continue
+    for (const light of child.children)
+      if ((isDirectional(light) || isHemisphere(light)) && light.layers.mask === PARK_LIGHT_LAYERS) out.push(light)
   }
+  for (const group of nightGroups.get(scene) ?? [])
+    for (const lamp of group.children) if ((lamp as Light).isLight && lamp.userData.warmNightLight) out.push(lamp as Light)
   return out
 }
 
-/** Runs after CameraRig and before the draw. Returns whether this frame uses the omok profile. */
-export function applyOmokFocusLighting(scene: Scene, camera: Camera, lights?: Iterable<Light>) {
-  const active = omokFocusLighting.requested && camera.layers.mask === 1 << OMOK_FOCUS_LAYER
+/** Runs after CameraRig and before the draw. Returns whether this frame uses fixed board lighting. */
+export function applyBoardFocusLighting(scene: Scene, camera: Camera, lights?: Iterable<Light>) {
+  const active = boardFocusLighting.requested && camera.layers.mask === 1 << OMOK_FOCUS_LAYER
   if (!active) {
     // The park shadow map may hold the fixed sun; redraw it with the park sun on the first park frame.
     if (wasApplied) for (const light of lights ?? parkLights(scene)) if (isDirectional(light) && light.castShadow) light.shadow.needsUpdate = true
     wasApplied = false
     return false
   }
-  const { sun, fill } = OMOK_FOCUS_LIGHT
+  const { sun, fill } = BOARD_FOCUS_LIGHT
   for (const light of lights ?? parkLights(scene)) {
     let copy = saved.get(light)
     if (!copy) saved.set(light, copy = { intensity: 0, color: new Color(), ground: new Color(), position: new Vector3() })
@@ -74,7 +81,7 @@ export function applyOmokFocusLighting(scene: Scene, camera: Camera, lights?: It
     } else light.intensity = 0 // Night lamps stay visible at zero, keeping the shader light count.
   }
   savedEnvironment = scene.environmentIntensity
-  if (scene.environment) scene.environmentIntensity = OMOK_FOCUS_LIGHT.environmentIntensity
+  if (scene.environment) scene.environmentIntensity = BOARD_FOCUS_LIGHT.environmentIntensity
   applied = wasApplied = true
   return true
 }
@@ -96,8 +103,18 @@ export function restoreParkLighting(scene: Scene) {
 }
 
 /** Mount next to the scene's own render pass (priority 1): applies at 0.5, restores at 2. */
-export function OmokFocusLighting() {
-  useFrame(({ scene, camera }) => { applyOmokFocusLighting(scene, camera) }, .5)
-  useFrame(({ scene }) => restoreParkLighting(scene), 2)
+export function BoardFocusLighting({ exposure }: { exposure: number }) {
+  const parkExposure = useRef<number | null>(null)
+  useFrame(({ scene, camera, gl }) => {
+    if (!applyBoardFocusLighting(scene, camera)) return
+    parkExposure.current = gl.toneMappingExposure
+    gl.toneMappingExposure = exposure
+  }, .5)
+  useFrame(({ scene, gl }) => {
+    restoreParkLighting(scene)
+    if (parkExposure.current === null) return
+    gl.toneMappingExposure = parkExposure.current
+    parkExposure.current = null
+  }, 2)
   return null
 }
