@@ -56,6 +56,37 @@ class StoneRumbleMatchTests {
     }
 
     @Test
+    void 착지_직전_누른_점프는_착지한_뒤_한_번_실행된다() {
+        var match = matchStartingAtThreeSeconds(List.of(101L, 202L));
+        match.advance(3000);
+        match.control("101", 0, 0, 0, 1, true, false);
+        match.advance(3680);
+
+        match.control("101", 0, 0, 0, 1, true, false);
+        match.control("101", 0, 0, 0, 1, false, false);
+        match.advance(3780);
+
+        var player = match.snapshot().players().getFirst();
+        assertThat(player.y()).isGreaterThan(24);
+        assertThat(player.grounded()).isFalse();
+    }
+
+    @Test
+    void 착지까지_오래_남은_점프_입력은_만료된다() {
+        var match = matchStartingAtThreeSeconds(List.of(101L, 202L));
+        match.advance(3000);
+        match.control("101", 0, 0, 0, 1, true, false);
+        match.advance(3300);
+
+        match.control("101", 0, 0, 0, 1, true, false);
+        match.advance(3780);
+
+        var player = match.snapshot().players().getFirst();
+        assertThat(player.y()).isEqualTo(24);
+        assertThat(player.grounded()).isTrue();
+    }
+
+    @Test
     void 준비중_경계로_계속_이동해도_삼층에서_떨어지거나_탈락하지_않는다() {
         var match = started(List.of(101L, 202L), 0);
         match.advance(1200);
