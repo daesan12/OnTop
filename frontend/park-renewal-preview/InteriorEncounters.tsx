@@ -4,7 +4,8 @@ import { Raycaster, Vector3, type Group, type Light, type Mesh, type Object3D, t
 import { effectsOutput } from '../src/audio/bgm'
 import { playBehind, playEncounterLunge, playEncounterStaging, playFakeout, playJumpScare, playPounceCrouch, playSprint, playStalkStart, playStalkStep, playStoneStep } from './horrorAudio'
 import { diamond, interiorVisit, type Encounter } from './interiorEvents'
-import { FAR_MIN, encounterDistance, encounterScale, farStart, flashlight, offGaze, placeInView, stagePlan, standDistance, styleFrame } from './encounterStaging'
+import { FAR_MIN, encounterDistance, encounterScale, farStart, flashlight, lungeStop, offGaze, placeInView, stagePlan, standDistance, styleFrame } from './encounterStaging'
+import { preloadScreamers, showScreamer, type Screamer } from './horrorScreamer'
 import { clearRoamingInput, inputState } from '../src/world/inputOwnership'
 import { viewControls } from '../src/world/cameraPerspective'
 import { horrorWalkable } from './horrorPlan'
@@ -146,7 +147,7 @@ export function InteriorEncounters() {
   const accent = useRef<PointLight>(null)
   // Where the creature stands, which way it rushes (towards the viewer) and how far away it started.
   const placed = useRef({ x: 0, y: 0, z: 0, dx: 0, dz: 0, start: 3, seed: 0, shown: false, rushed: false, away: 0, step: 0, held: false, pan: 0, far: 9, ox: 0, oz: 0,
-    extra: 0, lookAway: 0, wall: false, yaw: 0, tx: 0, tz: 0, nx: 0, nz: 0 })
+    extra: 0, lookAway: 0, wall: false, yaw: 0, tx: 0, tz: 0, nx: 0, nz: 0, bx: 0, bz: 0 })
   const look = useRef(new Vector3())
   const ray = useRef(new Raycaster()), rayFrom = useRef(new Vector3()), rayDir = useRef(new Vector3())
   type Viewer = { position: Vector3; getWorldDirection: (v: Vector3) => Vector3 }
@@ -165,7 +166,7 @@ export function InteriorEncounters() {
    * standing in the hall. Rays against what is actually drawn (the walk map misses some walls, such as the ramp's), at
    * chest height; false when no upright, opaque surface faces you 1.4–4.5 m off (it then has its own slab of wall).
    */
-  const placeOnWall = (group: Group, camera: Viewer, scene: Object3D) => {
+  const placeOnWall = (group: Group, camera: Viewer, scene: Object3D, ahead = false) => {
     camera.getWorldDirection(look.current)
     const cx = camera.position.x, cz = camera.position.z, fl = Math.hypot(look.current.x, look.current.z) || 1
     const fx = look.current.x / fl, fz = look.current.z / fl
@@ -182,7 +183,7 @@ export function InteriorEncounters() {
         return materials.every(m => !m.transparent)
       })
     }
-    for (const a of [.45, -.45, .7, -.7, .25, -.25, .95, -.95, 0]) {
+    for (const a of ahead ? [0, .15, -.15, .3, -.3, .45, -.45] : [.45, -.45, .7, -.7, .25, -.25, .95, -.95, 0]) {
       const c = Math.cos(a), sn = Math.sin(a), dx = fx * c - fz * sn, dz = fx * sn + fz * c
       const hit = cast(dx, dz, 4.5)
       if (!hit?.face || hit.distance < 1.4) continue
@@ -210,7 +211,7 @@ export function InteriorEncounters() {
   }
   const put = (group: Group, active: Encounter, camera: Viewer, distance: number, behind = false) => {
     const scene = stage.current?.parent
-    if (active.id === 6 && !behind && scene && placeOnWall(group, camera, scene)) return
+    if (active.id === 6 && !behind && scene && placeOnWall(group, camera, scene, active.plan.style === 'shadow')) return
     placed.current.wall = false
     place(group, active.at, camera, distance, behind)
   }
@@ -253,6 +254,10 @@ export function InteriorEncounters() {
         }
         // Behind you it keeps the same spot relative to you as you walk, but not as you turn.
         Object.assign(placed.current, { ox: placed.current.x - camera.position.x, oz: placed.current.z - camera.position.z })
+        // The spot right behind you that the shadow belongs to (kept relative to you as you walk).
+        camera.getWorldDirection(look.current)
+        { const fl = Math.hypot(look.current.x, look.current.z) || 1; Object.assign(placed.current, { bx: -look.current.x / fl * 1.1, bz: -look.current.z / fl * 1.1 }) }
+        if (style === 'shadow') preloadScreamers()
         const plan = active.plan
         group.position.set(placed.current.x, placed.current.y, placed.current.z)
         group.scale.setScalar(encounterScale(active.id) * (plan.style === 'pop' || plan.style === 'fakeout' ? 1.1 : 1))
@@ -275,6 +280,7 @@ export function InteriorEncounters() {
           case 'pounce': sound((c, b) => playPounceCrouch(c, b, plan.rush)); break
           case 'sprint': sound((c, b) => playSprint(c, b, plan.rush, plan.dark - plan.rush)); break
           case 'statue': sound((c, b) => playStoneStep(c, b, 0)); break
+          case 'shadow': sound((c, b) => playBehind(c, b, plan.rush, placed.current.pan)); break
         }
       }
       previous.current = active
@@ -322,6 +328,8 @@ export function InteriorEncounters() {
         }
       }
     }
+    if (plan.style === 'shadow' && t > .5 && t < plan.rush - .6
+      && gazeOff(camera, camera.position.x + p.bx, camera.position.z + p.bz) < 1.2) skipTo(plan.rush) // you turned round
     if (plan.style === 'behind' && t < plan.rush) {
       // It follows a step behind as you walk; turn round and it is on you at once.
       if (t > .8 && gazeOff(camera, p.x, p.z) < .55) skipTo(plan.rush)
@@ -338,6 +346,12 @@ export function InteriorEncounters() {
     if (t >= plan.rush && !p.rushed) {
       p.rushed = true
       if (plan.style === 'behind') { place(group, active.at, camera, 1.5); sound(playJumpScare) }
+      else if (plan.style === 'shadow') {
+        // Whatever cast it is right there: a face fills the screen.
+        const faces: Screamer[] = ['ghost', 'ghoul', 'ceiling']
+        showScreamer(faces[Math.floor(Math.random() * faces.length)]!)
+        sound(playJumpScare)
+      }
       else if (plan.style === 'stalk') { if (p.away > 0) place(group, active.at, camera, 2); sound(playJumpScare) }
       else if (plan.style === 'statue') sound(playJumpScare)
       else if (plan.style === 'pounce') sound((c, b) => playJumpScare(c, b, 'roar'))
@@ -358,7 +372,8 @@ export function InteriorEncounters() {
     inputState.encounterHeld = frame.held
     if (frame.drag > 0) {
       // The gaze is dragged to it (first person underground: forward = -sin(yaw), -sin(pitch), -cos(yaw)).
-      const dx = p.x - camera.position.x, dz = p.z - camera.position.z
+      // The shadow drags you round to face whatever stands behind you, not the wall.
+      const dx = plan.style === 'shadow' ? p.bx : p.x - camera.position.x, dz = plan.style === 'shadow' ? p.bz : p.z - camera.position.z
       const want = Math.atan2(-dx, -dz), turn = Math.atan2(Math.sin(want - viewControls.yaw), Math.cos(want - viewControls.yaw))
       const k = 1 - Math.exp(-dt * frame.drag)
       viewControls.yaw += turn * k
@@ -367,17 +382,20 @@ export function InteriorEncounters() {
     group.visible = frame.visible
     if (p.wall) {
       // Flat on its wall: it slides along it towards you while it is there, and swells over you as it strikes.
-      const u = plan.rush > plan.show ? 1 - Math.max(0, Math.min(1, (t - plan.show) / (plan.rush - plan.show))) : 0
-      const slide = 1.1 * u * u, scale = encounterScale(active.id) * (1 + .7 * frame.lunge), off = .07 * scale + .012
-      // Half a metre down so its cocked head is at your eye line; the legs end at the floor like a cast shadow.
-      group.position.set(p.x + p.tx * slide + p.nx * off, p.y - .45, p.z + p.tz * slide + p.nz * off)
+      // The long look slides it in along the wall; the shadow of what is behind you just grows, as it comes closer.
+      const u = plan.style === 'reveal' && plan.rush > plan.show ? 1 - Math.max(0, Math.min(1, (t - plan.show) / (plan.rush - plan.show))) : 0
+      const grow = plan.style === 'shadow' ? 1.1 + .35 * Math.min(1, t / plan.rush) : 1
+      const slide = 1.1 * u * u, scale = encounterScale(active.id) * grow * (1 + .7 * frame.lunge), off = .07 * scale + .012
+      // Its cocked head (1.58 up the plane) at your eye line, however large it grows; the legs end at the floor
+      // like a cast shadow.
+      group.position.set(p.x + p.tx * slide + p.nx * off, p.y + 1.45 - 1.58 * scale, p.z + p.tz * slide + p.nz * off)
       group.rotation.set(0, p.yaw, 0)
       group.scale.setScalar(scale)
     } else if (frame.lunge > 0) {
       // The rush ends a step in front of your eyes wherever you are now, so walking on cannot leave it behind.
       camera.getWorldDirection(look.current)
-      const f = Math.hypot(look.current.x, look.current.z) || 1, reach = frame.advance / Math.max(.01, p.start - .8)
-      const tx = camera.position.x + look.current.x / f * .8, tz = camera.position.z + look.current.z / f * .8
+      const stop = lungeStop(active.id), f = Math.hypot(look.current.x, look.current.z) || 1, reach = frame.advance / Math.max(.01, p.start - stop)
+      const tx = camera.position.x + look.current.x / f * stop, tz = camera.position.z + look.current.z / f * stop
       const k = Math.min(1, reach), x = p.x + (tx - p.x) * k, z = p.z + (tz - p.z) * k
       group.position.set(x - p.dz * frame.shake, p.y + frame.rise, z + p.dx * frame.shake)
       group.rotation.y = Math.atan2(camera.position.x - x, camera.position.z - z)

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { EYE_HEIGHT, STAGE, STAGE_STYLES, encounterDistance, encounterScale, pickStyle, placeInView, stageFrame, stagePlan, standDistance, styleFrame, stylesFor } from '../../park-renewal-preview/encounterStaging'
+import { EYE_HEIGHT, STAGE, STAGE_STYLES, lungeStop, encounterDistance, encounterScale, pickStyle, placeInView, stageFrame, stagePlan, standDistance, styleFrame, stylesFor } from '../../park-renewal-preview/encounterStaging'
 
 describe('underground encounter staging (S15P31B105-450)', () => {
   it('builds up in the dark, shows the creature, rushes, then cuts to black', () => {
@@ -54,10 +54,28 @@ describe('underground encounter staging (S15P31B105-450)', () => {
   it('gives the statue, the beast, the shadow and the runner a scare of their own', () => {
     expect(stylesFor(2)).toEqual(['statue'])
     expect(stylesFor(4)).toEqual(['pounce'])
-    expect(stylesFor(6)).not.toContain('pop')
+    expect(stylesFor(6)).toEqual(['shadow'])
     expect(stylesFor(7)).toContain('sprint')
     // A creature with one way to happen still gets it after another creature used it.
     expect(pickStyle(4, 'pounce')).toBe('pounce')
+  })
+
+  it('never freezes you before it strikes: the hold and the scare land together', () => {
+    for (const style of ['stalk', 'statue', 'reveal', 'pounce', 'sprint', 'fakeout'] as const) {
+      const plan = stagePlan(style, 3600, () => .5)
+      const strike = style === 'fakeout' ? plan.show : plan.rush
+      expect(styleFrame(plan, 9, Math.max(0, strike - .05), 3).held).toBe(false)
+      expect(styleFrame(plan, 9, strike + .02, 3).held).toBe(true)
+    }
+  })
+
+  it('shadow: what stands behind you, on the wall ahead; it turns you round to face it', () => {
+    const plan = stagePlan('shadow', 3600)
+    const early = styleFrame(plan, 6, 1, 2.6)
+    expect(early).toMatchObject({ visible: true, held: false, drag: 0 })
+    expect(styleFrame(plan, 6, plan.rush - .3, 2.6)).toMatchObject({ held: true, drag: 18 })
+    // At the strike the shadow is gone (a face fills the screen instead) and the lights are out.
+    expect(styleFrame(plan, 6, plan.rush + .05, 2.6)).toMatchObject({ visible: false, light: 0 })
   })
 
   it('pounce: crouched a few steps off, then a leap that ends at your face', () => {
@@ -68,7 +86,9 @@ describe('underground encounter staging (S15P31B105-450)', () => {
     expect(crouch.rise).toBeLessThan(0)
     const mid = styleFrame(plan, 4, (plan.rush + plan.dark) / 2, 4.2)
     expect(mid.rise).toBeGreaterThan(0)
-    expect(styleFrame(plan, 4, plan.dark - .001, 4.2).advance).toBeCloseTo(3.4, 1)
+    // It stops with its jaws (a metre ahead of its feet) at your face, not its body through the camera.
+    expect(styleFrame(plan, 4, plan.dark - .001, 4.2).advance).toBeCloseTo(4.2 - lungeStop(4), 1)
+    expect(lungeStop(4)).toBeGreaterThan(1.5)
   })
 
   it('sprint: from the far end of the hall at a steady run', () => {
