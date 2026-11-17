@@ -27,7 +27,7 @@ const tips = [
 ] as const
 
 const artRoot = '/art/stone-rumble/loading/'
-const imageSizes = '(max-width: 620px) calc(100vw - 54px), (max-width: 1400px) 47vw, 700px'
+const imageSizes = '(max-width: 620px) calc(100vw - 60px), (max-width: 1000px) 48vw, 490px'
 const tipNames = ['발판', '비둘기', '슬라이딩'] as const
 const sceneUrl = (kind: string, width: number) => `${artRoot}scene-${kind}-park-${width}.webp`
 const sceneSources = (kind: string) => `${sceneUrl(kind, 540)} 540w, ${sceneUrl(kind, 1080)} 1080w`

@@ -7,7 +7,7 @@
   inset: 0;
   z-index: 50;
   display: flex;
-  padding: clamp(12px, 3vw, 46px);
+  padding: clamp(10px, 2.5vmin, 24px);
   overflow: auto;
   overscroll-behavior: contain;
   scrollbar-width: none;
@@ -19,34 +19,35 @@
 .stone-loading-tips * { box-sizing: border-box; }
 .stone-loading-tips:focus-visible { outline: 2px solid #ca9d60; outline-offset: -3px; }
 .stone-loading-tips button:focus-visible { outline: 2px solid #8e4f22; outline-offset: 3px; }
-.stone-loading-content { width: min(100%, 1440px); min-width: 0; margin: auto; }
+.stone-loading-content { width: min(100%, 980px); min-width: 0; margin: auto; }
 .stone-loading-heading {
   display: flex;
   justify-content: center;
   align-items: center;
   gap: clamp(8px, 1.5vw, 22px);
-  margin-bottom: clamp(14px, 2vw, 28px);
+  margin-bottom: clamp(9px, 1.7vmin, 16px);
   color: var(--loading-cream);
   text-shadow: 0 3px 9px #1a1714a6;
 }
-.stone-loading-heading > svg { flex: none; width: clamp(23px, 3.5vw, 54px); height: auto; }
+.stone-loading-heading > svg { flex: none; width: clamp(23px, 3.5vmin, 38px); height: auto; }
 .stone-loading-heading h1 {
   margin: 0;
-  font: 700 clamp(29px, 5vw, 78px)/1.2 'BusanDandiMyeongjo', serif;
+  font: 700 clamp(27px, 5vmin, 48px)/1.2 'BusanDandiMyeongjo', serif;
   letter-spacing: -.045em;
 }
 .stone-loading-sheet {
-  padding: clamp(14px, 2.8vw, 44px);
+  padding: clamp(12px, 2.5vmin, 24px);
   border: 6px double var(--loading-edge);
   border-radius: clamp(18px, 2.8vw, 42px);
   background: linear-gradient(#fff2dba6, #fff2dbbf), url('/art/tablet/hanji.webp') center / 100% 100% #f5ebd3;
   box-shadow: 0 16px 45px #15140d44, inset 0 0 0 4px #fff8e773;
 }
-.stone-tip-layout { display: grid; grid-template-columns: 1.15fr 1fr; gap: clamp(16px, 3vw, 45px); align-items: start; }
+.stone-tip-layout { display: grid; grid-template-columns: 1.15fr 1fr; gap: clamp(12px, 2.5vmin, 24px); align-items: center; }
 .stone-tip-visual, .stone-tip-copy { min-width: 0; }
 .stone-tip-picture {
   display: block;
   aspect-ratio: 8 / 5;
+  max-height: min(32dvh, 300px);
   overflow: hidden;
   padding: 4px;
   border: 4px double #79502f;
@@ -54,16 +55,16 @@
   background: #f7e6c7;
 }
 .stone-tip-picture img { display: block; width: 100%; height: 100%; border-radius: clamp(6px, 1vw, 15px); object-fit: cover; object-position: 50% 46%; }
-.stone-tip-copy { padding-top: clamp(10px, 3.1vw, 52px); word-break: keep-all; overflow-wrap: anywhere; }
+.stone-tip-copy { word-break: keep-all; overflow-wrap: anywhere; }
 .stone-tip-copy h2 {
-  margin: 0 0 clamp(8px, 1.6vw, 23px);
+  margin: 0 0 clamp(7px, 1.3vmin, 14px);
   color: var(--loading-ink);
-  font: 700 clamp(21px, 3vw, 45px)/1.28 'BusanDandiMyeongjo', serif;
+  font: 700 clamp(20px, 3.1vmin, 32px)/1.28 'BusanDandiMyeongjo', serif;
   letter-spacing: -.035em;
 }
-.stone-tip-copy p { margin: 0; font-size: clamp(13px, 1.45vw, 21px); line-height: 1.7; }
-.stone-tip-copy .stone-tip-detail { margin-top: clamp(7px, 1.35vw, 20px); color: var(--loading-muted); }
-.stone-tip-controls { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: clamp(12px, 2vw, 30px); font-size: clamp(12px, 1.4vw, 19px); }
+.stone-tip-copy p { margin: 0; font-size: clamp(13px, 1.8vmin, 17px); line-height: 1.6; }
+.stone-tip-copy .stone-tip-detail { margin-top: 8px; color: var(--loading-muted); }
+.stone-tip-controls { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-top: 10px; font-size: clamp(12px, 1.7vmin, 16px); }
 .stone-tip-controls > span { display: inline-flex; align-items: center; gap: 7px; }
 .stone-loading-tips .stone-tip-controls kbd {
   min-width: 34px;
@@ -77,7 +78,7 @@
   font: 700 .96em/1.5 'Malgun Gothic', system-ui, sans-serif;
   text-align: center;
 }
-.stone-tip-nav { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(5px, .9vw, 13px); margin: clamp(9px, 1.15vw, 17px) 3% 0; }
+.stone-tip-nav { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin: 8px 0 0; }
 .stone-loading-tips .stone-tip-nav button, .stone-loading-tips .stone-loading-retry {
   min-height: 40px;
   padding: 5px 8px;
@@ -86,7 +87,7 @@
   background: #fff3d8;
   color: var(--loading-ink);
   box-shadow: none;
-  font: 700 clamp(12px, 1.3vw, 19px)/1.4 'Malgun Gothic', system-ui, sans-serif;
+  font: 700 clamp(12px, 1.7vmin, 16px)/1.4 'Malgun Gothic', system-ui, sans-serif;
   cursor: pointer;
 }
 .stone-tip-nav button span { font-variant-numeric: tabular-nums; }
@@ -96,8 +97,8 @@
 }
 .stone-loading-tips .stone-tip-nav button:hover, .stone-loading-tips .stone-loading-retry:hover { filter: brightness(1.12); }
 .stone-loading-progress {
-  margin-top: clamp(16px, 2.5vw, 38px);
-  padding-top: clamp(12px, 1.8vw, 24px);
+  margin-top: clamp(10px, 2vmin, 18px);
+  padding-top: clamp(8px, 1.8vmin, 16px);
   border-top: 1px solid var(--loading-edge);
   text-align: center;
 }
@@ -108,12 +109,12 @@
   gap: clamp(10px, 3vw, 44px);
   padding-inline: clamp(0px, 3vw, 50px);
 }
-.stone-loading-ready strong { font: 700 clamp(16px, 2.5vw, 37px)/1.27 'BusanDandiMyeongjo', serif; word-break: keep-all; }
+.stone-loading-ready strong { font: 700 clamp(16px, 2.6vmin, 26px)/1.27 'BusanDandiMyeongjo', serif; word-break: keep-all; }
 .stone-loading-ready > span {
   padding-left: clamp(10px, 3vw, 44px);
   border-left: 1px solid var(--loading-edge);
   color: #8d5619;
-  font-size: clamp(23px, 3.75vw, 54px);
+  font-size: clamp(23px, 3.7vmin, 38px);
   line-height: 1;
   font-weight: 800;
   white-space: nowrap;
@@ -131,16 +132,14 @@
   box-shadow: inset 0 1px #efede399;
 }
 .stone-loading-stones span[data-ready='true'] { border-color: #9d6b28; background: #e6b65c; box-shadow: inset 0 1px #fff2b9; }
-.stone-loading-progress p { margin: 10px 0 0; color: var(--loading-muted); font-size: clamp(12px, 1.4vw, 20px); word-break: keep-all; overflow-wrap: anywhere; }
+.stone-loading-progress p { margin: 8px 0 0; color: var(--loading-muted); font-size: clamp(12px, 1.7vmin, 16px); word-break: keep-all; overflow-wrap: anywhere; }
 .stone-loading-tips .stone-loading-retry { margin-top: 10px; padding-inline: 20px; }
 
 @media (max-width: 620px) {
   .stone-loading-tips { padding: 12px; }
   .stone-loading-sheet { padding: 14px; border-width: 4px; }
   .stone-tip-layout { grid-template-columns: 1fr; gap: 16px; }
-  .stone-tip-picture { aspect-ratio: 4 / 3; }
-  .stone-tip-nav { margin-inline: 0; }
-  .stone-tip-copy { padding-top: 0; }
+  .stone-tip-picture { max-height: min(28dvh, 230px); }
   .stone-loading-ready { grid-template-columns: minmax(0, 1fr) auto; text-align: left; }
   .stone-loading-ready > span { grid-column: 2; grid-row: 1; padding-left: 0; border-left: 0; }
   .stone-loading-stones { grid-column: 1 / -1; grid-row: 2; }
@@ -152,8 +151,6 @@
   .stone-loading-heading h1 { font-size: clamp(29px, 4vw, 42px); }
   .stone-loading-heading > svg { width: 26px; }
   .stone-loading-sheet { padding: 12px 16px; }
-  .stone-tip-picture { max-height: 47dvh; }
-  .stone-tip-copy { padding-top: 2px; }
   .stone-tip-controls { margin-top: 9px; }
   .stone-tip-nav { margin-top: 6px; }
   .stone-loading-tips .stone-tip-nav button { min-height: 32px; }
