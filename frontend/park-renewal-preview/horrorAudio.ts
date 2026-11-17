@@ -1,4 +1,5 @@
-// Underground sound (S15P31B105-450), synthesised with Web Audio — no sound files. Each encounter gets its own
+// Underground sound (S15P31B105-450): synthesised Web Audio layered with a few small recorded clips (screams, roars,
+// moans, impacts; see the clips section). Each encounter gets its own
 // stinger (whispers, stone scraping, rope and door creaks, a growl, a shriek, a splash, bone cracks, wet squelches),
 // timed to the beats its animation already uses, and the hall itself hums: a low drone, dripping water, distant
 // groans and the odd metal creak. Everything goes through the park's effects bus, so the SFX volume and mute apply.
@@ -78,6 +79,80 @@ function tone(o: Out, at: number, s: Shape & { wave: OscillatorType; freq: numbe
   osc.start(at); osc.stop(end)
 }
 
+// ---------- recorded clips ----------
+// Real screams, roars, moans, breath and impacts (CC0, OpenGameArt; sources in sounds/README.md), about 170 KB of
+// mono Opus fetched only once you are underground. Until they arrive — or if a browser cannot decode them — the
+// synthesised voices play alone, so nothing waits on the network.
+const CLIP_URLS = {
+  'hit-low': new URL('./sounds/hit-low.ogg', import.meta.url).href,
+  'hit-deep': new URL('./sounds/hit-deep.ogg', import.meta.url).href,
+  'hit-mid': new URL('./sounds/hit-mid.ogg', import.meta.url).href,
+  'scream-a': new URL('./sounds/scream-a.ogg', import.meta.url).href,
+  'scream-b': new URL('./sounds/scream-b.ogg', import.meta.url).href,
+  'roar-low': new URL('./sounds/roar-low.ogg', import.meta.url).href,
+  'growl-low': new URL('./sounds/growl-low.ogg', import.meta.url).href,
+  'roar-a': new URL('./sounds/roar-a.ogg', import.meta.url).href,
+  'snarl-a': new URL('./sounds/snarl-a.ogg', import.meta.url).href,
+  'moan-a': new URL('./sounds/moan-a.ogg', import.meta.url).href,
+  'moan-b': new URL('./sounds/moan-b.ogg', import.meta.url).href,
+  'moan-c': new URL('./sounds/moan-c.ogg', import.meta.url).href,
+  breath: new URL('./sounds/breath.ogg', import.meta.url).href,
+  dread: new URL('./sounds/dread.ogg', import.meta.url).href,
+} as const
+export type HorrorClip = keyof typeof CLIP_URLS
+export const HORROR_CLIPS = Object.keys(CLIP_URLS) as HorrorClip[]
+const clipSets = new WeakMap<Ctx, { buffers: Map<HorrorClip, AudioBuffer>; ready: Promise<void> }>()
+
+/** Start fetching the clips for this context (once); resolves when every clip has loaded or failed. */
+export function loadHorrorClips(ctx: Ctx, fetcher: (url: string) => Promise<ArrayBuffer> = url => fetch(url).then(r => r.ok ? r.arrayBuffer() : Promise.reject(new Error(String(r.status))))) {
+  let set = clipSets.get(ctx)
+  if (!set) {
+    const buffers = new Map<HorrorClip, AudioBuffer>()
+    const ready = Promise.all(HORROR_CLIPS.map(name => fetcher(CLIP_URLS[name])
+      .then(data => ctx.decodeAudioData(data))
+      .then(buffer => { buffers.set(name, buffer) })
+      .catch(() => {}))).then(() => {})
+    set = { buffers, ready }
+    clipSets.set(ctx, set)
+  }
+  return set.ready
+}
+type ClipShape = { gain: number; pan?: number; wet?: number; rate?: number; offset?: number; fadeIn?: number; until?: number; fadeOut?: number }
+/** Play a recorded clip at `at`; false (and silent) while it has not loaded. `until` cuts it off with a fade. */
+function clip(o: Out, name: HorrorClip, at: number, s: ClipShape) {
+  const buffer = clipSets.get(o.ctx)?.buffers.get(name)
+  if (!buffer) return false
+  const src = o.ctx.createBufferSource(); src.buffer = buffer; src.playbackRate.value = s.rate ?? 1
+  const g = o.ctx.createGain()
+  if (s.fadeIn) { g.gain.setValueAtTime(.0001, at); g.gain.exponentialRampToValueAtTime(s.gain, at + s.fadeIn) } else g.gain.value = s.gain
+  const offset = s.offset ?? 0
+  let end = at + (buffer.duration - offset) / (s.rate ?? 1)
+  if (s.until !== undefined && s.until < end) {
+    const fade = s.fadeOut ?? .15
+    g.gain.setValueAtTime(s.gain, Math.max(at, s.until - fade)); g.gain.linearRampToValueAtTime(0, s.until)
+    end = s.until
+  }
+  src.connect(g); release(src, [g, ...route(o, g, s.pan, s.wet)])
+  src.start(at, offset); src.stop(end + .02)
+  return true
+}
+const any = <T,>(...items: T[]) => items[Math.floor(Math.random() * items.length)]
+/** Each creature's own voice while it is revealed: which clip, how slow, how loud, how far off. */
+const VOICES: Record<number, { clip: HorrorClip; rate: number; gain: number; pan?: number; wet?: number; at?: number }> = {
+  1: { clip: 'moan-c', rate: .9, gain: .5, pan: -.4, wet: .5 },
+  2: { clip: 'growl-low', rate: .75, gain: .7, at: .2 },
+  3: { clip: 'moan-a', rate: .85, gain: .55, wet: .55 },
+  4: { clip: 'roar-a', rate: .85, gain: .8, at: .12 },
+  5: { clip: 'moan-c', rate: .7, gain: .5, pan: .4 },
+  6: { clip: 'moan-b', rate: .8, gain: .5, wet: .7 },
+  7: { clip: 'snarl-a', rate: .9, gain: .75, at: .3 },
+  8: { clip: 'growl-low', rate: .9, gain: .6, at: .45 },
+  9: { clip: 'moan-b', rate: .7, gain: .65, wet: .55 },
+  10: { clip: 'moan-a', rate: 1.1, gain: .5 },
+  11: { clip: 'moan-c', rate: .8, gain: .55, wet: .7, at: .25 },
+  12: { clip: 'breath', rate: .7, gain: .7, wet: .3 },
+}
+
 // ---------- building blocks ----------
 const whisper = (o: Out, at: number, len: number, pan = 0, gain = .09) => {
   for (const [freq, q] of [[2400, 4], [3500, 6], [1300, 3]] as const)
@@ -126,10 +201,16 @@ function buildUp(o: Out, at: number, len: number) {
   drone(o, at, len + .5, 34, .16)
   tone(o, at, { wave: 'sine', freq: 3100, gain: .012, attack: len * .8, release: .3, wet: .1 }) // ringing in the ears
 }
-/** The rush: a shriek right in your face, a hit, then the dark swallows it. */
+/** The rush: a scream right in your face over a roar, a heavy hit as the lights die, then the dark swallows it. */
 function lungeHit(o: Out, at: number, len: number) {
-  shriek(o, at, len + .25, .13)
-  noise(o, at, { type: 'bandpass', freq: 1800, to: 700, q: .8, gain: .5, attack: .02, hold: len * .6, release: .3, wobble: .5, wet: .3 })
+  // The scream and roar are cut by the blackout; the boom swells through the rush (its peak lands on the blackout)
+  // and its tail dies away in the dark.
+  const dark = at + len
+  const real = clip(o, any('scream-a', 'scream-b'), at, { gain: .85, rate: .82 + Math.random() * .12, wet: .25, until: dark + .08, fadeOut: .08 })
+  clip(o, 'roar-low', at, { gain: .6, rate: .8, wet: .3, until: dark + .08, fadeOut: .08 })
+  clip(o, any('hit-low', 'hit-deep', 'hit-mid'), Math.max(o.ctx.currentTime, at - .1), { gain: 1, wet: .2, until: dark + 1.6, fadeOut: 1.4 })
+  shriek(o, at, len + .25, real ? .05 : .13)
+  noise(o, at, { type: 'bandpass', freq: 1800, to: 700, q: .8, gain: real ? .25 : .5, attack: .02, hold: len * .6, release: .3, wobble: .5, wet: .3 })
   thud(o, at + len, .7, 58)
   noise(o, at + len, { type: 'lowpass', freq: 3000, to: 200, gain: .45, attack: .002, release: .5, wet: .6 })
 }
@@ -142,6 +223,10 @@ export function playEncounterStaging(ctx: Ctx, bus: AudioNode, id: number, durat
   const o = output(ctx, bus), now = ctx.currentTime + .01, d = duration / 1000
   const reveal = STAGE.reveal * d, lunge = STAGE.lunge * d
   buildUp(o, now, reveal)
+  // A dissonant swell under the build-up and the reveal, cut as the creature rushes.
+  clip(o, 'dread', now, { gain: .3, fadeIn: reveal * .8, until: now + lunge + .1, fadeOut: .25, wet: .35 })
+  const voice = VOICES[id]
+  if (voice) clip(o, voice.clip, now + reveal + (voice.at ?? 0) * (lunge - reveal), { gain: voice.gain, rate: voice.rate, pan: voice.pan, wet: voice.wet ?? .4, until: now + lunge + .15 })
   playEncounterSound(ctx, bus, id, (lunge - reveal) * 1000, beats, reveal)
 }
 /** The rush, played when it actually starts (on time, or early when you walk up to it). */
@@ -164,11 +249,16 @@ export function playPresence(ctx: Ctx, bus: AudioNode, kind: PresenceSound, pan 
       }
       break
     }
-    case 'whisper': whisper(o, now, 1.6, pan, .13); break
-    case 'bang': clank(o, now, .12); thud(o, now + .02, .35, 50); growl(o, now + .9, 1.4, .05); break
+    // A whisper, then a breath right at your ear.
+    case 'whisper': whisper(o, now, 1.6, pan, .13); clip(o, 'breath', now + 1.5, { gain: .45, rate: .8, pan: pan * 1.1, wet: .1 }); break
+    // Something heavy falls far off, and something answers it.
+    case 'bang': clank(o, now, .12); thud(o, now + .02, .35, 50); clip(o, 'hit-mid', now, { gain: .35, rate: .9, wet: .95, pan })
+      if (!clip(o, any('moan-a', 'moan-b'), now + 1, { gain: .22, rate: .7, wet: .95, pan: -pan, until: now + 4.5, fadeOut: 1.2 })) growl(o, now + .9, 1.4, .05)
+      break
     case 'lampOut': noise(o, now, { type: 'bandpass', freq: 1400, q: 3, gain: .12, attack: .002, release: .08, pan, wet: .5 }); tone(o, now, { wave: 'square', freq: 120, gain: .03, attack: .002, release: .15, filter: 900, pan, wet: .4 }); break
     case 'lampsBack': for (let i = 0; i < 4; i++) tone(o, now + i * .09, { wave: 'square', freq: 118, gain: .025, attack: .002, release: .06, filter: 1200, pan, wet: .3 }); break
-    case 'vanish': noise(o, now, { type: 'highpass', freq: 1800, to: 5000, gain: .1, attack: .05, release: .5, pan, wet: .9 }); whisper(o, now, .8, pan, .08); break
+    case 'vanish': noise(o, now, { type: 'highpass', freq: 1800, to: 5000, gain: .1, attack: .05, release: .5, pan, wet: .9 }); whisper(o, now, .8, pan, .08)
+      clip(o, 'moan-c', now, { gain: .25, rate: 1.15, pan, wet: .9, until: now + 1.1, fadeOut: .6 }); break
   }
 }
 
@@ -191,8 +281,11 @@ export class UndergroundAmbience {
     }
     if (now >= this.nextGroan) {
       if (this.nextGroan) {
-        if (Math.random() < .55) tone(o, now + .02, { wave: 'sawtooth', freq: 95 + Math.random() * 30, to: 55 + Math.random() * 15, filter: 320, gain: .03, attack: 1.2, hold: .6, release: 1.8, vibrato: .06, pan: Math.random() * 1.4 - .7, wet: .95 })
-        else creak(o, now + .02, 1.4, 110 + Math.random() * 60, Math.random() * 1.4 - .7, .035)
+        const r = Math.random(), pan = Math.random() * 1.4 - .7
+        // A real moan far down the halls, slowed and drowned in the reverb (when the clips are in), a groan or a creak.
+        const moaned = r < .4 && clip(o, any('moan-a', 'moan-b', 'moan-c'), now + .02, { gain: .14, rate: .6 + Math.random() * .2, pan, wet: .97, fadeIn: .8 })
+        if (!moaned && r < .7) tone(o, now + .02, { wave: 'sawtooth', freq: 95 + Math.random() * 30, to: 55 + Math.random() * 15, filter: 320, gain: .03, attack: 1.2, hold: .6, release: 1.8, vibrato: .06, pan, wet: .95 })
+        else if (!moaned) creak(o, now + .02, 1.4, 110 + Math.random() * 60, pan, .035)
       }
       this.nextGroan = now + 10 + Math.random() * 16
     }
@@ -200,6 +293,7 @@ export class UndergroundAmbience {
 
   private start(ctx: Ctx, bus: AudioNode) {
     this.stop(ctx)
+    void loadHorrorClips(ctx)
     const o = output(ctx, bus), gain = ctx.createGain(), sources: AudioScheduledSourceNode[] = []
     gain.gain.setValueAtTime(.0001, ctx.currentTime); gain.gain.exponentialRampToValueAtTime(1, ctx.currentTime + 2.5)
     for (const [f, d, level] of [[46, 0, .017], [46.6, 0, .015], [92.4, 5, .005]] as const) {
