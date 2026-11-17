@@ -4,6 +4,9 @@ import { openBoatChooser } from '../duckBoat/model'
 import { authoritativePose, avatars, useSession } from '../../network/worldClient'
 import { parkRuntime } from '../../park/runtime/runtime'
 import { openLocalBalloon } from '../balloon/localRide'
+import { A_FRAME, A_FRAME_SIGNS } from '../../config/parkAdvertising'
+import { renewalAdSigns } from '../../../park-renewal-preview/live/advertisingPlacement'
+import { groundSurfaceHeight } from '../../../park-renewal-preview/groundSurface'
 import { BALLOON_RIDE_ENABLED } from '../../park/mapSelection'
 import { viewControls } from '../../world/cameraPerspective'
 import { tableBusy, useGame } from '../../game/store'
@@ -72,6 +75,9 @@ const stoneRumbleTable = RENEWAL_PARK_ENABLED && STONE_RUMBLE_ENABLED
 const stoneRumbleGuidePosition = stoneRumbleTable && stoneRumbleStelePosition(stoneRumbleTable)
 
 const plazaKiosksEnabled = GENERATED_PARK_ENABLED || RENEWAL_PARK_ENABLED
+const advertisementSigns = RENEWAL_PARK_ENABLED
+  ? renewalAdSigns.map(sign => ({ ...sign, y: groundSurfaceHeight(sign.x, sign.z) }))
+  : GENERATED_PARK_ENABLED ? [] : A_FRAME_SIGNS.map(sign => ({ ...sign, y: 0 }))
 const recreationLabels: Record<RenewalRecreationId, string> = {
   fortune: '오늘의 운세 보기',
   'fish-bread': '붕어빵 굽기',
@@ -82,7 +88,7 @@ const recreationLabels: Record<RenewalRecreationId, string> = {
 }
 
 export interface ParkInteraction {
-  kind: 'bench' | 'table' | 'fitness' | 'telescope' | 'boat' | 'feedback' | 'notes' | 'bungeoppang' | 'rps-roulette' | 'renewal-game' | 'spot-difference' | 'construction' | 'gacha' | 'ranking-board' | 'vr' | 'jumpmap-guide' | 'stone-rumble-guide' | 'avatar-pickup' | 'avatar-throw' | 'joke-judge' | 'interior-item' | 'interior-access'
+  kind: 'bench' | 'table' | 'fitness' | 'telescope' | 'boat' | 'feedback' | 'notes' | 'bungeoppang' | 'rps-roulette' | 'renewal-game' | 'spot-difference' | 'construction' | 'gacha' | 'ranking-board' | 'vr' | 'jumpmap-guide' | 'stone-rumble-guide' | 'avatar-pickup' | 'avatar-throw' | 'joke-judge' | 'interior-item' | 'interior-access' | 'advertisement'
   id: string
   label: string
   seat?: 0 | 1
@@ -138,6 +144,12 @@ export function getParkInteraction(preferredGuide?: typeof STONE_RUMBLE_GUIDE_ID
   if(plazaKiosksEnabled&&canReachRankingBoard(p.current)){
     const [x,y,z]=rankingBoardTarget.reachPosition,distance=Math.hypot(p.current.x-x,p.current.z-z)
     choices.push({kind:'ranking-board',id:rankingBoardTarget.id,label:'랭킹 자세히 보기',occupied:false,available:true,distance,score:interactionScore(distance,{x,y,z})})
+  }
+  for (const sign of advertisementSigns) {
+    const distance = Math.hypot(p.current.x - sign.x, p.current.z - sign.z)
+    if (distance > 2.5 || Math.abs(p.current.y - (sign.y + .8)) > 1) continue
+    choices.push({ kind: 'advertisement', id: `a-frame-${sign.id}`, label: '광고 보기',
+      occupied: false, available: true, distance, score: interactionScore(distance, { ...sign, y: sign.y + A_FRAME.panelY }) })
   }
   if(plazaKiosksEnabled)for(const site of constructionSites){
     // layout-shop is the visible gacha machine. Its E prompt is controlled by the
@@ -271,6 +283,7 @@ export function interactWithPark(expectedId?: string): boolean {
   else if (target.kind === 'stone-rumble-guide') openStoneRumbleGuide(stoneRumbleGuideScope(useSession.getState()))
   else if (target.kind === 'jumpmap-guide') openJumpmapGuide(jumpmapGuideScope(useSession.getState()))
   else if (target.kind === 'ranking-board') openRankingBoard()
+  else if (target.kind === 'advertisement') window.dispatchEvent(new Event('ontap-open-pickus'))
   else if (target.kind === 'joke-judge') openJokeContest()
   else if (target.kind === 'vr') openParkVrZone()
   else if (target.kind === 'gacha') openParkGacha()

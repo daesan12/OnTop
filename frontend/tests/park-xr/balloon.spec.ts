@@ -1,8 +1,92 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 import { writeFile } from 'node:fs/promises'
 import { loadRenewalFixtureMap, parkFixture } from './fixture'
 
 const helper = '/tests/park-xr/syntheticXR.ts'
+
+async function mockParkStatus(page: Page) {
+  const now = new Date().toISOString()
+  await page.route('**/api/v1/operations/status', route => route.fulfill({ json: { mode: 'NORMAL', notice: '',
+    maintenanceStartedAt: null, expectedOpenAt: null, version: 1, updatedAt: now, serverTime: now } }))
+  await page.route('**/api/v1/announcements', route => route.fulfill({ json: { announcements: [], serverTime: now,
+    refreshAt: new Date(Date.now() + 60000).toISOString() } }))
+}
+
+test('220m 공원 PC에서 위를 보고 E로 간판과 열기구를 열고 기내에서 Enter로 채팅한다', async ({ page }, info) => {
+  const errors: string[] = []
+  page.on('pageerror', error => errors.push(error.message))
+  const server = await parkFixture(page, { balloonSupported: true })
+  await mockParkStatus(page)
+  await page.goto('/park')
+  await expect(page).toHaveTitle('OnTop')
+  await expect(page.locator('canvas')).toBeVisible({ timeout: 90000 })
+  const camera = '/src/world/cameraPerspective.ts'
+  const aim = '/src/features/interactions/interactionAim.ts'
+  const setCamera = () => page.evaluate(async path => {
+    const { viewControls, setCameraPerspective } = await import(path)
+    setCameraPerspective('third-person')
+    Object.assign(viewControls, { yaw: 0, pitch: 0, distance: 7 })
+  }, camera)
+  const up = () => page.evaluate(async path => (await import(path)).interactionAim.dy, aim) as Promise<number>
+  await expect.poll(() => page.evaluate(async path => (await import(path)).interactionAim.ready, aim), { timeout: 90000 }).toBe(true)
+  await setCamera()
+  await expect.poll(up).toBeCloseTo(0, 1)
+  await page.mouse.move(720, 650)
+  await page.mouse.down()
+  await expect.poll(() => page.evaluate(async path => (await import(path)).roamingInput.draggingCamera,
+    '/src/world/inputOwnership.ts')).toBe(true)
+  await page.mouse.move(720, 180, { steps: 12 })
+  await page.mouse.up()
+  await expect.poll(up).toBeGreaterThan(.8)
+  await page.screenshot({ path: info.outputPath('park-look-up.png') })
+
+  const sign = await page.evaluate(async paths => {
+    const [{ renewalAdSigns }, { groundSurfaceHeight }] = await Promise.all(paths.map(path => import(path)))
+    const { x, z } = renewalAdSigns[0]
+    return { x, z: z + 2, y: groundSurfaceHeight(x, z + 2) + .8 }
+  }, ['/park-renewal-preview/live/advertisingPlacement.ts', '/park-renewal-preview/groundSurface.ts'])
+  server.place(sign)
+  await setCamera()
+  await expect(page.getByRole('button', { name: 'E 광고 보기', exact: true })).toBeVisible()
+  await page.keyboard.press('e')
+  const ad = page.locator('.park-advertisement-dialog')
+  await expect(ad).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(ad).toBeHidden()
+
+  const station = loadRenewalFixtureMap().data.interactions.construction.find(site => site.id === 'balloon')!
+  const [x, y, z] = station.reachPosition
+  server.place({ x, y, z: z + 2.25 })
+  await setCamera()
+  await expect(page.getByRole('button', { name: 'E 열기구 탑승', exact: true })).toBeVisible()
+  const probe = '/tests/park-integration/probe.ts'
+  const visible = (name: string) => page.evaluate(async ({ probe, name }) => (await import(probe)).preparedAssetVisible(name), { probe, name })
+  await expect.poll(() => visible('balloon-wayfinding')).toBe(true)
+  expect(await visible('balloon-boarding-gate')).toBe(false)
+  expect(await visible('balloon-approach-sign')).toBe(false)
+  await page.screenshot({ path: info.outputPath('park-balloon-entrance.png') })
+  await page.keyboard.press('e')
+  const boarding = page.getByRole('dialog', { name: '하늘언덕 열기구 탑승 준비' })
+  await expect(boarding).toBeVisible()
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('textbox', { name: '주변 채팅 메시지' })).toBeHidden()
+  await boarding.getByRole('button', { name: '100냥 내고 탑승하기' }).click()
+  const back = page.getByRole('button', { name: '승강장 복귀' })
+  await expect(back).toBeVisible({ timeout: 30000 })
+  await page.keyboard.press('Enter')
+  const chat = page.getByRole('textbox', { name: '주변 채팅 메시지' })
+  await expect(chat).toBeFocused()
+  await chat.pressSequentially('balloon chat')
+  await page.screenshot({ path: info.outputPath('park-balloon-chat.png') })
+  await chat.press('Enter')
+  await expect(page.getByRole('log')).toContainText('balloon chat')
+  await expect(page.locator('canvas')).toBeFocused()
+  await back.click()
+  await expect(page.getByText('승강장으로 돌아갑니다.', { exact: true })).toBeVisible()
+  await expect.poll(() => server.requests.filter(request => request.type === 'WORLD_BALLOON_END').length).toBe(1)
+  await expect(page.getByRole('button', { name: 'E 열기구 탑승', exact: true })).toBeVisible()
+  expect(errors).toEqual([])
+})
 
 test('220m 공원에서 VR 열기구에 탑승해 자동 비행하고 B로 승강장에 복귀한다', async ({ page }, info) => {
   const errors: string[] = []
@@ -10,11 +94,7 @@ test('220m 공원에서 VR 열기구에 탑승해 자동 비행하고 B로 승�
   await page.addInitScript(() => Object.defineProperty(navigator, 'xr', { configurable: true,
     value: Object.assign(new EventTarget(), { isSessionSupported: async () => true }) }))
   const server = await parkFixture(page, { carrySupported: true, balloonSupported: true, environmentEpochMs: Date.now() - 600000 })
-  const now = new Date().toISOString()
-  await page.route('**/api/v1/operations/status', route => route.fulfill({ json: { mode: 'NORMAL', notice: '',
-    maintenanceStartedAt: null, expectedOpenAt: null, version: 1, updatedAt: now, serverTime: now } }))
-  await page.route('**/api/v1/announcements', route => route.fulfill({ json: { announcements: [], serverTime: now,
-    refreshAt: new Date(Date.now() + 60000).toISOString() } }))
+  await mockParkStatus(page)
   await page.goto('/park')
   const start = page.getByRole('button', { name: '공원 VR 시작', exact: true })
   await expect(start).toBeEnabled({ timeout: 90000 })
