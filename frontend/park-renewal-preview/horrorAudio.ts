@@ -433,7 +433,7 @@ export function playEyes(ctx: Ctx, bus: AudioNode, kind: 'open' | 'shut' | 'murm
 }
 
 /** The hall's presence between scares (HorrorPresence): you are not alone down here. */
-export type PresenceSound = 'footsteps' | 'whisper' | 'bang' | 'lampOut' | 'lampsBack' | 'vanish'
+export type PresenceSound = 'footsteps' | 'whisper' | 'bang' | 'lampOut' | 'lampsBack' | 'vanish' | 'redOn' | 'redOff'
 export function playPresence(ctx: Ctx, bus: AudioNode, kind: PresenceSound, pan = 0) {
   const o = output(ctx, bus), now = ctx.currentTime + .01
   switch (kind) {
@@ -455,9 +455,41 @@ export function playPresence(ctx: Ctx, bus: AudioNode, kind: PresenceSound, pan 
       break
     case 'lampOut': noise(o, now, { type: 'bandpass', freq: 1400, q: 3, gain: .12, attack: .002, release: .08, pan, wet: .5 }); tone(o, now, { wave: 'square', freq: 120, gain: .03, attack: .002, release: .15, filter: 900, pan, wet: .4 }); break
     case 'lampsBack': for (let i = 0; i < 4; i++) tone(o, now + i * .09, { wave: 'square', freq: 118, gain: .025, attack: .002, release: .06, filter: 1200, pan, wet: .3 }); break
+    // The light goes red (horrorRules, rule 2): a relay thrown somewhere, and a low alarm that swells and holds.
+    case 'redOn':
+      noise(o, now, { type: 'bandpass', freq: 1100, q: 4, gain: .22, attack: .002, release: .07, wet: .3 }); thud(o, now + .01, .3, 70)
+      for (const [f, d] of [[49, 0], [52, 9], [98, -6]] as const) tone(o, now + .05, { wave: 'sawtooth', freq: f, detune: d, filter: 260, gain: f > 60 ? .025 : .06, attack: .5, hold: 4.5, release: 1.4, vibrato: .02, wet: .5 })
+      tone(o, now + .05, { wave: 'sine', freq: 330, to: 311, gain: .018, attack: .9, hold: 3.8, release: 1.2, wet: .7 })
+      break
+    case 'redOff': noise(o, now, { type: 'bandpass', freq: 1100, q: 4, gain: .18, attack: .002, release: .06, wet: .3 })
+      for (let i = 0; i < 3; i++) tone(o, now + .08 + i * .08, { wave: 'square', freq: 118, gain: .025, attack: .002, release: .05, filter: 1200, wet: .3 }); break
     case 'vanish': noise(o, now, { type: 'highpass', freq: 1800, to: 5000, gain: .1, attack: .05, release: .5, pan, wet: .9 }); whisper(o, now, .8, pan, .08)
       clip(o, 'moan-c', now, { gain: .25, rate: 1.15, pan, wet: .9, until: now + 1.1, fadeOut: .6 }); break
   }
+}
+
+/**
+ * One step of something walking up behind you (approachPlan), `delay` seconds from now. Far off (`near` 0) it is a
+ * dull, wet thud lost in the echo; at your back (1) a hard bare slap with its weight coming through the floor. The first
+ * step of the rush (`burst` and `first`) brings its breath in with it.
+ */
+export function playApproachStep(ctx: Ctx, bus: AudioNode, near: number, pan: number, delay = 0, burst = false, first = false) {
+  const o = output(ctx, bus), at = ctx.currentTime + .01 + Math.max(0, delay), loud = near ** 1.5
+  // The slap of a bare foot, and the weight coming down through the floor.
+  noise(o, at, { type: 'lowpass', freq: 320 + near * 2800, gain: .1 + loud * .6, attack: .002, release: .08 + (1 - near) * .1, pan, wet: .9 - near * .6 })
+  tone(o, at, { wave: 'sine', freq: 95, to: 42, gain: .06 + loud * .6, attack: .002, release: .16 + near * .08, pan, wet: .75 - near * .5 })
+  // The floor is wet: a small splash under the heel.
+  noise(o, at + .015, { type: 'bandpass', freq: 1500 + Math.random() * 900, q: 3, gain: .025 + loud * .14, attack: .003, release: .06, pan, wet: .9 - near * .5 })
+  if (burst) noise(o, at, { type: 'highpass', freq: 1800, gain: .18 + loud * .3, attack: .001, release: .035, pan: pan + (Math.random() - .5) * .3, wet: .2 })
+  if (burst && first && !clip(o, 'breath', at, { gain: .9, rate: 1.05, pan, wet: .1, fadeIn: .1 })) whisper(o, at, .6, pan, .18)
+}
+
+/** It runs on past you (you kept still and did not look back): a rush of air from `side` across to the other, and its breath right at your ear as it goes. */
+export function playPassBy(ctx: Ctx, bus: AudioNode, side: number) {
+  const o = output(ctx, bus), now = ctx.currentTime + .01
+  whoosh(o, now, .55, side * .7, -side * .9, .32)
+  if (!clip(o, 'breath', now + .02, { gain: .85, rate: 1.15, pan: side * .2, wet: .08, until: now + .9, fadeOut: .3 })) whisper(o, now, .5, side * .2, .16)
+  whisper(o, now + .6, 1.1, -side * .8, .06)
 }
 
 /** The hall's own sound while you are in it: a low drone, drips, distant groans and creaks. Call tick() each frame. */
