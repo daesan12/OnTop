@@ -1,0 +1,4 @@
+# Raw database dumps contain production and development user data.
+*
+!.gitignore
+!README.md
