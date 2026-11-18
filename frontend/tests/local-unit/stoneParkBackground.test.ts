@@ -46,17 +46,27 @@ describe('돌탑 공원 배경 캐시', () => {
       render: vi.fn(),
     }
     const backdrop = new StoneParkBackdrop()
-    const prepare = () => backdrop.prepare(renderer as unknown as WebGLRenderer, park)
+    const capture = () => backdrop.captureFace(renderer as unknown as WebGLRenderer, park)
+    const sky = backdrop.scene.background
 
-    prepare()
-    prepare()
+    for (let face = 0; face < 5; face++) {
+      expect(capture()).toBe(false)
+      expect(renderer.render).toHaveBeenCalledTimes(face + 1)
+      backdrop.showCapture()
+      expect(backdrop.scene.background).toBe(sky)
+    }
+    expect(capture()).toBe(true)
+    expect(backdrop.scene.background).toBe(sky)
+    backdrop.showCapture()
+    expect(capture()).toBe(true)
     expect(renderer.render).toHaveBeenCalledTimes(6)
-    expect(backdrop.scene.background).toBeTruthy()
+    expect(backdrop.scene.background).not.toBe(sky)
     expect(renderer.autoClear).toBe(false)
 
     backdrop.invalidate()
-    prepare()
-    expect(renderer.render).toHaveBeenCalledTimes(12)
+    expect(backdrop.scene.background).toBe(sky)
+    expect(capture()).toBe(false)
+    expect(renderer.render).toHaveBeenCalledTimes(7)
     backdrop.dispose()
   })
 })

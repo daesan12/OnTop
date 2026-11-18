@@ -26,6 +26,7 @@ public final class StoneRumbleMatch {
     private static final double[] HEIGHTS = {0, 12, 24};
     private static final long FIRST_COLLAPSE_DELAY = 18_000;
     private static final long COLLAPSE_INTERVAL = 9_000;
+    private static final long JUMP_BUFFER_MILLIS = 140;
     private final List<Player> players = new ArrayList<>();
     private final List<Tile> tiles = new ArrayList<>();
     private final List<List<Tile>> collapseRings = new ArrayList<>();
@@ -145,9 +146,9 @@ public final class StoneRumbleMatch {
             player.aimX = aimX / aimLength;
             player.aimZ = aimZ / aimLength;
         }
-        if (jump && player.grounded && now >= player.slideUntil) {
-            player.vy = 7;
-            player.grounded = false;
+        if (jump) {
+            player.jumpBufferedUntil = now + JUMP_BUFFER_MILLIS;
+            applyBufferedJump(player);
         }
         if (slide && now >= player.knockUntil && now >= player.slideReadyAt) {
             double directionLength = Math.hypot(player.inputX, player.inputZ);
@@ -213,6 +214,7 @@ public final class StoneRumbleMatch {
     }
 
     private void move(Player player) {
+        applyBufferedJump(player);
         boolean recoiling = now <= player.knockUntil;
         boolean sliding = player.slideUntil > player.slideStartedAt && now <= player.slideUntil;
         double inputScale = now >= landsAt && !recoiling && !sliding && now - player.inputAt <= 350 ? 4.5 : 0;
@@ -255,6 +257,14 @@ public final class StoneRumbleMatch {
         }
         if (player.y < ELIMINATION_HEIGHT) {
             eliminate(player, now, false);
+        }
+    }
+
+    private void applyBufferedJump(Player player) {
+        if (now <= player.jumpBufferedUntil && player.grounded && now >= player.slideUntil) {
+            player.jumpBufferedUntil = Long.MIN_VALUE;
+            player.vy = 7;
+            player.grounded = false;
         }
     }
 
@@ -441,6 +451,7 @@ public final class StoneRumbleMatch {
         boolean alive = true, grounded, forfeited;
         long inputAt, pigeonReadyAt, protectedUntil, hitAt, eliminatedAt, knockUntil;
         long slideStartedAt, slideUntil, slideReadyAt;
+        long jumpBufferedUntil = Long.MIN_VALUE;
         Player(String userId, double x, double z, long startsAt, long landsAt) {
             this.userId = userId; this.x = x; this.z = z; this.pigeonReadyAt = startsAt;
             this.slideReadyAt = landsAt;

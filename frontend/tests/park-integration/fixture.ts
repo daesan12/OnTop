@@ -46,8 +46,9 @@ export async function parkFixture(page:Page,options:{holdConfirmation?:boolean;s
   let socket:WebSocketRoute,confirmationId='',version=0,channelVersion=0,facilityVersion=0,lease:FacilityLease|undefined,seated='',watched=''
   const fourPlayerTables=new Set<string>()
   const position={x:data.physics.spawn.position[0],y:data.physics.spawn.position[1],z:data.physics.spawn.position[2],yaw:Math.PI,moving:false,running:false,swimming:false,lastInputSeq:0}
+  let peers: {userId:string;position:typeof position}[]=[]
   const emit=(type:string,payload:object,id:string|null=null)=>socket.send(JSON.stringify({type,payload,requestId:id}))
-  const world=(id:string|null=null)=>emit('WORLD_STATE',{channelId:'channel-1',version:++version,mapVersion:mapIdentity.mapVersion,avatars:[{userId:'101',position:{...position},...(options.carrySupported?{carry:null,interactionBusy,vrActive}:{}),...(options.clientPositions?{motion:{epoch:motionEpoch,tick:++motionTick,appliedInputSeq:position.lastInputSeq,inputAgeMs:0,velocityY,grounded,inputActive:true,authority:'CLIENT_VALIDATED',profile:'PARK_V1'}}:{})}]},id)
+  const world=(id:string|null=null)=>emit('WORLD_STATE',{channelId:'channel-1',version:++version,mapVersion:mapIdentity.mapVersion,avatars:[{userId:'101',position:{...position},...(options.carrySupported?{carry:null,interactionBusy,vrActive}:{}),...(options.clientPositions?{motion:{epoch:motionEpoch,tick:++motionTick,appliedInputSeq:position.lastInputSeq,inputAgeMs:0,velocityY,grounded,inputActive:true,authority:'CLIENT_VALIDATED',profile:'PARK_V1'}}:{})},...peers]},id)
   const occupancy=(id:string|null=null)=>emit('WORLD_FACILITY_STATE',{channelId:'channel-1',version:++facilityVersion,mapVersion:mapIdentity.mapVersion,occupancies:lease?[lease]:[]},id)
   const table=(id:string,requestId:string|null,type='TABLE_STATE')=>emit(type,{tableId:id,version:++version,capacity:4,minimumPlayers:2,seats:Array.from({length:4},(_,n)=>({seatNumber:n+1,userId:n===0&&seated===id?'101':null,ready:false})),allReady:false,selectorUserId:seated?'101':null,gameCode:fourPlayerTables.has(id)?'DICE':null,targetScore:null,betAmountPerPlayer:null,gameId:null},requestId)
   await page.route('**/api/v1/**',async route=>{
@@ -93,19 +94,33 @@ export async function parkFixture(page:Page,options:{holdConfirmation?:boolean;s
     const body=p==='/api/v1/auth/refresh'?{accessToken:'park-fixture'}:p==='/api/v1/users/me'?{userId:101,nickname:'새 맵 검증',characterGender:'MALE'}:p==='/api/v1/auth/websocket-ticket'?{ticket:'park-fixture',expiresIn:30}:p==='/api/v1/channels'?{items:[{channelId:'channel-1',name:'새 공원 검증',capacity:16,currentUsers:1,joinable:true}]}:p==='/api/v1/tables'?{tables:bindings.map(b=>({tableId:b.tableId,capacity:4,minimumPlayers:2,occupiedSeats:0,availableSeats:4,readyCount:0,allReady:false,status:'WAITING',joinable:true,gameCode:null,targetScore:null,betAmountPerPlayer:null,gameId:null}))}:p==='/api/v1/wallets/me'?{balance:100,reservedBalance:0,availableBalance:100}:p==='/api/v1/notes'?{notes:[]}:null
     await route.fulfill(p==='/api/v1/notes'?{json:{notes}}:body?{json:body}:{status:404,json:{message:'Not part of this fixture'}})
   })
+  let handleRequest: ((request: typeof requests[number]) => boolean) | undefined
   await page.routeWebSocket('**/ws/tables?**',ws=>{
     socket=ws
     let dx=0,dz=0
+    let balloonPosition: { x: unknown; y: unknown; z: unknown } | undefined
+    let balloonParty: { capacity: unknown; boarding: boolean; passengers: object; controls: null } | undefined
     const tick=setInterval(()=>{if(position.moving&&!options.clientPositions){const step=(position.running?9:6.25)*.05;position.x+=dx*step;position.z+=dz*step;world()}},50)
     ws.onClose((code,reason)=>{clearInterval(tick);ws.close({code,reason})})
     ws.onMessage(raw=>{
       const r=JSON.parse(String(raw));requests.push(r)
+      if (handleRequest?.(r)) return
       if (options.balloonSupported && (r.type === 'WORLD_BALLOON_START' || r.type === 'WORLD_BALLOON_POSE')) {
         const { x, y, z, cabin } = r.payload
+        balloonPosition = { x, y, z }
+        if (r.type === 'WORLD_BALLOON_START' && r.payload.mode) {
+          balloonParty = { capacity: r.payload.capacity, boarding: true, passengers: {}, controls: null }
+        }
         emit('WORLD_BALLOON_STATE', { channelId: 'channel-1', pilotId: '101',
-          flight: { position: { x, y, z }, aboard: r.payload.aboard ?? true, cabin } }, r.requestId)
+          flight: { position: balloonPosition, aboard: r.payload.aboard ?? true, cabin }, party: balloonParty }, r.requestId)
+      }
+      if (options.balloonSupported && r.type === 'WORLD_BALLOON_LAUNCH' && balloonParty && balloonPosition) {
+        balloonParty = { ...balloonParty, boarding: false }
+        emit('WORLD_BALLOON_STATE', { channelId: 'channel-1', pilotId: '101',
+          flight: { position: balloonPosition, aboard: true }, party: balloonParty }, r.requestId)
       }
       if (options.balloonSupported && r.type === 'WORLD_BALLOON_END') {
+        balloonParty = undefined
         emit('WORLD_BALLOON_STATE', { channelId: 'channel-1', pilotId: '101', flight: null }, r.requestId)
       }
       if(r.type==='WORLD_TIME_CHECK')emit('WORLD_TIME_STATE',{serverNow:Date.now(),cycleEpochMs:options.environmentEpochMs??0,cycleDurationMs:1200000,timeZone:'Asia/Seoul'},r.requestId)
@@ -143,7 +158,11 @@ export async function parkFixture(page:Page,options:{holdConfirmation?:boolean;s
     emit('CONNECTED',{userId:'101',...(options.omitMap?{}:{map:options.serverMap??mapIdentity}),mapVerificationRequired:true,
       ...(options.vrMobilityAvailable ? { mobilityAvailable: true, vrMobilityAvailable: true } : {})})
   })
-  return {emit,requests,restRequests,
+  return {emit,requests,restRequests, interceptRequest: (handler: typeof handleRequest) => { handleRequest = handler },
+    setPeers:(positions: readonly (Pick<typeof position,'x'|'y'|'z'> & Partial<Pick<typeof position,'moving'>>)[])=>{
+      peers=positions.map((p,i)=>({userId:String(102+i),position:{...position,moving:false,running:false,swimming:false,...p}}))
+      world()
+    },
     addNote:(text:string,category:NoteTopic='free')=>{notes.push({id:String(notes.length+1),text,category,createdAt:new Date().toISOString()});emit('NOTES_CHANGED',{revision:String(++notesRevision)})},
     resetGame:(anchorId:string)=>{const id=bindings.find(b=>b.anchorId===anchorId)!.tableId;fourPlayerTables.delete(id);table(id,null)},enableFourPlayers:(anchorId:string)=>{const id=bindings.find(b=>b.anchorId===anchorId)!.tableId;fourPlayerTables.add(id);table(id,null)},approve:()=>emit('WORLD_MAP_STATE',{map:mapIdentity,verified:true},confirmationId),place:(p:{x:number;y:number;z:number;yaw?:number},swimming=false,motion?:{grounded:boolean;velocityY:number})=>{Object.assign(position,p,{moving:false,running:false,swimming});if(options.clientPositions){motionEpoch++;grounded=motion?.grounded??true;velocityY=motion?.velocityY??0}world()},mismatch:()=>emit('ERROR',{code:'MAP_VERSION_MISMATCH',serverMap:{...mapIdentity,mapVersion:'f'.repeat(64)},message:'맵 버전 확인 필요'})}
 }

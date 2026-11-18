@@ -1,8 +1,10 @@
-import { BALLOON_SCALE } from '../../../park-renewal-preview/plan'
+import { BALLOON_CABIN_FLOOR_HEIGHT, BALLOON_SCALE } from '../../../park-renewal-preview/plan'
 import type { Input, Point } from './flight'
 
-export const CABIN_FLOOR_HEIGHT = .425
+export const CABIN_FLOOR_HEIGHT = BALLOON_CABIN_FLOOR_HEIGHT
+export const CABIN_DECK_RISE = CABIN_FLOOR_HEIGHT - .425
 export const CABIN_SEAT_HEIGHT = .34
+export const CABIN_STANDING_EYE_OFFSET = 1.45
 export const CABIN_WALK_RADIUS = 1.38
 export const CABIN_BENCH_INNER = 1.1
 export const CABIN_BENCH_OUTER = 1.56
@@ -34,6 +36,7 @@ export type CabinPose = { x: number; z: number; yaw: number; seatIndex: number; 
 export type BalloonRiderPose = Point & Pick<CabinPose, 'yaw' | 'seatIndex' | 'moving'>
 
 export const idleCabin: CabinPose = { x: 0, z: 0, yaw: Math.PI, seatIndex: -1, moving: false }
+export const doorwayCabin: CabinPose = { ...idleCabin, x: -1.18, yaw: Math.PI / 2 }
 export const sightseeingCabin: CabinPose = { ...idleCabin, x: .39, z: 1.02, yaw: .4 }
 export const SIGHTSEEING_STEP_HEIGHT = .62
 

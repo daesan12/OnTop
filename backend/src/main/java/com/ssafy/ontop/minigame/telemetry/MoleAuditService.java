@@ -38,6 +38,8 @@ class MoleAuditService {
     private final BehaviorLog log;
     private final BehaviorLogProperties properties;
     private final ConcurrentHashMap<MoleAuditGame, MoleAuditDtos.Detections> detectionCache = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<MoleAuditGame, MoleAuditDtos.TimingDetections> timingCache =
+            new ConcurrentHashMap<>();
     // 접근 순서가 바뀌는 get을 포함해 모든 접근을 synchronized takeQuota에서 처리한다.
     private final LinkedHashMap<Long, BatchQuota> quotas = new LinkedHashMap<>(16, 0.75f, true);
 
@@ -65,10 +67,10 @@ class MoleAuditService {
         });
     }
 
-    List<MoleAuditDtos.Round> search(MoleAuditGame game, Long user, Long id, LocalDate day) {
+    List<MoleAuditDtos.Round> search(MoleAuditGame game, Long user, Long id, LocalDate day, String nickname) {
         Instant from = day == null ? null : start(day);
         Instant until = day == null ? null : start(day.plusDays(1));
-        var rounds = store.list(game, user, id, from, until, null, null, SEARCH_LIMIT);
+        var rounds = store.list(game, user, id, from, until, null, null, nickname, SEARCH_LIMIT);
         return captures(game, rounds).stream().map(Capture::summary).toList();
     }
 
@@ -84,6 +86,18 @@ class MoleAuditService {
         });
     }
 
+    /** 함정 표적 적발({@link #detections})과 같은 기간·인원·재사용 시간으로 타이밍 신호가 난 회원을 모은다. */
+    MoleAuditDtos.TimingDetections timingDetections(MoleAuditGame game, Instant until) {
+        return timingCache.compute(game, (key, cached) -> {
+            if (cached != null && until.isBefore(cached.until().plusSeconds(DETECTION_CACHE_SECONDS))) {
+                return cached;
+            }
+            Instant from = until.minus(DETECTION_DAYS, ChronoUnit.DAYS);
+            var items = List.copyOf(store.timingDetections(key, from, until, DETECTION_LIMIT));
+            return new MoleAuditDtos.TimingDetections(items, from, until, DETECTION_LIMIT);
+        });
+    }
+
     MoleAuditDtos.Detail detail(MoleAuditGame game, long id, MoleAuditDtos.Input input) {
         var roundWithMember = store.findRoundWithMember(game, id);
         if (roundWithMember == null) {
@@ -94,13 +108,13 @@ class MoleAuditService {
         Instant from = start(day);
         Instant until = start(day.plusDays(1));
         var recent = new ArrayList<>(store.list(game, selected.userId(), null, from, until,
-                selected.version(), null, MEMBER_LIMIT));
+                selected.version(), null, null, MEMBER_LIMIT));
         if (recent.stream().noneMatch(round -> round.id() == id)) {
             recent.addFirst(selected);
         }
         var member = captures(game, recent);
         var reference = captures(game, store.list(game, null, null, from, until, selected.version(),
-                selected.userId(), REFERENCE_LIMIT * 2)).stream()
+                selected.userId(), null, REFERENCE_LIMIT * 2)).stream()
                 .filter(round -> round.summary().honeypotTaps() == 0 && round.summary().completionHoneypotTaps() == 0)
                 .filter(round -> round.hasOnlyInput(input))
                 .limit(REFERENCE_LIMIT).toList();
@@ -110,7 +124,7 @@ class MoleAuditService {
                 .thenComparingInt(MoleAuditDtos.Entry::sequence)).toList();
         return new MoleAuditDtos.Detail(target.summary(), roundWithMember.nickname(), roundWithMember.withdrawn(),
                 timeline, member.stream().map(Capture::summary).toList(), compare(member, input),
-                compare(reference, input));
+                compare(reference, input), store.timing(game, id));
     }
 
     private List<Capture> captures(MoleAuditGame game, List<MoleAuditStore.RoundData> rounds) {
@@ -170,8 +184,8 @@ class MoleAuditService {
         }
         var timeline = List.copyOf(bySequence.values());
         int streamedHits = (int) timeline.stream().filter(entry -> entry.outcome() == MoleAuditDtos.Outcome.HONEYPOT).count();
-        var summary = new MoleAuditDtos.Round(Long.toString(round.id()), Long.toString(round.userId()), round.startedAt(),
-                round.status(), timeline.size(), streamedHits, settledHits);
+        var summary = new MoleAuditDtos.Round(Long.toString(round.id()), Long.toString(round.userId()), round.nickname(),
+                round.startedAt(), round.status(), round.score(), timeline.size(), streamedHits, settledHits);
         return new Capture(summary, timeline);
     }
 

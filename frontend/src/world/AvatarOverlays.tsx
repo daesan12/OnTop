@@ -16,6 +16,8 @@ import { useChatScope } from '../features/chat/gameChat'
 import { displayNickname } from '../features/gameMaster/displayName'
 import { TypingIndicator } from '../features/chat/TypingIndicator'
 import { useWardrobe } from '../features/wardrobe/state'
+import { useParkXR } from '../features/parkXR/state'
+import { parkXRView } from './xrView'
 import '../features/vrSession/presence.css'
 
 export interface AvatarAnchors {
@@ -102,6 +104,8 @@ const AvatarOverlay = memo(function AvatarOverlay({
 /** One DOM layer; chat updates do not reconcile the 3D world. */
 export function AvatarOverlays({ targets }: { targets: OverlayTargets }) {
   const ids = useSession((state) => state.ids)
+  const immersive = useParkXR(state => state.phase === 'active' || state.phase === 'ending')
+  if (immersive) return null
   return (
     <div className="avatar-overlays" aria-hidden="true">
       {ids.map((id) => (
@@ -123,6 +127,11 @@ export function AvatarOverlayPositions({
   const projections = useMemo(() => new WeakMap<HTMLDivElement, OverlayProjection>(), [])
   const lastTransforms = useRef(new Map<string, string>())
   useFrame(({ camera, size }) => {
+    if (parkXRView.active) {
+      lastTransforms.current.clear()
+      avatarScreenPositions.clear()
+      return
+    }
     const session = useSession.getState()
     const local = avatars.get(session.sessionId)
     const maxDistance = session.telescopeId

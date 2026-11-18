@@ -4,6 +4,195 @@ import { disabledJumpmapStatus } from '../fixtures/jumpmap'
 
 const syntheticXR = '/tests/park-xr/syntheticXR.ts'
 
+test('220m 안내 비석에서 한지 랭킹과 밀리초 기록을 읽고 안내로 돌아온다', async ({ page }, info) => {
+  const errors: string[] = []
+  page.on('pageerror', error => errors.push(error.message))
+  const server = await parkFixture(page)
+  const course = server.renewalCourse!
+  const status = disabledJumpmapStatus('channel-1', server.mapIdentity.mapVersion)
+  await page.route('**/api/v1/minigames/jumpmap/status?**', route => route.fulfill({ json: {
+    ...status, enabled: true, courseVersion: course.courseVersion, rulesVersion: course.rulesVersion,
+  } }))
+  const now = new Date().toISOString()
+  await page.route('**/api/v1/operations/status', route => route.fulfill({ json: { mode: 'NORMAL', notice: '',
+    maintenanceStartedAt: null, expectedOpenAt: null, version: 1, updatedAt: now, serverTime: now } }))
+  await page.route('**/api/v1/announcements', route => route.fulfill({ json: { serverTime: now,
+    refreshAt: new Date(Date.now() + 10000).toISOString(), announcements: [] } }))
+  const items = Array.from({ length: 24 }, (_, index) => ({
+    rank: index < 2 ? 1 : index + 1, userId: String(100 + index), nickname: index === 1 ? '돌탑 산책자' : `도전자 ${index + 1}`,
+    finishMs: 124910 + Math.max(0, index - 1), finishedAt: now,
+  }))
+  let reads = 0
+  await page.route('**/api/v1/minigames/jumpmap/rankings', route => {
+    reads++
+    if (reads === 4) return route.fulfill({ json: { items: [], me: null } })
+    if (reads === 5) return route.fulfill({ json: { items: null, me: null } })
+    return route.fulfill({ json: { items, me: items[1] } })
+  })
+  await page.goto('/park')
+  await expect(page).toHaveTitle('OnTop')
+  await expect.poll(() => page.evaluate(() => performance.getEntriesByName('park-scene-presented').length),
+    { timeout: 90000 }).toBeGreaterThan(0)
+  await expect(page.getByText('공원을 준비하고 있어요…', { exact: true })).toBeHidden({ timeout: 90000 })
+  await expect.poll(() => page.evaluate(async () =>
+    (await import('/src/features/jumpmap/state.ts' as string)).useJumpmap.getState().available),
+    { timeout: 90000 }).toBe(true)
+  server.place({ ...course.guide, y: course.guide.y + .8 })
+  const guideHint = page.getByRole('button', { name: /E 돌탑 점프맵 안내/ })
+  await expect(guideHint).toBeVisible()
+  await guideHint.click()
+  const guide = page.getByRole('dialog', { name: '돌탑 점프맵 준비 안내', exact: true })
+  const opener = guide.getByRole('button', { name: '타임어택 랭킹 보기', exact: true })
+  const ranking = page.getByRole('dialog', { name: '돌탑 타임어택 랭킹', exact: true })
+  const list = ranking.getByRole('list', { name: '완주 기록 순위', exact: true })
+  expect(reads).toBe(0)
+  for (const size of [{ width: 1440, height: 900 }, { width: 360, height: 640 }, { width: 720, height: 400 }]) {
+    await page.setViewportSize(size)
+    await opener.click()
+    await expect(ranking).toBeVisible()
+    await expect(ranking.getByRole('heading', { name: '돌탑 타임어택 랭킹', exact: true })).toHaveCount(1)
+    await expect(ranking.getByLabel('내 최고 기록').locator('time')).toHaveText('2분 04.910초')
+    await expect(list.getByRole('listitem')).toHaveCount(items.length)
+    expect(await list.locator('time').allTextContents()).toEqual([
+      '2분 04.910초', '2분 04.910초', ...items.slice(2).map(item => `2분 04.${item.finishMs % 1000}초`),
+    ])
+    await expect(list.getByRole('listitem').nth(2)).toContainText('3위')
+    expect(await ranking.evaluate(node => getComputedStyle(node).backgroundImage)).toContain('/art/tablet/hanji.webp')
+    expect(await list.evaluate(node => getComputedStyle(node).scrollbarWidth)).toBe('none')
+    expect(await ranking.evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true)
+    await expect(ranking.getByRole('button', { name: '랭킹 닫기' })).toBeInViewport()
+    await page.screenshot({ path: info.outputPath(`jumpmap-guide-ranking-${size.width}.png`) })
+    await list.hover()
+    await page.mouse.wheel(0, 4000)
+    await expect(list.getByRole('listitem').last()).toBeInViewport()
+    await ranking.getByRole('button', { name: '안내로 돌아가기' }).click()
+    await expect(opener).toBeFocused()
+  }
+  await opener.click()
+  await expect(ranking).toContainText('아직 등록된 내 완주 기록이 없어요.')
+  await expect(ranking).toContainText('첫 완주 기록을 기다리고 있어요.')
+  await page.keyboard.press('Escape')
+  await expect(opener).toBeFocused()
+  await opener.click()
+  await expect(ranking.getByRole('alert')).toHaveText('랭킹을 불러오지 못했어요.')
+  await ranking.getByRole('button', { name: '다시 확인' }).click()
+  await expect(list.getByRole('listitem')).toHaveCount(items.length)
+  await ranking.getByRole('button', { name: '랭킹 닫기' }).click()
+  await expect(opener).toBeFocused()
+  expect(reads).toBe(6)
+  expect(server.requests.some(request => request.type.startsWith('JUMPMAP_'))).toBe(false)
+  await expect(page.locator('vite-error-overlay')).toHaveCount(0)
+  expect(errors).toEqual([])
+})
+
+test('두더지와 비둘기 발판에 올라타면 서버 업데이트 사이에도 발판과 같이 움직인다', async ({ page }, info) => {
+  const errors: string[] = []
+  page.on('pageerror', error => errors.push(error.message))
+  const server = await parkFixture(page)
+  const course = server.renewalCourse!
+  const scope = { channelId: 'channel-1', mapVersion: server.mapIdentity.mapVersion }
+  const versions = { courseVersion: course.courseVersion, rulesVersion: course.rulesVersion }
+  const status = disabledJumpmapStatus(scope.channelId, scope.mapVersion)
+  await page.route('**/api/v1/minigames/jumpmap/status?**', route =>
+    route.fulfill({ json: { ...status, ...versions, enabled: true } }))
+  const now = new Date().toISOString()
+  await page.route('**/api/v1/operations/status', route => route.fulfill({ json: { mode: 'NORMAL', notice: '',
+    maintenanceStartedAt: null, expectedOpenAt: null, version: 1, updatedAt: now, serverTime: now } }))
+  await page.route('**/api/v1/announcements', route => route.fulfill({ json: { serverTime: now,
+    refreshAt: new Date(Date.now() + 10000).toISOString(), announcements: [] } }))
+
+  await page.goto('/park')
+  await expect(page).toHaveTitle('OnTop')
+  await expect(page).toHaveURL(/\/park$/)
+  await expect.poll(() => page.evaluate(() => performance.getEntriesByName('park-scene-presented').length),
+    { timeout: 90000 }).toBeGreaterThan(0)
+  await expect(page.getByText('공원을 준비하고 있어요…', { exact: true })).toBeHidden({ timeout: 90000 })
+  await expect.poll(() => page.evaluate(async () =>
+    (await import('/tests/park-integration/jumpmapProbe.ts' as string)).jumpmapProbe().state.checked)).toBe(true)
+  server.emit('JUMPMAP_STARTED', { ...scope, ...versions, runId: 'moving-pads', revision: 1,
+    earningsDate: status.earningsDate, todayEarned: 0, dailyCap: status.dailyCap, serverTime: Date.now() })
+  await expect.poll(() => page.evaluate(async () =>
+    (await import('/tests/park-integration/jumpmapProbe.ts' as string)).jumpmapProbe().state.run?.runId)).toBe('moving-pads')
+
+  let version = 1000
+  for (const theme of ['mole', 'pigeon'] as const) {
+    const pad = course.pads.find(p => p.theme === theme)!
+    const send = (height: number, movingPad?: { block: number; dipStartedAt?: number }) => {
+      version++
+      server.emit('WORLD_STATE', { ...scope, version, avatars: [{
+        userId: '101',
+        position: { x: pad.x, y: height + .8, z: pad.z, yaw: 0, lastInputSeq: 0,
+          moving: false, running: false, swimming: false },
+        motion: { epoch: 1, tick: version, appliedInputSeq: 0, inputAgeMs: 0, profile: 'PARK_V1',
+          velocityY: movingPad ? 0 : 8, grounded: !!movingPad, inputActive: false, movingPad },
+      }] })
+    }
+    send(pad.top, { block: pad.block })
+    const probePath = '/tests/park-integration/jumpmapProbe.ts'
+    await expect.poll(() => page.evaluate(async ({ block, probePath }) => {
+      const { movingPadFrame } = await import(probePath)
+      const frame = movingPadFrame(block)
+      return frame ? Math.abs(frame.avatarY - frame.padY) : Infinity
+    }, { block: pad.block, probePath }), { timeout: 15000 }).toBeLessThan(2)
+    const ride = { block: pad.block, ...(theme === 'mole' ? { dipStartedAt: (Date.now() + 600) / 1000 } : {}) }
+    send(pad.top, ride)
+    await expect.poll(() => page.evaluate(async () => {
+      const { avatars } = await import('/src/network/worldClient.ts' as string)
+      return avatars.get('101')?.movingPad
+    })).toEqual(ride)
+    const frames = await page.evaluate(async block => {
+      const { movingPadFrame } = await import('/tests/park-integration/jumpmapProbe.ts' as string)
+      const frames: { padY: number; avatarY: number }[] = []
+      const start = performance.now()
+      do {
+        await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
+        const frame = movingPadFrame(block)
+        if (frame) frames.push(frame)
+      } while (performance.now() - start < 1500)
+      return frames
+    }, pad.block)
+    expect(frames.length).toBeGreaterThan(3)
+    const heights = frames.map(f => f.padY)
+    expect(Math.max(...heights) - Math.min(...heights), theme).toBeGreaterThan(.025)
+    expect(Math.max(...frames.map(f => Math.abs(f.avatarY - f.padY))), theme).toBeLessThan(.02)
+
+    if (theme === 'mole') {
+      const turn = await page.evaluate(async () => {
+        const { viewControls } = await import('/src/world/cameraPerspective.ts' as string)
+        const { interactionAim } = await import('/src/features/interactions/interactionAim.ts' as string)
+        const canvas = document.querySelector('canvas')!
+        const bounds = canvas.getBoundingClientRect()
+        const sendPointer = (type: string, options: PointerEventInit) => canvas.dispatchEvent(new PointerEvent(type, {
+          bubbles: true, cancelable: true, pointerType: 'mouse', pointerId: 1, isPrimary: true,
+          clientX: bounds.left + bounds.width / 2, clientY: bounds.top + bounds.height / 2, ...options,
+        }))
+        const cameraYaw = () => Math.atan2(-interactionAim.dx, -interactionAim.dz)
+        const wrap = (angle: number) => Math.atan2(Math.sin(angle), Math.cos(angle))
+        const beforeYaw = viewControls.yaw, beforeCamera = cameraYaw()
+        sendPointer('pointerdown', { button: 0, buttons: 1 })
+        sendPointer('pointermove', { buttons: 1, movementX: 200 })
+        await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
+        sendPointer('pointerup', { button: 0, buttons: 0 })
+        const yaw = viewControls.yaw
+        sendPointer('pointermove', { buttons: 0, movementX: 200 })
+        return { input: wrap(yaw - beforeYaw), rendered: wrap(cameraYaw() - beforeCamera), released: viewControls.yaw === yaw }
+      })
+      expect(Math.abs(turn.input)).toBeGreaterThan(.5)
+      expect(turn.rendered).toBeCloseTo(turn.input, 1)
+      expect(turn.released).toBe(true)
+    }
+    await page.screenshot({ path: info.outputPath(`jumpmap-${theme}-ride.png`) })
+    send(pad.top + .8)
+    await expect.poll(() => page.evaluate(async block => {
+      const { movingPadFrame } = await import('/tests/park-integration/jumpmapProbe.ts' as string)
+      const frame = movingPadFrame(block)
+      return frame ? frame.avatarY - frame.padY : 0
+    }, pad.block)).toBeGreaterThan(.3)
+  }
+  await expect(page.locator('vite-error-overlay')).toHaveCount(0)
+  expect(errors).toEqual([])
+})
+
 test('220m 공원에서 안내 비석으로 돌탑 VR에 진입하고 일반 공원으로 돌아온다', async ({ page }, info) => {
   const errors: string[] = []
   page.on('pageerror', error => errors.push(error.message))

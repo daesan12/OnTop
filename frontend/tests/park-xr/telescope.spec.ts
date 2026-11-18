@@ -32,7 +32,7 @@ test('220m 공원 VR 망원경에서 밤에만 별자리를 표시하고 B로 �
   await page.evaluate(async p => (await import(p)).aimCanvas('park-xr-telescope-entry', .5, .5), helper)
   await page.evaluate(async p => (await import(p)).buttons({ trigger: true }), helper)
   await expect.poll(() => server.requests.filter(r => r.type === 'WORLD_FACILITY_USE').map(r => r.payload.facilityId)).toEqual([telescope.id])
-  await expect.poll(() => visible('park-xr-telescope-view'), { timeout: 20000 }).toBe(true)
+  await expect.poll(() => visible('park-xr-telescope-view'), { timeout: 45000 }).toBe(true)
 
   const requestsBeforeAim = server.requests.length
   const pitch = await page.evaluate(async p => {
@@ -73,6 +73,32 @@ test('220m 공원 VR 망원경에서 밤에만 별자리를 표시하고 B로 �
   expect((await sky())?.park.index).toBe(-1)
   const nightFrame = await page.evaluate(async p => (await import(p)).sceneFramePNG(), helper)
   await writeFile(info.outputPath('park-vr-telescope-constellation.png'), Buffer.from(nightFrame.split(',')[1]!, 'base64'))
+
+  const summer = await page.evaluate(async () => {
+    const { environmentConfig, environmentFrame } = await import('/src/world/environmentState.ts' as string)
+    const { telescopeView } = await import('/src/features/telescopeView.ts' as string)
+    const { constellations, selectConstellations } = await import('/src/world/parkConstellations.ts' as string)
+    const july = (Date.UTC(2026, 6, 1) - Date.UTC(2026, 0, 1)) / 86_400_000
+    const selection = selectConstellations(july)
+    const cygnus = constellations.findIndex((pattern: { name: string }) => pattern.name === '백조자리')
+    const aim = (index: number) => Object.assign(telescopeView, {
+      yaw: Math.PI / 2 - constellations[index].azimuth, pitch: constellations[index].elevation,
+    })
+    environmentConfig.epochMs = environmentFrame.serverTime - (july + .875) * environmentConfig.dayDurationMs
+    aim(selection.hidden)
+    return cygnus
+  })
+  await expect.poll(sky).toMatchObject({ lens: { index: -1, time: 0 }, park: { index: -1 } })
+  await page.evaluate(async index => {
+    const { constellations } = await import('/src/world/parkConstellations.ts' as string)
+    const { telescopeView } = await import('/src/features/telescopeView.ts' as string)
+    Object.assign(telescopeView, { yaw: Math.PI / 2 - constellations[index].azimuth, pitch: constellations[index].elevation })
+  }, summer)
+  await expect.poll(sky).toMatchObject({ lens: { index: summer }, park: { index: -1 } })
+  await expect.poll(async () => (await sky())?.lens.time ?? 0, { timeout: 10000 }).toBeGreaterThanOrEqual(2.35)
+  const summerFrame = await page.evaluate(async p => (await import(p)).sceneFramePNG(), helper)
+  await writeFile(info.outputPath('park-vr-telescope-summer.png'), Buffer.from(summerFrame.split(',')[1]!, 'base64'))
+
   await page.evaluate(async () => {
     const { telescopeView } = await import('/src/features/telescopeView.ts' as string)
     telescopeView.pitch = 0

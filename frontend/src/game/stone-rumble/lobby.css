@@ -1,11 +1,11 @@
 .table-tablet[data-stone-lobby] {
   --tablet-ink: #302c24;
   --tablet-border: #ad9873;
-  inset: 24px 16px auto;
+  inset: 16px 12px auto;
   margin-inline: auto;
-  width: min(900px, calc(100% - 32px));
+  width: min(760px, calc(100% - 24px));
   height: auto;
-  max-height: calc(100dvh - 48px);
+  max-height: calc(100dvh - 32px);
   border: none;
   box-shadow: 0 14px 48px #221a145e;
   border-radius: 10px;
@@ -19,9 +19,14 @@
   background-color: #eee3cc;
   height: auto;
   max-height: inherit;
-  padding: 20px;
+  padding: clamp(10px, 2vw, 16px);
   scrollbar-width: none;
 }
+
+[data-stone-lobby] .tablet-paper::-webkit-scrollbar { display: none; }
+.table-tablet[data-stone-lobby] .tablet-title { margin-bottom: 12px; }
+.table-tablet[data-stone-lobby] .tablet-title h2 { margin: 2px 0 6px; font-size: clamp(25px, 4vw, 35px); }
+.table-tablet[data-stone-lobby] .tablet-title p { font-size: 14px; }
 
 [data-stone-lobby] .tablet-footer-status,
 [data-stone-lobby] .tablet-ready-content + .tablet-footer-status {
@@ -39,10 +44,10 @@
 
 [data-stone-lobby] .stone-lobby-cover {
   display: grid;
-  grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.18fr);
   align-items: center;
-  gap: 22px;
-  padding: 18px;
+  gap: clamp(10px, 2vw, 18px);
+  padding: clamp(8px, 1.8vw, 14px);
   background: #fdf4dfb3;
   border: 1px solid #ad9873;
   border-radius: 16px;
@@ -51,6 +56,7 @@
 .table-tablet[data-stone-lobby] .stone-lobby-cover > .tablet-game-art {
   width: 100%;
   height: auto;
+  max-height: 28dvh;
   aspect-ratio: 16 / 9;
   border-radius: 10px;
   background-repeat: no-repeat;
@@ -60,7 +66,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   min-width: 0;
 }
 
@@ -68,8 +74,8 @@
 [data-stone-lobby] .stone-lobby-info fieldset {
   flex-basis: 100%;
   margin: 0;
-  font-size: 18px;
-  line-height: 1.55;
+  font-size: 15px;
+  line-height: 1.45;
 }
 
 [data-stone-lobby] .stone-lobby-info p {
@@ -97,42 +103,57 @@
 
 .table-tablet[data-stone-lobby][data-stage='ready'] .tablet-ready-content {
   height: auto;
+  gap: 9px;
 }
 
 [data-stone-lobby] .tablet-ready-content .stone-lobby-cover {
   grid-row: 1;
-  padding-block: 12px;
 }
 
-.table-tablet[data-stone-lobby] .tablet-ready-content .stone-lobby-cover > .tablet-game-art {
-  max-width: 370px;
-  justify-self: center;
-}
+.table-tablet[data-stone-lobby] button { min-height: 40px; padding: 6px 9px; font-size: 15px; }
+.table-tablet[data-stone-lobby] .tablet-ready-actions .tablet-primary { font-size: 16px; }
 
 @media (max-width: 799px), (max-height: 549px) {
   .table-tablet[data-stone-lobby] {
     inset: 12px 12px auto;
     width: calc(100% - 24px);
-    max-height: calc(100dvh - 24px);
+    max-height: calc(100dvh - 198px);
+  }
+
+  .park-page:has(.table-tablet[data-stone-lobby][data-active='true']) .park-chat {
+    left: 12px;
+    bottom: 12px;
+    width: calc(100% - 24px);
+    max-height: 162px;
   }
 
   [data-stone-lobby] .tablet-paper {
     padding: 12px;
   }
 
-  [data-stone-lobby] .stone-lobby-cover {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 12px;
-    padding: 12px;
-  }
-
-  [data-stone-lobby] .stone-lobby-info p,
-  [data-stone-lobby] .stone-lobby-info fieldset {
-    font-size: 15px;
-  }
-
   [data-stone-lobby] .tablet-ready-content > .tablet-waiting-status,
   [data-stone-lobby] .tablet-ready-content > .host-start-wait {
     order: 2;
   }
+}
+
+@media (min-width: 660px) and (max-height: 549px) {
+  .park-page:has(.table-tablet[data-stone-lobby][data-active='true']) {
+    --stone-lobby-chat-width: clamp(180px, 26vw, 230px);
+  }
+
+  .table-tablet[data-stone-lobby] {
+    left: calc(var(--stone-lobby-chat-width, 200px) + 24px);
+    width: auto;
+    max-height: calc(100dvh - 24px);
+  }
+
+  .park-page:has(.table-tablet[data-stone-lobby][data-active='true']) .park-chat {
+    width: var(--stone-lobby-chat-width);
+  }
+}
+
+@media (max-width: 520px) {
+  [data-stone-lobby] .stone-lobby-cover { grid-template-columns: minmax(0, 1fr); }
+  .table-tablet[data-stone-lobby] .stone-lobby-cover > .tablet-game-art { max-height: min(23dvh, 150px); }
 }

@@ -1,6 +1,8 @@
 package com.ssafy.ontop.game.speedmole;
 
 import com.ssafy.ontop.minigame.service.MoleTargets;
+import com.ssafy.ontop.minigame.telemetry.MoleTimingAudit;
+import com.ssafy.ontop.minigame.telemetry.MoleTimingSignals;
 import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Instant;
@@ -39,6 +41,28 @@ class SpeedMoleServiceTests {
         assertThat(result.score()).isEqualTo(1);
         verify(repository).settle(7,new SpeedMoleRules.Score(1,1,0),now);
     }
+    @Test
+    @SuppressWarnings("unchecked")
+    void 확정한_판의_타이밍_신호를_숨은_표적을_뺀_타격으로_한_번만_넘긴다() {
+        var audit = mock(MoleTimingAudit.class);
+        service.timingAudit(audit);
+        when(repository.lock(42, 7)).thenReturn(active(60_000),
+                new SpeedMoleRepository.Row(7, 42, 1, 1, "SETTLED", now.minusSeconds(60), now, 2, 2, 0));
+        var hidden = new MoleTargets("speed-mole", 7, 1).hiddenIds(8).iterator().next();
+        var taps = List.of(new SpeedMoleRules.Tap(1, 0), new SpeedMoleRules.Tap(3, 100),
+                new SpeedMoleRules.Tap(4, 150, hidden), new SpeedMoleRules.Tap(5, 200));
+
+        service.complete(42, 7, taps);
+        service.complete(42, 7, taps);
+
+        var signals = org.mockito.ArgumentCaptor.forClass(java.util.function.Supplier.class);
+        verify(audit).settled(eq("speed-mole"), eq(42L), eq(7L), eq(1), signals.capture(), eq(now));
+        verifyNoMoreInteractions(audit);
+        var value = (MoleTimingSignals.Signals) signals.getValue().get();
+        assertThat(value.segments()).first().isEqualTo(new MoleTimingSignals.Segment(2, 100, 0,
+                new MoleTimingSignals.Pace(3, 3, 100, false), new MoleTimingSignals.EarlyReaction(0, 0, false)));
+    }
+
     @Test
     @ExtendWith(OutputCaptureExtension.class)
     void 숨은_표적은_점수와_실수에_포함하지_않고_재시도에도_한_번만_기록한다(CapturedOutput output) {

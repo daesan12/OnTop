@@ -25,6 +25,7 @@ export function ParkXRBridge() {
       }
     }
   }, [gl, camera, scene])
-  useFrame((_state, _delta, frame) => controller.current?.update(frame), -1)
+  // Sample controller input before admitting and animating remote avatar rigs.
+  useFrame((_state, _delta, frame) => controller.current?.update(frame), -3)
   return null
 }

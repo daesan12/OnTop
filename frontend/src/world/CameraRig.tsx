@@ -7,13 +7,15 @@ import { renderedTableAnchors } from '../features/tableLobby/tabletAnchors'
 import { TABLET_ENABLED } from '../features/tableLobby/tabletFeature'
 import { useEffect, useMemo, useRef } from 'react'
 import { localBalloonRider, useLocalBalloon } from '../features/balloon/localRide'
-import { cabinCamera } from '../features/balloon/cabinCamera'
+import { balloonCanLook, cabinCamera, setBalloonOrbit } from '../features/balloon/cabinCamera'
+import { CABIN_STANDING_EYE_OFFSET } from '../features/balloon/cabin'
 import { useFrame, useThree } from '@react-three/fiber'
 import { Matrix4, PerspectiveCamera, Quaternion, Raycaster, SkinnedMesh, Vector3, type Object3D } from 'three'
 import { bungeoppangView } from '../features/bungeoppang/bungeoppangView'
 import { CAMERA, CHARACTER, GOMOKU, PARK_SIZE, TABLES, TELESCOPE, TELESCOPES, telescopeFov, groundHeight, tableScale, tableSeats } from '../park/mapConfig'
 import { WELCOME_FLIGHT_MS, welcomeFlight, welcomeFlightPose } from '../features/welcomeTour/flight'
 import { RENEWAL_PARK_ENABLED } from '../park/mapSelection'
+import { useJumpmap } from '../features/jumpmap/state'
 import { telescopeView } from '../features/telescopeView'
 import { interactionAim, setInteractionCamera } from '../features/interactions/interactionAim'
 import { useDisplayGame as useGame } from '../game/displayGame'
@@ -40,7 +42,7 @@ import { useFeedbackState } from '../features/feedback/state'
 import { useNotesState } from '../features/notes/state'
 import { benchBoardLook, benchLook, benchTable, benchViewScope, spectatorClearHeight, useBenchSpectator } from '../features/interactions/benchSpectator'
 import { advanceOmokCamera, OMOK_FOCUS_LAYER, omokTopDownHeight, omokSpectatorFrame } from './omokCamera'
-import { omokFocusLighting } from './boardFocusLighting'
+import { boardFocusLighting } from './boardFocusLighting'
 import { wardrobeView } from '../features/wardrobe/view'
 import { parkXRView } from './xrView'
 
@@ -95,6 +97,7 @@ export function CameraRig() {
       rotation: new Quaternion(), targetRotation: new Quaternion(),
       targetUp: new Vector3(0, 1, 0), lookMatrix: new Matrix4(), omokTransition: false, diceTransition: false, alkkagiTransition: false,
       center: new Vector3(), pan: new Vector3(), feet: new Vector3(),
+      jumpOrbitRun: '', jumpOrbitDirection: new Vector3(),
     }),
     [],
   )
@@ -121,7 +124,7 @@ export function CameraRig() {
       }
       omokCamera.ready = false
       omokCamera.anchorId = ''
-      omokFocusLighting.requested = false
+      boardFocusLighting.requested = false
       mountedCamera.layers.set(0)
       delete mountedCamera.userData.showConstellationLines
       raycaster.layers.set(0)
@@ -133,10 +136,12 @@ export function CameraRig() {
     [occlusion, state, mountedCamera, raycaster],
   )
   useFrame(({ camera, scene }, delta) => {
+    const priorJumpOrbitRun = state.jumpOrbitRun
+    state.jumpOrbitRun = ''
     camera.userData.showConstellationLines = false
     diceCamera.ready = false
     omokCamera.ready = false
-    omokFocusLighting.requested = false
+    boardFocusLighting.requested = false
     camera.layers.set(0)
     raycaster.layers.set(0)
     if (parkXRView.ownsInput) {
@@ -151,21 +156,18 @@ export function CameraRig() {
       cameraOcclusion.strength.value = 0
       occlusion.reset()
       const { walkingInside, cabinFirstPerson, flight } = useLocalBalloon.getState()
-      if (walkingInside && flight?.phase === 'flying') {
-        const { yaw, pitch } = cabinCamera
-        if (cabinFirstPerson) {
-          const eye = balloonRider.y + (balloonRider.seatIndex >= 0 ? .95 : 1.45)
+      if (flight && balloonCanLook(flight.phase)) {
+        if (walkingInside && cabinFirstPerson && flight.phase === 'flying') {
+          const { yaw, pitch } = cabinCamera
+          const eye = balloonRider.y + (balloonRider.seatIndex >= 0 ? .95 : CABIN_STANDING_EYE_OFFSET)
           camera.position.set(balloonRider.x, eye, balloonRider.z)
           const lookPitch = pitch - .57
           camera.lookAt(balloonRider.x - Math.sin(yaw) * Math.cos(lookPitch), eye - Math.sin(lookPitch),
             balloonRider.z - Math.cos(yaw) * Math.cos(lookPitch))
           return
         }
-        const { x, y, z } = flight.position
-        const angle = Math.min(1.1, Math.max(.3, pitch))
-        const radius = 6.3 * Math.cos(angle)
-        camera.position.set(x + Math.sin(yaw) * radius, y + .95 + 6.3 * Math.sin(angle), z + Math.cos(yaw) * radius)
-        camera.lookAt(x, y + .95, z)
+        setBalloonOrbit(flight.position, camera.position, state.look, !walkingInside)
+        camera.lookAt(state.look)
         return
       }
       camera.position.set(balloonRider.x + 6, balloonRider.y + 5, balloonRider.z + 9)
@@ -342,8 +344,7 @@ export function CameraRig() {
     const ownAlkkagi = seated && !!avatar.tableId && (session.tableStates[session.tableId]?.gameCode === 'ALKKAGI'
       || game?.role === 'PLAYER' && !!game.alkkagi)
     const focusedAlkkagi = alkkagiCamera && (game?.role === 'PLAYER' ? !looking : spectatorBoard)
-    // Omok only: the fixed board lighting applies on frames that keep this focus layer (not Alkkagi).
-    omokFocusLighting.requested = focusedOmok
+    boardFocusLighting.requested = focusedOmok || focusedAlkkagi
     if (focusedOmok || focusedAlkkagi) {
       camera.layers.set(OMOK_FOCUS_LAYER)
       raycaster.layers.set(OMOK_FOCUS_LAYER)
@@ -557,12 +558,30 @@ export function CameraRig() {
         state.pan.y = -wardrobeView.y * halfHeight * w
         center.add(state.pan)
       }
-      const horizontal = distance * Math.cos(viewControls.pitch)
+      const cosPitch = Math.cos(viewControls.pitch)
+      const orbitX = Math.sin(viewControls.yaw) * cosPitch
+      const orbitY = Math.sin(viewControls.pitch)
+      const orbitZ = Math.cos(viewControls.yaw) * cosPitch
+      const jumpmap = useJumpmap.getState()
+      const runId = jumpmap.owner === session.sessionId ? jumpmap.run?.runId : undefined
+      if (runId && !w && !wardrobeView.active && !temporaryView && performance.now() >= bungeoppangView.returningUntil) {
+        const previous = state.jumpOrbitDirection
+        if (priorJumpOrbitRun === runId) {
+          // Apply the turn immediately. The remaining interpolation still
+          // smooths the follow position and zoom, including platform motion.
+          camera.position.x += (orbitX - previous.x) * distance
+          camera.position.y += (orbitY - previous.y) * distance
+          camera.position.z += (orbitZ - previous.z) * distance
+        }
+        state.jumpOrbitRun = runId
+        previous.set(orbitX, orbitY, orbitZ)
+      }
       state.desired.set(
-        center.x + Math.sin(viewControls.yaw) * horizontal,
-        center.y + distance * Math.sin(viewControls.pitch),
-        center.z + Math.cos(viewControls.yaw) * horizontal,
+        center.x + orbitX * distance,
+        center.y + orbitY * distance,
+        center.z + orbitZ * distance,
       )
+      const orbitHeight = state.desired.y
       state.desired.y = Math.max(
         state.desired.y,
         groundHeight(state.desired.x, state.desired.z) + 0.3,
@@ -586,6 +605,8 @@ export function CameraRig() {
       }
       state.look.copy(center)
       if (RENEWAL_PARK_ENABLED) constrainMonumentStairCamera(state.desired, state.look)
+      // Keep the requested upward angle when the ground prevents the orbit from lowering.
+      if (orbitY < 0 && !wardrobeView.active) state.look.y += Math.max(0, state.desired.y - orbitHeight)
     }
     const targetFov = debrisAnchor ? 55 : tablet ? 43 : focusedAlkkagi ? ALKKAGI_FOV : gathering ? ownOmok ? 60 : CAMERA.fov : seated && oneCardPlayerViewActive(game) ? ONECARD_CAMERA.fov : diceFocus ? DICE_CAMERA.fov : ledgerFocus ? LEDGER_CAMERA.fov : diceSpectator ? DICE_SPECTATOR_CAMERA.fov : boardFocus || spectatorBoard ? GOMOKU.topDownFov : seated ? GOMOKU.seatedFov : CAMERA.fov
     const smoothingOmok = focusedOmok || ownOmok || state.omokTransition

@@ -8,9 +8,8 @@ import { useSession } from '../../network/worldClient'
 import { emptyEquipment } from '../../network/equipment'
 import { WARDROBE_OUTFITS_ENABLED } from '../../features/wardrobe/feature'
 import { availableLook, isCharacterSource, lookKey, lookSources, resolveLook } from '../../world/art/characterLook'
-import { useOutfitSources } from '../../world/art/outfitSources'
+import { loadedOutfit } from '../../world/art/outfitSources'
 import { createSafeCharacterRig } from '../../world/art/safeCharacterRig'
-import { useSkinCatalog } from '../../world/art/skinCatalog'
 import { resolveWholeSkin } from '../../world/art/wholeSkin'
 import { pigeonGeometry, pigeonMaterial } from '../../world/pigeons/pigeonGeometry'
 import { visibleStoneFloor } from './layout'
@@ -26,50 +25,41 @@ import { StoneRumbleLighting } from './StoneRumbleLighting'
 import { createStoneMaterial } from './visibility'
 import { StoneHitEffect } from './StoneHitEffect'
 import type { StoneFeedbackFrame } from './feedback'
+import { followStoneYaw } from './motion'
 
 const StoneRumbleEnvironment = lazy(loadStoneRumblePark)
 const stonePigeonMaterial = createStoneMaterial(pigeonMaterial)
 // 게임 입력은 캔버스의 DOM 포인터로 받는다. 배경 공원의 시설 선택은 실행하지 않는다.
 const gameEvents: typeof events = state => ({ ...events(state), enabled: false })
-class SceneBoundary extends Component<{ children: ReactNode; onStatus: StoneSceneStatus }, { failed: boolean }> {
+class SceneBoundary extends Component<{ children: ReactNode; onStatus?: StoneSceneStatus }, { failed: boolean }> {
   state = { failed: false }
   static getDerivedStateFromError() { return { failed: true } }
-  componentDidCatch() { this.props.onStatus(false, '공원 파일을 불러오지 못했어요. 새로고침해 주세요.') }
+  componentDidCatch() { this.props.onStatus?.(false, '3D 경기장을 열지 못했어요. 다시 준비해 주세요.') }
   render() { return this.state.failed ? null : this.props.children }
 }
 export type StoneCamera = MutableRefObject<{ yaw: number; renderedYaw: number; manualOrbit: boolean; pointerAiming: boolean }>
 export type StoneInput = MutableRefObject<Omit<StoneControl, 'kind' | 'seq'>>
 
 type AvatarProps = { player: StonePlayer; index: number; own: boolean; time: number; gameId: string; feedback?: MutableRefObject<StoneFeedbackFrame> }
-const pendingAppearance = <group name="stone-appearance-pending" />
-
 function Avatar(props: AvatarProps & { localOnly: boolean }) {
   const { player, index, localOnly } = props
   const base = useLoader(ParkAssetLoader, characterUrls)
-  const character = useSession(s => localOnly ? undefined : s.profiles[player.userId]?.character)
-  const outfitsEnabled = !localOnly && WARDROBE_OUTFITS_ENABLED
-  const received = useSession(s => outfitsEnabled ? s.equipment[player.userId] : undefined)
-  const worn = received ?? emptyEquipment
-  const variant = localOnly && index % 2 || character === 'girl' ? 'girl' : 'man'
-  const revision = useSkinCatalog(s => outfitsEnabled ? s.revision : 0)
-  const checked = useSkinCatalog(s => !outfitsEnabled || s.checked)
-  const [timedOut, setTimedOut] = useState(false)
-  useEffect(() => {
-    if (!outfitsEnabled || received !== undefined) return
-    const timer = window.setTimeout(() => setTimedOut(true), 8000)
-    return () => window.clearTimeout(timer)
-  }, [outfitsEnabled, received])
-  const look = useMemo(() => resolveLook(variant, worn), [variant, worn, revision])
-  const whole = resolveWholeSkin(variant, worn)
-  const waitingForCatalog = !checked && worn.some(item => item.imageKey?.startsWith('catalog/'))
-  const { outfits, pending } = useOutfitSources(waitingForCatalog ? [] :
-    whole ? [whole.source] : lookSources(look).filter(source => !isCharacterSource(source)))
-  const files = useMemo(() => new Map([['man', base[0]!], ['girl', base[1]!], ...outfits]), [base, outfits])
-  if (outfitsEnabled && ((received === undefined && !timedOut) || waitingForCatalog || pending)) return pendingAppearance
-  return <Suspense fallback={pendingAppearance}>
-    <AvatarRig {...props} source={base[variant === 'girl' ? 1 : 0]!} files={files}
-      look={availableLook(variant, look, source => files.has(source))} whole={whole && outfits.get(whole.source)} />
-  </Suspense>
+  const [appearance] = useState(() => {
+    // 공원에서 이미 로드한 외형을 써서 경기 도중 리그와 재질을 다시 만들지 않는다.
+    const { profiles, equipment } = useSession.getState()
+    const variant = (localOnly ? index % 2 === 1 : profiles[player.userId]?.character === 'girl') ? 'girl' : 'man'
+    const worn = !localOnly && WARDROBE_OUTFITS_ENABLED ? equipment[player.userId] ?? emptyEquipment : emptyEquipment
+    const look = resolveLook(variant, worn)
+    const whole = resolveWholeSkin(variant, worn)
+    const files = new Map<string, GLTF>([['man', base[0]!], ['girl', base[1]!]])
+    for (const name of whole ? [whole.source] : lookSources(look).filter(source => !isCharacterSource(source))) {
+      const asset = loadedOutfit(name)
+      if (asset) files.set(name, asset)
+    }
+    return { source: files.get(variant)!, files, look: availableLook(variant, look, source => files.has(source)),
+      whole: whole && files.get(whole.source) }
+  })
+  return <AvatarRig {...props} {...appearance} />
 }
 
 function AvatarRig({ player, index, own, time, gameId, feedback, source, files, look, whole }: AvatarProps & {
@@ -96,23 +86,28 @@ function AvatarRig({ player, index, own, time, gameId, feedback, source, files, 
     return rig
   }, [source, shownKey, files, whole, appearances])
   const hipHeight = rig.hipHeight * .95
-  const group = useRef<Group>(null), initial = useRef(true), moving = useRef(0)
+  const group = useRef<Group>(null), initial = useRef(true)
+  const gait = useRef({ phase: 0, strength: 0, airborne: 0 })
   const body = useRef<Group>(null), dive = useRef(0), diveYaw = useRef(0)
   const aimMarker = useRef<Group>(null)
   const facing = useRef({ x: player.x, z: player.z, yaw: Math.atan2(player.aimX, player.aimZ) })
-  const target = useMemo(() => new Vector3(), [])
-  useEffect(() => { initial.current = true; moving.current = 0; dive.current = 0 }, [gameId])
+  useEffect(() => { initial.current = true; dive.current = 0 }, [gameId])
   useEffect(() => () => rig.dispose(), [rig])
   useFrame((_, dt) => {
     const root = group.current
-    if (!root || !player.alive) return
-    const previousX = root.position.x, previousZ = root.position.z
+    if (!root || !player.alive || dt <= 0) return
     if (initial.current) {
       root.position.set(player.x, player.y, player.z)
       facing.current = { x: player.x, z: player.z, yaw: Math.atan2(player.aimX, player.aimZ) }
+      root.rotation.y = facing.current.yaw
+      gait.current = { phase: 0, strength: 0, airborne: Number(!player.grounded) }
       initial.current = false
     }
-    root.position.lerp(target.set(player.x, player.y, player.z), 1 - Math.exp(-dt * 24))
+    const previousX = root.position.x, previousZ = root.position.z
+    const follow = 1 - Math.exp(-dt * 34)
+    root.position.x += (player.x - root.position.x) * follow
+    root.position.z += (player.z - root.position.z) * follow
+    root.position.y += (player.y - root.position.y) * (1 - Math.exp(-dt * 38))
     // 보간 잔여 이동이나 마우스 조준 대신 서버 좌표의 실제 이동 방향을 따른다.
     const dx = player.x - facing.current.x, dz = player.z - facing.current.z
     if (Math.hypot(dx, dz) > .001) facing.current.yaw = Math.atan2(dx, dz)
@@ -121,25 +116,33 @@ function AvatarRig({ player, index, own, time, gameId, feedback, source, files, 
     if (sliding) diveYaw.current = Math.atan2(player.slideX, player.slideZ)
     dive.current += (Number(sliding) - dive.current) * (1 - Math.exp(-dt * 36))
     const blend = dive.current, standing = 1 - blend
-    root.rotation.y = sliding || blend > .05 ? diveYaw.current : facing.current.yaw
+    root.rotation.y = followStoneYaw(root.rotation.y, sliding || blend > .05 ? diveYaw.current : facing.current.yaw,
+      Math.min(dt, .05), 20, 14)
     if (aimMarker.current) aimMarker.current.rotation.y = Math.atan2(player.aimX, player.aimZ) - root.rotation.y
     root.rotation.z = time - player.hitAt < 400 && player.hitAt > 0 ? -.28 : 0
-    moving.current += Math.hypot(root.position.x - previousX, root.position.z - previousZ) * 6
-    const walking = Math.hypot(player.x - previousX, player.z - previousZ) > .02
-    const swing = walking ? Math.sin(moving.current) * .65 : 0
+    const travelled = Math.hypot(root.position.x - previousX, root.position.z - previousZ)
+    const motion = gait.current
+    const gaitBlend = 1 - Math.exp(-dt * 22)
+    const walking = player.grounded && !sliding && !(player.hitAt > 0 && time - player.hitAt < 400)
+    if (walking) motion.phase = (motion.phase + travelled * 4.8) % (2 * Math.PI)
+    const strideStrength = walking ? Math.min(1, travelled / (dt * 3.8)) : 0
+    motion.strength += (strideStrength - motion.strength) * gaitBlend
+    motion.airborne += (Number(!player.grounded) - motion.airborne) * gaitBlend
+    const stride = Math.sin(motion.phase), swing = stride * .72 * motion.strength
+    const { airborne } = motion
     if (body.current) {
       // 골반을 축으로 몸을 앞으로 던진다. 모델 비율과 서버 판정 높이는 유지한다.
       const progress = sliding ? Math.min(1, (time - player.slideStartedAt) / Math.max(1, player.slideUntil - player.slideStartedAt)) : 0
-      body.current.rotation.x = blend * 1.35
+      body.current.rotation.x = blend * 1.35 + standing * motion.strength * .11
       body.current.position.y = hipHeight - .43 * blend + Math.sin(progress * Math.PI) * .1 * blend
     }
     rig.reset()
-    rig.set('upperLeg_L', (player.grounded ? swing : -.5) * standing - .12 * blend)
-    rig.set('upperLeg_R', (player.grounded ? -swing : .35) * standing + .08 * blend)
-    rig.set('lowerLeg_L', .45 * blend)
-    rig.set('lowerLeg_R', .25 * blend)
-    rig.set('upperArm_L', (player.grounded ? -swing * .6 : -1.5) * standing - 2.6 * blend, 0, -.18)
-    rig.set('upperArm_R', (player.grounded ? swing * .6 : -1.5) * standing - 2.6 * blend, 0, .18)
+    rig.set('upperLeg_L', (swing - .5 * airborne) * standing - .12 * blend)
+    rig.set('upperLeg_R', (-swing + .35 * airborne) * standing + .08 * blend)
+    rig.set('lowerLeg_L', (Math.max(0, -stride) * .62 * motion.strength + .34 * airborne) * standing + .45 * blend)
+    rig.set('lowerLeg_R', (Math.max(0, stride) * .62 * motion.strength + .48 * airborne) * standing + .25 * blend)
+    rig.set('upperArm_L', (-swing * .7 - 1.35 * airborne) * standing - 2.6 * blend, 0, -.18)
+    rig.set('upperArm_R', (swing * .7 - 1.35 * airborne) * standing - 2.6 * blend, 0, .18)
     rig.set('lowerArm_L', -.15 * blend)
     rig.set('lowerArm_R', -.15 * blend)
     rig.set('spine', -.08 * blend)
@@ -321,10 +324,10 @@ function Stage({ state, ownId, viewId, input, fire, feedback, localOnly, control
     }
     // Smooth the follow point, but apply the orbit as an angle so a quick half-turn
     // doesn't interpolate the camera through the player.
-    focus.lerp(desiredFocus, 1 - Math.exp(-dt * 7))
-    const difference = control.yaw - control.renderedYaw
-    const turn = Math.atan2(Math.sin(difference), Math.cos(difference))
-    control.renderedYaw = (control.renderedYaw + turn * (1 - Math.exp(-dt * 24))) % (2 * Math.PI)
+    focus.lerp(desiredFocus, 1 - Math.exp(-dt * 14))
+    const cameraDelta = Math.min(dt, .05)
+    control.renderedYaw = followStoneYaw(control.renderedYaw, control.yaw, cameraDelta,
+      control.manualOrbit ? 24 : 12, control.manualOrbit ? 24 : 5.2)
     const sin = Math.sin(control.renderedYaw), cos = Math.cos(control.renderedYaw)
     const scale = zoom.current * Math.max(1, Math.min(1.2, .9 / aspect))
     camera.position.set(focus.x + sin * 7.5 * scale, focus.y + 9 * scale, focus.z + cos * 7.5 * scale)
@@ -346,7 +349,7 @@ function Stage({ state, ownId, viewId, input, fire, feedback, localOnly, control
   return <>
     <StoneRumbleTiles tiles={state.tiles} material={material} time={state.serverTime} ownFloor={ownFloor} />
     <ArrivalClouds state={state} />
-    {state.players.map((player, index) => <Avatar key={player.userId} localOnly={localOnly} player={player} index={index} own={player.userId === viewId} time={state.serverTime} gameId={state.gameId} feedback={feedback} />)}
+    {state.players.map((player, index) => <Avatar key={`${state.gameId}/${player.userId}`} localOnly={localOnly} player={player} index={index} own={player.userId === viewId} time={state.serverTime} gameId={state.gameId} feedback={feedback} />)}
     {state.pigeons.map(pigeon => <Pigeon key={pigeon.id} pigeon={pigeon} time={state.serverTime} />)}
     <group visible={false} userData={{ prepareWhenHidden: true }}>
       <Pigeon pigeon={{ id: -1, owner: ownId, x: 0, y: 24.8, z: 0, vx: 20, vz: 0 }} time={0} />
@@ -355,26 +358,33 @@ function Stage({ state, ownId, viewId, input, fire, feedback, localOnly, control
 }
 
 type StoneRumbleSceneProps = Parameters<typeof Stage>[0] & {
-  onStatus: StoneSceneStatus; preparationAttempt: number; paused: boolean
+  onStatus: StoneSceneStatus; preparationAttempt: number; paused: boolean; sceneReady: boolean
 }
 
-export const StoneRumbleScene = memo(function StoneRumbleScene({ onStatus, preparationAttempt, paused, ...props }: StoneRumbleSceneProps) {
+export const StoneRumbleScene = memo(function StoneRumbleScene({ onStatus, preparationAttempt, paused, sceneReady, ...props }: StoneRumbleSceneProps) {
   const playScene = useMemo(() => { const scene = new Scene(); scene.name = 'stone-rumble-play'; return scene }, [])
   return <div className="stone-rumble-scene" data-view-id={props.viewId} data-camera="orbit" aria-label="현재 층 중심 돌탑 경기장">
-    <Canvas dpr={1} frameloop={paused ? 'demand' : 'always'} events={gameEvents} camera={{ position: [0, 42, 7.5], fov: 50, near: .1, far: 800 }} gl={{ alpha: false, antialias: true }}>
-      <EnvironmentScene />
-      <ParkSun quality="low" />
-      <SceneBoundary key={preparationAttempt} onStatus={onStatus}><Suspense fallback={null}>
-        <StoneRumbleEnvironment />
-        {createPortal(<><StoneRumbleLighting /><Stage {...props} /></>, playScene)}
-        <StoneRumblePreparation key={preparationAttempt} onStatus={onStatus} playScene={playScene} />
-      </Suspense></SceneBoundary>
-    </Canvas>
+    <SceneBoundary key={preparationAttempt} onStatus={onStatus}>
+      <Canvas dpr={1} frameloop={paused ? 'demand' : 'always'} events={gameEvents} camera={{ position: [0, 42, 7.5], fov: 50, near: .1, far: 800 }} gl={{ alpha: false, antialias: true }}>
+        {!sceneReady && <SceneBoundary><Suspense fallback={null}>
+          <group name="stone-rumble-backdrop-source">
+            <EnvironmentScene />
+            <ParkSun quality="low" />
+            <StoneRumbleEnvironment />
+          </group>
+        </Suspense></SceneBoundary>}
+        <Suspense fallback={null}>
+          {createPortal(<><StoneRumbleLighting /><Stage {...props} /></>, playScene)}
+          <StoneRumblePreparation onStatus={onStatus} playScene={playScene} />
+        </Suspense>
+      </Canvas>
+    </SceneBoundary>
   </div>
 }, (previous, next) => {
   // 준비가 끝난 로딩 대기 중에는 서버 시각/준비 인원 갱신이 숨겨진 Canvas를 다시 그리지 않게 한다.
   // 낙하 시작, 재시도, WebGL 복구로 paused가 풀리면 최신 상태로 즉시 렌더링한다.
   return previous.paused && next.paused && previous.state.gameId === next.state.gameId
+    && previous.sceneReady === next.sceneReady
     && previous.preparationAttempt === next.preparationAttempt && previous.onStatus === next.onStatus
     && previous.ownId === next.ownId && previous.viewId === next.viewId
     && previous.input === next.input && previous.fire === next.fire

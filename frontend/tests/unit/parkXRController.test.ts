@@ -3,7 +3,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
 const harness = vi.hoisted(() => ({ hit: vi.fn(), activate: vi.fn(), hover: vi.fn(),
   avatar: { current: { x: 0, y: 0, z: 0 }, swimming: false, connected: true, carry: null },
-  nearSkewer: false, openSkewer: vi.fn(() => true),
+  nearSkewer: false, skewerConnected: true, openSkewer: vi.fn(), resetSkewer: vi.fn(),
   display: { x: 10, y: .8, z: 20, yaw: 0 },
 }))
 vi.mock('../../src/network/worldClient', () => ({
@@ -11,12 +11,19 @@ vi.mock('../../src/network/worldClient', () => ({
   sampleAvatar: (_avatar: unknown, _now: number, pose: object) => Object.assign(pose, harness.display),
   useSession: { getState: () => ({ sessionId: 'peer', roomId: 'park', mapVersion: 'map', status: 'connected', mapCompatible: true }), subscribe: () => () => {} },
 }))
-vi.mock('../../src/park/runtime/runtime', () => ({ parkRuntime: { move: vi.fn(), stopMovement: vi.fn() } }))
+vi.mock('../../src/park/runtime/runtime', () => ({ parkRuntime: { move: vi.fn(), stopMovement: vi.fn(),
+  cooperativeGame: { scope: () => ({ connected: harness.skewerConnected }) } } }))
 vi.mock('../../src/network/localMovementPrediction', () => ({ localMovement: { positionMode: false } }))
 vi.mock('../../src/world/roamingCamera', () => ({ canControlRoamingCamera: () => true }))
 vi.mock('../../src/world/inputOwnership', () => ({ clearRoamingInput: vi.fn() }))
 vi.mock('../../src/world/cameraPerspective', () => ({ viewControls: { yaw: 0 } }))
-vi.mock('../../src/features/vrZone/parkBridge', () => ({ canReachParkVr: () => harness.nearSkewer, openParkVrZone: harness.openSkewer }))
+vi.mock('../../src/features/vrZone/parkBridge', () => ({ canReachParkVr: () => harness.nearSkewer }))
+vi.mock('../../src/features/skewer/coop/CoopXR', () => ({ CoopXR: class {
+  visible = false; active = false; cooking = false
+  open() { this.active = true; harness.openSkewer() }
+  reset(leave: boolean) { this.active = false; harness.resetSkewer(leave) }
+  update() {} hover() {} hide() {} dispose() {}
+} }))
 vi.mock('../../src/features/parkXR/SkewerXREntry', () => ({ SkewerXREntry: class {
   visible = false
   update(_position: unknown, _eye: unknown, allowed: boolean) { this.visible = allowed && harness.nearSkewer }
@@ -41,6 +48,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   useXRComfort.setState({ settings: { ...DEFAULT_XR_COMFORT }, heightRevision: 0, heightNotice: '' })
   harness.nearSkewer = false
+  harness.skewerConnected = true
   useJumpmap.setState({ available: true })
   useParkXR.setState({ mode: 'jumpmap' })
   harness.avatar.current = { x: START.x, y: START.y + .8, z: START.z }
@@ -49,65 +57,43 @@ beforeEach(() => {
 })
 afterEach(() => { parkXRView.active = false; vi.unstubAllGlobals() })
 
-it('꼬치왕 진입은 공원 XR 종료 이벤트와 입력 반환 뒤에 한 번만 연다', async () => {
+it('꼬치왕 입구를 반복 선택해도 공원 XR 세션을 유지하고 로비를 한 번 연다', () => {
   const s = jumpmapSession()
   harness.nearSkewer = true
-  s.session.end.mockImplementation(async () => {
-    expect(harness.openSkewer).not.toHaveBeenCalled()
-    Reflect.get(s.controller, 'finished')()
-  })
   try {
     Reflect.get(s.controller, 'enterSkewer').call(s.controller)
     Reflect.get(s.controller, 'enterSkewer').call(s.controller)
-    await vi.waitFor(() => expect(harness.openSkewer).toHaveBeenCalledTimes(1))
-    expect(s.session.end).toHaveBeenCalledTimes(1)
+    expect(harness.openSkewer).toHaveBeenCalledTimes(1)
+    expect(s.session.end).not.toHaveBeenCalled()
+    expect(parkXRView.active).toBe(true)
+  } finally { s.controller.dispose() }
+})
+
+it('입구 밖이나 연결이 없는 동안에는 꼬치왕 로비를 열지 않는다', () => {
+  const s = jumpmapSession()
+  try {
+    Reflect.get(s.controller, 'enterSkewer').call(s.controller)
+    harness.nearSkewer = true
+    harness.skewerConnected = false
+    Reflect.get(s.controller, 'enterSkewer').call(s.controller)
+    expect(harness.openSkewer).not.toHaveBeenCalled()
+    expect(s.session.end).not.toHaveBeenCalled()
+  } finally { s.controller.dispose() }
+})
+
+it('꼬치왕 로비에서 XR이 종료되면 방을 정리하고 입력을 반환한다', () => {
+  const s = jumpmapSession()
+  harness.nearSkewer = true
+  try {
+    Reflect.get(s.controller, 'enterSkewer').call(s.controller)
+    Reflect.get(s.controller, 'finished')()
+    expect(harness.resetSkewer).toHaveBeenCalledWith(true)
     expect(parkXRView.active).toBe(false)
     expect(parkXRView.ownsInput).toBe(false)
-  } finally { s.controller.dispose() }
-})
-
-it('입구 밖이거나 XR 종료가 실패하면 꼬치왕을 열지 않고 나중 종료에 예약을 남기지 않는다', async () => {
-  const s = jumpmapSession()
-  try {
-    Reflect.get(s.controller, 'enterSkewer').call(s.controller)
-    expect(s.session.end).not.toHaveBeenCalled()
-    harness.nearSkewer = true
-    s.session.end.mockRejectedValue(new Error('end failed'))
-    Reflect.get(s.controller, 'enterSkewer').call(s.controller)
-    await vi.waitFor(() => expect(useParkXR.getState().phase).toBe('active'))
-    Reflect.get(s.controller, 'finished')()
-    expect(harness.openSkewer).not.toHaveBeenCalled()
-  } finally { s.controller.dispose() }
-})
-
-it.each(['ordinary-exit', 'interrupt', 'B-frame', 'B-without-frame'] as const)('꼬치왕 진입 직후 %s 취소는 종료 완료 후 모달을 열지 않는다', async cancel => {
-  const s = jumpmapSession()
-  harness.nearSkewer = true
-  let completeEnd!: () => void
-  const pending = new Promise<void>(resolve => { completeEnd = resolve })
-  s.session.end.mockReturnValue(pending)
-  try {
-    Reflect.get(s.controller, 'enterSkewer').call(s.controller)
-    expect(s.session.end).toHaveBeenCalledTimes(1)
-    if (cancel === 'ordinary-exit') await s.controller.end()
-    else if (cancel === 'interrupt') Reflect.get(s.controller, 'interrupted')()
-    else {
-      Reflect.set(s.session, 'inputSources', [{ handedness: 'right', gamepad: { mapping: 'xr-standard',
-        buttons: Array.from({ length: 6 }, (_, i) => ({ pressed: i === 5 })) } }])
-      if (cancel === 'B-frame') {
-        s.update(1)
-        // Prove that the closing frame itself cancelled, even if B is released before end.
-        Reflect.set(s.session, 'inputSources', [])
-      }
-    }
-    Reflect.get(s.controller, 'finished')()
-    completeEnd(); await pending
-    expect(harness.openSkewer).not.toHaveBeenCalled()
-    expect(parkXRView.active).toBe(false)
     expect(useParkXR.getState().phase).toBe('idle')
-    expect(s.session.end).toHaveBeenCalledTimes(1)
-  } finally { completeEnd(); s.controller.dispose() }
+  } finally { s.controller.dispose() }
 })
+
 
 it('양손 레이저가 반복 프레임의 벡터를 재사용하고 올바른 월드 좌표와 오른손 선택을 유지한다', () => {
   vi.stubGlobal('window', { addEventListener() {}, removeEventListener() {} })

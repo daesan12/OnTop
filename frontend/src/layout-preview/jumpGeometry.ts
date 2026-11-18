@@ -51,8 +51,26 @@ function themeModel(theme:JumpTheme, simple=SIMPLE_MAP) {
     b.ball('paint','#e4ae5c',[.94,-.29,0],[.13,.16,.24])
     b.box('paint','#5b1f1a',[0,-.5,0],[1.6,.035,.06])
   } else if(theme==='cloud') {
-    for(const [x,y,z,r] of [[0,-.45,0,.85],[-.65,-.45,.1,.6],[.65,-.43,-.08,.6],[.1,-.34,-.6,.57],[-.1,-.4,.6,.58],[.38,-.27,.3,.52]]) {
-      const g=new SphereGeometry(1,simple?6:18,simple?4:12);g.scale(r!,r!*.85,r!);g.translate(x!,y!,z!);const p=g.getAttribute('position');for(let i=0;i<p.count;i++)p.setY(i,Math.min(0,p.getY(i)));g.computeVertexNormals();b.add('paint',g,'#edf0eb')
+    const lobes: [number, number, number, number][] = [
+      [0,-.45,0,.85],[-.65,-.45,.1,.6],[.65,-.43,-.08,.6],[.1,-.34,-.6,.57],[-.1,-.4,.6,.58],[.38,-.27,.3,.52],
+    ]
+    for(const [index,[x,y,z,r]] of lobes.entries()) {
+      // Stay within the prop builder's sphere budget so it keeps the authored vertices.
+      const g = new SphereGeometry(1, simple ? 6 : 8, 4)
+      const radiusY = r * .85
+      g.scale(r,radiusY,r)
+      g.translate(x,y,z)
+      const positions = g.getAttribute('position')
+      // Only the central lobe has a flat top. Compress the rounded shoulders
+      // below it so overlapping lobes never compete for the same depth.
+      const compression = Math.min(1, (-.025 - y) / radiusY)
+      for (let i = 0; i < positions.count; i++) {
+        const height = positions.getY(i)
+        if (index === 0) positions.setY(i, Math.min(0, height))
+        else if (height > y) positions.setY(i, y + (height - y) * compression)
+      }
+      g.computeVertexNormals()
+      b.add('paint',g,'#edf0eb')
     }
   } else if(theme==='lantern') {
     b.cylinder('paint','#cf3a2f',[0,-.43,0],.56,.6,.48,[0,0,0],24)

@@ -140,5 +140,27 @@
       "anchorId": "table-17",
       "tableId": "table-c748f0ba-5a0f-3b76-b555-d20df27d4e2c"
     }
+  ],
+  "emotes": [
+    {
+      "motion": "EMOTE_WAVE",
+      "code": "WAVE"
+    },
+    {
+      "motion": "EMOTE_CLAP",
+      "code": "CLAP"
+    },
+    {
+      "motion": "EMOTE_APPLAUSE_REQUEST",
+      "code": "APPLAUSE_REQUEST"
+    },
+    {
+      "motion": "EMOTE_TSK",
+      "code": "TSK"
+    },
+    {
+      "motion": "EMOTE_FART",
+      "code": "FART"
+    }
   ]
 }

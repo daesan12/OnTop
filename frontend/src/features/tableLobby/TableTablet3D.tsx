@@ -8,6 +8,7 @@ import { tabletLobbyActive } from './tabletModel'
 import { screenTransform, TABLET, tabletProjection } from './tabletProjection'
 import { SurfaceMaterial } from '../../world/art/SurfaceMaterial'
 import { BeveledBox } from '../../world/art/BeveledBox'
+import { parkXRView } from '../../world/xrView'
 import { renderedTableAnchors } from './tabletAnchors'
 import { STONE_RUMBLE_ANCHOR_ID } from '../../game/stone-rumble/entrance'
 
@@ -43,7 +44,8 @@ function TabletAsset({ anchor, seatIndex }: { anchor: typeof TABLES[number]; sea
     else power.current += (target - power.current) * (1 - Math.exp(-12 * Math.min(delta, .1)))
     const amount = power.current
     tabletProjection.amount = amount
-    root.current.visible = amount > .005
+    // Immersive play has its own world-space preparation panel.
+    root.current.visible = !parkXRView.active && amount > .005
     root.current.position.y = anchor.position[1] + (anchor.boardOffsetY ?? 0) + 1.06 + (TABLET.y - 1.06) * scale - (1 - amount) * .58
     root.current.scale.setScalar(scale * Math.max(.02, amount))
     root.current.updateWorldMatrix(true, true)

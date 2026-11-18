@@ -8446,6 +8446,11 @@ paths:
         schema:
           type: string
           format: date
+      - name: nickname
+        in: query
+        required: false
+        schema:
+          type: string
       responses:
         "200":
           description: OK
@@ -8504,6 +8509,33 @@ paths:
                 $ref: "#/components/schemas/MoleAuditDetail"
       security:
       - AccessJwt: []
+  /api/v1/admin/macro-analysis/mole/timing:
+    get:
+      tags:
+      - ADMIN
+      summary: 두더지 타이밍 신호 적발 회원 조회
+      operationId: timing
+      parameters:
+      - name: game
+        in: query
+        required: true
+        schema:
+          type: string
+          x-utf16-max-length: 64
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/MoleTimingDetections"
+      security:
+      - AccessJwt: []
   /api/v1/admin/macro-analysis/mole/detections:
     get:
       tags:
@@ -8529,6 +8561,113 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/MoleAuditDetections"
+      security:
+      - AccessJwt: []
+  /api/v1/admin/macro-analysis/jumpmap:
+    get:
+      tags:
+      - ADMIN
+      summary: 점프맵 반복 패턴 적발 회원 목록
+      description: 한 번 이상 기록된 회원을 적발 판이 많은 순으로 최대 200명 반환한다. 서버 재시작 전의 판끼리만 비교한다.
+      operationId: suspects
+      responses:
+        "200":
+          description: 적발 회원 목록. 점프맵이 꺼져 있으면 enabled=false와 빈 목록
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/MacroSuspectsResponse"
+        "401":
+          description: 로그인 필요
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "403":
+          description: 관리자 조회 권한 필요
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "503":
+          description: 기록 테이블을 읽을 수 없음
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+      security:
+      - AccessJwt: []
+  /api/v1/admin/macro-analysis/jump-rope:
+    get:
+      tags:
+      - ADMIN
+      summary: 줄넘기 매크로 의심 회원과 중복 제출 기록 조회
+      operationId: getJumpRopeMacroReport
+      responses:
+        "200":
+          description: 의심 회원과 같은 기록의 재제출 묶음. 기록 저장이 꺼져 있으면 enabled=false와 빈 목록
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/JumpRopeMacroReport"
+        "401":
+          description: 로그인 필요
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "403":
+          description: 관리자 조회 권한 필요
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "503":
+          description: 기록 테이블을 읽을 수 없음
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
       security:
       - AccessJwt: []
   /api/v1/admin/feedback:
@@ -8906,236 +9045,8 @@ paths:
                 $ref: "#/components/schemas/AuthErrorResponse"
       security:
       - AccessJwt: []
-  /api/v1/admin/macro-analysis/jumpmap:
-    get:
-      tags:
-      - ADMIN
-      summary: 점프맵 반복 패턴 적발 회원 목록
-      description: 한 번 이상 기록된 회원을 적발 판이 많은 순으로 최대 200명 반환한다. 서버 재시작 전의 판끼리만 비교한다.
-      operationId: suspects
-      responses:
-        "200":
-          description: 적발 회원 목록. 점프맵이 꺼져 있으면 enabled=false와 빈 목록
-          headers:
-            Cache-Control:
-              description: no-store
-              schema:
-                type: string
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/MacroSuspectsResponse"
-        "401":
-          description: 로그인 필요
-          headers:
-            Cache-Control:
-              description: no-store
-              schema:
-                type: string
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/AuthErrorResponse"
-        "403":
-          description: 관리자 조회 권한 필요
-          headers:
-            Cache-Control:
-              description: no-store
-              schema:
-                type: string
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/AuthErrorResponse"
-        "503":
-          description: 기록 테이블을 읽을 수 없음
-          headers:
-            Cache-Control:
-              description: no-store
-              schema:
-                type: string
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/AuthErrorResponse"
-      security:
-      - AccessJwt: []
-  /api/v1/admin/macro-analysis/jump-rope:
-    get:
-      tags:
-      - ADMIN
-      summary: 줄넘기 매크로 의심 회원과 중복 제출 기록 조회
-      operationId: getJumpRopeMacroReport
-      responses:
-        "200":
-          description: 의심 회원과 같은 기록의 재제출 묶음. 기록 저장이 꺼져 있으면 enabled=false와 빈 목록
-          headers:
-            Cache-Control:
-              description: no-store
-              schema:
-                type: string
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/JumpRopeMacroReport"
-        "401":
-          description: 로그인 필요
-          headers:
-            Cache-Control:
-              description: no-store
-              schema:
-                type: string
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/AuthErrorResponse"
-        "403":
-          description: 관리자 조회 권한 필요
-          headers:
-            Cache-Control:
-              description: no-store
-              schema:
-                type: string
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/AuthErrorResponse"
-        "503":
-          description: 기록 테이블을 읽을 수 없음
-          headers:
-            Cache-Control:
-              description: no-store
-              schema:
-                type: string
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/AuthErrorResponse"
-      security:
-      - AccessJwt: []
 components:
   schemas:
-    JumpRopeDuplicateLog:
-      type: object
-      properties:
-        inputHash:
-          type: string
-        rounds:
-          type: integer
-          format: int32
-        members:
-          type: integer
-          format: int32
-        userIds:
-          type: array
-          items:
-            type: string
-        score:
-          type: integer
-          format: int32
-        firstCompletedAt:
-          type: string
-          format: date-time
-        lastCompletedAt:
-          type: string
-          format: date-time
-    JumpRopeMacroReport:
-      type: object
-      properties:
-        enabled:
-          type: boolean
-        limit:
-          type: integer
-          format: int32
-        suspects:
-          type: array
-          items:
-            $ref: "#/components/schemas/JumpRopeMacroSuspect"
-        duplicateLogs:
-          type: array
-          items:
-            $ref: "#/components/schemas/JumpRopeDuplicateLog"
-        generatedAt:
-          type: string
-          format: date-time
-    JumpRopeMacroSuspect:
-      type: object
-      properties:
-        userId:
-          type: string
-        nickname:
-          type: string
-        withdrawn:
-          type: boolean
-        flaggedRounds:
-          type: integer
-          format: int32
-        duplicateRounds:
-          type: integer
-          format: int32
-        steadyRounds:
-          type: integer
-          format: int32
-        auditedRounds:
-          type: integer
-          format: int32
-        outsideParkRounds:
-          type: integer
-          format: int32
-        bestScore:
-          type: integer
-          format: int32
-        lowestJitterUs:
-          type: integer
-          format: int32
-        firstFlaggedAt:
-          type: string
-          format: date-time
-        lastFlaggedAt:
-          type: string
-          format: date-time
-    MacroSuspect:
-      type: object
-      properties:
-        userId:
-          type: string
-        nickname:
-          type: string
-        withdrawn:
-          type: boolean
-        flaggedRuns:
-          type: integer
-          format: int32
-        replayRuns:
-          type: integer
-          format: int32
-        fixedStartRuns:
-          type: integer
-          format: int32
-        totalRuns:
-          type: integer
-          format: int64
-        bestFinishMs:
-          type: integer
-          format: int64
-        firstDetectedAt:
-          type: string
-        lastDetectedAt:
-          type: string
-    MacroSuspectsResponse:
-      type: object
-      properties:
-        enabled:
-          type: boolean
-        limit:
-          type: integer
-          format: int32
-        items:
-          type: array
-          items:
-            $ref: "#/components/schemas/MacroSuspect"
-        generatedAt:
-          type: string
     ContactRequest:
       type: object
       properties:
@@ -12215,6 +12126,45 @@ components:
         totalAssets:
           type: integer
           format: int64
+    JumpRopeItem:
+      type: object
+      properties:
+        rank:
+          type: integer
+          format: int64
+        userId:
+          type: string
+        nickname:
+          type: string
+        score:
+          type: integer
+          format: int64
+        misses:
+          type: integer
+          format: int64
+        completedAt:
+          type: string
+          format: date-time
+        gameMaster:
+          type: boolean
+    JumpmapItem:
+      type: object
+      properties:
+        rank:
+          type: integer
+          format: int64
+        userId:
+          type: string
+        nickname:
+          type: string
+        finishMs:
+          type: integer
+          format: int64
+        completedAt:
+          type: string
+          format: date-time
+        gameMaster:
+          type: boolean
     MoleItem:
       type: object
       properties:
@@ -12284,26 +12234,33 @@ components:
         jumpRopeEndsAtExclusive:
           type: string
           format: date-time
-    JumpRopeItem:
+    SkewerItem:
       type: object
       properties:
         rank:
           type: integer
           format: int64
-        userId:
+        gameId:
           type: string
-        nickname:
+        chefUserId:
+          type: string
+        chefNickname:
+          type: string
+        serverUserId:
+          type: string
+        serverNickname:
           type: string
         score:
           type: integer
           format: int64
-        misses:
-          type: integer
-          format: int64
+        playMode:
+          type: string
         completedAt:
           type: string
           format: date-time
-        gameMaster:
+        chefGameMaster:
+          type: boolean
+        serverGameMaster:
           type: boolean
     SpeedMoleItem:
       type: object
@@ -13077,45 +13034,6 @@ components:
           type: boolean
         canViewContacts:
           type: boolean
-    MoleAuditDetections:
-      type: object
-      properties:
-        items:
-          type: array
-          items:
-            $ref: "#/components/schemas/MoleAuditDetectedMember"
-        from:
-          type: string
-          format: date-time
-        until:
-          type: string
-          format: date-time
-        limit:
-          type: integer
-          format: int32
-    MoleAuditDetectedMember:
-      type: object
-      properties:
-        userId:
-          type: string
-        nickname:
-          type: string
-        withdrawn:
-          type: boolean
-        flaggedRounds:
-          type: integer
-          format: int32
-        liveRounds:
-          type: integer
-          format: int32
-        completionRounds:
-          type: integer
-          format: int32
-        latestRoundId:
-          type: string
-        lastDetectedAt:
-          type: string
-          format: date-time
     MoleAuditRound:
       type: object
       properties:
@@ -13123,11 +13041,17 @@ components:
           type: string
         userId:
           type: string
+        nickname:
+          type: string
         startedAt:
           type: string
           format: date-time
         status:
           type: string
+        score:
+          type: integer
+          format: int32
+          nullable: true
         observedTaps:
           type: integer
           format: int32
@@ -13174,6 +13098,8 @@ components:
           $ref: "#/components/schemas/MoleAuditComparison"
         reference:
           $ref: "#/components/schemas/MoleAuditComparison"
+        timing:
+          $ref: "#/components/schemas/MoleAuditTiming"
     MoleAuditDistribution:
       type: object
       properties:
@@ -13189,6 +13115,17 @@ components:
         p90:
           type: integer
           format: int32
+    MoleAuditEarlyReaction:
+      type: object
+      properties:
+        samples:
+          type: integer
+          format: int32
+        quickHits:
+          type: integer
+          format: int32
+        qualifies:
+          type: boolean
     MoleAuditEntry:
       type: object
       properties:
@@ -13223,6 +13160,274 @@ components:
           type: integer
           format: int32
         receivedAt:
+          type: string
+          format: date-time
+    MoleAuditTiming:
+      type: object
+      properties:
+        reactions:
+          type: integer
+          format: int32
+        medianReactionMs:
+          type: integer
+          format: int32
+        segments:
+          type: array
+          items:
+            $ref: "#/components/schemas/MoleTimingSegment"
+        fastReaction:
+          type: boolean
+        steady:
+          type: boolean
+        sustainedPace:
+          type: boolean
+          nullable: true
+        repeatedEarlyReaction:
+          type: boolean
+          nullable: true
+        recordedAt:
+          type: string
+          format: date-time
+    MoleTimingSegment:
+      type: object
+      properties:
+        samples:
+          type: integer
+          format: int32
+        medianMs:
+          type: integer
+          format: int32
+        spreadMs:
+          type: integer
+          format: int32
+        pace:
+          $ref: "#/components/schemas/SpeedMoleAuditPace"
+        earlyReaction:
+          $ref: "#/components/schemas/MoleAuditEarlyReaction"
+    SpeedMoleAuditPace:
+      type: object
+      properties:
+        taps:
+          type: integer
+          format: int32
+        hits:
+          type: integer
+          format: int32
+        p90IntervalMs:
+          type: integer
+          format: int32
+          nullable: true
+        qualifies:
+          type: boolean
+    MoleTimingDetections:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/MoleTimingMember"
+        from:
+          type: string
+          format: date-time
+        until:
+          type: string
+          format: date-time
+        limit:
+          type: integer
+          format: int32
+    MoleTimingMember:
+      type: object
+      properties:
+        userId:
+          type: string
+        nickname:
+          type: string
+        withdrawn:
+          type: boolean
+        flaggedRounds:
+          type: integer
+          format: int32
+        fastRounds:
+          type: integer
+          format: int32
+        steadyRounds:
+          type: integer
+          format: int32
+        sustainedPaceRounds:
+          type: integer
+          format: int32
+        repeatedEarlyReactionRounds:
+          type: integer
+          format: int32
+        auditedRounds:
+          type: integer
+          format: int32
+        lowestMedianReactionMs:
+          type: integer
+          format: int32
+        latestRoundId:
+          type: string
+        lastDetectedAt:
+          type: string
+          format: date-time
+    MoleAuditDetectedMember:
+      type: object
+      properties:
+        userId:
+          type: string
+        nickname:
+          type: string
+        withdrawn:
+          type: boolean
+        flaggedRounds:
+          type: integer
+          format: int32
+        liveRounds:
+          type: integer
+          format: int32
+        completionRounds:
+          type: integer
+          format: int32
+        latestRoundId:
+          type: string
+        lastDetectedAt:
+          type: string
+          format: date-time
+    MoleAuditDetections:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/MoleAuditDetectedMember"
+        from:
+          type: string
+          format: date-time
+        until:
+          type: string
+          format: date-time
+        limit:
+          type: integer
+          format: int32
+    MacroSuspect:
+      type: object
+      properties:
+        userId:
+          type: string
+        nickname:
+          type: string
+        withdrawn:
+          type: boolean
+        flaggedRuns:
+          type: integer
+          format: int32
+        replayRuns:
+          type: integer
+          format: int32
+        fixedStartRuns:
+          type: integer
+          format: int32
+        totalRuns:
+          type: integer
+          format: int64
+        bestFinishMs:
+          type: integer
+          format: int64
+        firstDetectedAt:
+          type: string
+        lastDetectedAt:
+          type: string
+    MacroSuspectsResponse:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        limit:
+          type: integer
+          format: int32
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/MacroSuspect"
+        generatedAt:
+          type: string
+    JumpRopeDuplicateLog:
+      type: object
+      properties:
+        inputHash:
+          type: string
+        rounds:
+          type: integer
+          format: int32
+        members:
+          type: integer
+          format: int32
+        userIds:
+          type: array
+          items:
+            type: string
+        score:
+          type: integer
+          format: int32
+        firstCompletedAt:
+          type: string
+          format: date-time
+        lastCompletedAt:
+          type: string
+          format: date-time
+    JumpRopeMacroReport:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        limit:
+          type: integer
+          format: int32
+        suspects:
+          type: array
+          items:
+            $ref: "#/components/schemas/JumpRopeMacroSuspect"
+        duplicateLogs:
+          type: array
+          items:
+            $ref: "#/components/schemas/JumpRopeDuplicateLog"
+        generatedAt:
+          type: string
+          format: date-time
+    JumpRopeMacroSuspect:
+      type: object
+      properties:
+        userId:
+          type: string
+        nickname:
+          type: string
+        withdrawn:
+          type: boolean
+        flaggedRounds:
+          type: integer
+          format: int32
+        duplicateRounds:
+          type: integer
+          format: int32
+        steadyRounds:
+          type: integer
+          format: int32
+        auditedRounds:
+          type: integer
+          format: int32
+        outsideParkRounds:
+          type: integer
+          format: int32
+        bestScore:
+          type: integer
+          format: int32
+        lowestJitterUs:
+          type: integer
+          format: int32
+        firstFlaggedAt:
+          type: string
+          format: date-time
+        lastFlaggedAt:
           type: string
           format: date-time
     Entry:
@@ -14148,52 +14353,6 @@ components:
           type: string
           format: date-time
         isFirstGame:
-          type: boolean
-    JumpmapItem:
-      type: object
-      properties:
-        rank:
-          type: integer
-          format: int64
-        userId:
-          type: string
-        nickname:
-          type: string
-        finishMs:
-          type: integer
-          format: int64
-        completedAt:
-          type: string
-          format: date-time
-        gameMaster:
-          type: boolean
-    SkewerItem:
-      type: object
-      properties:
-        rank:
-          type: integer
-          format: int64
-        gameId:
-          type: string
-        chefUserId:
-          type: string
-        chefNickname:
-          type: string
-        serverUserId:
-          type: string
-        serverNickname:
-          type: string
-        score:
-          type: integer
-          format: int64
-        playMode:
-          type: string
-        completedAt:
-          type: string
-          format: date-time
-        chefGameMaster:
-          type: boolean
-        serverGameMaster:
           type: boolean
   securitySchemes:
     AccessJwt:

@@ -25,12 +25,13 @@ import {
   type QualityPreset as QualityLevel,
 } from '../config'
 import { ParkSun } from './ParkSun'
-import { EnvironmentScene } from './EnvironmentScene'
+import { EnvironmentScene, PARK_SERVICE_DAY_EXPOSURE } from './EnvironmentScene'
 import { ParkPigeons } from './pigeons/ParkPigeons'
 import { NightLighting } from './NightLighting'
-import { OmokFocusLighting } from './boardFocusLighting'
+import { BoardFocusLighting } from './boardFocusLighting'
 import { CameraRig } from './CameraRig'
 import { ParkXRBridge } from '../features/parkXR/ParkXRBridge'
+import { parkXRView } from './xrView'
 
 import { Avatars } from './Avatars'
 import {JokeJudgeActor} from '../features/ai/JokeJudgeActor'
@@ -109,7 +110,8 @@ function SceneReady({ mounted, groundMounted, onReady }: {
       startup.disposed = true
     }
   }, [startup])
-  useFrame(({ gl, scene, camera }) => {
+  useFrame(({ gl, scene, camera }, _delta, frame) => {
+    if (parkXRView.renderKitchen?.(frame)) return
     if (startup.phase !== 'presented') {
       const session = useSession.getState()
       const ownsCamera = !!session.roomId && !!avatars.get(session.sessionId)?.connected
@@ -266,7 +268,7 @@ export const WorldCanvas = memo(function WorldCanvas({
         <AvatarPoseFrame>
           {BALLOON_RIDE_ENABLED && <Suspense fallback={null}><LocalBalloonScene /></Suspense>}
           <ParkXRBridge />
-          <group name={RENEWAL_PARK_ENABLED ? 'renewal-exterior-lighting' : undefined}>
+          <group name={RENEWAL_PARK_ENABLED ? 'renewal-exterior-lighting' : 'park-exterior-lighting'}>
             <EnvironmentScene matchServiceBrightness={RENEWAL_PARK_ENABLED} />
             <ParkSun quality={quality} serviceNightLight={RENEWAL_PARK_ENABLED || undefined} />
           </group>
@@ -281,7 +283,7 @@ export const WorldCanvas = memo(function WorldCanvas({
             <SceneMounted ready={sceneMounted} />
           </Suspense>
           {/* Maintain one render owner while lazy scene children mount. */}
-          <OmokFocusLighting />
+          <BoardFocusLighting exposure={RENEWAL_PARK_ENABLED ? PARK_SERVICE_DAY_EXPOSURE : 1} />
           <SceneReady mounted={sceneMounted} groundMounted={groundMounted} onReady={reportFirstFrame} />
           {RENEWAL_PARK_ENABLED && (distantReady || jumpRunActive) &&
             <Suspense fallback={null}><ShaderPreparedGroup priority={.75}><ServiceJumpCourse /></ShaderPreparedGroup></Suspense>}

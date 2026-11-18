@@ -1,6 +1,5 @@
 package com.ssafy.ontop.world.balloon;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.ssafy.ontop.config.RuntimeProfiles;
 import com.ssafy.ontop.wallet.domain.WalletTransaction;
 import com.ssafy.ontop.wallet.repository.WalletRepository;
@@ -23,26 +22,19 @@ public class BalloonFareService {
     private final WalletRepository wallets;
     private final WalletTransactionRepository transactions;
     private final WorldChannelRegistry channels;
-    private final JsonNode station;
+    private final BalloonStation station;
 
     public BalloonFareService(WalletRepository wallets, WalletTransactionRepository transactions,
             WorldChannelRegistry channels, WorldMapRuntime map) {
         this.wallets = wallets;
         this.transactions = transactions;
         this.channels = channels;
-        this.station = map.prepared().map(prepared -> {
-            for (JsonNode site : prepared.constructionSites()) {
-                if ("balloon".equals(site.path("id").asText())) {
-                    return site;
-                }
-            }
-            return null;
-        }).orElse(null);
+        this.station = map.prepared().map(BalloonStation::findIn).orElse(null);
     }
 
     @Transactional(timeout = 4)
     public Receipt buy(long userId, UUID requestId) {
-        if (!atStation(userId)) {
+        if (station == null || !station.canBoard(channels.positionOf(Long.toString(userId)))) {
             throw new Rejected("BALLOON_STATION_REQUIRED", "하늘언덕 승강장으로 이동해 주세요.");
         }
         var wallet = wallets.findForUpdateByUserId(userId)
@@ -59,23 +51,6 @@ public class BalloonFareService {
         wallet.debit(FARE, now);
         transactions.save(WalletTransaction.balloonFare(wallet.id(), FARE, key, now));
         return new Receipt(requestId, FARE, now);
-    }
-
-    private boolean atStation(long userId) {
-        if (station == null) {
-            return false;
-        }
-        var position = channels.positionOf(Long.toString(userId));
-        if (position == null || position.swimming()) {
-            return false;
-        }
-        var reach = station.path("reachPosition");
-        if (!reach.isArray() || reach.size() != 3) {
-            return false;
-        }
-        return Math.hypot(position.x() - reach.get(0).asDouble(), position.z() - reach.get(2).asDouble())
-                <= station.path("radius").asDouble()
-                && Math.abs(position.y() - reach.get(1).asDouble()) <= station.path("heightTolerance").asDouble();
     }
 
     public record Receipt(UUID requestId, long fee, @com.fasterxml.jackson.annotation.JsonIgnore Instant paidAt) { }

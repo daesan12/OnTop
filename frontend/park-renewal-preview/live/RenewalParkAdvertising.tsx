@@ -1,15 +1,16 @@
 import { useEffect, useMemo } from 'react'
 import { useFrame, useLoader } from '@react-three/fiber'
 import {
+  CanvasTexture,
   MeshBasicMaterial,
   PlaneGeometry,
   SRGBColorSpace,
   TextureLoader,
 } from 'three'
 import { A_FRAME } from '../../src/config/parkAdvertising'
+import parkSignTeaserUrl from '../../src/features/advertisements/art/park-sign-teaser.webp'
 import { beam, Instances, yawPart, type Part, type XYZ } from '../../src/world/art/Instances'
 import { environmentFrame } from '../../src/world/environmentState'
-import { parkAdvertisementUrl } from '../../src/world/worldAssets'
 import { groundSurfaceHeight } from '../groundSurface'
 import { renewalAdSigns } from './advertisingPlacement'
 
@@ -17,9 +18,9 @@ const sites = renewalAdSigns.map(site => ({ ...site, y: groundSurfaceHeight(site
 
 // Independent of the ten-second building playlist.
 const PARK_ADVERTISEMENT = {
-  imageUrl: parkAdvertisementUrl,
-  width: 2160,
-  height: 2880,
+  imageUrl: parkSignTeaserUrl,
+  width: 1080,
+  height: 1440,
 } as const
 const imageAspect = PARK_ADVERTISEMENT.width / PARK_ADVERTISEMENT.height
 const posterGeometry = new PlaneGeometry(1, 1)
@@ -96,11 +97,6 @@ function Poster({
         <mesh
           key={side}
           name="park-static-advertisement"
-          onClick={(e) => {
-            e.stopPropagation()
-            if (e.delta < 5)
-              window.dispatchEvent(new Event('ontap-open-pickus'))
-          }}
           position={[0, y, side * 0.017]}
           rotation={[0, side < 0 ? Math.PI : 0, 0]}
           scale={[width, width / imageAspect, 1]}
@@ -122,12 +118,27 @@ function Poster({
 function useParkAdvertisementMaterial() {
   const texture = useLoader(TextureLoader, PARK_ADVERTISEMENT.imageUrl)
   const material = useMemo(() => {
-    texture.colorSpace = SRGBColorSpace
-    texture.anisotropy = 16
-    texture.needsUpdate = true
-    return new MeshBasicMaterial({ map: texture, toneMapped: false })
+    const canvas = document.createElement('canvas')
+    canvas.width = PARK_ADVERTISEMENT.width
+    canvas.height = PARK_ADVERTISEMENT.height
+    const ctx = canvas.getContext('2d')!
+    ctx.drawImage(texture.image, 0, 0, canvas.width, canvas.height)
+    // Replace the poster's printed mouse button with the shortcut shown by the HUD.
+    ctx.beginPath()
+    ctx.roundRect(24, 1250, 476, 158, 79)
+    ctx.fillStyle = '#073319'
+    ctx.fill()
+    ctx.fillStyle = '#ffe282'
+    ctx.font = 'bold 78px "Malgun Gothic", sans-serif'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText('E · 광고 보기', 262, 1329, 410)
+    const map = new CanvasTexture(canvas)
+    map.colorSpace = SRGBColorSpace
+    map.anisotropy = 16
+    return new MeshBasicMaterial({ map, toneMapped: false })
   }, [texture])
-  useEffect(() => () => material.dispose(), [material])
+  useEffect(() => () => { material.map?.dispose(); material.dispose() }, [material])
   useFrame(() => material.color.setScalar(1 - environmentFrame.night * 0.35))
   return material
 }

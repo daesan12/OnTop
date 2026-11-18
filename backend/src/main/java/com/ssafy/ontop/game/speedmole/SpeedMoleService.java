@@ -3,11 +3,14 @@ package com.ssafy.ontop.game.speedmole;
 import com.ssafy.ontop.behavior.service.BehaviorLog;
 import com.ssafy.ontop.minigame.service.MinigameRewardBudget;
 import com.ssafy.ontop.minigame.service.MoleTargets;
+import com.ssafy.ontop.minigame.telemetry.MoleTimingAudit;
+import com.ssafy.ontop.minigame.telemetry.MoleTimingSignals;
 import com.ssafy.ontop.wallet.domain.Wallet;
 import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.List;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
@@ -69,10 +72,22 @@ public class SpeedMoleService {
             SpeedMoleRules.requireTapCount(taps);
             var hiddenIds = new MoleTargets(GAME, id, row.seed()).hiddenIds(HOLES);
             var playableTaps = taps.stream().filter(tap -> tap == null || !hiddenIds.contains(tap.targetId())).toList();
-            var score = SpeedMoleRules.replay(row.seed(), playableTaps);
+            var reactions = new ArrayList<MoleTimingSignals.Reaction>();
+            var hitTimes = new ArrayList<Integer>();
+            var score = SpeedMoleRules.replay(row.seed(), playableTaps, (appearedAt, at) -> {
+                hitTimes.add(at);
+                if (appearedAt >= 0) {
+                    reactions.add(new MoleTimingSignals.Reaction(appearedAt, at - appearedAt));
+                }
+            });
             Instant completed = clock.instant().truncatedTo(ChronoUnit.MILLIS);
             int granted = rewards.grant(wallet, id, score.score(), completed);
             repository.settle(id, score, completed);
+            if (timingAudit != null) {
+                var tapTimes = playableTaps.stream().map(SpeedMoleRules.Tap::at).toList();
+                timingAudit.settled(GAME, user, id, row.version(),
+                        () -> MoleTimingSignals.speed(reactions, tapTimes, hitTimes), completed);
+            }
             var result = new SpeedMoleDtos.Result(Long.toString(id), row.version(), score.score(), score.hits(), score.misses(), completed,
                     score.score() / SpeedMoleRules.POINTS_PER_COIN, granted, rewards.earned(user, completed), MinigameRewardBudget.DAILY_CAP);
             return new MoleTargets.Completion<>(result, taps.size() - playableTaps.size());
@@ -94,5 +109,13 @@ public class SpeedMoleService {
     }
     private void requireLatest(long user, long id) {
         if (repository.latestId(user) != id) throw new SpeedMoleException(409, "SPEED_MOLE_ROUND_SUPERSEDED", "다른 창에서 새 판이 시작됐어요. 새 판으로 다시 도전해 주세요.");
+    }
+
+    /** 운영자 조회용 타이밍 기록. 저장소가 없는 환경(테스트·기록 비활성)에서는 남기지 않는다. */
+    private MoleTimingAudit timingAudit;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void timingAudit(MoleTimingAudit timingAudit) {
+        this.timingAudit = timingAudit;
     }
 }

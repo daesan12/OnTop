@@ -17,8 +17,8 @@ export function SwimmingRipples() {
     const now = performance.now()
     for (const [id, avatar] of avatars) {
       if (n >= NETWORK.maxClients) break
-      samplePose(avatar, now, pose)
       if (!avatar.connected || !(remoteMovement.flags(id)?.swimming ?? avatar.swimming)) continue
+      samplePose(avatar, now, pose)
       transform.position.set(
         pose.x,
         LAKE.surfaceY + 0.014,

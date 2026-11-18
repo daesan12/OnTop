@@ -10,8 +10,11 @@ import { characterUrls } from '../../world/art/characterAssets'
 import { balloonScale, flightMap, startPoint } from './previewMap'
 import { cameraDrag, isPassenger, occupancy, usePreview } from './previewStore'
 import { useBalloonModel } from './useBalloonModel'
+import { balloonCanLook, CABIN_LOOK_HEIGHT, dragCabinCamera, setBalloonOrbit } from './cabinCamera'
+import { CABIN_FLOOR_HEIGHT, doorwayCabin } from './cabin'
+import { BalloonCabin } from './BalloonCabin'
 
-const slots = [[-.65, .425, -.65], [.65, .425, -.65], [-.65, .425, .65], [.65, .425, .65]] as const
+const slots = [[-.65, -.65], [.65, -.65], [-.65, .65], [.65, .65]] as const
 function Riders() {
   const models = useLoader(ParkAssetLoader, characterUrls)
   const avatars = useMemo(() => Array.from({ length: 5 }, (_, index) => clone(models[index % models.length]!.scene)), [models])
@@ -28,13 +31,20 @@ function Riders() {
       passengerRef.current.position.set(flight.position.x, flight.position.y, flight.position.z)
       passengerRef.current.visible = flight.phase !== 'removed' && flight.phase !== 'landed'
       passengerRef.current.children.forEach((child, index) => { child.visible = index < occupancy(boarded) })
+      const rider = passengerRef.current.children[0]
+      if (rider) {
+        const atDoor = boarded && flight.phase === 'boarding' && !isPassenger
+        rider.position.set((atDoor ? doorwayCabin.x : slots[0][0]) * balloonScale, CABIN_FLOOR_HEIGHT * balloonScale,
+          (atDoor ? doorwayCabin.z : slots[0][1]) * balloonScale)
+        rider.rotation.y = atDoor ? doorwayCabin.yaw : Math.PI
+      }
     }
   })
 
   return <>
     <group ref={walkerRef} rotation-y={Math.PI}><primitive object={avatars[4]!} /></group>
     <group ref={passengerRef}>
-      {slots.map(([x, y, z], index) => <group key={index} position={[x * balloonScale, y * balloonScale, z * balloonScale]} rotation-y={Math.PI}>
+      {slots.map(([x, z], index) => <group key={index} position={[x * balloonScale, CABIN_FLOOR_HEIGHT * balloonScale, z * balloonScale]} rotation-y={Math.PI}>
         <primitive object={avatars[index]!} />
       </group>)}
     </group>
@@ -43,6 +53,7 @@ function Riders() {
 
 function ParkScene() {
   const balloonRef = useRef<Group>(null)
+  const doorOpen = usePreview(s => s.flight.phase === 'boarding' || s.flight.phase === 'landed')
   useBalloonModel(balloonRef)
   const cameraGoal = useRef(new Vector3())
   const target = useRef(new Vector3())
@@ -57,14 +68,13 @@ function ParkScene() {
       balloonRef.current.position.set(x, y, z)
     }
 
-    const flying = flight.phase === 'takeoff' || flight.phase === 'flying' || flight.phase === 'returning'
+    const flying = balloonCanLook(flight.phase)
     if (flying && isPassenger) {
       const angle = cameraDrag.yaw
-      cameraGoal.current.set(x + .7, y + 1.94, z + .65)
-      target.current.set(x + Math.sin(angle) * 12, y - 2, z - Math.cos(angle) * 12)
+      const eye = cameraGoal.current.set(x + .7, y + CABIN_LOOK_HEIGHT, z + .65)
+      target.current.set(eye.x + Math.sin(angle) * 12, eye.y - 1.2, eye.z - Math.cos(angle) * 12)
     } else if (flying) {
-      cameraGoal.current.set(x + 6, y + 5, z + 9)
-      target.current.set(x, y + 1, z - 5)
+      setBalloonOrbit(flight.position, cameraGoal.current, target.current, true)
     } else if (flight.phase === 'landed' || flight.phase === 'removed') {
       cameraGoal.current.set(walker.x + 2, walker.y + 3.8, walker.z + 6)
       target.current.set(walker.x, walker.y + 1.15, walker.z - 2)
@@ -85,23 +95,29 @@ function ParkScene() {
     <CityBackdrop distanceLod />
     <directionalLight position={[-100, 190, 90]} intensity={2.2} color="#fff0d6" />
     <ScenicDetails />
-    <Buildings showDockedBalloon={false} />
-    <group ref={balloonRef} scale={balloonScale} position={[flightMap.dock.x, flightMap.dock.y, flightMap.dock.z]} />
+    <Buildings showDockedBalloon={false} showBalloonWayfinding />
+    <group ref={balloonRef} scale={balloonScale} position={[flightMap.dock.x, flightMap.dock.y, flightMap.dock.z]}>
+      <BalloonCabin doorOpen={doorOpen} />
+    </group>
     <Suspense fallback={null}><Riders /></Suspense>
   </>
 }
 
 export function PreviewScene() {
-  const dragging = useRef<number | null>(null)
+  const dragging = useRef<{ id: number; x: number; y: number } | null>(null)
   return <div className="balloon-scene" onPointerDown={event => {
-    if (!isPassenger || usePreview.getState().flight.phase !== 'flying') return
+    if (dragging.current || event.button !== 0 || !balloonCanLook(usePreview.getState().flight.phase)) return
     event.currentTarget.setPointerCapture(event.pointerId)
-    dragging.current = event.clientX
+    dragging.current = { id: event.pointerId, x: event.clientX, y: event.clientY }
   }} onPointerMove={event => {
-    if (dragging.current === null) return
-    cameraDrag.yaw += (dragging.current - event.clientX) * .008
-    dragging.current = event.clientX
-  }} onLostPointerCapture={() => { dragging.current = null }}>
+    const pointer = dragging.current
+    if (!pointer || pointer.id !== event.pointerId || !balloonCanLook(usePreview.getState().flight.phase)) return
+    const dx = event.clientX - pointer.x
+    if (isPassenger) cameraDrag.yaw -= dx * .008
+    else dragCabinCamera(dx, event.clientY - pointer.y)
+    pointer.x = event.clientX
+    pointer.y = event.clientY
+  }} onLostPointerCapture={event => { if (dragging.current?.id === event.pointerId) dragging.current = null }}>
     <Canvas camera={{ position: [startPoint.x - 2.8, startPoint.y + 4.4, startPoint.z + 8.5], fov: 52, near: .1, far: 1500 }} dpr={[1, 1.5]}>
       <ParkScene />
     </Canvas>

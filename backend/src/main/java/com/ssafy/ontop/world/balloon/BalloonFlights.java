@@ -1,6 +1,5 @@
 package com.ssafy.ontop.world.balloon;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.ssafy.ontop.world.map.WorldMapRuntime;
 import com.ssafy.ontop.world.service.WorldChannelRegistry.Position;
 import java.time.Duration;
@@ -32,21 +31,12 @@ public final class BalloonFlights {
     // 행동 로그용 탑승 기록. 비행·결제·좌석 판정에는 쓰지 않는다. TableHub가 요청을 처리한 뒤 drainUsage로 가져간다.
     private final Map<String, Airborne> airborne = new HashMap<>();
     private final List<Usage> usage = new ArrayList<>();
-    private final JsonNode station;
+    private final BalloonStation station;
     private final double mapHalf;
 
     public BalloonFlights(WorldMapRuntime map) {
         var prepared = map.prepared().orElse(null);
-        JsonNode anchor = null;
-        if (prepared != null) {
-            for (JsonNode candidate : prepared.constructionSites()) {
-                if ("balloon".equals(candidate.path("id").asText())) {
-                    anchor = candidate;
-                    break;
-                }
-            }
-        }
-        station = anchor;
+        station = prepared == null ? null : BalloonStation.findIn(prepared);
         mapHalf = prepared == null ? 0 : prepared.collisionData().path("world").path("halfSize").asDouble();
     }
 
@@ -81,11 +71,11 @@ public final class BalloonFlights {
                 || mode != null && !mode.equals("solo") && !(mode.equals("split") && capacity >= 2)
                 || !ticketAvailable(pilot, ticketId, now) || !atStation(player)
                 || !inBounds(position) || !nearDock(position)) return null;
-        var state = new State(channel, pilot, new Flight(position, true));
+        var state = new State(channel, pilot, new Flight(position, true,
+                mode == null ? CabinPose.IDLE : CabinPose.DOORWAY));
         rides.put(pilot, new Ride(session, ticketId, at, at, state));
         if (capacity > 1 || mode != null) {
             var group = new Group(pilot, capacity, mode);
-            group.boarding = capacity > 1;
             groups.put(pilot, group);
         }
         holds.remove(pilot);
@@ -357,7 +347,9 @@ public final class BalloonFlights {
         Map<String, CabinPose> passengers = new LinkedHashMap<>();
         group.passengers.forEach((id, passenger) -> passengers.put(id, controlPose(group, id, passenger.cabin)));
         Flight flight = state.flight;
-        if (flight.aboard) flight = new Flight(flight.position, true, controlPose(group, state.pilotId, flight.cabin));
+        if (flight.aboard && !group.boarding) {
+            flight = new Flight(flight.position, true, controlPose(group, state.pilotId, flight.cabin));
+        }
         return new State(state.channelId, state.pilotId, flight,
                 new Party(group.capacity, group.boarding, Map.copyOf(passengers),
                         group.controls == null ? null : group.controls.snapshot(at)));
@@ -390,17 +382,12 @@ public final class BalloonFlights {
     }
 
     boolean atStation(Position player) {
-        if (station == null || player == null || player.swimming()) return false;
-        JsonNode reach = station.path("reachPosition");
-        return Math.hypot(player.x() - reach.get(0).asDouble(), player.z() - reach.get(2).asDouble())
-                <= station.path("radius").asDouble()
-                && Math.abs(player.y() - reach.get(1).asDouble()) <= station.path("heightTolerance").asDouble();
+        return station != null && station.canBoard(player);
     }
 
     private boolean nearDock(Point point) {
-        JsonNode center = station.path("position");
-        return Math.hypot(point.x - center.get(0).asDouble(), point.z - center.get(2).asDouble()) <= 8
-                && Math.abs(point.y - center.get(1).asDouble()) <= 4;
+        return Math.hypot(point.x - station.x(), point.z - station.z()) <= 8
+                && Math.abs(point.y - station.y()) <= 4;
     }
 
     private boolean inBounds(Point point) {
@@ -411,6 +398,7 @@ public final class BalloonFlights {
     public record Point(double x, double y, double z) { }
     public record CabinPose(double x, double z, double yaw, int seatIndex, boolean moving) {
         public static final CabinPose IDLE = new CabinPose(0, 0, Math.PI, -1, false);
+        private static final CabinPose DOORWAY = new CabinPose(-1.18, 0, Math.PI / 2, -1, false);
 
         boolean valid() {
             return Math.hypot(x, z) <= 1.38 && Math.abs(yaw) <= Math.PI

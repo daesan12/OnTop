@@ -32,7 +32,7 @@ const steps = {
   ],
 } as const
 
-export function CoopLobby({ client, onClose, onEquipment, chefMode, onChefMode }: { client: CoopClient; onClose: () => void; onEquipment: () => void; chefMode: 'pc' | 'vr' | null; onChefMode: (mode: 'pc' | 'vr' | null) => void }) {
+export function CoopLobby({ client, onClose, onEquipment, onConnectVR, canConnectVR, chefMode, onChefMode }: { client: CoopClient; onClose: () => void; onEquipment: () => void; onConnectVR: () => void; canConnectVR: boolean; chefMode: 'pc' | 'vr' | null; onChefMode: (mode: 'pc' | 'vr' | null) => void }) {
   const state = useStore(client.store), snapshot = state.snapshot, pub = snapshot?.publicState
   const role = snapshot?.privateState.role, owner = client.transport.scope().userId
   const player = pub?.players.find(p => p.userId === owner)
@@ -113,7 +113,11 @@ export function CoopLobby({ client, onClose, onEquipment, chefMode, onChefMode }
           <div className="coop-role-guide"><ol>{(role === 'chef' && vr ? CHEF_VR_STEPS : steps[role]).map(([title, description], index) => <li key={title}><b aria-hidden="true">{index + 1}</b><div><h2>{title}</h2><p>{description}</p></div></li>)}</ol>
             <div className="coop-key-hints">{role === 'chef' ? vr ? <><span><kbd>트리거</kbd> 주문·재료 선택 / 접시 제출</span><span><kbd>그립</kbd> 꼬치 잡기</span><span>주방의 VR 조작 안내로 다시 확인해요</span></> : <><span><kbd>1–6</kbd> 재료 선택</span><span><kbd>Space</kbd> 꽂기</span><span><kbd>R</kbd> 완성·제출</span><span><kbd>⌫</kbd> 끝 재료 빼기</span></>
               : <><span><kbd>WASD</kbd> 이동</span><span><kbd>E</kbd> 상호작용</span><span><kbd>R</kbd> 반납·재수령</span></>}</div>
-            {role === 'chef' && vr ? <button className="coop-equipment-button" onClick={onEquipment}>{pub.chefVR ? 'VR 연결 확인하기' : '헤드셋 연결하기'} <span aria-hidden="true">↗</span></button>
+            {role === 'chef' && vr ? <>
+              {pub.chefVR ? <button className="coop-equipment-button" onClick={onEquipment}>VR 연결 확인하기 <span aria-hidden="true">↗</span></button>
+                : <><button className="coop-equipment-button" disabled={!canConnectVR} onClick={onConnectVR}>헤드셋 연결하기 <span aria-hidden="true">↗</span></button>
+                  <button className="coop-back-choice" onClick={onEquipment}>주방 화면 미리 보기</button></>}
+            </>
               : role === 'server' ? <p className="coop-guide-tip">음식과 더러운 식기는 함께 들 수 없어요. 꼬치는 보관대에, 사케는 냉장고에 내려놓으세요.</p> : null}
           </div>
         </div>

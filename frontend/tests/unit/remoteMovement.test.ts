@@ -29,6 +29,63 @@ describe('remote server-tick snapshot interpolation', () => {
     buffer.sample('other', 220, p); expect(p.x).toBeCloseTo(.9)
     buffer.sample('other', 270, p); expect(p.x).toBeCloseTo(1.35)
   })
+
+  it('follows the displayed pad between snapshots and blends back to the server height when stepping off', () => {
+    const buffer = new RemoteMovement(180), p = pose(0)
+    const riding = { movingPad: { block: 12 } }
+    let padY = 10.8
+    const padHeight = (block: number) => block === 12 ? padY : undefined
+    buffer.push('other', { ...pose(0), y: 10.32 }, { ...motion(0), ...riding }, 0)
+    buffer.push('other', { ...pose(.5), y: 10.4 }, { ...motion(3), ...riding }, 100)
+    buffer.sample('other', 230, p, undefined, padHeight)
+    expect(p.y).toBeCloseTo(10.8)
+    expect(p.x).toBeCloseTo(.25)
+
+    padY = 10.6
+    buffer.push('other', { ...pose(1), y: 11.4 }, { ...motion(6), grounded: false }, 200)
+    buffer.sample('other', 280, p, undefined, padHeight)
+    expect(p.y).toBeCloseTo(10.6)
+    buffer.sample('other', 330, p, undefined, padHeight)
+    expect(p.y).toBeCloseTo(11)
+    buffer.sample('other', 380, p, undefined, padHeight)
+    expect(p.y).toBeCloseTo(11.4)
+  })
+  it('preserves the first upward step when a remote mole rider jumps from a lower server pad', () => {
+    const buffer = new RemoteMovement(), p = pose(0)
+    const padHeight = (block: number) => block === 12 ? 10.8 : undefined
+    const airborne = { grounded: false, velocityY: 7 }
+    buffer.push('other', { ...pose(0), y: 10.32 }, { ...motion(0), movingPad: { block: 12 } }, 0)
+    buffer.push('other', { ...pose(0), y: 10.60 }, { ...motion(1), ...airborne }, 100 / 3)
+    buffer.push('other', { ...pose(0), y: 11.12 }, { ...motion(4), ...airborne }, 400 / 3)
+    buffer.push('other', { ...pose(0), y: 11.49 }, { ...motion(7), ...airborne }, 700 / 3)
+
+    buffer.sample('other', 180, p, undefined, padHeight)
+    expect(p.y).toBeCloseTo(10.8)
+    buffer.sample('other', 180 + 100 / 3, p, undefined, padHeight)
+    expect(p.y).toBeCloseTo(11.08)
+    buffer.sample('other', 180 + 400 / 3, p, undefined, padHeight)
+    expect(p.y).toBeGreaterThan(11.08)
+    buffer.sample('other', 180 + 700 / 3, p, undefined, padHeight)
+    expect(p.y).toBeCloseTo(11.49)
+  })
+  it('holds the departure height while a pigeon pad keeps moving under the airborne rider', () => {
+    const buffer = new RemoteMovement(), p = pose(0)
+    let now = 180
+    const padHeight = (_block: number, msAgo = 0) => 10.8 + (now - msAgo - 180) * .0006
+    buffer.push('other', { ...pose(0), y: 10.7 }, { ...motion(0), movingPad: { block: 12 } }, 0)
+    buffer.push('other', { ...pose(0), y: 10.95 },
+      { ...motion(1), grounded: false, velocityY: 7 }, 100 / 3)
+
+    buffer.sample('other', now, p, undefined, padHeight)
+    expect(p.y).toBeCloseTo(10.8)
+    now += 100 / 3
+    buffer.sample('other', now, p, undefined, padHeight)
+    expect(p.y).toBeCloseTo(11.05)
+    // A held network frame should not cause the airborne avatar to follow the pad again.
+    now += 80
+    buffer.sample('other', now, p, undefined, padHeight)
+    expect(p.y).toBeCloseTo(11.05)
+  })
   it('sorts reordered ticks, deduplicates receipt snapshots, bounds history and rejects old epochs', () => {
     const buffer = new RemoteMovement(120), p = pose(0)
     buffer.push('other', pose(0), motion(0), 0)

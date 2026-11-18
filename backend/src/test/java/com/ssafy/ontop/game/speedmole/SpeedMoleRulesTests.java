@@ -18,6 +18,23 @@ class SpeedMoleRulesTests {
         for (int i = 0; i < holes.length; i++) taps.add(new SpeedMoleRules.Tap(holes[i], i));
         assertThat(SpeedMoleRules.replay(1, taps)).isEqualTo(new SpeedMoleRules.Score(1,3,3));
     }
+    @Test void hit_listener_reports_when_each_hit_target_appeared_without_changing_the_score() {
+        var taps = new ArrayList<SpeedMoleRules.Tap>();
+        for (int i = 0; i < 200; i++) taps.add(new SpeedMoleRules.Tap(i % 8, 100 + i * 50));
+        var hitTimes = new ArrayList<Integer>();
+        var initial = new int[1];
+        var score = SpeedMoleRules.replay(1, taps, (appearedAt, at) -> {
+            // 처음 4마리가 아니면 앞선 적중이 그 두더지를 불러냈다.
+            if (appearedAt < 0) initial[0]++;
+            else assertThat(hitTimes).contains(appearedAt);
+            assertThat(appearedAt).isLessThan(at);
+            hitTimes.add(at);
+        });
+        assertThat(score).isEqualTo(SpeedMoleRules.replay(1, taps));
+        assertThat(hitTimes).hasSize(score.hits());
+        assertThat(initial[0]).isBetween(1, 4);
+        assertThat(score.hits()).isGreaterThan(initial[0]);
+    }
     @Test void no_input_is_a_valid_zero_score() { assertThat(SpeedMoleRules.replay(1, List.of())).isEqualTo(new SpeedMoleRules.Score(0,0,0)); }
     @Test void malformed_timestamps_holes_and_nulls_are_rejected() {
         for (var tap : List.of(new SpeedMoleRules.Tap(-1,0),new SpeedMoleRules.Tap(8,0),
