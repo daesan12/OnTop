@@ -122,15 +122,18 @@ export function placeInView(eye: readonly [number, number], forward: readonly [n
 //   cage    — 8, the lift: a cage crashes down in front of you, the thing in it rattles the bars, then comes through
 //   statue  — 2, the statue: closer at every blink, and closer whenever you look away; then it screams
 //   shadow  — 6, on the wall in front of you, the shadow of something standing right behind you, arms rising over
-//             your head; turn round (or be turned round) and a face fills the screen
+//             your head; turn round (or be turned round) and it is there (an ambush)
+// and one that is never drawn for an encounter, only set off by something else (the steps coming up behind you, a
+// spot in the halls, the shadow):
+//   ambush  — it is right behind you; you are spun round to face it as it lunges, all in a third of a second
 // You are only held still at the moment it strikes: a freeze before anything shows gave the scare away.
-export type StageStyle = 'pop' | 'behind' | 'stalk' | 'fakeout' | 'reveal' | 'pounce' | 'sprint' | 'statue' | 'shadow' | 'grab' | 'drop' | 'cage'
+export type StageStyle = 'pop' | 'behind' | 'stalk' | 'fakeout' | 'reveal' | 'pounce' | 'sprint' | 'statue' | 'shadow' | 'grab' | 'drop' | 'cage' | 'ambush'
 export const STAGE_STYLES: readonly StageStyle[] = ['pop', 'behind', 'stalk', 'fakeout', 'reveal']
 /** Creatures that stand free as a whole figure; the rest are wall, door, lift, water or face pieces. */
 const FIGURES = new Set([9, 10])
 /** Creatures whose own character makes the scare. */
 const SIGNATURE: Record<number, StageStyle[]> = { 2: ['statue'], 3: ['drop'], 4: ['pounce'], 5: ['grab'], 8: ['cage'], 6: ['shadow'], 7: ['sprint', 'behind'] }
-const WEIGHTS: Record<StageStyle, number> = { pop: .3, behind: .2, stalk: .2, fakeout: .15, reveal: .15, pounce: 1, sprint: .6, statue: 1, shadow: 1, grab: 1, drop: 1, cage: 1 }
+const WEIGHTS: Record<StageStyle, number> = { pop: .3, behind: .2, stalk: .2, fakeout: .15, reveal: .15, pounce: 1, sprint: .6, statue: 1, shadow: 1, grab: 1, drop: 1, cage: 1, ambush: 0 }
 
 /** Which styles suit encounter `id` (a wall of eyes cannot creep up behind you). */
 export function stylesFor(id: number): StageStyle[] {
@@ -184,6 +187,8 @@ export function stagePlan(style: StageStyle, base: number, random: () => number 
     case 'statue': return plan(0, 3.9, 4.3, 4.9, { jumps: jitter([1.3, 2.4, 3.3]) })
     // `rush` is when it turns you round; turning round yourself moves it up.
     case 'shadow': return plan(0, 3, 3.45, 4.1)
+    // Turned round by `rush`, face to face; it is on you by `dark`.
+    case 'ambush': return plan(0, .32, .85, 1.45)
   }
 }
 /** The stalker's distance at each blink, as a share of how far off it first stood. */
@@ -212,6 +217,7 @@ export function standDistance(plan: StagePlan, id: number, t: number, far = 9, e
     case 'cage': return 2.2
     case 'sprint': return FAR_MAX.sprint!
     case 'shadow': return 2.6
+    case 'ambush': return 1.3
     default: return 1.75
   }
 }
@@ -269,11 +275,12 @@ export function styleFrame(plan: StagePlan, id: number, t: number, start: number
     light = t < land ? .55 : t < land + .08 ? 1.6 : t >= plan.rush ? .35 : (style === 'cage' ? .55 : .45) * flick(style === 'cage' ? -.2 : -.5)
   }
   else if (style === 'shadow') light = t >= plan.rush ? 0 : t < .12 ? .15 : .8
+  else if (style === 'ambush') light = t >= plan.rush ? .5 : .75 * flick(-.4)
   else light = t >= plan.rush ? .35 : .85 + .1 * Math.sin(t * 31 + seed)
   const visible = t >= plan.show && t < (style === 'shadow' ? plan.rush : plan.dark) && !blink && (style !== 'sprint' || strobe(t))
   // How much of the way the face has come down to eye level (tall creatures sink so you see the face, not a chest).
   // (The cage stands on the floor: its rider's face is high but the bars must not sink.)
-  const lowered = style === 'cage' ? 0 : style === 'pop' || style === 'fakeout' || style === 'drop' ? 1
+  const lowered = style === 'cage' ? 0 : style === 'pop' || style === 'fakeout' || style === 'drop' || style === 'ambush' ? 1
     : style === 'behind' ? (lunge > 0 ? 1 : 0)
     : style === 'sprint' ? lunge
     : style === 'statue' ? Math.max(rush, Math.min(1, step / 3))
@@ -288,10 +295,10 @@ export function styleFrame(plan: StagePlan, id: number, t: number, start: number
   return {
     visible,
     // Popped up creatures are already in their final pose; the stalker and the runner hold one with the figure in it.
-    reveal: style === 'stalk' || style === 'sprint' || style === 'grab' ? .55 : style === 'statue' || style === 'pounce' || style === 'drop' || style === 'cage' ? 1
+    reveal: style === 'stalk' || style === 'sprint' || style === 'grab' ? .55 : style === 'statue' || style === 'pounce' || style === 'drop' || style === 'cage' || style === 'ambush' ? 1
       : style === 'shadow' ? .12 * clamp(t / plan.rush) : clamp((t - plan.show) / .25), // the shadow grows, not stretches
     lunge,
-    advance: style === 'grab' || style === 'cage' ? 0 : style === 'sprint' ? reach * lunge : style === 'pounce' ? reach * rush : reach * lunge * lunge,
+    advance: style === 'grab' || style === 'cage' ? 0 : style === 'sprint' ? reach * lunge : style === 'pounce' || style === 'ambush' ? reach * rush : reach * lunge * lunge,
     light,
     shake: lunge > 0 ? Math.sin(t * 210 + seed) * .04 : style === 'pounce' ? Math.sin(t * 90 + seed) * .012
       : style === 'cage' && t > FALL.cage + .05 ? Math.sin(t * 61 + seed) * .035 : 0,
@@ -299,13 +306,14 @@ export function styleFrame(plan: StagePlan, id: number, t: number, start: number
     rise,
     step,
     behind: style === 'behind' && t < plan.rush,
-    drag: style === 'behind' || style === 'shadow' ? (t >= plan.rush - .6 && t < plan.dark ? 18 : 0)
+    drag: style === 'ambush' ? (t < plan.dark ? 26 : 0)
+      : style === 'behind' || style === 'shadow' ? (t >= plan.rush - .6 && t < plan.dark ? 18 : 0)
       : style === 'grab' ? (t >= plan.rush - .25 && t < plan.dark ? 18 : 0)
       : style === 'pounce' ? 0
       : style === 'statue' ? (lunge > 0 ? 16 : 0)
       : visible ? (lunge > 0 ? 16 : style === 'stalk' ? 1.5 : style === 'sprint' ? 10 : 9) : 0,
     // Held only from the instant it strikes (a pop strikes as it shows; behind and shadow as they turn you round).
-    held: t < plan.dark && (style === 'behind' || style === 'shadow' ? t >= plan.rush - .6
+    held: t < plan.dark && (style === 'ambush' ? true : style === 'behind' || style === 'shadow' ? t >= plan.rush - .6
       : style === 'pop' || style === 'fakeout' ? t >= plan.show : style === 'drop' || style === 'cage' ? t >= FALL[style] : t >= plan.rush),
   }
 }

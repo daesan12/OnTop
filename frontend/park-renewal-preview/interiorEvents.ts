@@ -129,6 +129,19 @@ export class InteriorVisit {
     if (this.exitApproached && pending.includes(10)) return this.fire(10, nearby, now)
   }
 
+  /**
+   * Something gets you out of nowhere, set off by something other than the visit's own draw (HorrorPresence: the steps
+   * coming up behind you, a spot in the halls; the shadow turning you round): creature `id`, in `style` ('ambush' from
+   * behind, 'pop' in front). Not while another scare plays unless `force`. Counts as a scare for the spacing.
+   */
+  ambush(id: number, style: 'ambush' | 'pop', at: Point, force = false, now = performance.now()) {
+    if (this.active && !force) return false
+    const plan = stagePlan(style, encounterDuration, this.random)
+    this.active = { id, at, duration: plan.duration, plan }
+    this.lastAt = now
+    return true
+  }
+
   private fire(id: number, at: Point, started: number) {
     this.fired.add(id)
     this.lastAt = started
@@ -141,5 +154,10 @@ export class InteriorVisit {
     this.active = { id, at, duration: plan.duration, plan }
   }
 }
+
+/** The free-standing figures that come at you out of nowhere (InteriorVisit.ambush): the tall hood and the grey cloak. */
+export const AMBUSHERS: readonly number[] = [9, 10]
+/** What pops up in front of you at a spot in the halls: the leaning face too. */
+export const POPPERS: readonly number[] = [1, 9, 10]
 
 export const interiorVisit = new InteriorVisit()

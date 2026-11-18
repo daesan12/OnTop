@@ -3,9 +3,8 @@ import { useFrame } from '@react-three/fiber'
 import { Raycaster, Vector3, type Group, type Light, type Mesh, type Object3D, type PointLight } from 'three'
 import { effectsOutput } from '../src/audio/bgm'
 import { playCageDrop, playRopeDrop, playWallCrack, playBehind, playEncounterLunge, playEncounterStaging, playFakeout, playJumpScare, playPounceCrouch, playSprint, playStalkStart, playStalkStep, playStoneStep } from './horrorAudio'
-import { diamond, interiorVisit, type Encounter } from './interiorEvents'
+import { AMBUSHERS, diamond, interiorVisit, type Encounter } from './interiorEvents'
 import { FALL, FAR_MIN, SIDE, encounterDistance, encounterScale, farStart, flashlight, lungeStop, offGaze, placeInView, stagePlan, standDistance, styleFrame } from './encounterStaging'
-import { preloadScreamers } from './horrorScreamer'
 import { strike } from './horrorStrike'
 import { clearRoamingInput, inputState } from '../src/world/inputOwnership'
 import { viewControls } from '../src/world/cameraPerspective'
@@ -148,7 +147,7 @@ export function InteriorEncounters() {
   const accent = useRef<PointLight>(null)
   // Where the creature stands, which way it rushes (towards the viewer) and how far away it started.
   const placed = useRef({ x: 0, y: 0, z: 0, dx: 0, dz: 0, start: 3, seed: 0, shown: false, rushed: false, away: 0, step: 0, held: false, pan: 0, far: 9, ox: 0, oz: 0,
-    extra: 0, lookAway: 0, struck: false, struck2: false, image: false, wall: false, yaw: 0, tx: 0, tz: 0, nx: 0, nz: 0, bx: 0, bz: 0 })
+    extra: 0, lookAway: 0, struck: false, struck2: false, wall: false, yaw: 0, tx: 0, tz: 0, nx: 0, nz: 0, bx: 0, bz: 0 })
   const look = useRef(new Vector3())
   const ray = useRef(new Raycaster()), rayFrom = useRef(new Vector3()), rayDir = useRef(new Vector3())
   type Viewer = { position: Vector3; getWorldDirection: (v: Vector3) => Vector3 }
@@ -245,12 +244,10 @@ export function InteriorEncounters() {
       const group = active && objects.current[active.id]
       if (active && group) {
         const style = active.plan.style, far = farStart(style, 99)
-        Object.assign(placed.current, { y: active.at[1] - .78, seed: Math.random() * 10, shown: false, rushed: false, step: 0, held: false, far, extra: 0, lookAway: 0, struck: false, struck2: false,
-          // Some of the ones at your back and some false alarms end on a face filling the screen instead of the creature.
-          image: style === 'behind' ? Math.random() < .5 : style === 'fakeout' ? Math.random() < .4 : style === 'shadow' || style === 'sprint' })
+        Object.assign(placed.current, { y: active.at[1] - .78, seed: Math.random() * 10, shown: false, rushed: false, step: 0, held: false, far, extra: 0, lookAway: 0, struck: false, struck2: false })
         group.rotation.order = 'YXZ'
         // In the viewer's line of sight (first person underground), not wherever the anchor happened to be.
-        put(group, active, camera, standDistance(active.plan, active.id, 0, far), style === 'behind')
+        put(group, active, camera, standDistance(active.plan, active.id, 0, far), style === 'behind' || style === 'ambush')
         const min = FAR_MIN[style]
         if (min !== undefined) {
           // No long hall in view to creep down or run along: it simply pops.
@@ -265,7 +262,6 @@ export function InteriorEncounters() {
         // The spot right behind you that the shadow belongs to (kept relative to you as you walk).
         camera.getWorldDirection(look.current)
         { const fl = Math.hypot(look.current.x, look.current.z) || 1; Object.assign(placed.current, { bx: -look.current.x / fl * 1.1, bz: -look.current.z / fl * 1.1 }) }
-        if (placed.current.image) preloadScreamers()
         const plan = active.plan
         group.position.set(placed.current.x, placed.current.y, placed.current.z)
         group.scale.setScalar(encounterScale(active.id) * (plan.style === 'pop' || plan.style === 'fakeout' ? 1.1 : 1))
@@ -312,7 +308,7 @@ export function InteriorEncounters() {
     const skipTo = (at: number) => { active.presentedAt = performance.now() - at * 1000; t = at }
     if (t >= plan.show && !p.shown) {
       p.shown = true
-      if (plan.style !== 'behind') put(group, active, camera, standDistance(plan, active.id, t, p.far, p.extra))
+      if (plan.style !== 'behind' && plan.style !== 'ambush') put(group, active, camera, standDistance(plan, active.id, t, p.far, p.extra))
     }
     // The stalker and the statue are closer every time the lamps blink, always in front of you.
     const step = plan.jumps.filter(j => t >= j).length
@@ -339,6 +335,8 @@ export function InteriorEncounters() {
     }
     if (plan.style === 'shadow' && t > .5 && t < plan.rush - .6
       && gazeOff(camera, camera.position.x + p.bx, camera.position.z + p.bz) < 1.2) skipTo(plan.rush) // you turned round
+    // What casts the shadow is right behind you: as you are turned round, it is there, and it comes at you.
+    if (plan.style === 'shadow' && t >= plan.rush - .6) { interiorVisit.ambush(AMBUSHERS[Math.floor(Math.random() * AMBUSHERS.length)]!, 'ambush', active.at, true); return }
     if (plan.style === 'behind' && t < plan.rush) {
       // It follows a step behind as you walk; turn round and it is on you at once.
       if (t > .8 && gazeOff(camera, p.x, p.z) < .55) skipTo(plan.rush)
@@ -368,16 +366,16 @@ export function InteriorEncounters() {
       if (p.away > .2) put(group, active, camera, standDistance(plan, active.id, t))
     }
     // The strike: the moment it gets you (horrorStrike), with a different sound each time and the aftermath. The
-    // runner and the long look bring their own sound; the beast roars; the shadow and some others are a face.
+    // runner and the long look bring their own sound; the beast roars. Always the creature itself, never a picture.
     const strikeAt = plan.style === 'pop' || plan.style === 'fakeout' ? plan.show : plan.style === 'sprint' ? plan.dark - .05 : plan.style === 'grab' ? plan.dark - .12
       : plan.style === 'drop' || plan.style === 'cage' ? FALL[plan.style] : plan.rush
     if (t >= strikeAt && !p.struck) {
       p.struck = true
-      strike({ image: p.image, silent: plan.style === 'sprint' || plan.style === 'reveal' || plan.style === 'pounce',
+      strike({ silent: plan.style === 'sprint' || plan.style === 'reveal' || plan.style === 'pounce',
         flavor: plan.style === 'pounce' || plan.style === 'cage' ? 'boom' : plan.style === 'grab' ? 'scream' : undefined })
     }
-    // The cage's second blow: the thing comes through the bars, a face over the whole screen.
-    if (plan.style === 'cage' && t >= plan.rush + .2 && !p.struck2) { p.struck2 = true; strike({ image: true, flavor: 'scream' }) }
+    // The cage's second blow: the thing comes through the bars at your face.
+    if (plan.style === 'cage' && t >= plan.rush + .2 && !p.struck2) { p.struck2 = true; strike({ flavor: 'scream' }) }
     const frame = styleFrame(plan, active.id, t, p.start, p.seed)
     flashlight.factor = Math.min(1.4, frame.light)
     if (frame.held && !p.held) clearRoamingInput()
@@ -392,7 +390,7 @@ export function InteriorEncounters() {
       viewControls.yaw += turn * k
       viewControls.pitch += (0 - viewControls.pitch) * k
     }
-    group.visible = frame.visible && !(p.image && p.struck) && !p.struck2
+    group.visible = frame.visible
     if (p.wall) {
       // Flat on its wall: it slides along it towards you while it is there, and swells over you as it strikes.
       // The long look slides it in along the wall; the shadow of what is behind you just grows, as it comes closer.
