@@ -194,6 +194,10 @@ function omokBoard() {
   return root().scene.getObjectByName('omok-board-' + anchor)
 }
 export function aimOmok(x: number, y: number) { canvasTarget = null; boardTarget = { x, y } }
+export function omokPingVisible() {
+  const ping = omokBoard()?.children.find(child => child.name.startsWith('omok-spectator-ping-'))
+  return !!ping?.visible && ping.children.some(child => child.visible && child.layers.test(root().camera.layers))
+}
 export function faceOmok() {
   const board = omokBoard()
   if (!board?.getObjectByName('gomoku-playing-surface')) return false
