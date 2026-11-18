@@ -79,15 +79,18 @@ export function schedule(data: Pick<RaffleCurrent, 'salesStartsAt' | 'salesEndsA
   return { opens: Date.parse(data.salesStartsAt), lastSale: ends - 60_000, draw: ends, announce: ends + 9 * 3_600_000 }
 }
 
-/** 2026-11-19 탑골공원 공개 추첨행사 회차. 이 회차만 주간 일정 대신 행사 일정을 보여 준다. */
-export const LIVE_EVENT_WEEK = '2026-11-16'
+/**
+ * 2026-11-19 탑골공원 공개 추첨행사 회차. 이 회차들만 주간 일정 대신 행사 일정을 보여 준다.
+ * 판매 기간 재정의(hotfix S15P31B105-437)가 켜지면 11/09~11/22 동안 화면 회차가 2026-11-09로 내려온다.
+ */
+export const LIVE_EVENT_WEEKS: readonly string[] = ['2026-11-09', '2026-11-16']
 export interface LiveEventSchedule { sales: string; announce: string; revealNotice: string; limitHint: string }
 /**
  * 일회성 예외 일정. 11/09·11/16 회차 응모권은 서버가 함께 추첨하며, 화면에는 하나의 판매 기간으로 안내한다.
  * 발표 시각은 정하지 않았으므로 시각을 쓰지 않는다. 구매 가능 판단(drawBlock)은 서버 값을 그대로 쓴다.
  */
 export function liveEventSchedule(data: Pick<RaffleCurrent, 'weekStartDate'>): LiveEventSchedule | null {
-  if (data.weekStartDate !== LIVE_EVENT_WEEK) return null
+  if (!LIVE_EVENT_WEEKS.includes(data.weekStartDate)) return null
   return {
     sales: '11월 9일(월) ~ 11월 18일(수) 23:59',
     announce: '11월 19일(목) 오후 탑골공원에서 공개 추첨행사',
