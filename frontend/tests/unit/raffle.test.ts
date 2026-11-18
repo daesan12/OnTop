@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { RaffleService } from '../../src/features/raffle/service'
-import { drawBlock, parseCurrent, parsePurchase, schedule, ticketCells } from '../../src/features/raffle/protocol'
+import { drawBlock, LIVE_EVENT_WEEK, liveEventSchedule, parseCurrent, parsePurchase, schedule, ticketCells } from '../../src/features/raffle/protocol'
 import { RestError } from '../../src/network/restError'
 
 const current = (patch: Record<string, unknown> = {}) => ({ roundId: 3, weekStartDate: '2026-11-02', salesStatus: 'OPEN',
@@ -50,6 +50,47 @@ describe('weekly raffle contract', () => {
     expect(new Date(times.lastSale).toISOString()).toBe('2026-11-08T14:59:00.000Z')
     expect(new Date(times.draw).toISOString()).toBe('2026-11-08T15:00:00.000Z')
     expect(new Date(times.announce).toISOString()).toBe('2026-11-09T00:00:00.000Z')
+  })
+})
+
+describe('2026-11-19 public live draw schedule', () => {
+  const eventRound = (patch: Record<string, unknown> = {}) => parseCurrent(current({ weekStartDate: LIVE_EVENT_WEEK,
+    salesStartsAt: '2026-11-16T00:00:00Z', salesEndsAt: '2026-11-18T15:00:00Z', ...patch }))
+
+  it('shows one extended sales period and the afternoon public announcement only for the 11/16 round', () => {
+    expect(liveEventSchedule(eventRound())).toEqual({
+      sales: '11월 9일(월) ~ 11월 18일(수) 23:59',
+      announce: '11월 19일(목) 오후 탑골공원에서 공개 추첨행사',
+      revealNotice: '11월 19일(목) 오후 탑골공원 공개 추첨행사에서 당첨 번호를 발표해요.',
+      limitHint: '이번 주 뽑기권을 모두 뽑았어요. 11월 19일(목) 오후 공개 추첨행사를 기다려 주세요!',
+    })
+  })
+
+  it('never shows a computed 09:00 or guessed announcement time, even before the server deadline moves', () => {
+    for (const salesEndsAt of ['2026-11-18T15:00:00Z', '2026-11-22T15:00:00Z']) {
+      const live = liveEventSchedule(eventRound({ salesEndsAt }))!
+      for (const text of [live.announce, live.revealNotice, live.limitHint]) {
+        expect(text).toContain('11월 19일(목) 오후')
+        expect(text).not.toMatch(/\d{1,2}:\d{2}|오전|9시|14시/)
+      }
+      expect(live.sales).not.toContain('11월 16일')
+    }
+  })
+
+  it('keeps the weekly schedule for other rounds', () => {
+    for (const weekStartDate of ['2026-11-02', '2026-11-09', '2026-11-23']) {
+      expect(liveEventSchedule({ weekStartDate })).toBeNull()
+    }
+    const next = schedule(parseCurrent(current({ weekStartDate: '2026-11-23',
+      salesStartsAt: '2026-11-23T00:00:00Z', salesEndsAt: '2026-11-29T15:00:00Z' })))
+    expect(new Date(next.lastSale).toISOString()).toBe('2026-11-29T14:59:00.000Z')
+    expect(new Date(next.announce).toISOString()).toBe('2026-11-30T00:00:00.000Z')
+  })
+
+  it('still lets the server sales window decide whether the event round can be bought', () => {
+    expect(drawBlock(eventRound(), Date.parse('2026-11-18T14:59:59.999Z'))).toBeNull()
+    expect(drawBlock(eventRound(), Date.parse('2026-11-18T15:00:00Z'))).toBe('closed')
+    expect(drawBlock(eventRound({ remainingCount: 0 }), Date.parse('2026-11-17T00:00:00Z'))).toBe('limit')
   })
 })
 
