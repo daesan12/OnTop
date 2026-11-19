@@ -86,6 +86,7 @@ public class RestSecurityConfiguration {
                                 "/api/v1/admin/events/winners")
                                 .hasRole("ADMIN_READ")
                         .requestMatchers(HttpMethod.POST, "/api/v1/admin/raffles/rounds/*/finalize",
+                                "/api/v1/admin/raffles/rounds/*/live-finalize",
                                 "/api/v1/admin/raffles/rounds/*/draws",
                                 "/api/v1/admin/raffles/rounds/*/draws/reroll",
                                 "/api/v1/admin/events/minigames/*/rounds/*/finalize",
