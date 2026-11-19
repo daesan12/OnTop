@@ -131,6 +131,10 @@ final class AssetAwardRepository {
                 row.getTimestamp("selected_at").toInstant()), roundId);
     }
 
+    String nickname(long userId) {
+        return jdbc.queryForObject("SELECT nickname FROM users WHERE id = ?", String.class, userId);
+    }
+
     void finalizeRound(long roundId, Instant now, Long administratorId) {
         jdbc.update("""
                 UPDATE event_rounds SET finalized_at = ?, finalization_source = ?, finalized_by_user_id = ?

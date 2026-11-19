@@ -36,6 +36,8 @@ ontop:
     park:
       # DEV는 최초 적용 시각을 환경 파일에 고정한다. 미설정이면 기존 서비스는 기동하며 새 API는 503이다.
       started-at: ${PARK_RANKING_STARTED_AT:}
+      # 코스 교체 시 점프맵만 새 기준 시각부터 집계한다. 미설정이면 공원 랭킹 공통 시각을 따른다.
+      jumpmap-started-at: ${PARK_JUMPMAP_RANKING_STARTED_AT:${PARK_RANKING_STARTED_AT:}}
   admin:
     # 서버에서 확정한 내부 회원 ID만 관리자 권한을 얻는다. 쓰기 권한 ID는 조회 ID에도 포함해야 한다.
     read-ids: ${ADMIN_READ_IDS:${FEEDBACK_ADMINISTRATOR_IDS:}}
