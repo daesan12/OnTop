@@ -17,6 +17,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -27,6 +28,21 @@ public final class WeeklyMinigameAwardService {
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
     private static final Duration SETTLEMENT_GRACE = Duration.ofMinutes(5);
     private static final int PREVIEW_LIMIT = 100;
+    private static final LocalDate BACKFILL_WEEK = LocalDate.of(2026, 11, 9);
+    private static final Instant BACKFILL_END = Instant.parse("2026-11-18T15:00:00Z");
+    private static final Instant BACKFILL_ANNOUNCEMENT = Instant.parse("2026-11-19T00:00:00Z");
+    private static final List<AwardSpec> SUPPORTED = List.of(
+            new AwardSpec("BUNGEOPPANG", "붕어빵", bungeoRule(), null, null, null, null),
+            new AwardSpec("JUMPMAP", "점프맵", jumpRule(), null, null, null, null),
+            new AwardSpec("MG_MOLE", "두더지 잡기", "mole-v3", BACKFILL_WEEK,
+                    Instant.parse("2026-11-09T00:00:00Z"), BACKFILL_END, BACKFILL_ANNOUNCEMENT),
+            new AwardSpec("MG_SPEED_MOLE", "스피드 두더지 잡기", "speed-mole-v1", BACKFILL_WEEK,
+                    Instant.parse("2026-11-09T00:00:00Z"), BACKFILL_END, BACKFILL_ANNOUNCEMENT),
+            new AwardSpec("MG_JUMP_ROPE", "구구구 줄넘기", "jump-rope-v2", LocalDate.of(2026, 11, 16),
+                    Instant.parse("2026-11-16T05:00:00Z"), BACKFILL_END, BACKFILL_ANNOUNCEMENT),
+            new AwardSpec("MG_JUMPMAP_220", "점프맵", "v4-park220-jump10-v1", LocalDate.of(2026, 11, 16),
+                    Instant.parse("2026-11-16T07:00:00Z"), BACKFILL_END, BACKFILL_ANNOUNCEMENT));
+    private static final String BACKFILL_PRIZE = "미니게임 1등상";
 
     private final WeeklyMinigameRepository configurations;
     private final MinigameAwardRepository records;
@@ -34,10 +50,17 @@ public final class WeeklyMinigameAwardService {
     private final TransactionTemplate writes;
     private final TransactionTemplate reads;
     private final Clock clock;
+    private final Set<Long> reviewedExcludedUserIds;
 
     public WeeklyMinigameAwardService(WeeklyMinigameRepository configurations,
             MinigameAwardRepository records, AdminAccessPolicy admins,
             PlatformTransactionManager transactions, Clock clock) {
+        this(configurations, records, admins, transactions, clock, Set.of());
+    }
+
+    public WeeklyMinigameAwardService(WeeklyMinigameRepository configurations,
+            MinigameAwardRepository records, AdminAccessPolicy admins,
+            PlatformTransactionManager transactions, Clock clock, Set<Long> reviewedExcludedUserIds) {
         this.configurations = configurations;
         this.records = records;
         this.admins = admins;
@@ -46,6 +69,11 @@ public final class WeeklyMinigameAwardService {
         this.reads = new TransactionTemplate(transactions);
         this.reads.setReadOnly(true);
         this.clock = clock;
+        if (reviewedExcludedUserIds == null
+                || reviewedExcludedUserIds.stream().anyMatch(id -> id == null || id <= 0)) {
+            throw new IllegalArgumentException("이벤트 제외 회원은 양수 ID여야 합니다.");
+        }
+        this.reviewedExcludedUserIds = Set.copyOf(reviewedExcludedUserIds);
     }
 
     public List<Game> games(LocalDate week, long adminId) {
@@ -58,26 +86,53 @@ public final class WeeklyMinigameAwardService {
 
     public List<SupportedGame> supportedGames(long adminId) {
         requireRead(adminId);
-        return List.of(new SupportedGame("BUNGEOPPANG", "붕어빵", bungeoRule()),
-                new SupportedGame("JUMPMAP", "점프맵", jumpRule()));
+        return SUPPORTED.stream().map(spec -> new SupportedGame(
+                spec.code(), spec.displayName(), spec.rule())).toList();
+    }
+
+    /** Creates only the four approved, already-closed November event rounds. */
+    public List<Game> prepareBackfill(LocalDate eventWeek, long adminId) {
+        if (!BACKFILL_WEEK.equals(eventWeek)) {
+            throw error(404, "EVENT_BACKFILL_NOT_FOUND", "지원하는 소급 정산 회차가 아닙니다.");
+        }
+        requireOperate(adminId);
+        return Objects.requireNonNull(writes.execute(status -> {
+            List<Game> result = new ArrayList<>();
+            for (AwardSpec spec : SUPPORTED.stream().filter(AwardSpec::backfill).toList()) {
+                ConfiguredGame current = configurations.game(spec.code(), spec.week(), true).orElse(null);
+                if (current == null) {
+                    if (configurations.roundExists(spec.code(), spec.week())) {
+                        throw error(409, "EVENT_ROUND_CONFLICT", "기존 회차 데이터와 소급 정산 설정이 충돌합니다.");
+                    }
+                    configurations.create(spec.code(), spec.week(), spec.startsAt(), spec.endsAt(),
+                            spec.announcesAt(), spec.displayName(), spec.rule(), true,
+                            BACKFILL_PRIZE, adminId, now());
+                    current = configurations.game(spec.code(), spec.week(), true)
+                            .orElseThrow(() -> error(503, "EVENT_ROUND_MISSING", "소급 정산 회차를 생성하지 못했습니다."));
+                }
+                requireBackfillMatch(spec, current);
+                result.add(game(current));
+            }
+            return List.copyOf(result);
+        }));
     }
 
     public Game configure(LocalDate week, String code, Configuration input, long adminId) {
         requireWeek(week);
         requireOperate(adminId);
-        MinigameAwardType type = requireSupported(code, input == null ? null : input.rankingRuleVersion());
+        AwardSpec spec = requireSupported(code, input == null ? null : input.rankingRuleVersion());
         validateConfiguration(week, input);
         return Objects.requireNonNull(writes.execute(status -> {
             // A preexisting round without a configuration belongs to the legacy flow.
-            ConfiguredGame current = configurations.game(type.name(), week, true).orElse(null);
+            ConfiguredGame current = configurations.game(spec.code(), week, true).orElse(null);
             if (current == null) {
                 if (!clock.instant().isBefore(input.endsAt())) {
                     throw error(409, "EVENT_CONFIG_CLOSED", "기록 마감 이후에는 회차를 새로 등록할 수 없습니다.");
                 }
-                if (configurations.roundExists(type.name(), week)) {
+                if (configurations.roundExists(spec.code(), week)) {
                     throw error(409, "EVENT_LEGACY_ROUND", "기존 회차는 주차별 설정으로 변경할 수 없습니다.");
                 }
-                configurations.create(type.name(), week, input.startsAt(), input.endsAt(),
+                configurations.create(spec.code(), week, input.startsAt(), input.endsAt(),
                         input.announcesAt(), input.displayName().trim(), input.rankingRuleVersion(),
                         input.enabled(), input.prizeName().trim(), adminId, now());
             } else {
@@ -103,7 +158,7 @@ public final class WeeklyMinigameAwardService {
                             input.prizeName().trim(), adminId, now());
                 }
             }
-            return game(requireGame(type.name(), week, false));
+            return game(requireGame(spec.code(), week, false));
         }));
     }
 
@@ -123,7 +178,7 @@ public final class WeeklyMinigameAwardService {
             int excluded = 0;
             List<Rank> ranks = new ArrayList<>();
             for (Candidate candidate : candidates) {
-                if (admins.canRead(candidate.userId())) {
+                if (excluded(candidate.userId())) {
                     excluded++;
                 } else if (ranks.size() < PREVIEW_LIMIT) {
                     ranks.add(new Rank(ranks.size() + 1, candidate.userId(), candidate.nickname(), candidate.recordId(),
@@ -163,7 +218,7 @@ public final class WeeklyMinigameAwardService {
             int excluded = 0;
             Candidate winner = null;
             for (Candidate candidate : candidates) {
-                if (admins.canRead(candidate.userId())) {
+                if (excluded(candidate.userId())) {
                     excluded++;
                 } else if (winner == null) {
                     winner = candidate;
@@ -209,7 +264,8 @@ public final class WeeklyMinigameAwardService {
     }
 
     private List<Candidate> candidates(ConfiguredGame game) {
-        return records.candidates(requireSupported(game.gameCode(), game.rankingRuleVersion()),
+        requireSupported(game.gameCode(), game.rankingRuleVersion());
+        return records.weeklyCandidates(game.gameCode(),
                 game.startsAt(), game.endsAt());
     }
 
@@ -226,8 +282,7 @@ public final class WeeklyMinigameAwardService {
     }
 
     private static boolean supported(String code, String rule) {
-        return ("BUNGEOPPANG".equals(code) && bungeoRule().equals(rule))
-                || ("JUMPMAP".equals(code) && jumpRule().equals(rule));
+        return SUPPORTED.stream().anyMatch(spec -> spec.code().equals(code) && spec.rule().equals(rule));
     }
 
     private static String bungeoRule() {
@@ -238,12 +293,11 @@ public final class WeeklyMinigameAwardService {
         return JumpCourse.RULES_VERSION + "-" + JumpCourse.COURSE_VERSION;
     }
 
-    private MinigameAwardType requireSupported(String code, String rule) {
+    private AwardSpec requireSupported(String code, String rule) {
         requireCode(code);
-        if (!supported(code, rule)) {
-            throw error(400, "EVENT_RANKING_UNSUPPORTED", "이 게임과 규칙의 서버 검증 랭킹이 아직 없습니다.");
-        }
-        return MinigameAwardType.valueOf(code);
+        return SUPPORTED.stream().filter(spec -> spec.code().equals(code) && spec.rule().equals(rule))
+                .findFirst().orElseThrow(() -> error(400, "EVENT_RANKING_UNSUPPORTED",
+                        "이 게임과 규칙의 서버 검증 랭킹이 아직 없습니다."));
     }
 
     private void requireCode(String code) {
@@ -293,6 +347,20 @@ public final class WeeklyMinigameAwardService {
         }
     }
 
+    private boolean excluded(long userId) {
+        return admins.canRead(userId) || reviewedExcludedUserIds.contains(userId);
+    }
+
+    private void requireBackfillMatch(AwardSpec spec, ConfiguredGame game) {
+        if (!game.week().equals(spec.week()) || !game.startsAt().equals(spec.startsAt())
+                || !game.endsAt().equals(spec.endsAt()) || !game.announcesAt().equals(spec.announcesAt())
+                || !game.gameCode().equals(spec.code()) || !game.displayName().equals(spec.displayName())
+                || !game.rankingRuleVersion().equals(spec.rule()) || !game.enabled()
+                || !game.prizeName().equals(BACKFILL_PRIZE)) {
+            throw error(409, "EVENT_BACKFILL_MISMATCH", "소급 정산 회차가 승인된 기간·규칙과 다릅니다.");
+        }
+    }
+
     private Instant now() {
         return clock.instant().truncatedTo(ChronoUnit.MILLIS);
     }
@@ -324,4 +392,11 @@ public final class WeeklyMinigameAwardService {
             String status, Prize prize) {}
     @Schema(name = "WeeklyMinigamePrize")
     public record Prize(String prizeName, long sourceValue, Instant sourceAchievedAt) {}
+
+    private record AwardSpec(String code, String displayName, String rule, LocalDate week,
+            Instant startsAt, Instant endsAt, Instant announcesAt) {
+        boolean backfill() {
+            return week != null;
+        }
+    }
 }

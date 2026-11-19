@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -43,11 +44,19 @@ public class AssetAwardController {
         return ok(service().adminResult(weekStart, account(principal)));
     }
 
+    @GetMapping("/api/v1/admin/events/assets/rounds/{weekStart}/preview")
+    @Operation(summary = "관리자 엽전 보유량 행사 확정 전 미리보기", security = @SecurityRequirement(name = "AccessJwt"))
+    public ResponseEntity<AssetAwardPreviewResponse> preview(Principal principal,
+            @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate weekStart) {
+        return ok(service().preview(weekStart, account(principal)));
+    }
+
     @PostMapping("/api/v1/admin/events/assets/rounds/{weekStart}/finalize")
     @Operation(summary = "관리자 엽전 보유량 행사 결과 확정·재시도", security = @SecurityRequirement(name = "AccessJwt"))
     public ResponseEntity<AssetAwardResponse> finalizeRound(Principal principal,
-            @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate weekStart) {
-        return ok(service().finalizeRound(weekStart, account(principal)));
+            @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate weekStart,
+            @RequestBody AssetAwardFinalizeRequest expected) {
+        return ok(service().finalizeRound(weekStart, account(principal), expected));
     }
 
     private AssetAwardService service() {

@@ -2,9 +2,12 @@ package com.ssafy.ontop.ranking.repository;
 
 import com.ssafy.ontop.world.jumpmap.JumpCourse;
 import com.ssafy.ontop.world.jumpmap.JumpmapRankingEligibility;
+import com.ssafy.ontop.world.map.WorldMapRuntime;
 import jakarta.persistence.EntityManager;
+import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
@@ -12,7 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Repository
 @Profile("db")
 public class ParkJumpmapRankingRepository {
-    static final String RANKING_SQL = """
+    private static final String RANKING_SQL_TEMPLATE = """
             WITH eligible AS (
                 SELECT r.id AS run_id, r.user_id, u.nickname, r.finish_ms, r.ended_at
                 FROM jump_runs r
@@ -39,20 +42,26 @@ public class ParkJumpmapRankingRepository {
             FROM ranked
             ORDER BY finish_ms ASC, ended_at ASC, user_id ASC
             LIMIT 10
-            """.formatted(JumpmapRankingEligibility.SQL);
+            """;
+    static final String RANKING_SQL = RANKING_SQL_TEMPLATE.formatted(JumpmapRankingEligibility.SQL);
 
     private final EntityManager entities;
+    private final CourseFilter course;
+    private final String rankingSql;
 
-    public ParkJumpmapRankingRepository(EntityManager entities) {
+    public ParkJumpmapRankingRepository(EntityManager entities, ObjectProvider<WorldMapRuntime> runtimes) {
         this.entities = entities;
+        this.course = configuredCourse(runtimes.getIfAvailable());
+        this.rankingSql = RANKING_SQL_TEMPLATE.formatted(course.renewal()
+                ? "r.suspicious = FALSE" : JumpmapRankingEligibility.SQL);
     }
 
     @Transactional(readOnly = true)
     public List<JumpmapRankingStanding> findTopTen(Instant startedAt) {
-        return entities.createNativeQuery(RANKING_SQL, Object[].class)
-                .setParameter("requiredGates", JumpCourse.STAGES)
-                .setParameter("rulesVersion", JumpCourse.RULES_VERSION)
-                .setParameter("courseVersion", JumpCourse.COURSE_VERSION)
+        return entities.createNativeQuery(rankingSql, Object[].class)
+                .setParameter("requiredGates", course.stages())
+                .setParameter("rulesVersion", course.rulesVersion())
+                .setParameter("courseVersion", course.courseVersion())
                 .setParameter("startedAtMillis", startedAt.toEpochMilli())
                 .getResultStream()
                 .map(value -> {
@@ -64,6 +73,18 @@ public class ParkJumpmapRankingRepository {
                 })
                 .toList();
     }
+
+    private static CourseFilter configuredCourse(WorldMapRuntime runtime) {
+        try {
+            JumpCourse course = runtime == null ? JumpCourse.loadDefault() : runtime.loadJumpCourse();
+            return new CourseFilter(course.stageCount(), course.rulesVersion(), course.courseVersion(),
+                    course.renewal());
+        } catch (IOException | IllegalArgumentException failure) {
+            throw new IllegalStateException("점프맵 랭킹 코스를 읽을 수 없습니다.", failure);
+        }
+    }
+
+    private record CourseFilter(int stages, String rulesVersion, String courseVersion, boolean renewal) { }
 
     public record JumpmapRankingStanding(long rank, long userId, String nickname, long finishMs,
                                           Instant completedAt) {

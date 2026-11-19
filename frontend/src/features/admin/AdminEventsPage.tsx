@@ -3,10 +3,10 @@ import type { AdminAccess } from './adminAccess'
 import { RaffleReviewPanel } from './RaffleReviewPanel'
 import { AdminMinigamePanel } from './AdminMinigamePanel'
 import {
-  AdminEventsError, assetWeek, confirmEventDelivery, eventKinds, eventLabels, firstMinigameWeek,
-  finalizeEventRound, isMondayWeek, kstMonday, loadEventRound, loadEventWinners,
+  AdminEventsError, assetWeek, confirmAssetPreview, confirmEventDelivery, eventKinds, eventLabels, firstMinigameWeek,
+  finalizeEventRound, isMondayWeek, kstMonday, loadAssetPreview, loadEventRound, loadEventWinners,
   revealEventContact, schedule, supportsWeek, winnerLabels,
-  type AdminEventWinner, type AdminWinnersPage, type ContactStatus, type EventSection, type EventRound,
+  type AdminEventWinner, type AdminWinnersPage, type AssetPreview, type ContactStatus, type EventSection, type EventRound,
   type RevealedContact, type WinnerType,
 } from './adminEvents'
 import './adminEvents.css'
@@ -23,6 +23,7 @@ export function AdminEventsPage({ access, onAuthEnded }: { access: AdminAccess; 
   const week = isMondayWeek(weekInput) ? weekInput : null
   const [kind, setKind] = useState<EventSection>('raffle')
   const [round, setRound] = useState<EventRound | null>(null)
+  const [assetPreview, setAssetPreview] = useState<AssetPreview | null>(null)
   const [roundLoading, setRoundLoading] = useState(false)
   const [roundError, setRoundError] = useState('')
   const [notice, setNotice] = useState('')
@@ -57,13 +58,19 @@ export function AdminEventsPage({ access, onAuthEnded }: { access: AdminAccess; 
 
   const refreshRound = useCallback(async () => {
     roundRequest.current?.abort()
-    setConfirming(false); setRound(null); setRoundError(''); setNotice('')
+    setConfirming(false); setRound(null); setAssetPreview(null); setRoundError(''); setNotice('')
     if (!week || kind === 'minigames' || !supportsWeek(kind, week)) return
     const controller = roundRequest.current = new AbortController()
     setRoundLoading(true)
     try {
       const value = await loadEventRound(kind, week, controller.signal)
-      if (!controller.signal.aborted) setRound(value)
+      if (!controller.signal.aborted) {
+        setRound(value)
+        if (kind === 'asset' && !value?.finalized
+          && Date.now() >= Date.parse(schedule(week, kind).eligibleAt)) {
+          setAssetPreview(await loadAssetPreview(week, controller.signal))
+        }
+      }
     } catch (cause) { if (!controller.signal.aborted) report(cause, setRoundError) }
     finally { if (!controller.signal.aborted) setRoundLoading(false) }
   }, [week, kind, report])
@@ -115,7 +122,13 @@ export function AdminEventsPage({ access, onAuthEnded }: { access: AdminAccess; 
     const controller = roundRequest.current = new AbortController()
     finalizingRef.current = true; setFinalizing(true); setRoundError(''); setNotice(''); setConfirming(false)
     try {
-      const value = await finalizeEventRound(kind, week, controller.signal)
+      if (kind === 'asset' && !assetPreview) {
+        setRoundError('엽전 순위 미리보기를 먼저 확인해주세요.')
+        return
+      }
+      const value = kind === 'asset'
+        ? await confirmAssetPreview(week, assetPreview!, controller.signal)
+        : await finalizeEventRound(kind, week, controller.signal)
       if (controller.signal.aborted) return
       setRound(value)
       setNotice(`${eventLabels[kind]} 결과를 확정했습니다. 이미 확정된 회차라면 기존 결과가 유지됩니다.`)
@@ -222,14 +235,25 @@ export function AdminEventsPage({ access, onAuthEnded }: { access: AdminAccess; 
           <div><dt>발표 상태</dt><dd>{Date.now() < Date.parse(round?.announcesAt || timing!.announcesAt)
             ? '발표 전' : round?.finalized ? '발표됨' : '결과 확정 지연'}</dd></div>
           <div><dt>확정 상태</dt><dd>{round?.finalized ? '확정 완료' : eligible ? '확정 대기' : '진행 중'}</dd></div>
-          <div><dt>후보(제외 전)</dt><dd>{round?.candidateCount ?? (kind === 'raffle' ? '사전 추첨 후 표시' : '확정 후 표시')}</dd></div>
-          <div><dt>GM 제외 건수</dt><dd>{round?.excludedGmCount ?? (kind === 'raffle' ? '사전 추첨 후 표시' : '확정 후 표시')}</dd></div>
-          <div><dt>GM 제외 후</dt><dd>{round?.candidateCount != null && round.excludedGmCount != null
-            ? round.candidateCount - round.excludedGmCount : kind === 'raffle' ? '사전 추첨 후 표시' : '확정 후 표시'}</dd></div>
+          <div><dt>후보(제외 전)</dt><dd>{round?.candidateCount ?? assetPreview?.candidateCount ?? (kind === 'raffle' ? '사전 추첨 후 표시' : '확정 후 표시')}</dd></div>
+          <div><dt>GM·검토 제외 건수</dt><dd>{round?.excludedGmCount ?? assetPreview?.excludedGmCount ?? (kind === 'raffle' ? '사전 추첨 후 표시' : '확정 후 표시')}</dd></div>
+          <div><dt>제외 후</dt><dd>{round?.candidateCount != null && round.excludedGmCount != null
+            ? round.candidateCount - round.excludedGmCount
+            : assetPreview ? assetPreview.candidateCount - assetPreview.excludedGmCount
+              : kind === 'raffle' ? '사전 추첨 후 표시' : '확정 후 표시'}</dd></div>
           <div><dt>당첨 / 상품 슬롯</dt><dd>{round ? `${round.awardedPrizeCount} / ${round.expectedPrizeCount}` : '회차 생성 전'}</dd></div>
           <div><dt>공석</dt><dd>{round?.finalized ? round.vacantPrizeCount : kind === 'raffle' ? '사전 추첨 후 표시' : round?.vacantPrizeCount ?? '확정 후 표시'}</dd></div>
         </dl>
         {!round && <p>아직 회차 기록이 없습니다. {kind === 'raffle' ? '마감 후 사전 추첨하면 검토 결과가 생성됩니다.' : '마감 후 확정하면 결과가 생성됩니다.'}</p>}
+        {kind === 'asset' && assetPreview && !round?.finalized && <div className="admin-events-results">
+          <h4>확정 전 엽전 순위 미리보기</h4>
+          <p>후보 {assetPreview.candidateCount}명 · GM·검토 제외 {assetPreview.excludedGmCount}명</p>
+          {assetPreview.ranks.length ? <ol>{assetPreview.ranks.map(item => <li key={item.sourceRecordId}>
+            <strong>{item.place}등 · {item.nickname}</strong>
+            <span>{item.coinBalance.toLocaleString('ko-KR')}냥</span>
+            <small>근거 {item.sourceRecordId} · 최초 도달 {displayTime(item.firstReachedAt)}</small>
+          </li>)}</ol> : <p>검증된 후보가 없습니다.</p>}
+        </div>}
         {round?.finalized && <div className="admin-events-results"><h4>확정 결과</h4>
           {round.winners.length ? <ol>{round.winners.map((winner, index) => <li key={`${winner.userId}-${index}`}>
             <strong>{winner.place}등 · {winner.prizeName}</strong><span>{winner.nickname || `회원 #${winner.userId}`}</span><small>{winner.evidence}</small>
@@ -241,7 +265,7 @@ export function AdminEventsPage({ access, onAuthEnded }: { access: AdminAccess; 
         {kind !== 'raffle' && access.canOperate && !round?.finalized && <div className="admin-events-action">
           {!confirming ? <button type="button" disabled={!eligible || finalizing || roundLoading || !!roundError}
             onClick={() => setConfirming(true)}>결과 확정 준비</button> : <div role="group" aria-label="확정 확인">
-            <p><strong>{eventLabels[kind]} · {week}</strong> 결과를 확정합니다. 후보와 GM 제외 기준을 서버에서 검증합니다.</p>
+            <p><strong>{eventLabels[kind]} · {week}</strong> 결과를 확정합니다. 후보와 GM·검토 제외 기준을 서버에서 다시 검증합니다.</p>
             <button type="button" disabled={finalizing} onClick={() => void finalize()}>{finalizing ? '확정 중…' : '확정 실행'}</button>
             <button type="button" disabled={finalizing} onClick={() => setConfirming(false)}>취소</button>
           </div>}

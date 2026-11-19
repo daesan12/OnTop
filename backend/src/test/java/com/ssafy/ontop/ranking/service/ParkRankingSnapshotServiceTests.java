@@ -31,6 +31,7 @@ import static org.mockito.Mockito.when;
 
 class ParkRankingSnapshotServiceTests {
     private static final Instant STARTED_AT = Instant.parse("2026-11-02T00:00:00Z");
+    private static final Instant JUMPMAP_STARTED_AT = Instant.parse("2026-11-16T07:00:00Z");
     private static final Instant UPDATED_AT = Instant.parse("2026-11-02T01:00:00Z");
 
     private final ParkBalanceRankingRepository balances = mock(ParkBalanceRankingRepository.class);
@@ -46,8 +47,10 @@ class ParkRankingSnapshotServiceTests {
         var bungeoppang = mock(com.ssafy.ontop.ranking.repository.ParkBungeoppangRankingRepository.class);
         var skewer = mock(com.ssafy.ontop.ranking.repository.ParkSkewerRankingRepository.class);
         var service = new ParkRankingSnapshotService(balances, mole, speedMole, jumpRope,
-                jumpmap, bungeoppang, skewer, meters, mock(com.ssafy.ontop.admin.security.AdminAccessPolicy.class), STARTED_AT.toString());
-        when(jumpmap.findTopTen(STARTED_AT)).thenReturn(List.of(
+                jumpmap, bungeoppang, skewer, meters,
+                mock(com.ssafy.ontop.admin.security.AdminAccessPolicy.class),
+                STARTED_AT.toString(), JUMPMAP_STARTED_AT.toString());
+        when(jumpmap.findTopTen(JUMPMAP_STARTED_AT)).thenReturn(List.of(
                 new com.ssafy.ontop.ranking.repository.ParkJumpmapRankingRepository.JumpmapRankingStanding(1, 21, "완주왕", 60123, UPDATED_AT)));
         when(bungeoppang.findTopTen(STARTED_AT)).thenReturn(List.of(
                 new com.ssafy.ontop.ranking.repository.ParkBungeoppangRankingRepository.BungeoppangRankingStanding(1, 22, "붕어왕", 900, 5, UPDATED_AT)));
@@ -63,6 +66,7 @@ class ParkRankingSnapshotServiceTests {
         assertThat(first.bungeoppang()).singleElement().satisfies(r -> assertThat(r.score()).isEqualTo(900));
         assertThat(first.skewer()).singleElement().satisfies(r -> assertThat(r.playMode()).isEqualTo("VR"));
         assertThat(first.jumpRopeStartsAt()).isEqualTo(com.ssafy.ontop.game.jumprope.JumpRopeRankingWindow.START);
+        verify(jumpmap).findTopTen(JUMPMAP_STARTED_AT);
         when(skewer.findTopTen(STARTED_AT)).thenThrow(new DataAccessResourceFailureException("격리 검증"));
         service.refresh();
         assertThat(service.current()).isSameAs(first);
