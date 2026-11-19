@@ -64,6 +64,17 @@ public class RaffleDrawingController {
         return ok(service().confirmReview(weekStart, account(principal), request.drawId()));
     }
 
+    @PostMapping("/api/v1/admin/raffles/rounds/{weekStart}/live-finalize")
+    @Operation(summary = "공개 추첨 행사 검토 결과 최종 확정",
+            description = "공개 추첨 행사 회차에서만 연결된 모든 회차의 후보를 다시 검증한 뒤 확정한다. "
+                    + "행사에 포함된 원본 회차나 연결이 끝나지 않은 행사 회차는 거부한다.",
+            security = @SecurityRequirement(name = "AccessJwt"))
+    public ResponseEntity<RaffleDrawResponse> finalizeLiveEventRound(Principal principal,
+            @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate weekStart,
+            @RequestBody ConfirmRequest request) {
+        return ok(service().confirmLiveEventReview(weekStart, account(principal), request.drawId()));
+    }
+
     @PostMapping("/api/v1/admin/raffles/rounds/{weekStart}/draws")
     @Operation(summary = "응모권 추첨 결과를 검토용으로 저장",
             description = "공개 추첨 행사 회차는 연결된 모든 회차의 응모권으로 추첨한다. 행사에 포함된 회차는 "
