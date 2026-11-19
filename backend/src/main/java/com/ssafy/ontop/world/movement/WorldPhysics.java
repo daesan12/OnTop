@@ -861,6 +861,17 @@ public final class WorldPhysics implements AutoCloseable {
             }
             if (!a.seated) updateInteriorArrival(a);
             if (a.throwTicks > 0 && (--a.throwTicks == 0 || supported || a.swimming)) {
+                // onGround도 층 모서리의 캡슐 겹침을 허용하므로 안전한 지지면을 확인한다.
+                if (supported && !a.swimming && !canOccupy(position)) {
+                    Vector3f raised = position.add(0, .12f, 0);
+                    Vector3f landing = canStand(raised.x, raised.y, raised.z) ? raised : nearbyStand(raised);
+                    if (landing == null) {
+                        landing = carryExit(raised, a);
+                    }
+                    a.body.warp(landing);
+                    a.body.setLinearVelocity(Vector3f.ZERO);
+                    position.set(landing);
+                }
                 a.throwTicks = 0;
                 a.throwX = a.throwZ = 0;
                 stopNow(entry.getKey());
