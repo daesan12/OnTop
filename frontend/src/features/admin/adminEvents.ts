@@ -137,6 +137,12 @@ export function schedule(week: string, kind: EventKind) {
     eligibleAt: '2026-11-19T00:05:00+09:00',
     announcesAt: '2026-11-19T09:00:00+09:00',
   }
+  if (kind === 'raffle' && week === '2026-11-16') return {
+    startsAt: '2026-11-16T09:00:00+09:00',
+    endsAt: '2026-11-19T00:00:00+09:00',
+    eligibleAt: '2026-11-19T00:00:00+09:00',
+    announcesAt: '2026-11-19T09:00:00+09:00',
+  }
   return {
     startsAt: `${week}T09:00:00+09:00`,
     endsAt: `${nextWeek}T00:00:00+09:00`,
@@ -385,7 +391,8 @@ export function rerollRaffleReview(week: string, expectedDrawId: number, reason:
 
 export function confirmRaffleReview(week: string, drawId: number,
   signal: AbortSignal): Promise<EventRound> {
-  return request(`${roundPath('raffle', week)}/finalize`, 'POST', signal,
+  const suffix = week === '2026-11-16' ? 'live-finalize' : 'finalize'
+  return request(`${roundPath('raffle', week)}/${suffix}`, 'POST', signal,
     value => parseEventRound(value, 'raffle', week), { drawId })
 }
 

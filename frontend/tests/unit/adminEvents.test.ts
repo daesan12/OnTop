@@ -12,6 +12,11 @@ it('accepts only a real KST Monday and keeps each event within its configured we
   expect(isMondayWeek('2026-02-30')).toBe(false)
   expect(schedule(week, 'raffle').eligibleAt).toBe('2026-11-09T00:00:00+09:00')
   expect(schedule(week, 'jumpmap').eligibleAt).toBe('2026-11-09T00:05:00+09:00')
+  expect(schedule('2026-11-16', 'raffle')).toMatchObject({
+    endsAt: '2026-11-19T00:00:00+09:00',
+    eligibleAt: '2026-11-19T00:00:00+09:00',
+    announcesAt: '2026-11-19T09:00:00+09:00',
+  })
   expect(supportsWeek('jumpmap', '2026-11-09')).toBe(false)
   expect(supportsWeek('asset', '2026-11-09')).toBe(true)
 })
