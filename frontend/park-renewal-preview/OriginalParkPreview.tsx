@@ -14,11 +14,31 @@ import { fenceJumpRoute, type FenceJumpSite } from './fenceJump'
 import type { Facility, ParkView } from './scene'
 import { WINTER_DECOR } from '../src/features/winter/plan'
 import { groundSurfaceHeight } from './groundSurface'
+import { plantings } from './landscape'
+import { winterTreeIsHeavy } from '../src/features/winter/trees'
 
 const query = new URLSearchParams(window.location.search)
 const winterPreview = query.get('winter') === '1'
 const holidayIds: Record<string, string> = { tree: 'plaza-tree', snowman: 'plaza-snowman', gifts: 'plaza-gifts', santa: 'santa' }
 const winterAsset = WINTER_DECOR.find(d => d.id === holidayIds[query.get('holiday') ?? ''])
+const firStyle = query.get('fir')
+const winterFir = winterPreview && (firStyle === 'light' || firStyle === 'heavy') ? plantings
+  .filter(t => t.kind === 'cone' && t.scale >= .65 && winterTreeIsHeavy(t.position[0], t.position[2]) === (firStyle === 'heavy'))
+  .sort((a, b) => Math.hypot(a.position[0], a.position[2] - 50) - Math.hypot(b.position[0], b.position[2] - 50))[0] : undefined
+// Review the selected tree through a gap in the surrounding grove.
+const firCameraAngle = winterFir ? Array.from({ length: 16 }, (_, i) => {
+  const angle = i * Math.PI / 8, distance = 8.6 * winterFir.scale
+  let clearance = 10
+  for (const other of plantings) {
+    if (other === winterFir || Math.abs(other.position[1] - winterFir.position[1]) > 4) continue
+    const dx = other.position[0] - winterFir.position[0], dz = other.position[2] - winterFir.position[2]
+    const along = dx * Math.sin(angle) + dz * Math.cos(angle)
+    if (along <= 1 || along >= distance + 1) continue
+    const width = (other.kind === 'cone' ? 1.1 : other.kind === 'slender' ? 1.6 : 4) * other.scale
+    clearance = Math.min(clearance, Math.abs(dx * Math.cos(angle) - dz * Math.sin(angle)) - width)
+  }
+  return { angle, clearance }
+}).sort((a, b) => b.clearance - a.clearance)[0]!.angle : 0
 const WinterScene = lazy(() => import('../src/features/winter/WinterScene').then(module => ({ default: module.WinterScene })))
 const detailMode = query.get('details-profile')
 const detailAsset = detailMode === 'before' || detailMode === 'after' ? detailProfileAsset(query) : undefined
@@ -78,6 +98,10 @@ function ParkCamera({ view, facility, jump }: ViewSelection) {
       const detail = detailCamera(detailAsset, aspect)
       orbit.target.set(...detail.target)
       camera.position.set(...detail.position)
+    } else if (winterFir && facility?.id === 'plaza' && view === 'overview') {
+      const { position: [x, y, z], scale } = winterFir, distance = 8.6 * scale * fit
+      orbit.target.set(x, y + 2.8 * scale, z)
+      camera.position.set(x + Math.sin(firCameraAngle) * distance, y + 3.8 * scale * fit, z + Math.cos(firCameraAngle) * distance)
     } else if (winterPreview && winterAsset && facility?.id === 'plaza' && view === 'overview') {
       const { x, z, height } = winterAsset, floor = groundSurfaceHeight(x, z)
       const distance = (winterAsset.kind === 'gifts' ? 3.2 : winterAsset.kind === 'tree' ? 12 : 4.7) * fit

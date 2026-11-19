@@ -22,8 +22,9 @@ export function winterTreeParts(parts: ReturnType<typeof buildParkTreeParts>, pl
   return {
     wood: parts.wood,
     crowns: parts.crowns.map(p => ({ ...p, c: heavy(p.p[0], p.p[2]) ? '#dce9ed' : p.c })),
-    cones: parts.cones.map(p => ({ ...p, c: heavy(p.p[0], p.p[2]) ? '#dce9ed' : p.c })),
+    cones: parts.cones.map((p, i) => ({ ...p, c: ['#214a48', '#285b53', '#32675b', '#3a7162'][i % 4]! })),
     snowCrowns: parts.crowns.map(p => ({ ...p, c: '#f3f8fa' })),
-    snowCones: parts.cones.map(p => ({ ...p, c: '#f3f8fa' })),
+    snowCones: parts.cones.filter(p => !heavy(p.p[0], p.p[2])).map(p => ({ ...p, c: '#eef5fa' })),
+    snowConesHeavy: parts.cones.filter(p => heavy(p.p[0], p.p[2])).map(p => ({ ...p, c: '#e4eef9' })),
   }
 }

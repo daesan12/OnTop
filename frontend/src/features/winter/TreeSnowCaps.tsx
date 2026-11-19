@@ -3,6 +3,7 @@ import { parkTreeResources } from '../../world/art/FacetedParkTreeInstances'
 import { SpatialInstances } from '../../world/art/Instances'
 import type { buildParkTreeParts } from '../../world/art/parkTreeParts'
 import type { winterTreeParts } from './trees'
+import { winterFirLightSnow, winterFirHeavySnow } from './winterFirGeometry'
 
 /** Clip a thin snow skin from the upper crown, keeping the green silhouette underneath. */
 function snowCap(source: BufferGeometry, floor: number) {
@@ -22,12 +23,13 @@ function snowCap(source: BufferGeometry, floor: number) {
   const geometry = new BufferGeometry().setAttribute('position', new Float32BufferAttribute(vertices, 3))
   geometry.computeVertexNormals(); return geometry
 }
-const crowns = snowCap(parkTreeResources.round, .5), cones = snowCap(parkTreeResources.cone, .25)
+const crowns = snowCap(parkTreeResources.round, .5)
 
 export function TreeSnowCaps({ parts }: { parts: ReturnType<typeof buildParkTreeParts> | ReturnType<typeof winterTreeParts> }) {
   if (!('snowCrowns' in parts)) return null
   return <group name="winter-tree-snow-caps">
-    {[{ parts: parts.snowCrowns, geometry: crowns }, { parts: parts.snowCones, geometry: cones }].map(batch =>
+    {[{ parts: parts.snowCrowns, geometry: crowns }, { parts: parts.snowCones, geometry: winterFirLightSnow },
+      { parts: parts.snowConesHeavy, geometry: winterFirHeavySnow }].map(batch =>
       <SpatialInstances key={batch.geometry.uuid} parts={batch.parts} cellSize={96} shadow={false}
         material={<primitive object={parkTreeResources.material} attach="material" dispose={null} />}>
         <primitive object={batch.geometry} attach="geometry" dispose={null} />

@@ -8,6 +8,7 @@ import {fitnessRestArt} from '../src/layout-preview/districtGeometry'
 import {site,heightAt} from './plan'
 import {WINTER_TREES_ENABLED,winterTreeParts} from '../src/features/winter/trees'
 import {TreeSnowCaps} from '../src/features/winter/TreeSnowCaps'
+import {winterFirFoliage} from '../src/features/winter/winterFirGeometry'
 import type {TreePlanting} from '../src/world/art/parkTreeParts'
 
 import {renderedFitnessTrees} from './fitnessTreesPlan'
@@ -23,8 +24,8 @@ export function PreservedFitness({showStations=true}: {showStations?: boolean} =
  <FitnessGarden area={DRAFT_FITNESS_AREA} stations={showStations?DRAFT_FITNESS_STATIONS:noStations} floorShape="ellipse" showPads={false} floorColor="#c8c0ad"/>
  <group position={[0,.012,0]}><FitnessCourtPaving area={DRAFT_FITNESS_AREA} color="#c8c0ad"/></group>
  <PropModel art={fitnessRestArt} name="preserved-fitness-ring-benches"/>
- <FacetedParkTreeInstances parts={center} name="preserved-fitness-center-tree" treeCount={1}/>
+ <FacetedParkTreeInstances parts={center} name="preserved-fitness-center-tree" treeCount={1} coneGeometry={WINTER_TREES_ENABLED?winterFirFoliage:undefined}/>
  <TreeSnowCaps parts={center}/>
- <FacetedParkTreeInstances parts={grove} name="preserved-fitness-surrounding-trees" treeCount={renderedFitnessTrees.length}/>
+ <FacetedParkTreeInstances parts={grove} name="preserved-fitness-surrounding-trees" treeCount={renderedFitnessTrees.length} coneGeometry={WINTER_TREES_ENABLED?winterFirFoliage:undefined}/>
  <TreeSnowCaps parts={grove}/>
  </group>}
