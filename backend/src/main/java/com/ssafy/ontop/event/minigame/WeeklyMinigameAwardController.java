@@ -44,6 +44,14 @@ public class WeeklyMinigameAwardController {
         return ok(service().supportedGames(account(principal)));
     }
 
+    @PostMapping("/api/v1/admin/events/minigames/backfills/{eventWeek}/prepare")
+    @Operation(summary = "종료된 11월 미니게임상 회차를 고정 기간으로 준비",
+            security = @SecurityRequirement(name = "AccessJwt"))
+    public ResponseEntity<List<Game>> prepareBackfill(Principal principal,
+            @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate eventWeek) {
+        return ok(service().prepareBackfill(eventWeek, account(principal)));
+    }
+
     @GetMapping("/api/v1/admin/events/minigames/rounds/{weekStart}/games")
     @Operation(summary = "주차별 활성 미니게임 목록", security = @SecurityRequirement(name = "AccessJwt"))
     public ResponseEntity<List<Game>> games(Principal principal,

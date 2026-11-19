@@ -208,7 +208,8 @@ public final class WinnerContactService {
         if (type == null || type.isBlank()) {
             return null;
         }
-        if (List.of("RAFFLE", "BUNGEOPPANG", "JUMPMAP", "ASSET_VALUE").contains(type)) {
+        if (List.of("RAFFLE", "BUNGEOPPANG", "JUMPMAP", "ASSET_VALUE", "MG_MOLE",
+                "MG_SPEED_MOLE", "MG_JUMP_ROPE", "MG_JUMPMAP_220").contains(type)) {
             return type;
         }
         throw error(400, "EVENT_CONTACT_BAD_TYPE", "행사 부문이 올바르지 않습니다.");

@@ -82,12 +82,14 @@ public class RestSecurityConfiguration {
                                 "/api/v1/admin/events/minigames/rounds/*/games/*/ranking",
                                 "/api/v1/admin/events/minigames/supported-games",
                                 "/api/v1/admin/events/assets/rounds/*",
+                                "/api/v1/admin/events/assets/rounds/*/preview",
                                 "/api/v1/admin/events/winners")
                                 .hasRole("ADMIN_READ")
                         .requestMatchers(HttpMethod.POST, "/api/v1/admin/raffles/rounds/*/finalize",
                                 "/api/v1/admin/raffles/rounds/*/draws",
                                 "/api/v1/admin/raffles/rounds/*/draws/reroll",
                                 "/api/v1/admin/events/minigames/*/rounds/*/finalize",
+                                "/api/v1/admin/events/minigames/backfills/*/prepare",
                                 "/api/v1/admin/events/minigames/rounds/*/games/*/finalize",
                                 "/api/v1/admin/events/assets/rounds/*/finalize")
                                 .hasRole("ADMIN_OPERATION")

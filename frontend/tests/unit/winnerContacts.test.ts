@@ -17,6 +17,14 @@ it('shows only validated award fields and groups multiple wins into one weekly c
   expect(() => parseWinnings([{ ...base, eventType: 'UNKNOWN' }])).toThrow()
   expect(() => parseWinnings([{ ...base, contactStatus: 'SUBMITTED', maskedPhone: 1012345678 }])).toThrow()
 })
+
+it('accepts every weekly minigame award type returned by the backend', () => {
+  const types = ['MG_MOLE', 'MG_SPEED_MOLE', 'MG_JUMP_ROPE', 'MG_JUMPMAP_220'] as const
+  const awards = parseWinnings(types.map((eventType, index) => ({
+    ...base, winnerId: index + 10, eventType,
+  })))
+  expect(awards.map(award => award.eventType)).toEqual(types)
+})
 it('does not request or reopen the contact form after every prize is delivered', () => {
   const awards = parseWinnings([{ ...base, submissionDeadline: '2030-11-16T00:00:00Z',
     allPrizesDelivered: true, contactActionRequired: false, contactEditable: false }])

@@ -4546,6 +4546,8 @@ paths:
       tags:
       - Raffle
       summary: 관리자가 검토한 응모권 추첨 시도 최종 확정
+      description: 공개 추첨 행사 회차와 행사에 포함된 회차는 409 RAFFLE_LIVE_EVENT_LOCKED로 거부한다. 행사
+        회차는 행사를 마칠 때 서버 내부 경로로만 확정된다.
       operationId: finalizeRound
       parameters:
       - name: weekStart
@@ -4579,6 +4581,8 @@ paths:
       tags:
       - Raffle
       summary: 응모권 추첨 결과를 검토용으로 저장
+      description: "공개 추첨 행사 회차는 연결된 모든 회차의 응모권으로 추첨한다. 행사에 포함된 회차는 409 RAFFLE_LIVE_EVENT_SOURCE_ROUND,\
+        \ 회차 연결이 끝나지 않은 행사 회차는 409 RAFFLE_LIVE_EVENT_INCOMPLETE로 거부한다."
       operationId: createReview
       parameters:
       - name: weekStart
@@ -4606,6 +4610,8 @@ paths:
       tags:
       - Raffle
       summary: 현재 검토 시도를 대체하고 사유를 남겨 재추첨
+      description: "공개 추첨 행사 회차는 연결된 모든 회차의 응모권으로 재추첨한다. 행사에 포함된 회차는 409 RAFFLE_LIVE_EVENT_SOURCE_ROUND,\
+        \ 회차 연결이 끝나지 않은 행사 회차는 409 RAFFLE_LIVE_EVENT_INCOMPLETE로 거부한다."
       operationId: reroll
       parameters:
       - name: weekStart
@@ -5103,6 +5109,35 @@ paths:
                 $ref: "#/components/schemas/WeeklyMinigameRanking"
       security:
       - AccessJwt: []
+  /api/v1/admin/events/minigames/backfills/{eventWeek}/prepare:
+    post:
+      tags:
+      - Event Awards
+      summary: 종료된 11월 미니게임상 회차를 고정 기간으로 준비
+      operationId: prepareBackfill
+      parameters:
+      - name: eventWeek
+        in: path
+        required: true
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WeeklyMinigameGameConfig"
+      security:
+      - AccessJwt: []
   /api/v1/admin/events/assets/rounds/{weekStart}/finalize:
     post:
       tags:
@@ -5116,6 +5151,12 @@ paths:
         schema:
           type: string
           format: date
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssetAwardFinalizeRequest"
+        required: true
       responses:
         "200":
           description: OK
@@ -8992,6 +9033,33 @@ paths:
                 $ref: "#/components/schemas/AssetAwardResponse"
       security:
       - AccessJwt: []
+  /api/v1/admin/events/assets/rounds/{weekStart}/preview:
+    get:
+      tags:
+      - Event Awards
+      summary: 관리자 엽전 보유량 행사 확정 전 미리보기
+      operationId: preview_1
+      parameters:
+      - name: weekStart
+        in: path
+        required: true
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AssetAwardPreviewResponse"
+      security:
+      - AccessJwt: []
   /api/v1/admin/analytics/summary:
     get:
       tags:
@@ -11457,6 +11525,19 @@ components:
             $ref: "#/components/schemas/WeeklyMinigameRank"
         winner:
           $ref: "#/components/schemas/Winner"
+    AssetAwardFinalizeRequest:
+      type: object
+      properties:
+        candidateCount:
+          type: integer
+          format: int32
+        excludedGmCount:
+          type: integer
+          format: int32
+        expectedSourceRecordIds:
+          type: array
+          items:
+            type: string
     AssetAwardResponse:
       type: object
       properties:
@@ -13561,6 +13642,56 @@ components:
           type: string
         rankingRuleVersion:
           type: string
+    AssetAwardPreviewResponse:
+      type: object
+      properties:
+        eventType:
+          type: string
+        valuationBasis:
+          type: string
+        weekStartDate:
+          type: string
+          format: date
+        startsAt:
+          type: string
+          format: date-time
+        endsAt:
+          type: string
+          format: date-time
+        announcesAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+        candidateCount:
+          type: integer
+          format: int32
+        excludedGmCount:
+          type: integer
+          format: int32
+        ranks:
+          type: array
+          items:
+            $ref: "#/components/schemas/AssetRank"
+    AssetRank:
+      type: object
+      properties:
+        place:
+          type: integer
+          format: int32
+        userId:
+          type: integer
+          format: int64
+        nickname:
+          type: string
+        sourceRecordId:
+          type: string
+        coinBalance:
+          type: integer
+          format: int64
+        firstReachedAt:
+          type: string
+          format: date-time
     AnalyticsSnapshot:
       type: object
       properties:

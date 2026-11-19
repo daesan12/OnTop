@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { closeConstructionNotice } from '../construction/model'
-import { BOARD_COLS, BOARD_ROWS, drawBlock, formatKst, schedule, ticketCells, type DrawBlock } from './protocol'
+import { BOARD_COLS, BOARD_ROWS, drawBlock, formatKst, liveEventSchedule, schedule, ticketCells, type DrawBlock } from './protocol'
 import { drawRaffleTicket, refreshRaffle, useRaffle } from './store'
 import './raffle.css'
 
@@ -61,6 +61,7 @@ export function RafflePanel() {
   const shown = tickets.filter(t => !fresh(t.ticketId))
   const block = data ? drawBlock(data) : null
   const times = data && schedule(data)
+  const liveEvent = data ? liveEventSchedule(data) : null
 
   async function draw() {
     if (!data || busy || phase !== 'idle' || (block && !retry)) return
@@ -86,6 +87,7 @@ export function RafflePanel() {
   const label = busy === 'purchase' || moving(phase) ? '뽑는 중…' : retry ? '뽑기 결과 다시 확인'
     : !data ? '응모 정보 확인 중' : block ? LABELS[block] : `뽑기권 뽑기 · ${data.ticketPrice}냥`
   const hint = retry ? '뽑기 결과를 받지 못했어요. 엽전이 두 번 차감되지 않도록 같은 뽑기로 다시 확인해 주세요.'
+    : block === 'limit' && liveEvent ? liveEvent.limitHint
     : block ? HINTS[block] : '버튼을 누르면 손이 판에서 한 칸을 뽑아 이번 주 응모 번호를 알려줘요.'
 
   return <dialog ref={dialog} className="raffle" aria-label="복권방 행운의 뽑기"
@@ -145,9 +147,13 @@ export function RafflePanel() {
         <li><b>판매</b> 매주 월요일 오전 9시부터 일요일 밤 11시 59분까지(한국 시간) 뽑기권을 팔아요.</li>
         <li><b>뽑기</b> {data ? `한 장에 ${data.ticketPrice}냥, 한 주에 최대 ${data.weeklyLimit}장까지` : '한 주에 정해진 장수까지'} 뽑을 수 있어요. 뽑을 때마다 1~10,000 중 다른 사람과 겹치지 않는 응모 번호 1개가 나와요.</li>
         <li><b>추첨</b> 판매가 끝나는 월요일 0시에 그 주의 응모 번호 중에서 당첨 번호를 추첨해요.</li>
-        <li><b>발표</b> 같은 월요일 오전 9시, 새 회차 판매 시작과 함께 당첨 번호를 발표해요.</li>
+        <li><b>발표</b> 월요일 오전 9시에 당첨 번호를 발표해요.</li>
       </ol>
-      {times && <p className="raffle-round">
+      {liveEvent ? <p className="raffle-round">
+        이번 회차 일정<br/>
+        판매 {liveEvent.sales}<br/>
+        공개 발표 {liveEvent.announce}
+      </p> : times && <p className="raffle-round">
         이번 회차 · 판매 {formatKst(times.opens)} ~ {formatKst(times.lastSale)}<br/>
         추첨 {formatKst(times.draw)} · 발표 {formatKst(times.announce)}
       </p>}
@@ -162,7 +168,8 @@ export function RafflePanel() {
         <strong>{drawn.number}</strong>
       </div>
       <p aria-live="assertive">응모 번호 <b>{drawn.number}</b>번이 나왔어요!
-        {times && <><br/>{formatKst(times.announce)}에 당첨 번호를 발표해요.</>}</p>
+        {liveEvent ? <><br/>{liveEvent.revealNotice}</>
+          : times && <><br/>{formatKst(times.announce)}에 당첨 번호를 발표해요.</>}</p>
       <button ref={confirm} onClick={closeReveal}>확인</button>
     </div>}
   </dialog>

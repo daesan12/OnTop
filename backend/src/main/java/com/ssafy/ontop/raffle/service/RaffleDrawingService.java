@@ -70,6 +70,8 @@ public class RaffleDrawingService {
     public RaffleReviewResponse createReview(LocalDate week, long administratorUserId) {
         validateWeek(week);
         requireOperator(administratorUserId);
+        // 행사에 포함된 회차(11/09)가 따로 회차·추첨 기록을 만들기 전에 거부한다.
+        drawings.liveEventMembership(week).ifPresent(liveEvent -> requireCompleteEventRound(liveEvent, week));
         EventRound prepared = Objects.requireNonNull(writes.execute(status -> prepare(week)));
         try {
             return Objects.requireNonNull(writes.execute(status -> createReview(prepared, administratorUserId)));
@@ -112,6 +114,7 @@ public class RaffleDrawingService {
         if (trimmedReason.isEmpty() || trimmedReason.length() > 500) {
             throw error(400, "RAFFLE_REROLL_REASON_REQUIRED", "재추첨 사유를 1~500자로 입력해 주세요.");
         }
+        drawings.liveEventMembership(week).ifPresent(liveEvent -> requireCompleteEventRound(liveEvent, week));
         return Objects.requireNonNull(writes.execute(status -> {
             EventRound round = lockedRound(week);
             requireUnfinalized(round);
@@ -131,13 +134,39 @@ public class RaffleDrawingService {
         }));
     }
 
+    /** 관리자 화면의 직접 확정. 공개 추첨 행사 회차와 행사에 포함된 회차는 Feature Flag와 관계없이 항상 거부한다. */
     public RaffleDrawResponse confirmReview(LocalDate week, long administratorUserId, long drawId) {
+        return confirm(week, administratorUserId, drawId, false);
+    }
+
+    /**
+     * 공개 추첨 행사를 마칠 때 행사 서비스만 호출하는 내부 확정 경로다. HTTP 요청으로 노출하지 않는다.
+     * 행사 회차에서만, 포함 회차 연결이 모두 끝났을 때만 확정한다. 관리자 운영 권한, 검토 중인 drawId 일치,
+     * 후보 변경 검사(연결된 모든 회차 기준)는 직접 확정과 똑같이 적용한다.
+     */
+    public RaffleDrawResponse confirmLiveEventReview(LocalDate week, long administratorUserId, long drawId) {
+        return confirm(week, administratorUserId, drawId, true);
+    }
+
+    private RaffleDrawResponse confirm(LocalDate week, long administratorUserId, long drawId,
+            boolean liveEventPath) {
         validateWeek(week);
         requireOperator(administratorUserId);
         if (drawId <= 0) {
             throw error(400, "RAFFLE_INVALID_DRAW_ID", "확정할 추첨 ID가 필요합니다.");
         }
         return Objects.requireNonNull(writes.execute(status -> {
+            var liveEvent = drawings.liveEventMembership(week).orElse(null);
+            if (liveEvent != null && !liveEventPath) {
+                throw error(409, "RAFFLE_LIVE_EVENT_LOCKED",
+                        "공개 추첨 행사 대상 회차는 행사를 마칠 때만 확정할 수 있습니다.");
+            }
+            if (liveEventPath) {
+                if (liveEvent == null) {
+                    throw error(409, "RAFFLE_LIVE_EVENT_NOT_REGISTERED", "공개 추첨 행사 대상 회차가 아닙니다.");
+                }
+                requireCompleteEventRound(liveEvent, week);
+            }
             EventRound round = lockedRound(week);
             if (round.finalizedAt() != null) {
                 if (drawings.confirmedReview(round.id()).map(review -> review.id() == drawId).orElse(false)) {
@@ -271,9 +300,33 @@ public class RaffleDrawingService {
     }
 
     private RaffleDrawSelector.Selection select(EventRound round, int slotCount) {
-        return selector.select(
-                drawings.purchasedTickets(round.raffleRoundId(), round.startsAt(), round.endsAt()),
-                slotCount, administrators::canRead);
+        // GM status affects game and asset awards, not tickets that were legitimately purchased.
+        return selector.select(candidates(round), slotCount, ignored -> false);
+    }
+
+    /**
+     * 추첨 후보 응모권. 공개 추첨 행사 회차는 연결된 모든 회차(11/09·11/16)의 응모권을 응모권 단위로 모은다.
+     * 같은 응모 번호가 두 회차에 있어도 응모권 ID로 구분된다. 그 밖의 회차는 기존처럼 자기 회차만 본다.
+     */
+    private List<RaffleDrawSelector.Ticket> candidates(EventRound round) {
+        var liveEvent = drawings.liveEventMembership(round.weekStartDate()).orElse(null);
+        if (liveEvent == null) {
+            return drawings.purchasedTickets(round.raffleRoundId(), round.startsAt(), round.endsAt());
+        }
+        requireCompleteEventRound(liveEvent, round.weekStartDate());
+        return drawings.liveEventTickets(liveEvent.liveEventId());
+    }
+
+    /** 행사에 포함된 회차는 따로 추첨·확정하지 않고, 행사 회차는 포함 회차 연결이 모두 끝났을 때만 추첨한다. */
+    private void requireCompleteEventRound(RaffleDrawingRepository.LiveEventMembership liveEvent, LocalDate week) {
+        if (!liveEvent.eventRound(week)) {
+            throw error(409, "RAFFLE_LIVE_EVENT_SOURCE_ROUND",
+                    "공개 추첨 행사에 포함된 회차는 따로 추첨할 수 없습니다. 행사 회차에서 함께 추첨합니다.");
+        }
+        if (!liveEvent.complete()) {
+            throw error(409, "RAFFLE_LIVE_EVENT_INCOMPLETE",
+                    "행사에 포함할 회차 연결이 완료되지 않아 통합 추첨을 진행할 수 없습니다.");
+        }
     }
 
     private RaffleReviewResponse reviewResponse(EventRound round, ReviewDraw review) {
@@ -290,14 +343,12 @@ public class RaffleDrawingService {
 
     private void requireCandidatesUnchanged(EventRound round, ReviewDraw review,
             List<ReviewPick> picks) {
-        var candidates = drawings.purchasedTickets(round.raffleRoundId(),
-                round.startsAt(), round.endsAt());
-        int excluded = (int) candidates.stream().filter(ticket -> administrators.canRead(ticket.userId())).count();
+        var candidates = candidates(round);
+        int excluded = 0;
         if (candidates.size() != review.candidateCount() || excluded != review.excludedGmCount()) {
             throw error(409, "RAFFLE_CANDIDATES_CHANGED", "추첨 후보가 변경됐습니다. 결과를 다시 확인해 주세요.");
         }
         Set<Long> eligibleTicketIds = candidates.stream()
-                .filter(ticket -> !administrators.canRead(ticket.userId()))
                 .map(RaffleDrawSelector.Ticket::id).collect(Collectors.toSet());
         if (picks.stream().anyMatch(pick -> !eligibleTicketIds.contains(pick.ticket().id()))) {
             throw error(409, "RAFFLE_CANDIDATES_CHANGED", "추첨 후보가 변경됐습니다. 결과를 다시 확인해 주세요.");
