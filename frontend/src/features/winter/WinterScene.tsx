@@ -1,44 +1,25 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { BufferAttribute, BufferGeometry, Float32BufferAttribute, Group, InstancedMesh, Object3D, ShaderMaterial, type Points } from 'three'
-import { PropBuilder } from '../../world/art/propGeometry'
-import { PropModel } from '../../world/art/PropModel'
 import { groundSurfaceHeight } from '../../../park-renewal-preview/groundSurface'
 import { estimatedServerTime, useSession, avatars, sampleAvatar } from '../../network/worldClient'
 import { RoofSnow } from './roofSnow'
 import { WINTER_DECOR, SNOW_PILES } from './plan'
 import { useWinter, winterFrozen, type WinterPlayer } from './state'
 import { createHolidayArt } from './holidayArt'
+import { createChristmasTreeArt } from './christmasTreeArt'
 
 function decoration(kind: typeof WINTER_DECOR[number]['kind']) {
-  if (kind !== 'tree') return createHolidayArt(kind)
-  const b = new PropBuilder([10, 6]), snow = '#eef5f0', red = '#a63837', gold = '#deb668'
-  if (kind === 'tree') {
-    b.cylinder('wood', '#70503a', [0, .6, 0], .28, .35, 1.2)
-    for (let i = 0; i < 4; i++) {
-      const y = 1.8 + i * 1.22, radius = 2.5 - i * .52
-      b.cylinder('paint', i % 2 ? '#234c3d' : '#2f604a', [0, y, 0], .1, radius, 2.6)
-      b.cylinder('paint', snow, [0, y + .77, 0], .14, radius * .58 + .06, 1.16)
-      b.cylinder('paint', snow, [0, y - 1.23, 0], radius * .94, radius * .99, .14)
-      for (let j = 0; j < 9; j++) {
-        const a = j * Math.PI * 2 / 9 + i * .6
-        b.ball('paint', j % 2 ? red : gold, [Math.sin(a) * radius * .79, y - .7, Math.cos(a) * radius * .79], [.13, .16, .13])
-      }
-    }
-    // 다섯 갈래 별은 앞·뒤 어디서 보아도 식별되도록 입체적으로 만든다.
-    for (let i = 0; i < 5; i++) {
-      const a = i * Math.PI * 2 / 5
-      b.box('gold', gold, [Math.sin(a) * .22, 7.25 + Math.cos(a) * .22, 0], [.16, .6, .16], [0, 0, -a])
-    }
-  }
-  return b.finish()
+  return kind === 'tree' ? createChristmasTreeArt() : createHolidayArt(kind)
 }
 
 function HolidayProp({ art, kind }: { art: ReturnType<typeof createHolidayArt>; kind: string }) {
   return <group name={'winter-art-' + kind}>{Object.entries(art).map(([finish, geometry]) =>
     <mesh key={finish} geometry={geometry} dispose={null} castShadow receiveShadow>
       <meshStandardMaterial vertexColors roughness={finish === 'gold' ? .34 : .74}
-        metalness={finish === 'gold' ? .48 : 0} side={2} />
+        metalness={finish === 'gold' ? .48 : 0} side={2}
+        emissive={finish === 'glow' ? '#ffc775' : '#000000'} emissiveIntensity={finish === 'glow' ? .9 : 0}
+        toneMapped={finish !== 'glow'} />
     </mesh>,
   )}</group>
 }
@@ -172,8 +153,7 @@ export function WinterScene({ low = false }: { low?: boolean }) {
     <GroundSnow />
     <WinterActors />
     {WINTER_DECOR.map(d => <group key={d.id} name={'winter-' + d.id} position={[d.x, groundSurfaceHeight(d.x, d.z), d.z]}>
-      {d.kind === 'tree' ? <PropModel name={'winter-art-' + d.kind} art={art.get(d.kind)!} />
-        : <HolidayProp kind={d.kind} art={art.get(d.kind)!} />}
+      <HolidayProp kind={d.kind} art={art.get(d.kind)!} />
     </group>)}
   </group>
 }
