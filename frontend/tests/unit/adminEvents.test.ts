@@ -66,6 +66,17 @@ it('maps only masked contact data into the listing and validates explicitly reve
   expect(() => parseRevealedContact({ winnerId: 1, phone: 'bad', expiresAt: '2026-11-23T00:00:00Z' })).toThrow()
 })
 
+it('accepts weekly minigame winners in the contact administration list', () => {
+  const types = ['MG_MOLE', 'MG_SPEED_MOLE', 'MG_JUMP_ROPE', 'MG_JUMPMAP_220'] as const
+  const winners = types.map((eventType, index) => ({
+    winnerId: index + 10, userId: index + 20, weekStart: week, nickname: '당첨자', eventType,
+    place: 1, prizeName: '미니게임 1등상', contactStatus: 'NOT_SUBMITTED', maskedPhone: null,
+    contactExpiresAt: null, deliveryStatus: 'PENDING', deliveredByUserId: null, deliveredAt: null,
+  }))
+  expect(parseAdminWinners({ winners, limit: 20, offset: 0, hasMore: false }).winners
+    .map(winner => winner.eventType)).toEqual(types)
+})
+
 it('validates per-award delivery state and the protected PUT receipt', () => {
   const pending = { winnerId: 1, userId: 5, nickname: '점프왕', weekStart: week,
     eventType: 'JUMPMAP', place: 1, prizeName: '상품', contactStatus: 'NOT_SUBMITTED',

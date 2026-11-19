@@ -4,6 +4,7 @@ import { record } from '../../network/protocol'
 export type EventKind = 'raffle' | 'bungeoppang' | 'jumpmap' | 'asset'
 export type EventSection = 'raffle' | 'minigames' | 'asset'
 export type WinnerType = 'RAFFLE' | 'BUNGEOPPANG' | 'JUMPMAP' | 'ASSET_VALUE'
+  | 'MG_MOLE' | 'MG_SPEED_MOLE' | 'MG_JUMP_ROPE' | 'MG_JUMPMAP_220'
 export type ContactStatus = 'NOT_SUBMITTED' | 'SUBMITTED' | 'EXPIRED'
 export type DeliveryStatus = 'PENDING' | 'DELIVERED'
 
@@ -16,6 +17,8 @@ export const eventLabels: Record<EventSection, string> = {
 export const legacyMinigameLabels = { bungeoppang: '붕어빵', jumpmap: '점프맵' } as const
 export const winnerLabels: Record<WinnerType, string> = {
   RAFFLE: '응모권', BUNGEOPPANG: '붕어빵', JUMPMAP: '점프맵', ASSET_VALUE: '엽전 보유량',
+  MG_MOLE: '두더지 잡기', MG_SPEED_MOLE: '스피드 두더지 잡기',
+  MG_JUMP_ROPE: '구구구 줄넘기', MG_JUMPMAP_220: '점프맵',
 }
 
 export interface EventWinner {
@@ -245,7 +248,7 @@ export function parseAdminWinners(value: unknown): AdminWinnersPage {
     || typeof value.hasMore !== 'boolean') return invalid()
   const winners = value.winners.map((item): AdminEventWinner => {
     if (!record(item) || !positive(item.winnerId) || !positive(item.userId) || !date(item.weekStart)
-      || !['RAFFLE', 'BUNGEOPPANG', 'JUMPMAP', 'ASSET_VALUE'].includes(String(item.eventType))
+      || !Object.hasOwn(winnerLabels, String(item.eventType))
       || !positive(item.place) || typeof item.prizeName !== 'string' || !item.prizeName
       || !['NOT_SUBMITTED', 'SUBMITTED', 'EXPIRED'].includes(String(item.contactStatus))
       || !(item.maskedPhone === null || typeof item.maskedPhone === 'string')
