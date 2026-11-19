@@ -35,9 +35,11 @@ const KEEP_CLEAR: readonly (readonly [number, number])[] = [
 /** Share of dead ends knocked through into a neighbour. */
 export const BRAID = .2
 /** The chosen layout (see the tests: the route from arrival to the ramp is long and keeps branching). */
-export const MAZE_SEED = 3
+export const MAZE_SEED = 2815
 
-type Cell = { i: number; j: number; node: string; x: number; z: number }
+/** `room`: the chamber it is part of. `node`: what the maze joins: a single cell, or the part of a chamber you can walk
+ * through in one piece (the engines cut theirs in two). */
+export type Cell = { i: number; j: number; room?: string; node: string; x: number; z: number }
 type Edge = { a: Cell; b: Cell; x0: number; z0: number; x1: number; z1: number }
 
 const COLS = MAZE_X.length - 1, ROWS = MAZE_Z.length - 1
@@ -78,34 +80,39 @@ export function buildMaze(seed = MAZE_SEED, passable: (d: Doorway) => boolean = 
     grid[i] = []
     for (let j = 0; j < ROWS; j++) {
       if (excluded(i, j)) continue
-      const cell = { i, j, node: roomOf(i, j) ?? `c${i}_${j}`, x: (MAZE_X[i]! + MAZE_X[i + 1]!) / 2, z: (MAZE_Z[j]! + MAZE_Z[j + 1]!) / 2 }
+      const room = roomOf(i, j)
+      const cell: Cell = { i, j, room, node: `c${i}_${j}`, x: (MAZE_X[i]! + MAZE_X[i + 1]!) / 2, z: (MAZE_Z[j]! + MAZE_Z[j + 1]!) / 2 }
       grid[i]![j] = cell; cells.push(cell)
     }
   }
   const all: Edge[] = []
-  const inner: [Cell, Cell][] = []
   for (const a of cells) {
     const east = grid[a.i + 1]?.[a.j], south = grid[a.i]?.[a.j + 1]
     for (const b of [east, south]) {
       if (!b) continue
-      if (a.node === b.node) { inner.push([a, b]); continue }
       all.push(b === east
         ? { a, b, x0: MAZE_X[a.i + 1]!, x1: MAZE_X[a.i + 1]!, z0: MAZE_Z[a.j]!, z1: MAZE_Z[a.j + 1]! }
         : { a, b, x0: MAZE_X[a.i]!, x1: MAZE_X[a.i + 1]!, z0: MAZE_Z[a.j + 1]!, z1: MAZE_Z[a.j + 1]! })
     }
   }
-  const edges = all.filter(e => passable(e))
+  // Inside a chamber there are no walls, but what stands in it may still cut it in pieces: each piece is one node.
+  const inner = all.filter(e => e.a.room && e.a.room === e.b.room && passable(e))
   const parent = new Map<string, string>()
   const find = (n: string): string => { let p = parent.get(n) ?? n; if (p !== n) { p = find(p); parent.set(n, p) } return p }
   const union = (a: string, b: string) => { const ra = find(a), rb = find(b); if (ra === rb) return false; parent.set(ra, rb); return true }
+  for (const e of inner) union(e.a.node, e.b.node)
+  for (const c of cells) if (c.room) c.node = c.room + ':' + find(c.node)
+  parent.clear()
+  const edges = all.filter(e => !(e.a.room && e.a.room === e.b.room) && passable(e))
   const open = new Set<Edge>()
-  const goalDoors = () => [...open].filter(e => e.a.node === 'goal' || e.b.node === 'goal').length
+  const touches = (e: Edge, room: string) => e.a.room === room || e.b.room === room
+  const goalDoors = () => [...open].filter(e => touches(e, 'goal')).length
   // The doorways that must be there, then a random spanning tree, the way up kept to one doorway.
   for (const e of edges) if (KEEP_CLEAR.some(([x, z]) => segmentDistance(x, z, e) < 1.1)) { open.add(e); union(e.a.node, e.b.node) }
   const order = edges.map(e => ({ e, k: rng() })).sort((p, q) => p.k - q.k).map(p => p.e)
   for (const e of order) {
     if (open.has(e)) continue
-    const toGoal = e.a.node === 'goal' || e.b.node === 'goal'
+    const toGoal = touches(e, 'goal')
     if (toGoal && goalDoors()) continue
     if (union(e.a.node, e.b.node)) open.add(e)
   }
@@ -114,13 +121,13 @@ export function buildMaze(seed = MAZE_SEED, passable: (d: Doorway) => boolean = 
   const degree = (c: Cell) => [...open].filter(e => e.a === c || e.b === c).length
   // Knock through some of the dead ends (never into the way up): branches and loops, not one long tree.
   for (const c of cells) {
-    if (ROOMS[c.node] || degree(c) !== 1 || rng() > BRAID) continue
-    const closed = edges.filter(e => !open.has(e) && (e.a === c || e.b === c) && e.a.node !== 'goal' && e.b.node !== 'goal')
+    if (c.room || degree(c) !== 1 || rng() > BRAID) continue
+    const closed = edges.filter(e => !open.has(e) && (e.a === c || e.b === c) && !touches(e, 'goal'))
     if (closed.length) open.add(closed[Math.floor(rng() * closed.length)]!)
   }
   // The arrival chamber always offers a choice: two ways out.
-  const arrivalDoors = () => [...open].filter(e => e.a.node === 'arrival' || e.b.node === 'arrival').length
-  for (const e of order) { if (arrivalDoors() >= 2) break; if (!open.has(e) && (e.a.node === 'arrival' || e.b.node === 'arrival')) open.add(e) }
+  const arrivalDoors = () => [...open].filter(e => touches(e, 'arrival')).length
+  for (const e of order) { if (arrivalDoors() >= 2) break; if (!open.has(e) && touches(e, 'arrival')) open.add(e) }
 
   const t = WALL.thickness / 2
   const walls: MazeWall[] = edges.filter(e => !open.has(e)).map(e => ({
@@ -130,12 +137,30 @@ export function buildMaze(seed = MAZE_SEED, passable: (d: Doorway) => boolean = 
   }))
   const links = new Map<Cell, Cell[]>(cells.map(c => [c, []]))
   for (const e of open) { links.get(e.a)!.push(e.b); links.get(e.b)!.push(e.a) }
-  for (const [a, b] of inner) { links.get(a)!.push(b); links.get(b)!.push(a) }
+  for (const { a, b } of inner) { links.get(a)!.push(b); links.get(b)!.push(a) }
   const cellAt = (x: number, z: number) => {
     const i = MAZE_X.findIndex((v, k) => k < COLS && x >= v && x < MAZE_X[k + 1]!), j = MAZE_Z.findIndex((v, k) => k < ROWS && z <= v && z > MAZE_Z[k + 1]!)
     return i < 0 || j < 0 ? undefined : grid[i]?.[j]
   }
   return { walls, cells, links, cellAt }
+}
+
+/** The shortest way through, cell by cell (both ends included); empty if there is none. */
+export function mazeRoute(maze: Maze, from: Cell, to: Cell): Cell[] {
+  const dist = new Map<Cell, number>([[from, 0]]), prev = new Map<Cell, Cell>(), queue = [from]
+  while (queue.length) {
+    queue.sort((a, b) => dist.get(a)! - dist.get(b)!)
+    const c = queue.shift()!
+    if (c === to) break
+    for (const n of maze.links.get(c)!) {
+      const d = dist.get(c)! + Math.hypot(n.x - c.x, n.z - c.z)
+      if (d < (dist.get(n) ?? Infinity)) { dist.set(n, d); prev.set(n, c); queue.push(n) }
+    }
+  }
+  if (!dist.has(to)) return []
+  const route = [to]
+  while (route[0] !== from) route.unshift(prev.get(route[0]!)!)
+  return route
 }
 
 /** Metres along the doorways from one cell to another (centre to centre), or Infinity. */

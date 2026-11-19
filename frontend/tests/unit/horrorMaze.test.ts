@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { MAZE_ARRIVAL, MAZE_GOAL, MAZE_SEED, MAZE_X, MAZE_Z, WALL, buildMaze, mazeDistance } from '../../park-renewal-preview/horrorMaze'
+import { MAZE_ARRIVAL, MAZE_GOAL, MAZE_SEED, MAZE_X, MAZE_Z, WALL, buildMaze, mazeDistance, mazeRoute } from '../../park-renewal-preview/horrorMaze'
 import { HORROR, HORROR_MAZE as MAZE, HORROR_SOLIDS, horrorWalkable, mazeDoorway } from '../../park-renewal-preview/horrorPlan'
 import { HORROR_LAMPS } from '../../park-renewal-preview/horrorGeometry'
 import { diamond } from '../../park-renewal-preview/interiorEvents'
@@ -45,14 +45,14 @@ describe('the lower hall is a labyrinth (horrorMaze)', () => {
     const arrival = MAZE.cellAt(...MAZE_ARRIVAL)!, goal = MAZE.cellAt(...MAZE_GOAL)!
     const straight = Math.hypot(MAZE_GOAL[0] - MAZE_ARRIVAL[0], MAZE_GOAL[1] - MAZE_ARRIVAL[1])
     expect(mazeDistance(MAZE, arrival, goal)).toBeGreaterThan(straight * 3.5)
-    const doors = MAZE.cells.filter(c => c.node === 'goal').flatMap(c => MAZE.links.get(c)!.filter(n => n.node !== 'goal'))
+    const doors = MAZE.cells.filter(c => c.room === 'goal').flatMap(c => MAZE.links.get(c)!.filter(n => n.room !== 'goal'))
     expect(doors).toHaveLength(1)
-    const arrivalDoors = MAZE.cells.filter(c => c.node === 'arrival').flatMap(c => MAZE.links.get(c)!.filter(n => n.node !== 'arrival'))
+    const arrivalDoors = MAZE.cells.filter(c => c.room === 'arrival').flatMap(c => MAZE.links.get(c)!.filter(n => n.room !== 'arrival'))
     expect(arrivalDoors.length).toBeGreaterThanOrEqual(2)
   })
 
   it('branches: many crossings and some dead ends, not one corridor', () => {
-    const plain = MAZE.cells.filter(c => c.node.startsWith('c'))
+    const plain = MAZE.cells.filter(c => !c.room)
     expect(plain.filter(c => MAZE.links.get(c)!.length >= 3).length).toBeGreaterThan(30)
     expect(plain.filter(c => MAZE.links.get(c)!.length === 1).length).toBeGreaterThan(15)
   })
@@ -77,5 +77,19 @@ describe('the lower hall is a labyrinth (horrorMaze)', () => {
     const lower = HORROR_LAMPS.filter(([x]) => x > -49)
     for (const [x, z] of [...lower, [diamond[0], diamond[2]] as const])
       for (const w of MAZE.walls) expect(x > w.x0 - .4 && x < w.x1 + .4 && z > w.z0 - .4 && z < w.z1 + .4, `${x},${z} in ${w.id}`).toBe(false)
+  })
+})
+
+describe('mazeRoute', () => {
+  it('walks from the arrival to the ramp through open doorways only, as far as mazeDistance says', () => {
+    const a = MAZE.cellAt(...MAZE_ARRIVAL)!, g = MAZE.cellAt(...MAZE_GOAL)!
+    const route = mazeRoute(MAZE, a, g)
+    expect(route[0]).toBe(a); expect(route.at(-1)).toBe(g)
+    let length = 0
+    for (let k = 1; k < route.length; k++) {
+      expect(MAZE.links.get(route[k - 1]!)).toContain(route[k])
+      length += Math.hypot(route[k]!.x - route[k - 1]!.x, route[k]!.z - route[k - 1]!.z)
+    }
+    expect(length).toBeCloseTo(mazeDistance(MAZE, a, g))
   })
 })
