@@ -58,3 +58,14 @@
 - FE 관련 43개 테스트·typecheck 통과. BE 관련 67개에서 새 실제 WS 테스트 2개의 배치를 실제 물리 warp로 맞춰 재검증했다. 눈더미 범위/소지량, 채널 격리, 물리 tick 정지, A/D 해제와 보행 복귀를 검사했다.
 - Playwright/Chrome에서 줍기 → 소모 → 1·2·3회 피격 → 동결 → W 이동 차단 → 키 자동 반복 제외 → A/D 탈출 및 모바일 화면을 검증했다. 외관 프리뷰·시설 선택도 확인했다. 실제 운영 두 계정·헤드셋 검수는 별도다.
 - 맵 전수 탐색·자전거/킥보드 주행 테스트는 추가/실행하지 않았다. Jenkins 조회 연결/권한은 없어 성공으로 표시하지 않는다. MR·머지·배포·브랜치 삭제는 진행하지 않는다.
+
+## 실제 로컬 눈싸움 실행 (2026-11-20)
+
+- 시작 시 fetch 후 origin/dev `8a6ace58`이 작업 이력에 포함된 것을 확인했다. 통합 충돌은 없었다.
+- 기존 `StoneRumbleParkApplication`의 테스트 계정과 리뉴얼 실행 옵션을 재사용한다. 공원 이동·눈 줍기·피격·동결·탈출은 실제 서버이며 회원/지갑은 메모리 fixture다. DB와 외부 OAuth는 사용하지 않는다.
+- BE: `STONE_RUMBLE_RENEWAL=true`, 테스트 클래스패스의 `com.ssafy.ontop.demo.StoneRumbleParkApplication`, `http://127.0.0.1:19191`.
+- FE: frontend에서 `node node_modules/vite/bin/vite.js --config vite.stone-rumble-pagoda.config.ts --mode park-renewal-integration`, `http://127.0.0.1:5501/stone-rumble-park.html?role=1`. 두 번째 창은 `role=2`를 사용한다. 각 창은 channel-1에 자동 입장한다.
+- 입구 정면의 흰 눈더미로 이동해 Q로 줍고, 상대를 바라본 뒤 Q로 던진다. 매번 다시 주워야 한다. 3회 피격 후 A/D 교대 6회 또는 5초 경과로 해제된다.
+- Chrome 두 컨텍스트에서 실제 접속·맵 계약 verified·이동·줍기·소모·1/2/3회 피격·동결·키보드 A/D 6회 해제까지 확인했다. 실제 요청이 대기열에서 연달아 도착해 입력이 누락되던 현상은 이전 응답 후 40ms 간격을 두어 수정하고 재검증했다. FE typecheck 및 winter/carryEscape 9개 테스트를 통과했다.
+- DB 없는 실행이므로 공지·당첨·알림·랭킹·뽑기·입장 소식 API는 503을 반환한다. 눈싸움 통신과 공원 실행은 정상이며 JavaScript 실행 오류는 없었다.
+- 실행 PID/로그는 무시되는 `backend/.gradle/winter-playtest/`에 보관한다. 기존 서버는 중지하지 않았다. MR·머지 보류를 유지한다.

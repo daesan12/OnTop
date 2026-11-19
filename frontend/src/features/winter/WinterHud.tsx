@@ -51,6 +51,9 @@ export function WinterHud() {
     const id = player.freezeId
     queue.current = queue.current.then(async () => {
       if (useWinter.getState().players[self]?.freezeId !== id || !winterFrozen(self, estimatedServerTime())) return
+      // Queued key presses must retain an interval after the preceding server acknowledgement.
+      await new Promise(resolve => setTimeout(resolve, 40))
+      if (useWinter.getState().players[self]?.freezeId !== id || !winterFrozen(self, estimatedServerTime())) return
       const ok = await parkRuntime.escapeSnowball?.(id, key)
       if (!ok) { escape.current.reset(); completed.current = false }
     })
