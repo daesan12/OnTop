@@ -141,22 +141,34 @@ function Snowballs() {
 }
 
 function GroundSnow() {
-  const patches = useMemo(() => SNOW_PILES.map(p => {
-    const vertices: number[] = [], radius = 1.6, y = groundSurfaceHeight(p.x, p.z)
-    for (let i = 0; i < 32; i++) {
-      vertices.push(p.x, y + .12, p.z)
-      for (const j of [i + 1, i]) {
-        const a = j * Math.PI / 16, x = p.x + Math.cos(a) * radius, z = p.z + Math.sin(a) * radius
-        vertices.push(x, groundSurfaceHeight(x, z) + .035, z)
+  const geometry = useMemo(() => {
+    const vertices: number[] = [], colors: number[] = [], segments = 32
+    SNOW_PILES.forEach((p, index) => {
+      const phase = index * 2.39996, radius = p.radius - .6
+      const vertex = (ring: number, segment: number) => {
+        const a = segment * Math.PI * 2 / segments
+        const edge = .9 + .11 * Math.sin(3 * a + phase) + .05 * Math.cos(5 * a - phase) + .03 * Math.sin(7 * a)
+        const r = radius * ring * edge, u = Math.cos(a) * r, v = Math.sin(a) * r * (.9 + .1 * Math.sin(phase))
+        const x = p.x + u * Math.cos(phase) - v * Math.sin(phase), z = p.z + u * Math.sin(phase) + v * Math.cos(phase)
+        vertices.push(x, groundSurfaceHeight(x, z) + .025 + .055 * (1 - ring * ring), z)
+        colors.push(.94 - .12 * ring ** 3, .98 - .09 * ring ** 3, 1 - .045 * ring ** 3)
       }
-    }
-    const geometry = new BufferGeometry().setAttribute('position', new Float32BufferAttribute(vertices, 3))
-    geometry.computeVertexNormals(); return { id: p.id, geometry }
-  }), [])
-  useEffect(() => () => patches.forEach(p => p.geometry.dispose()), [patches])
-  return <group name="winter-ground-snow">{patches.map(p => <mesh key={p.id} name={p.id} geometry={p.geometry} dispose={null}>
-    <meshLambertMaterial color="#f4fbff" side={2} />
-  </mesh>)}</group>
+      for (let i = 0; i < segments; i++) {
+        vertex(0, i); vertex(.45, i + 1); vertex(.45, i)
+        for (const [inner, outer] of [[.45, .75], [.75, 1]]) {
+          vertex(inner!, i); vertex(inner!, i + 1); vertex(outer!, i)
+          vertex(inner!, i + 1); vertex(outer!, i + 1); vertex(outer!, i)
+        }
+      }
+    })
+    const result = new BufferGeometry().setAttribute('position', new Float32BufferAttribute(vertices, 3))
+      .setAttribute('color', new Float32BufferAttribute(colors, 3))
+    result.computeVertexNormals(); return result
+  }, [])
+  useEffect(() => () => geometry.dispose(), [geometry])
+  return <mesh name="winter-ground-snow" geometry={geometry} dispose={null} raycast={() => {}}>
+    <meshLambertMaterial vertexColors side={2} />
+  </mesh>
 }
 
 function WinterActor({ player }: { player: WinterPlayer }) {

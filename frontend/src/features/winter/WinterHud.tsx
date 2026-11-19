@@ -25,7 +25,7 @@ export function WinterHud() {
         && carryPlayerAvailable(session.sessionId, own) && !own.vehicle && !session.pending && !panelOwnsKeys())
       setNearSanta(!!own && Math.hypot(own.current.x - SANTA.x, own.current.z - SANTA.z) < 5)
       setPileId(own ? SNOW_PILES.find(p => Math.hypot(own.current.x - p.x, own.current.z - p.z) <= p.radius
-        && Math.abs(own.current.y - renewalGroundHeight(p.x, p.z) - MOVEMENT.halfHeight - MOVEMENT.radius - MOVEMENT.offset) <= .65)?.id ?? '' : '')
+        && Math.abs(own.current.y - renewalGroundHeight(own.current.x, own.current.z) - MOVEMENT.halfHeight - MOVEMENT.radius - MOVEMENT.offset) <= .65)?.id ?? '' : '')
     }, 100)
     return () => clearInterval(timer)
   }, [])

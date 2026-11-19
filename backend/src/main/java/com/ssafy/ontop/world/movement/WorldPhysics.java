@@ -1588,7 +1588,8 @@ public final class WorldPhysics implements AutoCloseable {
             Vector3f p = actor.body.getPhysicsLocation(null);
             for (JsonNode pile : scene.data.path("winterSnowPiles")) {
                 if (pile.path("id").asText().equals(pileId)) {
-                    double centerY = pile.path("y").asDouble() + number("halfHeight") + number("radius") + number("offset");
+                    double centerY = scene.groundHeight(p.x, p.z) + number("halfHeight") + number("radius")
+                            + number("offset");
                     return Math.hypot(p.x - pile.path("x").asDouble(), p.z - pile.path("z").asDouble())
                             <= pile.path("radius").asDouble() && Math.abs(p.y - centerY) <= .65;
                 }
