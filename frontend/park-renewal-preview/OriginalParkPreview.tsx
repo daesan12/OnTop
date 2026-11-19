@@ -12,9 +12,13 @@ import { ParkDetailGeometry } from './ParkDetailGeometry'
 import { detailCamera, detailProfileAsset, detailProfileFacility } from './parkDetailCamera'
 import { fenceJumpRoute, type FenceJumpSite } from './fenceJump'
 import type { Facility, ParkView } from './scene'
+import { WINTER_DECOR } from '../src/features/winter/plan'
+import { groundSurfaceHeight } from './groundSurface'
 
 const query = new URLSearchParams(window.location.search)
 const winterPreview = query.get('winter') === '1'
+const holidayIds: Record<string, string> = { snowman: 'plaza-snowman', gifts: 'plaza-gifts', santa: 'santa' }
+const winterAsset = WINTER_DECOR.find(d => d.id === holidayIds[query.get('holiday') ?? ''])
 const WinterScene = lazy(() => import('../src/features/winter/WinterScene').then(module => ({ default: module.WinterScene })))
 const detailMode = query.get('details-profile')
 const detailAsset = detailMode === 'before' || detailMode === 'after' ? detailProfileAsset(query) : undefined
@@ -74,6 +78,11 @@ function ParkCamera({ view, facility, jump }: ViewSelection) {
       const detail = detailCamera(detailAsset, aspect)
       orbit.target.set(...detail.target)
       camera.position.set(...detail.position)
+    } else if (winterPreview && winterAsset && facility?.id === 'plaza' && view === 'overview') {
+      const { x, z, height } = winterAsset, floor = groundSurfaceHeight(x, z)
+      const distance = (winterAsset.kind === 'gifts' ? 3.2 : 4.7) * fit
+      orbit.target.set(x, floor + height * .5, z)
+      camera.position.set(x + distance * .42, floor + height * .5 + distance * .20, z + distance)
     } else if (winterPreview && facility?.id === 'plaza' && view === 'overview') {
       orbit.target.set(0, 8, 39)
       camera.position.set(16 * fit, 16 * fit, 39 + 25 * fit)

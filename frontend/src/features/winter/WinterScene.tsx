@@ -8,8 +8,10 @@ import { estimatedServerTime, useSession, avatars, sampleAvatar } from '../../ne
 import { RoofSnow } from './roofSnow'
 import { WINTER_DECOR, SNOW_PILES } from './plan'
 import { useWinter, winterFrozen, type WinterPlayer } from './state'
+import { createHolidayArt } from './holidayArt'
 
 function decoration(kind: typeof WINTER_DECOR[number]['kind']) {
+  if (kind !== 'tree') return createHolidayArt(kind)
   const b = new PropBuilder([10, 6]), snow = '#eef5f0', red = '#a63837', gold = '#deb668'
   if (kind === 'tree') {
     b.cylinder('wood', '#70503a', [0, .6, 0], .28, .35, 1.2)
@@ -28,55 +30,17 @@ function decoration(kind: typeof WINTER_DECOR[number]['kind']) {
       const a = i * Math.PI * 2 / 5
       b.box('gold', gold, [Math.sin(a) * .22, 7.25 + Math.cos(a) * .22, 0], [.16, .6, .16], [0, 0, -a])
     }
-  } else if (kind === 'snowman') {
-    b.ball('paint', snow, [0, .72, 0], [.85, .78, .85])
-    b.ball('paint', snow, [0, 1.62, 0], [.58, .58, .58])
-    b.ball('paint', snow, [0, 2.27, 0], [.4, .4, .4])
-    b.cylinder('paint', '#263934', [0, 2.68, 0], .48, .48, .09)
-    b.cylinder('paint', '#263934', [0, 2.88, 0], .27, .3, .4)
-    b.ring('paint', red, [0, 1.96, 0], .38, .12, [Math.PI / 2, 0, 0])
-    b.box('paint', red, [.26, 1.65, .5], [.18, .62, .1], [0, 0, -.12])
-    for (const x of [-.14, .14]) b.ball('paint', '#24352e', [x, 2.34, .36], [.045, .05, .035])
-    b.cylinder('paint', '#d68034', [0, 2.22, .52], .01, .09, .36, [Math.PI / 2, 0, 0])
-    for (const y of [1.35, 1.64, 1.86]) b.ball('paint', '#34423a', [0, y, .53], [.06, .06, .06])
-    for (const x of [-1, 1]) b.cylinder('wood', '#71503d', [x * .76, 1.72, 0], .035, .05, .92, [0, 0, x * -.9])
-  } else if (kind === 'gifts') {
-    for (const [i, [x, y, z, size]] of [[-.55, .4, 0, .8], [.45, .3, .2, .6], [.1, .92, -.3, .55]].entries()) {
-      b.box('paint', [red, '#2c604d', '#dbc590'][i]!, [x!, y!, z!], [size!, size!, size!])
-      b.box('gold', gold, [x!, y!, z!], [size! + .02, size! + .02, .1])
-      b.box('gold', gold, [x!, y!, z!], [.1, size! + .025, size! + .025])
-      b.ring('gold', gold, [x! - .12, y! + size! / 2 + .06, z!], .13, .035)
-      b.ring('gold', gold, [x! + .12, y! + size! / 2 + .06, z!], .13, .035)
-    }
-  } else {
-    for (const x of [-.23, .23]) {
-      b.ball('paint', '#26312d', [x, .16, .12], [.21, .17, .32])
-      b.cylinder('paint', red, [x, .48, 0], .18, .16, .65)
-    }
-    b.ball('paint', red, [0, 1.12, 0], [.65, .67, .43])
-    b.box('paint', '#edeadf', [0, 1.22, .42], [.12, .85, .08])
-    b.box('paint', '#31352c', [0, .87, .31], [1.08, .17, .24])
-    b.box('gold', gold, [0, .87, .45], [.23, .23, .07])
-    b.ball('paint', '#e9bc99', [0, 1.98, 0], [.38, .4, .34])
-    b.ball('paint', snow, [0, 1.78, .25], [.36, .38, .22])
-    b.ball('paint', '#e0a17f', [0, 1.99, .4], [.09, .08, .08])
-    for (const x of [-.13, .13]) b.ball('paint', '#26312d', [x, 2.11, .31], [.035, .04, .03])
-    b.cylinder('paint', red, [.07, 2.53, 0], 0, .4, .72, [0, 0, -.2])
-    b.ring('paint', snow, [0, 2.24, 0], .35, .09, [Math.PI / 2, 0, 0])
-    b.ball('paint', snow, [.15, 2.88, 0], [.13, .13, .13])
-    b.cylinder('paint', red, [-.69, 1.2, 0], .17, .2, .7, [0, 0, -.25])
-    b.ball('paint', snow, [-.77, .88, 0], [.18, .15, .18])
   }
   return b.finish()
 }
 
-function SantaHand() {
-  const hand = useRef<Group>(null)
-  useFrame(({ clock }) => { if (hand.current) hand.current.rotation.z = -.65 + Math.sin(clock.elapsedTime * 2.5) * .18 })
-  return <group ref={hand} position={[.5, 1.48, 0]}>
-    <mesh position={[0, .3, 0]}><capsuleGeometry args={[.16, .4, 3, 8]} /><meshLambertMaterial color="#a63837" /></mesh>
-    <mesh position={[0, .64, 0]}><sphereGeometry args={[.19, 8, 6]} /><meshLambertMaterial color="#eef5f0" /></mesh>
-  </group>
+function HolidayProp({ art, kind }: { art: ReturnType<typeof createHolidayArt>; kind: string }) {
+  return <group name={'winter-art-' + kind}>{Object.entries(art).map(([finish, geometry]) =>
+    <mesh key={finish} geometry={geometry} dispose={null} castShadow receiveShadow>
+      <meshStandardMaterial vertexColors roughness={finish === 'gold' ? .34 : .74}
+        metalness={finish === 'gold' ? .48 : 0} side={2} />
+    </mesh>,
+  )}</group>
 }
 
 function Snowfall({ low }: { low: boolean }) {
@@ -208,8 +172,8 @@ export function WinterScene({ low = false }: { low?: boolean }) {
     <GroundSnow />
     <WinterActors />
     {WINTER_DECOR.map(d => <group key={d.id} name={'winter-' + d.id} position={[d.x, groundSurfaceHeight(d.x, d.z), d.z]}>
-      <PropModel name={'winter-art-' + d.kind} art={art.get(d.kind)!} />
-      {d.kind === 'santa' && <SantaHand />}
+      {d.kind === 'tree' ? <PropModel name={'winter-art-' + d.kind} art={art.get(d.kind)!} />
+        : <HolidayProp kind={d.kind} art={art.get(d.kind)!} />}
     </group>)}
   </group>
 }
