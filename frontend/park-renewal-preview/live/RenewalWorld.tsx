@@ -1,3 +1,4 @@
+import { WinterScene } from '../../src/features/winter/WinterScene'
 import { BALLOON_RIDE_ENABLED, RENEWAL_DISTANCE_LOD } from '../../src/park/mapSelection'
 import { BalloonWayfindingLights } from '../../src/features/balloon/BalloonWayfinding'
 import { EntranceBuilding } from '../EntrancePavilion'
@@ -249,6 +250,7 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady, gr
       <LakeStreaming progress={lakeProgress} />
       <StableCityBackdrop distanceLod={RENEWAL_DISTANCE_LOD} />
       <StableScenicGround />
+      {entryPresented && <WinterScene low={quality === 'low'} />}
       <Suspense fallback={null}>
         <StableParkBoundary />
         <OriginalPlaza />

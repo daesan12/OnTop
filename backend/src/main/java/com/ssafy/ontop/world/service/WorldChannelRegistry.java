@@ -412,6 +412,15 @@ public class WorldChannelRegistry implements ChannelPresence {
         return movement == null ? null : movement.position();
     }
 
+    public synchronized double snowballDistance(String userId, double yaw) {
+        Room room = rooms.get(membership.get(userId));
+        Position p = positionOf(userId);
+        if (room == null || p == null || room.physics == null) {
+            return 0;
+        }
+        return room.physics.snowballDistance(p.x(), p.y(), p.z(), yaw);
+    }
+
     public synchronized WorldState worldState(String channelId) {
         return rooms.get(channelId).worldState();
     }

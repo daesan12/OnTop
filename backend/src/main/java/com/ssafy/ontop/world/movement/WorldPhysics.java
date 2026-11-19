@@ -1581,6 +1581,27 @@ public final class WorldPhysics implements AutoCloseable {
         }
     }
 
+    /** 눈덩이 포물선과 정적 구조물의 첫 충돌 거리를 반환한다. */
+    public double snowballDistance(double x, double y, double z, double yaw) {
+        return call(() -> {
+            Vector3f previous = new Vector3f((float) x, (float) (y + .35), (float) z);
+            for (int i = 1; i <= 32; i++) {
+                double distance = i * .5;
+                Vector3f next = new Vector3f((float) (x + Math.sin(yaw) * distance),
+                        (float) (y + .35 + .7 * Math.sin(Math.PI * distance / 16)),
+                        (float) (z + Math.cos(yaw) * distance));
+                double fraction = space.rayTest(previous, next).stream()
+                        .filter(hit -> hit.getCollisionObject().getCollisionGroup() == 2)
+                        .mapToDouble(hit -> hit.getHitFraction()).min().orElse(1);
+                if (fraction < 1) {
+                    return distance - .5 + fraction * .5;
+                }
+                previous = next;
+            }
+            return 16.0;
+        });
+    }
+
     private boolean canOccupy(Vector3f center) {
         standProbe.setPhysicsLocation(center);
         boolean[] blocked = {false};

@@ -1,7 +1,7 @@
 import { Component, Suspense, lazy, useEffect, useLayoutEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { Canvas, useThree } from '@react-three/fiber'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { ACESFilmicToneMapping, PerspectiveCamera } from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { Buildings } from './Buildings'
@@ -14,6 +14,8 @@ import { fenceJumpRoute, type FenceJumpSite } from './fenceJump'
 import type { Facility, ParkView } from './scene'
 
 const query = new URLSearchParams(window.location.search)
+const winterPreview = query.get('winter') === '1'
+const WinterScene = lazy(() => import('../src/features/winter/WinterScene').then(module => ({ default: module.WinterScene })))
 const detailMode = query.get('details-profile')
 const detailAsset = detailMode === 'before' || detailMode === 'after' ? detailProfileAsset(query) : undefined
 const ParkJumpCourse = lazy(() => import('./ParkJumpCourse'))
@@ -72,6 +74,9 @@ function ParkCamera({ view, facility, jump }: ViewSelection) {
       const detail = detailCamera(detailAsset, aspect)
       orbit.target.set(...detail.target)
       camera.position.set(...detail.position)
+    } else if (winterPreview && facility?.id === 'plaza' && view === 'overview') {
+      orbit.target.set(0, 8, 39)
+      camera.position.set(16 * fit, 16 * fit, 39 + 25 * fit)
     } else if (facility) {
       const [x, y, z] = facility.position
       const isTower = facility.id === 'tower'
@@ -126,9 +131,16 @@ function OriginalPark({ onReady }: { onReady: () => void }) {
     <directionalLight position={[-100, 190, 90]} intensity={2.2} color="#fff0d6" />
     <ScenicDetails />
     <Buildings />
+    {winterPreview && <Suspense fallback={null}><WinterScene /></Suspense>}
     {detailAsset === 'jump' && <Suspense fallback={null}><ParkJumpCourse /></Suspense>}
     <ParkDetailGeometry jumpCourse={detailAsset === 'jump'} />
   </>
+}
+
+function WinterPreviewRender() {
+  // 시설의 shader 준비 프레임 이후 실제 미리보기를 그리는 렌더 소유자다.
+  useFrame(({ gl, scene, camera }) => gl.render(scene, camera), 2)
+  return null
 }
 
 export function mountOriginalPark(viewport: HTMLElement) {
@@ -146,6 +158,7 @@ export function mountOriginalPark(viewport: HTMLElement) {
           gl={renderOptions}
         >
           <ParkCamera view={view} facility={facility} jump={jump} />
+          {winterPreview && <WinterPreviewRender />}
           <Suspense fallback={null}>
             <OriginalPark onReady={ready} />
             {stairWalk && view === 'overview' && facility?.id === 'pagoda' &&

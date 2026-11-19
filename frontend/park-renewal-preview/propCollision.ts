@@ -1,4 +1,5 @@
 import { mainPagodaCollision } from './pagodaCollision'
+import { WINTER_DECOR } from '../src/features/winter/plan'
 import { GARDEN_PAGODA, MOVEMENT, PAGODA_TIERS } from '../src/config'
 import { DRAFT_FITNESS_STATIONS, DRAFT_FOUNTAIN, SITES as originalSites } from '../src/layout-preview/layout'
 import { PARK_DATA } from '../src/map/park'
@@ -272,6 +273,10 @@ circle(basket, [0, 0], 1.87, .04, .38)
 for (let i = 0; i < 20; i++) {
   const edge = (n: number): Point => [1.81 * Math.sin(n * Math.PI / 10), 1.81 * Math.cos(n * Math.PI / 10)]
   rail(basket, edge(i), edge(i + 1), .15, .32, 1.57)
+}
+for (const d of WINTER_DECOR) {
+  const y = heightAt(d.x, d.z) + .085
+  register({ kind: 'circle', x: d.x, z: d.z, radius: d.radius, bottom: y - .1, top: y + d.height })
 }
 // 단독 보행 프리뷰는 2D 포락선을 사용하고 실제 서비스는 정확한 볼록체를 사용한다.
 const mainSite = site('pagoda'), mainSolid = mainPagodaCollision(mainSite.x, heightAt(mainSite.x, mainSite.z), mainSite.z)

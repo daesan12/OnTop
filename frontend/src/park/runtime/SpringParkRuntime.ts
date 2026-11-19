@@ -1209,6 +1209,9 @@ export class ParkRuntime implements ParkRuntimePort {
     return sync()
   }
   // Carry commands stay in the park: retain mouse look while actionBusy still serializes requests.
+  throwSnowball = (yaw: number) => this.action(async () => {
+    await this.socket.request('WORLD_SNOWBALL_THROW', { yaw }, ['WORLD_SNOWBALL_EVENT'])
+  }, { blockControls: false })
   pickupAvatar = (targetId: string) => this.action(async () => {
     await this.socket.request('WORLD_CARRY_PICKUP', { targetId }, ['WORLD_STATE'])
   }, { blockControls: false })

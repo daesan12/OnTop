@@ -193,6 +193,8 @@ public class TableHub {
     private final com.ssafy.ontop.world.service.WorldTyping typing =
             new com.ssafy.ontop.world.service.WorldTyping(System::nanoTime);
     private final WorldEmoteService emotes;
+    private final com.ssafy.ontop.world.winter.SnowballService snowballs =
+            new com.ssafy.ontop.world.winter.SnowballService();
     private final WorldProximity proximity;
     private final WorldFacilityService facilities;
     private final PreparedParkMap preparedPark;
@@ -986,6 +988,7 @@ public class TableHub {
                     }
                 }
                 case "WORLD_EMOTE_SEND" -> sendEmote(member, request);
+                case "WORLD_SNOWBALL_THROW" -> throwSnowball(member, request);
                 case "WORLD_CARRY_PICKUP", "WORLD_CARRY_THROW", "WORLD_CARRY_RELEASE" -> carry(member, request);
                 case "WORLD_INTERACTION_SET" -> interactionBusy(member, request);
                 case "WORLD_FOLLOW_START", "WORLD_FOLLOW_STOP", "WORLD_FOLLOW_CHECK" -> follow(member, request);
@@ -1060,6 +1063,7 @@ public class TableHub {
         chat.disconnected(member.userId());
         cancelEmote(member.userId(), "DISCONNECTED");
         emotes.disconnected(member.userId());
+        snowballs.disconnected(member.userId());
         appearancePushes.remove(member.userId());
         profileMemberships.remove(member);
         positionSampler.forget(member.userId());
@@ -2741,6 +2745,40 @@ public class TableHub {
         for (Member target : members.values()) {
             if (channels.isInChannel(target.userId(), state.channelId())) {
                 target.peer().offer(protocol.encode(target == actor ? requestId : null, "WORLD_FOLLOW_STATE", state));
+            }
+        }
+    }
+
+    private void throwSnowball(Member member, Request request) {
+        String user = member.userId(), channel = channels.channelOf(user);
+        var origin = channels.positionOf(user);
+        if (channel == null || origin == null) {
+            fail(request, "NOT_IN_CHANNEL", "먼저 공원에 입장해주세요.");
+        }
+        if (carryBusy(user) || channels.carryState(user) != null || mobilityRides.containsKey(user)
+                || origin.swimming()) {
+            fail(request, "SNOWBALL_ACTIVITY_CONFLICT", "공원에서 다른 활동을 마친 뒤 눈싸움을 해주세요.");
+        }
+        var targets = members.values().stream()
+                .filter(target -> channels.isInChannel(target.userId(), channel))
+                .filter(target -> !carryBusy(target.userId()) && channels.carryState(target.userId()) == null
+                        && !mobilityRides.containsKey(target.userId()))
+                .map(target -> new com.ssafy.ontop.world.winter.SnowballService.Target(
+                        target.userId(), channels.positionOf(target.userId())))
+                .filter(target -> target.position() != null && !target.position().swimming()).toList();
+        com.ssafy.ontop.world.winter.SnowballService.Event event;
+        try {
+            event = snowballs.create(request.requestId(), channel, user, origin,
+                    request.payload().path("yaw").asDouble(), targets,
+                    yaw -> channels.snowballDistance(user, yaw), System.nanoTime(), java.time.Instant.now());
+        } catch (IllegalStateException failure) {
+            fail(request, "SNOWBALL_COOLDOWN", failure.getMessage());
+            return;
+        }
+        for (Member target : members.values()) {
+            if (channels.isInChannel(target.userId(), channel)) {
+                target.peer().offer(protocol.encode(target == member ? request.requestId() : null,
+                        "WORLD_SNOWBALL_EVENT", event));
             }
         }
     }

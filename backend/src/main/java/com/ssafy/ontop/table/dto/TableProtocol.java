@@ -67,6 +67,9 @@ public final class TableProtocol {
             case "WORLD_CHAT_SEND" -> fields(payload, Set.of("text")) && validChatText(payload.get("text"));
             case "WORLD_CHAT_TYPING_SET" -> fields(payload, Set.of("typing")) && payload.path("typing").isBoolean();
             case "WORLD_MYROOM_SET" -> fields(payload, Set.of("open")) && payload.path("open").isBoolean();
+            case "WORLD_SNOWBALL_THROW" -> fields(payload, Set.of("yaw")) && payload.path("yaw").isNumber()
+                    && Double.isFinite(payload.path("yaw").asDouble())
+                    && Math.abs(payload.path("yaw").asDouble()) <= Math.PI;
             case "WORLD_EMOTE_SEND" -> fields(payload, Set.of("emoteCode")) && validEmoteCode(payload.get("emoteCode"));
             case "WORLD_MOVE" -> validMove(payload);
             case "WORLD_BALLOON_START" -> validBalloonStart(payload);

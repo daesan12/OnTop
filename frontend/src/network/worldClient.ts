@@ -1,3 +1,4 @@
+import { acceptSnowball, resetWinter } from '../features/winter/state'
 import { filterChat } from '../features/chat/filterChat'
 import { setHorrorOpen } from '../../park-renewal-preview/horrorPlan'
 import { create } from 'zustand'
@@ -248,6 +249,7 @@ export function resetWorld(status: Session['status'] = 'idle', error = '') {
   resetBenchState()
   clearRoamingInput()
   avatars.clear()
+  resetWinter()
   worldPoses.clear()
   worldTableSeats.clear()
   channelVersion = worldVersion = -1
@@ -280,6 +282,7 @@ export function clearChannel(keepFeedbackDraft = false, keepNotesDraft = false) 
   resetBenchState()
   clearRoamingInput()
   avatars.clear()
+  resetWinter()
   worldPoses.clear()
   worldTableSeats.clear()
   channelVersion = worldVersion = -1
@@ -879,6 +882,10 @@ export function receive(message: Envelope, expectedMapVersion: string = EXPECTED
       if (state.status !== 'connected' || !state.mapCompatible || p.channelId !== state.roomId) return
       const cancellation = parseEmoteCancellation(p)
       if (emoteTimeline.cancelEvent(cancellation, estimatedServerTime())) stopAvatarEmote(cancellation.userId)
+      break
+    }
+    case 'WORLD_SNOWBALL_EVENT': {
+      if (state.status === 'connected' && state.mapCompatible) acceptSnowball(p, state.roomId, state.sessionId, estimatedServerTime())
       break
     }
     case 'WORLD_EMOTE_EVENT': {

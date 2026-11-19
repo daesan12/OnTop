@@ -12,6 +12,12 @@ const fenceJumpButton = document.querySelector<HTMLButtonElement>('#park-fence-j
 const hint = document.querySelector<HTMLElement>('#park-hint')!
 const views = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-park-view]'))
 const profileQuery = new URLSearchParams(window.location.search)
+const winterPreview = profileQuery.get('winter') === '1'
+if (winterPreview) {
+  document.title = '온탑 · 겨울 공원 미리보기'
+  document.querySelector('h1')!.textContent = '겨울 공원 미리보기'
+  document.querySelector('.park-header p')!.textContent = '눈 내림 · 크리스마스 장식 · 건물 적설'
+}
 const walkPreview = profileQuery.get('walk') === '1' && profileQuery.get('asset') === 'stairs'
 const flightControl = document.querySelector<HTMLElement>('#park-stair-flight-control')!
 const flightSelect = document.querySelector<HTMLSelectElement>('#park-stair-flight')!
@@ -119,9 +125,12 @@ try {
     })
   }
   facilitySelect.addEventListener('change', updatePreview)
-  if (profileFacility) {
-    facilitySelect.value = profileFacility
+  if (profileFacility || winterPreview) {
+    facilitySelect.value = profileFacility ?? 'plaza'
     updatePreview()
+    if (winterPreview) {
+      hint.textContent = '겨울 테마 외관 검토 · 서버 미연결 · 드래그로 회전 · 휠로 확대'
+    }
   }
   fenceJumpButton.addEventListener('click', () => {
     const facility = layout.facilities.find(item => item.id === facilitySelect.value)

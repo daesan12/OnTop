@@ -1,0 +1,4 @@
+.winter-hud{position:absolute;left:20px;top:170px;z-index:6;display:grid;gap:6px;max-width:min(310px,calc(100vw - 40px));color:#fff8e8;pointer-events:none;text-shadow:0 1px 3px #172e28;font:14px/1.5 'Malgun Gothic',sans-serif}
+.winter-hud button{justify-self:start;pointer-events:auto;min-height:44px;padding:9px 15px;color:#fff8e8;background:#234936ed;border:1px solid #c2a76d;border-radius:12px;font:inherit;cursor:pointer}
+.winter-hud button:disabled{opacity:.55;cursor:default}.winter-hud button:focus-visible{outline:3px solid #f3d589;outline-offset:3px}.winter-hud kbd{border:1px solid #b9caac;padding:2px 5px;border-radius:4px}.winter-hud p{margin:0;padding:10px;background:#193b30ed;border-radius:10px}.winter-hud small{font-size:12px}.winter-hud span:empty{display:none}
+@media(max-width:700px),(max-height:600px){.winter-hud{top:176px;left:10px;max-width:205px;font-size:12px}.winter-hud small{display:none}}

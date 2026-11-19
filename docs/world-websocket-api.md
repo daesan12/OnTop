@@ -1,5 +1,7 @@
 # 광장 WebSocket · 채널·이동·채팅
 
+겨울 공원의 `WORLD_SNOWBALL_THROW` / `WORLD_SNOWBALL_EVENT`는 [눈싸움 계약](world-winter-api.md)을 따른다.
+
 닉네임 일반 표시 반경 50m·인원 제한 제거와 `WORLD_CHAT_TYPING_SET` / `WORLD_CHAT_TYPING_STATE`는 [입력 중 상태 계약](world-chat-typing-api.md)을 따른다. 2026-11-07 사용자 확정으로 주변 채팅 수신 반경은 50m이며 관전 반경은 20m를 유지한다.
 
 2026-11-03 추가 공개 필드 `WORLD_STATE.gameWatches`와 `avatars[].activity=WATCHING`은

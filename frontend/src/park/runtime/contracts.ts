@@ -33,6 +33,7 @@ export interface ParkRuntimePort {
   pingLedger(target: import('../../game/ledger/protocol').LedgerPingTarget): Promise<boolean>
   sendEmote(id: import('../../features/emotes/catalog').EmoteId): Promise<boolean>
   pickupAvatar?(targetId: string): Promise<boolean>
+  throwSnowball?(yaw: number): Promise<boolean>
   throwAvatar?(carryId: string, direction: { dx: number; dy: number; dz: number }): Promise<boolean>
   releaseAvatar?(carryId: string): Promise<boolean>
   setInteractionBusy?(busy: boolean, confirm?: boolean, minigame?: boolean): Promise<boolean>
