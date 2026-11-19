@@ -5,6 +5,7 @@ import {buildParkTreeParts} from '../src/world/art/parkTreeParts'
 import {plantings,trees,treeCount} from './landscape'
 import {isTreeBehindRenewalAdSign} from './live/advertisingPlacement'
 import {WINTER_TREES_ENABLED,winterTreeParts} from '../src/features/winter/trees'
+import {TreeSnowCaps} from '../src/features/winter/TreeSnowCaps'
 
 // Double the original 24 m grid while retaining frustum culling by sector.
 const treeSectorSize=48
@@ -16,11 +17,11 @@ const treeBatches=(parts:typeof trees)=>[
 ]
 export function PreviewTreeBatches({ live = false }: { live?: boolean }){
  const {parts:visibleParts,count}=useMemo(()=>{
-  if(!live)return {parts:WINTER_TREES_ENABLED?winterTreeParts(trees):trees,count:treeCount}
+  if(!live)return {parts:WINTER_TREES_ENABLED?winterTreeParts(trees,plantings):trees,count:treeCount}
   const visible=plantings.filter(({position:[x,,z]})=>!isTreeBehindRenewalAdSign(x,z))
-  return {parts:winterTreeParts(buildParkTreeParts(visible)),count:visible.length}
+  return {parts:winterTreeParts(buildParkTreeParts(visible),visible),count:visible.length}
  },[live])
- if(useOriginalBatches)return <FacetedParkTreeInstances parts={visibleParts} name="renewal-groves" treeCount={count}/>
+ if(useOriginalBatches)return <><FacetedParkTreeInstances parts={visibleParts} name="renewal-groves" treeCount={count}/><TreeSnowCaps parts={visibleParts}/></>
  return <group name="renewal-groves" userData={{assetId:'park/faceted-trees',treeCount:count}}>
   {treeBatches(visibleParts).map(({parts,geometry})=>
    <SpatialInstances key={geometry.uuid} parts={parts} cellSize={treeSectorSize} shadow={false}
@@ -28,5 +29,6 @@ export function PreviewTreeBatches({ live = false }: { live?: boolean }){
     <primitive object={geometry} attach="geometry" dispose={null}/>
    </SpatialInstances>,
   )}
+  <TreeSnowCaps parts={visibleParts}/>
  </group>
 }

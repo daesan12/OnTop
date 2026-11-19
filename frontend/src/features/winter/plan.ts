@@ -1,4 +1,6 @@
 import { EDGES, NODES, SITES, TABLES, footprintDistance, inLake, insidePark } from '../../../park-renewal-preview/plan'
+import { isPlantingGround, onLand } from '../../../park-renewal-preview/groundPlan'
+import { FOREST_TRAILS } from '../../../park-renewal-preview/landscapePlan'
 
 /** 통행로·게임 진입점 바깥의 고정 겨울 장식. 충돌과 렌더링이 같은 배치를 사용한다. */
 export const WINTER_DECOR = [
@@ -34,6 +36,33 @@ for (const [from, to, width] of EDGES) {
     const suffix = String.fromCharCode(97 + Math.floor(n / 26)) + String.fromCharCode(97 + n % 26)
     snowPiles.push({ id: 'snow-road-' + suffix, x, z, radius })
   }
+}
+function addGrassSnow(x: number, z: number, radius: number) {
+  if (!insidePark(x, z, radius) || !onLand(x, z) || !isPlantingGround(x, z) || inLake(x, z, radius)
+    || SITES.some(s => !s.kind && s.id !== 'plaza' && footprintDistance(s, x, z) < radius + .5)
+    || TABLES.some(p => Math.hypot(x - p[0], z - p[1]) < radius + 2)
+    || WINTER_DECOR.some(p => Math.hypot(x - p.x, z - p.z) < radius + p.radius)
+    || snowPiles.some(p => Math.hypot(x - p.x, z - p.z) < radius + p.radius - .4)) return
+  const n = snowPiles.length
+  const suffix = String.fromCharCode(97 + Math.floor(n / 26)) + String.fromCharCode(97 + n % 26)
+  snowPiles.push({ id: 'snow-grass-' + suffix, x, z, radius })
+}
+// Include the woodland walking lanes, then add scattered drifts across the lawns.
+for (const trail of FOREST_TRAILS) {
+  const a = trail.points[0]!, b = trail.points[1]!
+  addGrassSnow((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, trail.width / 2 + 1.2)
+}
+for (const [from, to, width] of EDGES) {
+  const a = NODES[from]!, b = NODES[to]!, dx = b[0] - a[0], dz = b[1] - a[1], length = Math.hypot(dx, dz)
+  const count = Math.floor(length / 14)
+  for (let i = 0; i < count; i++) for (const side of [-1, 1]) {
+    const t = (i + .5) / count, offset = side * (width / 2 + 2.4)
+    addGrassSnow(a[0] + dx * t - dz / length * offset, a[1] + dz * t + dx / length * offset, 3.2)
+  }
+}
+for (let x = -91; x <= 91; x += 14) for (let z = -91; z <= 91; z += 14) {
+  const offset = Math.sin(x * .71 + z * .37)
+  addGrassSnow(x + offset * 1.8, z + Math.cos(x * .31 - z * .63) * 1.8, 4.1 + offset * .5)
 }
 export const SNOW_PILES: readonly SnowPile[] = snowPiles
 export const SANTA = WINTER_DECOR[1]!
