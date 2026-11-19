@@ -1,5 +1,5 @@
 // Local underground layout. Intentionally absent from public facility/navigation data.
-import {buildMaze,MAZE_SEED,type Doorway} from './horrorMaze'
+import {buildMaze,MAZE_ARRIVAL,MAZE_GOAL,MAZE_SEED,mazeArrows,mazeRoute,type Doorway} from './horrorMaze'
 export type HorrorPoint=readonly[number,number]
 export type HorrorVec=readonly[number,number,number]
 export const HORROR={x0:-58,x1:26,z0:-105,z1:-48,floor:6.8,ceiling:17.2,height:10.4,wall:.9} as const
@@ -69,6 +69,8 @@ export function horrorWalkable(x:number,z:number,r=.36,y=-Infinity){
  if(HORROR_SOLIDS.some(s=>y<HORROR.floor+s.height&&x>s.x0-r&&x<s.x1+r&&z>s.z0-r&&z<s.z1+r))return false
  return ((x-HORROR_CRYPT.x)/(HORROR_CRYPT.rx+r))**2+((z-HORROR_CRYPT.z)/(HORROR_CRYPT.rz+r))**2>1
 }
+/** The chalk arrows along the way through the labyrinth (MazeArrows), where there is floor to draw them on. */
+export const HORROR_MAZE_ARROWS=mazeArrows(HORROR_MAZE,mazeRoute(HORROR_MAZE,HORROR_MAZE.cellAt(...MAZE_ARRIVAL)!,HORROR_MAZE.cellAt(...MAZE_GOAL)!)).filter(a=>horrorWalkable(a.x,a.z,.3,HORROR.floor))
 /** Sweep at 15cm intervals; a large frame cannot tunnel through a column or a wall. */
 export function horrorMotion(from:HorrorPoint,to:HorrorPoint,y:number){
  if(y>HORROR.ceiling+.5||y<HORROR.floor-1)return true

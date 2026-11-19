@@ -19,6 +19,7 @@ const CSS = `
 .horror-note li{margin:0 0 9px;font-size:15.5px}
 .horror-note li:nth-child(odd){transform:rotate(.35deg)}
 .horror-note li:nth-child(5){color:#6b0d06;font-weight:700}
+.horror-note .hint{font-size:13.5px;font-style:italic;color:#4a3420;border-top:1px dashed rgba(60,30,10,.35);padding-top:9px}
 .horror-note .sign{text-align:right;font-style:italic;font-size:13px;opacity:.8}
 .horror-note button{display:block;margin:6px auto 0;padding:9px 26px;border:1px solid #4a2a14;border-radius:2px;background:rgba(60,30,10,.12);color:#2b1d12;font:inherit;font-size:14px;cursor:pointer}
 .horror-note button:hover{background:rgba(60,30,10,.25)}
@@ -60,7 +61,7 @@ export function openNote(kind: 'rules' | 'trap', onClose?: () => void) {
     paper.append(el('h2', '', NOTE.title), el('p', '', NOTE.lead))
     const list = el('ol')
     for (const rule of RULES) list.append(el('li', '', rule))
-    paper.append(list, el('p', 'sign', NOTE.sign))
+    paper.append(list, el('p', 'hint', NOTE.hint), el('p', 'sign', NOTE.sign))
   } else {
     paper.append(el('div', 'stamp', '공지'), el('h2', '', TRAP_NOTE.title))
     for (const line of TRAP_NOTE.lines) paper.append(el('p', '', line))

@@ -33,9 +33,9 @@ const KEEP_CLEAR: readonly (readonly [number, number])[] = [
   [18.1, -76.5], [3, -50.5],
 ]
 /** Share of dead ends knocked through into a neighbour. */
-export const BRAID = .2
+export const BRAID = .6
 /** The chosen layout (see the tests: the route from arrival to the ramp is long and keeps branching). */
-export const MAZE_SEED = 2815
+export const MAZE_SEED = 321
 
 /** `room`: the chamber it is part of. `node`: what the maze joins: a single cell, or the part of a chamber you can walk
  * through in one piece (the engines cut theirs in two). */
@@ -161,6 +161,26 @@ export function mazeRoute(maze: Maze, from: Cell, to: Cell): Cell[] {
   const route = [to]
   while (route[0] !== from) route.unshift(prev.get(route[0]!)!)
   return route
+}
+
+/** A chalk arrow on the floor: where, and which way it points (a flat direction). */
+export type MazeArrow = { x: number; z: number; dx: number; dz: number }
+/**
+ * The marks the one who went down first left on the floor (S15P31B105-450): at every turning on the way through
+ * where you could go wrong (a crossing, or the doorway out of a chamber), an arrow just before the right doorway.
+ */
+export function mazeArrows(maze: Maze, route: Cell[]): MazeArrow[] {
+  const arrows: MazeArrow[] = []
+  for (let k = 0; k + 1 < route.length; k++) {
+    const c = route[k]!, n = route[k + 1]!
+    if (c.node === n.node) continue
+    if (!c.room && maze.links.get(c)!.length < 3) continue
+    const dx = Math.sign(n.i - c.i), dz = -Math.sign(n.j - c.j)
+    // The doorway is on the shared edge; the arrow lies 1.3 m back from it, in the middle of the passage.
+    const doorX = dx ? MAZE_X[Math.max(c.i, n.i)]! : c.x, doorZ = dz ? MAZE_Z[Math.max(c.j, n.j)]! : c.z
+    arrows.push({ x: doorX - dx * 1.3, z: doorZ - dz * 1.3, dx, dz })
+  }
+  return arrows
 }
 
 /** Metres along the doorways from one cell to another (centre to centre), or Infinity. */

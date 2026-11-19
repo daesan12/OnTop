@@ -13,6 +13,7 @@ import {InteriorEncounters} from './InteriorEncounters'
 import {lampFlicker,lampOverride,DYING_LAMPS} from './horrorDressingPlan'
 import {flashlight} from './encounterStaging'
 import {HorrorPresence} from './HorrorPresence'
+import {MazeArrows} from './MazeArrows'
 import {RampEyes} from './RampEyes'
 
 const lampLights=HORROR_LAMPS.map((p,i)=>({p,i})).filter(({i})=>i%2===0)
@@ -93,5 +94,6 @@ export function HorrorZone(){
    <Ambience zone={zone}/>
    <HorrorPresence zone={zone}/>
    <RampEyes zone={zone}/>
+   <MazeArrows/>
  </group>
 }
