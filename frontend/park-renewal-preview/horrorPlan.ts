@@ -1,4 +1,5 @@
 // Local underground layout. Intentionally absent from public facility/navigation data.
+import {buildMaze,MAZE_SEED,type Doorway} from './horrorMaze'
 export type HorrorPoint=readonly[number,number]
 export type HorrorVec=readonly[number,number,number]
 export const HORROR={x0:-58,x1:26,z0:-105,z1:-48,floor:6.8,ceiling:17.2,height:10.4,wall:.9} as const
@@ -39,11 +40,8 @@ export function horrorFloorAt(x:number,z:number){const apron=horrorApronHeight(x
 export type HorrorSolid={id:string;x0:number;x1:number;z0:number;z1:number;height:number}
 const box=(id:string,x:number,z:number,w:number,d:number,height:number):HorrorSolid=>({id,x0:x-w/2,x1:x+w/2,z0:z-d/2,z1:z+d/2,height})
 export const HORROR_PILLARS=[-15,-6,3,12].flatMap(x=>[-98,-89,-67,-57].map(z=>box(`pillar-${x}-${z}`,x,z,2.8,2.8,10.4)))
-export const HORROR_SOLIDS:HorrorSolid[]=[
+const BUILT:HorrorSolid[]=[
  ...HORROR_PILLARS,
- box('entry-light-baffle',22.2,-82.6,.8,5.2,10.4),
- box('entry-north-return',23,-76.8,6,.65,10.4),
- box('entry-south-return',23,-88,6,.65,10.4),
  box('machinery-core',-38,-71,12,10,4.5),
  box('lift-cage',-37,-85,6,5,7.8),
  box('ramp-east-wall',-49.1,-72,.7,26,10.4),
@@ -54,10 +52,21 @@ export const HORROR_SOLIDS:HorrorSolid[]=[
  box('exit-light-baffle',-54.5,-88,.7,3,10.4),
 ]
 export const HORROR_CRYPT={x:-25,z:-76,rx:6.8,rz:8.4,height:2.2} as const
+const clearOfBuilt=(x:number,z:number,r=.36)=>!BUILT.some(s=>x>s.x0-r&&x<s.x1+r&&z>s.z0-r&&z<s.z1+r)&&((x-HORROR_CRYPT.x)/(HORROR_CRYPT.rx+r))**2+((z-HORROR_CRYPT.z)/(HORROR_CRYPT.rz+r))**2>1
+/** A doorway of the labyrinth you could really walk through: a clear metre of it, and clear a step either side. */
+export function mazeDoorway(d:Doorway){
+ const len=Math.hypot(d.x1-d.x0,d.z1-d.z0),ux=(d.x1-d.x0)/len,uz=(d.z1-d.z0)/len;let run=0
+ for(let s=.3;s<len-.3;s+=.25){const x=d.x0+ux*s,z=d.z0+uz*s;run=[-.6,0,.6].every(k=>clearOfBuilt(x-uz*k,z+ux*k))?run+1:0;if(run>=4)return true}
+ return false
+}
+// S15P31B105-450: the lower hall is a labyrinth (horrorMaze); the old east-door baffles gave way to it.
+export const HORROR_MAZE=buildMaze(MAZE_SEED,mazeDoorway)
+export const HORROR_SOLIDS:HorrorSolid[]=[...BUILT,...HORROR_MAZE.walls]
 function portalClear(x:number,z:number,r:number){return HORROR_PORTALS.some(p=>{const d=(x-p.x)*p.outward;return d>=-1.2&&d<=3.6&&Math.abs(z-p.z)<p.width/2-r})}
-export function horrorWalkable(x:number,z:number,r=.36){
+/** Nothing in the way at (x, z). With `y` (feet or capsule), what stands lower than that (the labyrinth under the gallery) is not in the way. */
+export function horrorWalkable(x:number,z:number,r=.36,y=-Infinity){
  if(!inHorror(x,z,r)&&!portalClear(x,z,r))return false
- if(HORROR_SOLIDS.some(s=>x>s.x0-r&&x<s.x1+r&&z>s.z0-r&&z<s.z1+r))return false
+ if(HORROR_SOLIDS.some(s=>y<HORROR.floor+s.height&&x>s.x0-r&&x<s.x1+r&&z>s.z0-r&&z<s.z1+r))return false
  return ((x-HORROR_CRYPT.x)/(HORROR_CRYPT.rx+r))**2+((z-HORROR_CRYPT.z)/(HORROR_CRYPT.rz+r))**2>1
 }
 /** Sweep at 15cm intervals; a large frame cannot tunnel through a column or a wall. */
@@ -66,7 +75,7 @@ export function horrorMotion(from:HorrorPoint,to:HorrorPoint,y:number){
  if(Math.max(from[0],to[0])< -62||Math.min(from[0],to[0])>30||Math.max(from[1],to[1])< -106||Math.min(from[1],to[1])> -47)return true
  const n=Math.max(1,Math.ceil(Math.hypot(to[0]-from[0],to[1]-from[1])/.15))
  const started=inHorror(...from)
- for(let i=1;i<=n;i++){const x=from[0]+(to[0]-from[0])*i/n,z=from[1]+(to[1]-from[1])*i/n,touched=inHorror(x,z,-.36);if(!horrorState.open&&touched)return false;if(horrorState.open&&(started||touched)&&!horrorWalkable(x,z))return false}
+ for(let i=1;i<=n;i++){const x=from[0]+(to[0]-from[0])*i/n,z=from[1]+(to[1]-from[1])*i/n,touched=inHorror(x,z,-.36);if(!horrorState.open&&touched)return false;if(horrorState.open&&(started||touched)&&!horrorWalkable(x,z,.36,y))return false}
  return true
 }
 export function updateHorrorPresence(x:number,z:number,y:number){const inside=horrorState.open&&inHorror(x,z)&&Math.abs(y-horrorGround(x,z))<.65;if(inside!==horrorState.inside){horrorState.inside=inside;emit()}return inside}

@@ -42,11 +42,16 @@ function panOf(camera: Viewer, x: number, z: number, f: Vector3) {
   const dx = x - camera.position.x, dz = z - camera.position.z, d = Math.hypot(dx, dz) || 1
   return Math.max(-1, Math.min(1, (dx * -f.z + dz * f.x) / d))
 }
-/** Nothing solid between the eye and (x, z). */
-function clearLine(ex: number, ez: number, x: number, z: number) {
+/** Nothing solid between the eye and (x, z), for feet at `y`. */
+function clearLine(ex: number, ez: number, x: number, z: number, y: number) {
   const d = Math.hypot(x - ex, z - ez)
-  for (let s = .5; s < d - .5; s += .4) if (!horrorWalkable(ex + (x - ex) * s / d, ez + (z - ez) * s / d, .1)) return false
+  for (let s = .5; s < d - .5; s += .4) if (!horrorWalkable(ex + (x - ex) * s / d, ez + (z - ez) * s / d, .1, y)) return false
   return true
+}
+/** How far you can see straight along (fx, fz) from the eye, up to `max` metres. */
+function sightLine(ex: number, ez: number, fx: number, fz: number, y: number, max: number) {
+  for (let s = .5; s < max; s += .4) if (!horrorWalkable(ex + fx * s, ez + fz * s, .3, y)) return s - .4
+  return max
 }
 const pickFrom = (ids: readonly number[]) => ids[Math.floor(Math.random() * ids.length)]!
 
@@ -191,7 +196,7 @@ export function HorrorPresence({ zone }: { zone: RefObject<Group | null> }) {
       }
       if (fig?.visible) {
         const x = st.wx + st.wdx * dt, z = st.wz + st.wdz * dt
-        if (horrorWalkable(x, z, .3)) { st.wx = x; st.wz = z }
+        if (horrorWalkable(x, z, .3, feet)) { st.wx = x; st.wz = z }
         fig.position.set(st.wx, horrorGround(st.wx, st.wz), st.wz)
         if (now > st.nextStep && (st.wdx || st.wdz)) {
           const out = effectsOutput(), d = Math.hypot(st.wx - cx, st.wz - cz)
@@ -229,13 +234,13 @@ export function HorrorPresence({ zone }: { zone: RefObject<Group | null> }) {
       const side = Math.random() < .5 ? -1 : 1, rx = -fz * side, rz = fx * side
       Object.assign(st, { kind, until: now + 4.6 + Math.random() * 2, grace: now + GRACE.redLight, side })
       redLight(true); sound('redOn')
-      // The walker: 6.5 m ahead, coming in from one side and crossing to the other, slowly.
-      const px = cx + fx * 6.5, pz = cz + fz * 6.5
-      if (fig && clearLine(cx, cz, px, pz) && horrorWalkable(px, pz, .3)) {
-        const sx = px - rx * 2.4, sz = pz - rz * 2.4, from = horrorWalkable(sx, sz, .3) && clearLine(cx, cz, sx, sz)
-        Object.assign(st, { wx: from ? sx : px, wz: from ? sz : pz, wdx: from ? rx * 1.05 : 0, wdz: from ? rz * 1.05 : 0, nextStep: now + .3 })
+      // The walker: ahead of you down the corridor, crossing it if it is a crossing, else walking slowly away.
+      const ahead = Math.min(6.5, sightLine(cx, cz, fx, fz, feet, 9) - .8), px = cx + fx * ahead, pz = cz + fz * ahead
+      if (fig && ahead > 2.5) {
+        const sx = px - rx * 2.4, sz = pz - rz * 2.4, from = horrorWalkable(sx, sz, .3, feet) && clearLine(px, pz, sx, sz, feet) && horrorWalkable(px + rx * 2.4, pz + rz * 2.4, .3, feet)
+        Object.assign(st, { wx: from ? sx : px, wz: from ? sz : pz, wdx: from ? rx * 1.05 : fx * .8, wdz: from ? rz * 1.05 : fz * .8, nextStep: now + .3 })
         fig.position.set(st.wx, horrorGround(st.wx, st.wz), st.wz)
-        fig.rotation.y = from ? Math.atan2(rx, rz) : Math.atan2(cx - px, cz - pz)
+        fig.rotation.y = from ? Math.atan2(rx, rz) : Math.atan2(fx, fz)
         fig.visible = true
       }
       st.seen.add(kind)
@@ -244,13 +249,15 @@ export function HorrorPresence({ zone }: { zone: RefObject<Group | null> }) {
     if (kind === 'figure') {
       // Stand it against a lamp ahead, 11–25 m away, in plain view: a backlit silhouette.
       const lamps = HORROR_LAMPS.map(([x, z], i) => ({ x, z, i, d: Math.hypot(x - cx, z - cz) }))
-        .filter(l => l.d > 11 && l.d < 25 && offGaze([cx, cz], [fx, fz], [l.x, l.z]) < .5 && clearLine(cx, cz, l.x, l.z))
+        .filter(l => l.d > 11 && l.d < 25 && offGaze([cx, cz], [fx, fz], [l.x, l.z]) < .5 && clearLine(cx, cz, l.x, l.z, feet))
       const lamp = lamps[Math.floor(Math.random() * lamps.length)]
-      if (lamp && fig) {
-        const k = (lamp.d - 1.4) / lamp.d, x = cx + (lamp.x - cx) * k, z = cz + (lamp.z - cz) * k
+      // In the labyrinth there is seldom a lamp in view that far: then it stands at the far end of the corridor.
+      const far = lamp ? 0 : sightLine(cx, cz, fx, fz, feet, 25) - 1
+      if (fig && (lamp || far >= 8)) {
+        const k = lamp ? (lamp.d - 1.4) / lamp.d : 0, x = lamp ? cx + (lamp.x - cx) * k : cx + fx * far, z = lamp ? cz + (lamp.z - cz) * k : cz + fz * far
         fig.position.set(x, horrorGround(x, z), z)
         fig.visible = true
-        Object.assign(st, { kind, until: now + 4.5, lamp: lamp.i })
+        Object.assign(st, { kind, until: now + 4.5, lamp: lamp ? lamp.i : -1 })
         st.seen.add(kind)
         return
       }

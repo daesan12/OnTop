@@ -33,6 +33,8 @@ export const horrorArt=(()=>{
  for(const s of HORROR_SOLIDS){const x=(s.x0+s.x1)/2,z=(s.z0+s.z1)/2,w=s.x1-s.x0,d=s.z1-s.z0
   if(s.id==='machinery-core'||s.id==='lift-cage')continue
   b.box('stone',s.id.startsWith('pillar')?'#4c534c':'#363d3b',[x,f+s.height/2,z],[w,s.height,d])
+  // The labyrinth's walls (horrorMaze): a footing, a band of darker courses and a coping stone along the top.
+  if(s.id.startsWith('maze')){b.box('stone','#2b3230',[x,f+.18,z],[w+.1,.36,d+.1]);b.box('stone','#2f3634',[x,f+2.3,z],[w+.03,.5,d+.03]);b.box('stone','#4a504a',[x,f+s.height+.08,z],[w+.16,.16,d+.16])}
   if(s.id.startsWith('pillar')){for(const y of[.25,3.15,6.25,10.2])b.box('stone','#555b50',[x,f+y,z],[w+.26,.24,d+.26]);for(let y=.8;y<9;y+=.7)b.box('stone','#303b36',[x,f+y,z],[w+.015,.035,d+.015])}
  }
  // The central dark cistern is sealed and unwalkable, with two broad bypasses.

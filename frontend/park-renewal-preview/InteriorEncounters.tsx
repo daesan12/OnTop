@@ -157,7 +157,7 @@ export function InteriorEncounters() {
     const s = behind ? -1 : 1, c = Math.cos(turn), sn = Math.sin(turn)
     const lx = look.current.x * c - look.current.z * sn, lz = look.current.x * sn + look.current.z * c
     const [x, z] = placeInView([camera.position.x, camera.position.z], [lx * s, lz * s],
-      distance, (px, pz) => horrorWalkable(px, pz, .45), [at[0]!, at[2]!])
+      distance, (px, pz) => horrorWalkable(px, pz, .45, camera.position.y - 1.5), [at[0]!, at[2]!])
     const start = Math.hypot(camera.position.x - x, camera.position.z - z) || 1
     Object.assign(placed.current, { x, z, dx: (camera.position.x - x) / start, dz: (camera.position.z - z) / start, start, away: 0 })
     group.rotation.set(0, Math.atan2(camera.position.x - x, camera.position.z - z), 0)
@@ -326,7 +326,7 @@ export function InteriorEncounters() {
         const want = standDistance(plan, active.id, t, p.far, p.extra + 1)
         const dx = p.x - camera.position.x, dz = p.z - camera.position.z, dist = Math.hypot(dx, dz) || 1
         const x = camera.position.x + dx / dist * want, z = camera.position.z + dz / dist * want
-        if (want < dist && horrorWalkable(x, z, .45)) {
+        if (want < dist && horrorWalkable(x, z, .45, camera.position.y - 1.5)) {
           p.extra++
           Object.assign(p, { x, z, start: want, dx: -dx / dist, dz: -dz / dist })
           sound((c, b) => playStoneStep(c, b, 1 - Math.min(1, (want - 2) / 5)))
@@ -342,7 +342,7 @@ export function InteriorEncounters() {
       if (t > .8 && gazeOff(camera, p.x, p.z) < .55) skipTo(plan.rush)
       else if (t < plan.rush - .6) {
         const x = camera.position.x + p.ox, z = camera.position.z + p.oz
-        if (horrorWalkable(x, z, .45)) { p.x = x; p.z = z }
+        if (horrorWalkable(x, z, .45, camera.position.y - 1.5)) { p.x = x; p.z = z }
       }
     }
     // Walk up to it and it does not wait: it lunges now.
