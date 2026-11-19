@@ -3,6 +3,7 @@ import {
   Mesh, MeshLambertMaterial, Vector3,
 } from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
+import { WINTER_TREES_ENABLED } from '../src/features/winter/trees'
 
 function willowRandom(seed) {
   let state = seed >>> 0
@@ -72,18 +73,18 @@ function trunkSegment(from, to, baseRadius, tipRadius, color) {
   return coloredFacets(geometry, color)
 }
 
-export function createPreviewWillow({ seed = 42, height = 7.8, spread = 8.6 } = {}) {
+export function createPreviewWillow({ seed = 42, height = 7.8, spread = 8.6, winter = WINTER_TREES_ENABLED } = {}) {
   const random = willowRandom(seed)
-  const bark = new Color('#86704e')
+  const bark = new Color(winter ? '#766a61' : '#86704e')
   const wood = [
     trunkSegment([0, 0.05, 0], [-0.16, 2.1, 0], 0.47, 0.34, bark),
     trunkSegment([-0.16, 2.1, 0], [0.13, 4.0, 0], 0.35, 0.24, bark),
     trunkSegment([0.13, 4.0, 0], [0.32, 5.95, 0], 0.25, 0.08, bark),
   ]
   const leaves = []
-  const green = new Color('#7e9c52')
+  const foliageColor = new Color(winter ? '#dce8ec' : '#7e9c52')
   const addLobe = (x, y, z, width, length, depth, angle, drift, sides, lightness) => {
-    const tone = green.clone().offsetHSL((random() - 0.5) * 0.045, 0, lightness)
+    const tone = foliageColor.clone().offsetHSL((random() - 0.5) * 0.045, 0, lightness)
     leaves.push(coloredFacets(foliageLobe(x, y, z, width, length, depth, angle, drift, sides), tone))
   }
 
@@ -107,6 +108,7 @@ export function createPreviewWillow({ seed = 42, height = 7.8, spread = 8.6 } = 
 
   const group = new Group()
   group.name = 'lakeside-willow-rounded-canopy'
+  group.userData.winterTree = winter
   group.scale.set(spread / 8.6, height / 7.8, spread / 8.6)
   for (const [name, parts] of [['willow-trunk', wood], ['willow-foliage', leaves]]) {
     const mesh = new Mesh(mergeGeometries(parts), new MeshLambertMaterial({ vertexColors: true, flatShading: true }))

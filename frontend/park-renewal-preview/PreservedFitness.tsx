@@ -6,11 +6,13 @@ import {buildParkTreeParts} from '../src/world/art/parkTreeParts'
 import {DRAFT_FITNESS_AREA,DRAFT_FITNESS_STATIONS,SITES as ORIGINAL_SITES} from '../src/layout-preview/layout'
 import {fitnessRestArt} from '../src/layout-preview/districtGeometry'
 import {site,heightAt} from './plan'
+import {WINTER_TREES_ENABLED,winterTreeParts} from '../src/features/winter/trees'
 
 import {renderedFitnessTrees} from './fitnessTreesPlan'
 export {originalFitnessTrees,renderedFitnessTrees} from './fitnessTreesPlan'
-const grove=buildParkTreeParts(renderedFitnessTrees)
-const center=buildParkTreeParts([{position:[ORIGINAL_SITES.fitness.x,.1,ORIGINAL_SITES.fitness.z],kind:'broadleaf',scale:1.45}])
+const seasonalTrees=(parts:ReturnType<typeof buildParkTreeParts>)=>WINTER_TREES_ENABLED?winterTreeParts(parts):parts
+const grove=seasonalTrees(buildParkTreeParts(renderedFitnessTrees))
+const center=seasonalTrees(buildParkTreeParts([{position:[ORIGINAL_SITES.fitness.x,.1,ORIGINAL_SITES.fitness.z],kind:'broadleaf',scale:1.45}]))
 const noStations: typeof DRAFT_FITNESS_STATIONS = []
 export function PreservedFitness({showStations=true}: {showStations?: boolean} = {}){const s=site('fitness');return <group name="preserved-complete-fitness-district" position={[s.x-ORIGINAL_SITES.fitness.x,heightAt(s.x,s.z),s.z-ORIGINAL_SITES.fitness.z]}>
  <FitnessGarden area={DRAFT_FITNESS_AREA} stations={showStations?DRAFT_FITNESS_STATIONS:noStations} floorShape="ellipse" showPads={false} floorColor="#c8c0ad"/>
