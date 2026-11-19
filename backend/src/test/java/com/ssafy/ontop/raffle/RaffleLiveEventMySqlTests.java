@@ -82,7 +82,7 @@ class RaffleLiveEventMySqlTests {
         long sourceRound = round(SOURCE_WEEK, SOURCE_STARTS, SOURCE_END, "CLOSED");
         long eventRound = round(WEEK, SALES_STARTS, WEEKLY_END, "OPEN");
         long outsiderTicket = ticket(otherRound, outsider, 1234, "2026-11-03T03:00:00Z");
-        ticket(sourceRound, gm, 1, "2026-11-10T03:00:00Z");
+        long gmTicket = ticket(sourceRound, gm, 1, "2026-11-10T03:00:00Z");
         long bothSourceTicket = ticket(sourceRound, both, 1234, "2026-11-10T04:00:00Z");
         long sourceOnlyTicket = ticket(sourceRound, sourceOnly, 500, "2026-11-15T14:59:59.999Z");
         String ticketsBefore = ticketFingerprint();
@@ -165,14 +165,14 @@ class RaffleLiveEventMySqlTests {
 
         // 통합 사전 추첨: 연결된 두 회차의 판매 기간 내 응모권만, 응모권 하나를 한 표로, 회원당 한 번만 당첨한다.
         var review = draw.createReview(WEEK, gm);
-        assertThat(review.candidateCount()).as("GM·두 회차 응모권 4장, 11/02·마감 이후 응모권 제외").isEqualTo(5);
-        assertThat(review.excludedGmCount()).isOne();
+        assertThat(review.candidateCount()).as("GM 포함 두 회차 응모권 5장, 11/02·마감 이후 응모권 제외").isEqualTo(5);
+        assertThat(review.excludedGmCount()).isZero();
         assertThat(review.picks()).extracting(winner -> winner.userId())
-                .containsExactly(both, sourceOnly, eventOnly);
+                .containsExactly(gm, both, sourceOnly, eventOnly);
         assertThat(review.picks()).extracting(winner -> winner.raffleTicketId())
-                .containsExactly(bothSourceTicket, sourceOnlyTicket, eventOnlyTicket)
+                .containsExactly(gmTicket, bothSourceTicket, sourceOnlyTicket, eventOnlyTicket)
                 .doesNotContain(outsiderTicket, bothEventTicket);
-        assertThat(review.picks()).extracting(winner -> winner.ticketNumber()).containsExactly(1234, 500, 1234);
+        assertThat(review.picks()).extracting(winner -> winner.ticketNumber()).containsExactly(1, 1234, 500, 1234);
         assertThat(review.vacantPrizeCount()).isEqualTo(5);
         var rerolled = draw.reroll(WEEK, gm, review.drawId(), "행사 직전 검토안 재생성");
         assertThat(rerolled.picks()).isEqualTo(review.picks());

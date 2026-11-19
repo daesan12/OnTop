@@ -5,11 +5,11 @@
 | 순서 | 요청 | 역할 |
 | --- | --- | --- |
 | 1 | `POST /api/v1/admin/raffles/rounds/{weekStart}/draws` | 현재 검토용 추첨 생성. 같은 요청을 다시 보내면 같은 `drawId` 반환 |
-| 2 | `GET /api/v1/admin/raffles/rounds/{weekStart}/draws/current` | 저장된 후보·GM 제외 수·1/2/3등 슬롯 확인 |
+| 2 | `GET /api/v1/admin/raffles/rounds/{weekStart}/draws/current` | 저장된 후보·1/2/3등 슬롯 확인. GM도 구매한 응모권으로 참여하며 호환 필드 `excludedGmCount`는 0 |
 | 3 (선택) | `POST /api/v1/admin/raffles/rounds/{weekStart}/draws/reroll` | `{ "expectedDrawId": 1, "reason": "사유" }`로 재추첨. 이전 시도와 후보는 보존 |
 | 4 | `POST /api/v1/admin/raffles/rounds/{weekStart}/finalize` | `{ "drawId": 2 }`로 현재 검토한 시도만 최종 확정 |
 
-`drawId`는 예시 값이며 실제 응답의 값을 사용한다. 오래된 시도를 확정하거나 재추첨하면 `409 RAFFLE_REVIEW_STALE`가 반환된다. 최종 확정 뒤에는 재추첨할 수 없고, 같은 `drawId`로 확정을 재요청하면 기존 결과를 반환한다. 후보 응모권이나 GM 제외 수가 추첨 이후 달라졌다면 확정을 거절한다. 발표 시각 전의 회원 결과는 `NOT_ANNOUNCED`이며, 발표 시각이 지나도 관리자가 아직 확정하지 않았다면 `PENDING`이다.
+`drawId`는 예시 값이며 실제 응답의 값을 사용한다. 오래된 시도를 확정하거나 재추첨하면 `409 RAFFLE_REVIEW_STALE`가 반환된다. 최종 확정 뒤에는 재추첨할 수 없고, 같은 `drawId`로 확정을 재요청하면 기존 결과를 반환한다. 후보 응모권이 추첨 이후 달라졌다면 확정을 거절한다. GM·게임별 매크로 제외 설정은 응모권 추첨에 적용하지 않는다. 발표 시각 전의 회원 결과는 `NOT_ANNOUNCED`이며, 발표 시각이 지나도 관리자가 아직 확정하지 않았다면 `PENDING`이다.
 
 공개 추첨 행사 회차(V182의 2026-11-16 회차)와 행사에 포함된 회차(2026-11-09)는 4단계 확정을 `409 RAFFLE_LIVE_EVENT_LOCKED`로 거부한다. 행사 회차는 두 회차 응모권을 함께 추첨하고 행사를 마칠 때 서버 내부 경로로만 확정한다. 포함 회차의 1·3단계는 `409 RAFFLE_LIVE_EVENT_SOURCE_ROUND`, 회차 연결이 끝나지 않은 행사 회차의 1·3단계는 `409 RAFFLE_LIVE_EVENT_INCOMPLETE`다. 자세한 내용은 [raffle-live-event.md](raffle-live-event.md)를 참조한다.
 

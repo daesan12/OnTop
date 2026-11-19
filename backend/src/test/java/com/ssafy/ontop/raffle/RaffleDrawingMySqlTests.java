@@ -87,9 +87,9 @@ class RaffleDrawingMySqlTests {
                         .isEqualTo("RAFFLE_ROUND_NOT_FOUND"));
         var review = draw.createReview(week, gm);
         assertThat(review.picks()).extracting(winner -> winner.userId())
-                .containsExactly(first, second);
+                .containsExactly(gm, first);
         assertThat(review.candidateCount()).isEqualTo(4);
-        assertThat(review.excludedGmCount()).isOne();
+        assertThat(review.excludedGmCount()).isZero();
         assertThat(review.vacantPrizeCount()).isEqualTo(6);
         assertThat(draw.createReview(week, gm).drawId()).isEqualTo(review.drawId());
         assertThat(draw.currentReview(week, viewer).drawId()).isEqualTo(review.drawId());
@@ -132,8 +132,8 @@ class RaffleDrawingMySqlTests {
         var announced = service("2026-11-09T00:00:00Z");
         assertThat(announced.memberResult(week, first).status()).isEqualTo("SELECTED");
         assertThat(announced.memberResult(week, first).prizes()).singleElement()
-                .satisfies(prize -> assertThat(prize.place()).isEqualTo(1));
-        assertThat(announced.memberResult(week, gm).status()).isEqualTo("NOT_SELECTED");
+                .satisfies(prize -> assertThat(prize.place()).isEqualTo(2));
+        assertThat(announced.memberResult(week, gm).status()).isEqualTo("SELECTED");
 
         // 2026-11-09·11-16 주차는 V182가 공개 추첨 행사로 묶어 잠그므로, 일반 회차 회귀는 그 뒤 주차로 검증한다.
         LocalDate nextWeek = week.plusWeeks(3);

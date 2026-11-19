@@ -13,7 +13,10 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -33,9 +36,17 @@ public final class MinigameAwardService {
     private final TransactionTemplate reads;
     private final Clock clock;
     private final LocalDate eventWeek;
+    private final Set<Long> globallyExcludedUserIds;
+    private final Map<String, Set<Long>> excludedUserIdsByGame;
 
     public MinigameAwardService(MinigameAwardRepository repository, AdminAccessPolicy administrators,
             PlatformTransactionManager transactions, Clock clock, LocalDate eventWeek) {
+        this(repository, administrators, transactions, clock, eventWeek, Set.of(), Map.of());
+    }
+
+    public MinigameAwardService(MinigameAwardRepository repository, AdminAccessPolicy administrators,
+            PlatformTransactionManager transactions, Clock clock, LocalDate eventWeek,
+            Set<Long> globallyExcludedUserIds, Map<String, Set<Long>> excludedUserIdsByGame) {
         this.repository = repository;
         this.administrators = administrators;
         this.writes = new TransactionTemplate(transactions);
@@ -47,6 +58,18 @@ public final class MinigameAwardService {
             throw new IllegalArgumentException("미니게임 행사 주차는 KST 월요일이어야 합니다.");
         }
         this.eventWeek = eventWeek;
+        if (globallyExcludedUserIds == null
+                || globallyExcludedUserIds.stream().anyMatch(id -> id == null || id <= 0)) {
+            throw new IllegalArgumentException("이벤트 제외 회원은 양수 ID여야 합니다.");
+        }
+        if (excludedUserIdsByGame == null || excludedUserIdsByGame.entrySet().stream().anyMatch(entry ->
+                entry.getKey() == null || entry.getKey().isBlank() || entry.getValue() == null
+                        || entry.getValue().stream().anyMatch(id -> id == null || id <= 0))) {
+            throw new IllegalArgumentException("게임별 이벤트 제외 회원 설정을 확인하세요.");
+        }
+        this.globallyExcludedUserIds = Set.copyOf(globallyExcludedUserIds);
+        this.excludedUserIdsByGame = excludedUserIdsByGame.entrySet().stream().collect(
+                Collectors.toUnmodifiableMap(Map.Entry::getKey, entry -> Set.copyOf(entry.getValue())));
     }
 
     public void finalizeDueRounds() {
@@ -147,7 +170,7 @@ public final class MinigameAwardService {
         int excludedGmCount = 0;
         Candidate selected = null;
         for (Candidate candidate : candidates) {
-            if (administrators.canRead(candidate.userId())) {
+            if (excluded(type.name(), candidate.userId())) {
                 excludedGmCount++;
             } else if (selected == null) {
                 selected = candidate;
@@ -160,6 +183,11 @@ public final class MinigameAwardService {
         repository.insertAttempt(round.id(), administratorUserId, "SUCCEEDED",
                 candidates.size(), excludedGmCount, selected == null ? 0 : 1, now);
         return response(type, round, false);
+    }
+
+    private boolean excluded(String gameCode, long userId) {
+        return administrators.canRead(userId) || globallyExcludedUserIds.contains(userId)
+                || excludedUserIdsByGame.getOrDefault(gameCode, Set.of()).contains(userId);
     }
 
     private Slot requireSlot(long roundId, MinigameAwardType type) {

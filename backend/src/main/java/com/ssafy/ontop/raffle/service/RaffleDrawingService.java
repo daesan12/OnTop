@@ -300,7 +300,8 @@ public class RaffleDrawingService {
     }
 
     private RaffleDrawSelector.Selection select(EventRound round, int slotCount) {
-        return selector.select(candidates(round), slotCount, administrators::canRead);
+        // GM status affects game and asset awards, not tickets that were legitimately purchased.
+        return selector.select(candidates(round), slotCount, ignored -> false);
     }
 
     /**
@@ -343,12 +344,11 @@ public class RaffleDrawingService {
     private void requireCandidatesUnchanged(EventRound round, ReviewDraw review,
             List<ReviewPick> picks) {
         var candidates = candidates(round);
-        int excluded = (int) candidates.stream().filter(ticket -> administrators.canRead(ticket.userId())).count();
+        int excluded = 0;
         if (candidates.size() != review.candidateCount() || excluded != review.excludedGmCount()) {
             throw error(409, "RAFFLE_CANDIDATES_CHANGED", "추첨 후보가 변경됐습니다. 결과를 다시 확인해 주세요.");
         }
         Set<Long> eligibleTicketIds = candidates.stream()
-                .filter(ticket -> !administrators.canRead(ticket.userId()))
                 .map(RaffleDrawSelector.Ticket::id).collect(Collectors.toSet());
         if (picks.stream().anyMatch(pick -> !eligibleTicketIds.contains(pick.ticket().id()))) {
             throw error(409, "RAFFLE_CANDIDATES_CHANGED", "추첨 후보가 변경됐습니다. 결과를 다시 확인해 주세요.");

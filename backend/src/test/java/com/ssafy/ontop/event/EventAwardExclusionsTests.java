@@ -20,4 +20,22 @@ class EventAwardExclusionsTests {
         assertThatThrownBy(() -> EventAwardExclusions.parse("1,user"))
                 .isInstanceOf(IllegalArgumentException.class);
     }
+
+    @Test
+    void 게임별_제외_목록을_게임_코드별로_분리한다() {
+        assertThat(EventAwardExclusions.parseByGame(null)).isEmpty();
+        assertThat(EventAwardExclusions.parseByGame("MG_MOLE:245, 61;MG_SPEED_MOLE:271"))
+                .containsEntry("MG_MOLE", java.util.Set.of(245L, 61L))
+                .containsEntry("MG_SPEED_MOLE", java.util.Set.of(271L));
+    }
+
+    @Test
+    void 게임별_제외_목록의_중복_코드와_잘못된_ID를_거부한다() {
+        assertThatThrownBy(() -> EventAwardExclusions.parseByGame("MG_MOLE:1;MG_MOLE:2"))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> EventAwardExclusions.parseByGame("MG_MOLE:user"))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> EventAwardExclusions.parseByGame("mole:1"))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
 }

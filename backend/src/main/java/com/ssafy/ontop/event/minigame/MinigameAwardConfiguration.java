@@ -32,17 +32,22 @@ public class MinigameAwardConfiguration {
     WeeklyMinigameAwardService weeklyMinigameAwardService(WeeklyMinigameRepository configurations,
             MinigameAwardRepository records, AdminAccessPolicy administrators,
             PlatformTransactionManager transactions, @Qualifier("oauthClock") Clock clock,
-            @Value("${EVENT_AWARD_EXCLUDED_USER_IDS:}") String excludedUserIds) {
+            @Value("${EVENT_AWARD_EXCLUDED_USER_IDS:}") String excludedUserIds,
+            @Value("${MINIGAME_AWARD_EXCLUDED_USER_IDS:}") String excludedUserIdsByGame) {
         return new WeeklyMinigameAwardService(configurations, records, administrators, transactions, clock,
-                EventAwardExclusions.parse(excludedUserIds));
+                EventAwardExclusions.parse(excludedUserIds),
+                EventAwardExclusions.parseByGame(excludedUserIdsByGame));
     }
 
     @Bean
     MinigameAwardService minigameAwardService(MinigameAwardRepository repository,
             AdminAccessPolicy administrators, PlatformTransactionManager transactions,
-            @Qualifier("oauthClock") Clock clock) {
+            @Qualifier("oauthClock") Clock clock,
+            @Value("${EVENT_AWARD_EXCLUDED_USER_IDS:}") String excludedUserIds,
+            @Value("${MINIGAME_AWARD_EXCLUDED_USER_IDS:}") String excludedUserIdsByGame) {
         return new MinigameAwardService(repository, administrators, transactions,
-                clock, LocalDate.of(2026, 11, 2));
+                clock, LocalDate.of(2026, 11, 2), EventAwardExclusions.parse(excludedUserIds),
+                EventAwardExclusions.parseByGame(excludedUserIdsByGame));
     }
 
     @Bean
