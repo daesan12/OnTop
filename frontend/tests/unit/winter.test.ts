@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { BoxGeometry, Group, Mesh, MeshBasicMaterial } from 'three'
-import { acceptSnowball, resetWinter, useWinter } from '../../src/features/winter/state'
+import { acceptSnowball, acceptWinterState, resetWinter, useWinter, winterFrozen } from '../../src/features/winter/state'
 import { snowRoofGeometry } from '../../src/features/winter/roofSnow'
 
 const now = Date.parse('2026-11-19T12:00:00Z')
@@ -19,6 +19,18 @@ describe('겨울 공원 이벤트와 적설', () => {
     expect(useWinter.getState().notice).toContain('맞았어요')
     resetWinter()
     expect(useWinter.getState().shots).toHaveLength(0)
+  })
+  it('서버 소지량과 동결 상태를 받고 오래된 버전이나 다른 채널 상태를 버린다', () => {
+    const player = { userId: 'self', snowballs: 0, hits: 3, freezeId: 'ice', frozenUntil: new Date(now + 5000).toISOString(), escapePresses: 2 }
+    expect(acceptWinterState({ channelId: 'park', version: 2, players: [player] }, 'park')).toBe(true)
+    expect(winterFrozen('self', now)).toBe(true)
+    expect(winterFrozen('self', now + 5000)).toBe(false)
+    expect(acceptWinterState({ channelId: 'other', version: 3, players: [] }, 'park')).toBe(false)
+    expect(acceptWinterState({ channelId: 'park', version: 1, players: [] }, 'park')).toBe(false)
+    expect(useWinter.getState().players.self?.escapePresses).toBe(2)
+    expect(acceptWinterState({ channelId: 'park', version: 3, players: [{ ...player, snowballs: 2 }] }, 'park')).toBe(false)
+    expect(acceptWinterState({ channelId: 'park', version: 3, players: [{ ...player, hits: 0, freezeId: '', frozenUntil: null, escapePresses: 0 }] }, 'park')).toBe(true)
+    expect(winterFrozen('self', now)).toBe(false)
   })
   it('천장 위쪽만 적설하고 원본 건물과 옆면을 보존한다', () => {
     const root = new Group(), original = new BoxGeometry(4, 4, 4), material = new MeshBasicMaterial()

@@ -1,3 +1,4 @@
+import { winterFrozen } from '../winter/state'
 import { characterGestureDuration, NETWORK } from '../../park/mapConfig'
 import { avatars, estimatedServerTime, sampleAvatar, useSession, type AvatarSnapshot } from '../../network/worldClient'
 import { useFollow } from '../follow/state'
@@ -12,7 +13,7 @@ export function carryPlayerAvailable(id: string, avatar: AvatarSnapshot, now = e
   const session = useSession.getState()
   const age = now - avatar.emoteAt
   const emoting = !!avatar.emote && age >= 0 && age < (characterGestureDuration(avatar.emote) || NETWORK.emoteDurationMs)
-  return avatar.connected && !avatar.interactionBusy && !avatar.tableId && avatar.seatIndex < 0 && !avatar.benchId && !avatar.fitnessId
+  return avatar.connected && !winterFrozen(id, now) && !avatar.interactionBusy && !avatar.tableId && avatar.seatIndex < 0 && !avatar.benchId && !avatar.fitnessId
     && !avatar.telescopeId && !avatar.swimming && !session.activities[id] && !session.gameWatches[id]
     && !emoting && !useFollow.getState().links.some(link => link.followerId === id || link.targetId === id)
     && (id !== session.sessionId || !useJumpmap.getState().run && !useEmoteState.getState().pending)

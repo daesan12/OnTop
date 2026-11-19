@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { BufferAttribute, BufferGeometry, Group, InstancedMesh, Object3D, ShaderMaterial, type Points } from 'three'
+import { BufferAttribute, BufferGeometry, Float32BufferAttribute, Group, InstancedMesh, Object3D, ShaderMaterial, type Points } from 'three'
 import { PropBuilder } from '../../world/art/propGeometry'
 import { PropModel } from '../../world/art/PropModel'
 import { groundSurfaceHeight } from '../../../park-renewal-preview/groundSurface'
-import { estimatedServerTime, useSession } from '../../network/worldClient'
+import { estimatedServerTime, useSession, avatars, sampleAvatar } from '../../network/worldClient'
 import { RoofSnow } from './roofSnow'
-import { WINTER_DECOR } from './plan'
-import { useWinter } from './state'
+import { WINTER_DECOR, SNOW_PILES } from './plan'
+import { useWinter, winterFrozen, type WinterPlayer } from './state'
 
 function decoration(kind: typeof WINTER_DECOR[number]['kind']) {
   const b = new PropBuilder([10, 6]), snow = '#eef5f0', red = '#a63837', gold = '#deb668'
@@ -140,6 +140,52 @@ function Snowballs() {
   </instancedMesh>
 }
 
+function GroundSnow() {
+  const patches = useMemo(() => SNOW_PILES.map(p => {
+    const vertices: number[] = [], radius = 1.6, y = groundSurfaceHeight(p.x, p.z)
+    for (let i = 0; i < 32; i++) {
+      vertices.push(p.x, y + .12, p.z)
+      for (const j of [i + 1, i]) {
+        const a = j * Math.PI / 16, x = p.x + Math.cos(a) * radius, z = p.z + Math.sin(a) * radius
+        vertices.push(x, groundSurfaceHeight(x, z) + .035, z)
+      }
+    }
+    const geometry = new BufferGeometry().setAttribute('position', new Float32BufferAttribute(vertices, 3))
+    geometry.computeVertexNormals(); return { id: p.id, geometry }
+  }), [])
+  useEffect(() => () => patches.forEach(p => p.geometry.dispose()), [patches])
+  return <group name="winter-ground-snow">{patches.map(p => <mesh key={p.id} name={p.id} geometry={p.geometry} dispose={null}>
+    <meshLambertMaterial color="#f4fbff" side={2} />
+  </mesh>)}</group>
+}
+
+function WinterActor({ player }: { player: WinterPlayer }) {
+  const group = useRef<Group>(null), ice = useRef<Group>(null), held = useRef<Group>(null)
+  const pose = useRef({ x: 0, y: 0, z: 0, yaw: 0 })
+  useFrame(() => {
+    const avatar = avatars.get(player.userId), root = group.current
+    if (!root) return
+    root.visible = !!avatar?.connected
+    if (!avatar) return
+    const p = sampleAvatar(avatar, performance.now(), pose.current)
+    root.position.set(p.x, p.y, p.z); root.rotation.y = p.yaw
+    if (ice.current) ice.current.visible = winterFrozen(player.userId, estimatedServerTime())
+    if (held.current) held.current.visible = player.snowballs === 1 && !winterFrozen(player.userId, estimatedServerTime())
+  })
+  return <group ref={group} name={'winter-player-' + player.userId}>
+    <group ref={held} position={[.52, .05, .12]}><mesh raycast={() => {}}><sphereGeometry args={[.17, 10, 8]} /><meshLambertMaterial color="#f4fbff" /></mesh></group>
+    <group ref={ice} name={'winter-frozen-' + player.userId} position={[0, .3, 0]}>
+      <mesh raycast={() => {}}><boxGeometry args={[1.05, 2.3, .95]} /><meshStandardMaterial color="#9cddf5" transparent opacity={.36} roughness={.15} depthWrite={false} /></mesh>
+      <mesh position={[0, -1.1, 0]} raycast={() => {}}><cylinderGeometry args={[.7, .8, .12, 12]} /><meshLambertMaterial color="#e7f7ff" /></mesh>
+    </group>
+  </group>
+}
+
+function WinterActors() {
+  const players = useWinter(s => s.players)
+  return <group name="winter-player-props">{Object.values(players).map(p => <WinterActor key={p.userId} player={p} />)}</group>
+}
+
 export function WinterScene({ low = false }: { low?: boolean }) {
   const art = useMemo(() => new Map([...new Set(WINTER_DECOR.map(d => d.kind))].map(kind => [kind, decoration(kind)])), [])
   useEffect(() => () => { for (const value of art.values()) for (const g of Object.values(value)) g?.dispose() }, [art])
@@ -147,6 +193,8 @@ export function WinterScene({ low = false }: { low?: boolean }) {
     <RoofSnow />
     <Snowfall low={low} />
     <Snowballs />
+    <GroundSnow />
+    <WinterActors />
     {WINTER_DECOR.map(d => <group key={d.id} name={'winter-' + d.id} position={[d.x, groundSurfaceHeight(d.x, d.z), d.z]}>
       <PropModel name={'winter-art-' + d.kind} art={art.get(d.kind)!} />
       {d.kind === 'santa' && <SantaHand />}

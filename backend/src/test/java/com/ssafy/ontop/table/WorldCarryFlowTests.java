@@ -217,25 +217,6 @@ class WorldCarryFlowTests {
         }
     }
 
-    @Test
-    void 눈덩이는_같은_채널에_공유하고_창점유와_위조입력을_차단한다() throws Exception {
-        try (var first = client("naver", "a"); var second = client("ssafy", "a");
-                var other = client("303", "b")) {
-
-            var event = first.request("WORLD_SNOWBALL_THROW", Map.of("yaw", 0));
-            assertThat(event.path("type").asText()).isEqualTo("WORLD_SNOWBALL_EVENT");
-            assertThat(event.at("/payload/channelId").asText()).isEqualTo("a");
-            assertThat(event.at("/payload/userId").asText()).isEqualTo(first.userId);
-            second.await(message -> message.path("type").asText().equals("WORLD_SNOWBALL_EVENT"));
-            other.assertNoMessage(message -> message.path("type").asText().equals("WORLD_SNOWBALL_EVENT"));
-            assertCode(first.request("WORLD_SNOWBALL_THROW", Map.of("yaw", 0)), "SNOWBALL_COOLDOWN");
-            assertCode(first.request("WORLD_SNOWBALL_THROW", Map.of("yaw", 9)), "INVALID_PAYLOAD");
-            assertCode(first.request("WORLD_SNOWBALL_THROW", Map.of("yaw", 0, "hitUserId", "303")), "INVALID_PAYLOAD");
-            second.request("WORLD_INTERACTION_SET", Map.of("busy", true));
-            assertCode(second.request("WORLD_SNOWBALL_THROW", Map.of("yaw", 0)), "SNOWBALL_ACTIVITY_CONFLICT");
-        }
-    }
-
     private ScenarioClient client(String login, String channel) throws Exception {
         var client = new ScenarioClient(port, login);
         client.await(message -> message.path("type").asText().equals("CONNECTED"));

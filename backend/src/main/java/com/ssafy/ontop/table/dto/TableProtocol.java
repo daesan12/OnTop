@@ -67,6 +67,11 @@ public final class TableProtocol {
             case "WORLD_CHAT_SEND" -> fields(payload, Set.of("text")) && validChatText(payload.get("text"));
             case "WORLD_CHAT_TYPING_SET" -> fields(payload, Set.of("typing")) && payload.path("typing").isBoolean();
             case "WORLD_MYROOM_SET" -> fields(payload, Set.of("open")) && payload.path("open").isBoolean();
+            case "WORLD_SNOWBALL_CHECK" -> fields(payload, Set.of());
+            case "WORLD_SNOWBALL_PICKUP" -> fields(payload, Set.of("pileId"))
+                    && payload.path("pileId").isTextual() && payload.path("pileId").asText().matches("snow-[a-z-]{1,40}");
+            case "WORLD_SNOWBALL_ESCAPE" -> fields(payload, Set.of("freezeId", "key"))
+                    && prankUuid(payload.path("freezeId")) && Set.of("A", "D").contains(payload.path("key").asText());
             case "WORLD_SNOWBALL_THROW" -> fields(payload, Set.of("yaw")) && payload.path("yaw").isNumber()
                     && Double.isFinite(payload.path("yaw").asDouble())
                     && Math.abs(payload.path("yaw").asDouble()) <= Math.PI;

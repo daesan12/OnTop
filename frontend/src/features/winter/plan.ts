@@ -8,4 +8,10 @@ export const WINTER_DECOR = [
   { id: 'tree-gifts', kind: 'gifts', x: -3.7, z: 38, radius: 1.25, height: 1.3 },
   { id: 'plaza-gifts', kind: 'gifts', x: 3.7, z: 36, radius: 1.25, height: 1.3 },
 ] as const
+export const SNOW_PILES = [
+  { id: 'snow-entry', x: 0, z: 88, radius: 2.4 },
+  { id: 'snow-plaza-west', x: -5, z: 44, radius: 2.4 },
+  { id: 'snow-plaza-east', x: 5, z: 32, radius: 2.4 },
+  { id: 'snow-lake', x: 47, z: 36, radius: 2.4 },
+] as const
 export const SANTA = WINTER_DECOR[1]!

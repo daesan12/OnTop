@@ -382,6 +382,7 @@ public class WorldChannelRegistry implements ChannelPresence {
         room.profiles.remove(userId);
         room.tableSeats.remove(userId);
         room.held.remove(userId);
+        room.winterFrozen.remove(userId);
         room.interactionBusy.remove(userId);
         room.vrUsers.remove(userId);
         room.minigameUsers.remove(userId);
@@ -410,6 +411,29 @@ public class WorldChannelRegistry implements ChannelPresence {
         }
         Movement movement = rooms.get(channelId).positions.get(userId);
         return movement == null ? null : movement.position();
+    }
+
+    public synchronized boolean snowPileInReach(String userId, String pileId) {
+        Room room = rooms.get(membership.get(userId));
+        return room != null && room.physics != null && room.physics.snowPileInReach(userId, pileId);
+    }
+
+    public synchronized WorldState winterFreeze(String userId, boolean frozen) {
+        Room room = rooms.get(membership.get(userId));
+        if (room == null || room.winterFrozen.contains(userId) == frozen) { return null; }
+        if (frozen) {
+            Position p = positionOf(userId);
+            room.winterFrozen.add(userId);
+            room.physics.hold(userId, p.x(), p.y(), p.z(), p.yaw());
+        } else {
+            room.winterFrozen.remove(userId);
+            room.physics.stop(userId);
+        }
+        Movement previous = room.positions.get(userId);
+        room.positions.put(userId, new Movement(snapshotPosition(room, userId), previous.acceptedAtNanos()));
+        room.motions.put(userId, room.physics.snapshot(userId).motion());
+        room.worldVersion++; room.dirty = true;
+        return room.worldState();
     }
 
     public synchronized double snowballDistance(String userId, double yaw) {
@@ -570,7 +594,7 @@ public class WorldChannelRegistry implements ChannelPresence {
     private boolean availableForParkActivity(String userId, boolean allowVr) {
         Room room = rooms.get(membership.get(userId));
         Position position = positionOf(userId);
-        return room != null && position != null && !position.swimming() && !room.held.contains(userId)
+        return room != null && position != null && !position.swimming() && !room.held.contains(userId) && !room.winterFrozen.contains(userId)
                 && !room.vehicles.containsKey(userId)
                 && !room.interactionBusy.contains(userId)
                 && (allowVr || !room.vrUsers.contains(userId))
@@ -756,6 +780,7 @@ public class WorldChannelRegistry implements ChannelPresence {
                 && !room.moveBudgets.computeIfAbsent(userId, ignored -> new MoveBudget(now)).take(now, minimumMoveNanos)) {
             throw new ChannelException("MOVE_TOO_FREQUENT", "이동 입력 전송 간격을 확인해주세요.");
         }
+        if (room.winterFrozen.contains(userId)) { return new WorldChange(room.worldState(), false); }
         boolean changed = room.physics.input(userId, input, now);
         if (changed) {
             Position p = previous.position();
@@ -830,6 +855,7 @@ public class WorldChannelRegistry implements ChannelPresence {
         String channel = membership.get(userId);
         if (channel == null) throw new ChannelException("NOT_IN_CHANNEL", "먼저 채널에 입장해주세요.");
         Room room = rooms.get(channel);
+        if (room.winterFrozen.contains(userId)) { return new WorldChange(room.worldState(), false); }
         var carry = room.physics.carryState(userId);
         if (carry != null && !carry.role().equals("CARRIER")) { return new WorldChange(room.worldState(), false); }
         if (room.held.contains(userId) || room.tableSeats.containsKey(userId) || activity(userId) != null)
@@ -1000,6 +1026,7 @@ public class WorldChannelRegistry implements ChannelPresence {
                             || !carryAvailable(user)).collect(java.util.stream.Collectors.toSet()));
                     var frozen = new java.util.HashSet<>(seated);
                     frozen.addAll(room.held);
+                    frozen.addAll(room.winterFrozen);
                     if (clientPositions) room.users.stream().filter(user -> activity(user) != null).forEach(frozen::add);
                     var links = targets.getOrDefault(room.definition.channelId(), Map.of());
                     room.physics.step(tick, frozen, links);
@@ -1309,6 +1336,7 @@ public class WorldChannelRegistry implements ChannelPresence {
         private final Map<String, TableSeat> tableSeats = new HashMap<>();
         private List<PublicTable> tables = List.of();
         private final java.util.Set<String> held = new java.util.HashSet<>();
+        private final java.util.Set<String> winterFrozen = new java.util.HashSet<>();
         private final java.util.Set<String> interactionBusy = new java.util.HashSet<>();
         private final java.util.Set<String> vrUsers = new java.util.HashSet<>();
         private final java.util.Set<String> minigameUsers = new java.util.HashSet<>();

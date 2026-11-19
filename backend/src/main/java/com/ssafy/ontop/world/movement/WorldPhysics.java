@@ -1581,6 +1581,22 @@ public final class WorldPhysics implements AutoCloseable {
         }
     }
 
+    public boolean snowPileInReach(String userId, String pileId) {
+        return call(() -> {
+            Actor actor = actors.get(userId);
+            if (actor == null) { return false; }
+            Vector3f p = actor.body.getPhysicsLocation(null);
+            for (JsonNode pile : scene.data.path("winterSnowPiles")) {
+                if (pile.path("id").asText().equals(pileId)) {
+                    double centerY = pile.path("y").asDouble() + number("halfHeight") + number("radius") + number("offset");
+                    return Math.hypot(p.x - pile.path("x").asDouble(), p.z - pile.path("z").asDouble())
+                            <= pile.path("radius").asDouble() && Math.abs(p.y - centerY) <= .65;
+                }
+            }
+            return false;
+        });
+    }
+
     /** 눈덩이 포물선과 정적 구조물의 첫 충돌 거리를 반환한다. */
     public double snowballDistance(double x, double y, double z, double yaw) {
         return call(() -> {

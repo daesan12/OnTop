@@ -1,3 +1,4 @@
+import { winterFrozen } from '../../features/winter/state'
 import { acceptAlkkagiSocial, resetAlkkagiSocial, syncAlkkagiSocial } from '../../game/alkkagi/spectatorEvents'
 import { notifyOwnBalloonEnd, receiveRemoteBalloon } from '../../features/balloon/remoteRide'
 import type { BalloonBoarding, Input as BalloonInput, Point as BalloonPoint } from '../../features/balloon/flight'
@@ -1209,6 +1210,15 @@ export class ParkRuntime implements ParkRuntimePort {
     return sync()
   }
   // Carry commands stay in the park: retain mouse look while actionBusy still serializes requests.
+  pickupSnowball = (pileId: string) => this.action(async () => {
+    await this.socket.request('WORLD_SNOWBALL_PICKUP', { pileId }, ['WORLD_SNOWBALL_STATE'])
+  }, { blockControls: false })
+  escapeSnowball = async (freezeId: string, key: 'A' | 'D') => {
+    try {
+      await this.socket.request('WORLD_SNOWBALL_ESCAPE', { freezeId, key }, ['WORLD_SNOWBALL_STATE'])
+      return true
+    } catch (error) { this.report(error); return false }
+  }
   throwSnowball = (yaw: number) => this.action(async () => {
     await this.socket.request('WORLD_SNOWBALL_THROW', { yaw }, ['WORLD_SNOWBALL_EVENT'])
   }, { blockControls: false })
@@ -1250,7 +1260,7 @@ export class ParkRuntime implements ParkRuntimePort {
   private canSendMovement(intent: MovementIntent) {
     const s = useSession.getState()
     return this.active && s.status === 'connected' && !!s.roomId && s.mapCompatible && avatars.has(s.sessionId)
-      && !facilityMovementBlocked(s.sessionId)
+      && !winterFrozen(s.sessionId, estimatedServerTime()) && !facilityMovementBlocked(s.sessionId)
       && (!avatars.get(s.sessionId)?.carry || avatars.get(s.sessionId)?.carry?.role === 'CARRIER')
       && !tableBusy() && !s.tableId && (!useGame.getState().watchedGameId || stoppedIntent(intent))
       && (!(inputState.minigameOpen || inputState.localBalloon) || stoppedIntent(intent))
