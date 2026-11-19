@@ -2,6 +2,7 @@ import { getAuthSession, restoreAuthSession } from '../../auth/authFlow'
 
 export type ContactStatus = 'NOT_SUBMITTED' | 'SUBMITTED' | 'EXPIRED'
 export type AwardType = 'RAFFLE' | 'BUNGEOPPANG' | 'JUMPMAP' | 'ASSET_VALUE'
+  | 'MG_MOLE' | 'MG_SPEED_MOLE' | 'MG_JUMP_ROPE' | 'MG_JUMPMAP_220'
 
 export interface Winning {
   winnerId: number
@@ -40,6 +41,8 @@ const invalid = (): never => { throw new WinnerContactsError('당첨 내역 응�
 
 export const awardLabels: Record<AwardType, string> = {
   RAFFLE: '응모권 추첨', BUNGEOPPANG: '붕어빵', JUMPMAP: '점프맵', ASSET_VALUE: '엽전 보유량',
+  MG_MOLE: '두더지 잡기', MG_SPEED_MOLE: '스피드 두더지 잡기',
+  MG_JUMP_ROPE: '구구구 줄넘기', MG_JUMPMAP_220: '점프맵',
 }
 
 export function parseWinnings(value: unknown): Winning[] {
