@@ -106,6 +106,14 @@ export function loadWeeklyGames(week: string, signal: AbortSignal): Promise<Week
   return request(base(week), 'GET', signal, value => parseWeeklyGames(value, week))
 }
 
+export function prepareWeeklyBackfill(signal: AbortSignal): Promise<boolean> {
+  return request('/api/v1/admin/events/minigames/backfills/2026-11-09/prepare', 'POST', signal,
+    value => {
+      if (!Array.isArray(value) || value.length !== 4) return invalid()
+      return true
+    })
+}
+
 export function loadWeeklyRanking(week: string, gameCode: string, signal: AbortSignal): Promise<WeeklyRanking> {
   return request(`${gamePath(week, gameCode)}/ranking`, 'GET', signal,
     value => parseWeeklyRanking(value, week, gameCode))

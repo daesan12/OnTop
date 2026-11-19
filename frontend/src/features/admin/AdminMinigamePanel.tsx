@@ -2,15 +2,15 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { AdminAccess } from './adminAccess'
 import { AdminEventsError, finalizeEventRound, firstMinigameWeek,
   legacyMinigameLabels, loadEventRound, schedule, type EventKind, type EventRound } from './adminEvents'
-import { confirmWeeklyRanking, loadWeeklyGames, loadWeeklyRanking,
+import { confirmWeeklyRanking, loadWeeklyGames, loadWeeklyRanking, prepareWeeklyBackfill,
   type WeeklyGame, type WeeklyRanking } from './weeklyMinigameAwards'
 
 const displayTime = (value: string) => new Intl.DateTimeFormat('ko-KR', {
   timeZone: 'Asia/Seoul', dateStyle: 'medium', timeStyle: 'short',
 }).format(new Date(value))
-const metric = (code: string, value: number) => code === 'JUMPMAP'
+const metric = (code: string, value: number) => ['JUMPMAP', 'MG_JUMPMAP_220'].includes(code)
   ? `${value.toLocaleString('ko-KR')}ms` : code === 'BUNGEOPPANG'
-    ? `${value.toLocaleString('ko-KR')}점` : `검증값 ${value.toLocaleString('ko-KR')}`
+    ? `${value.toLocaleString('ko-KR')}점` : `${value.toLocaleString('ko-KR')}점`
 const changed = (before: WeeklyRanking, after: WeeklyRanking) => before.status !== after.status
   || before.candidateCount !== after.candidateCount || before.excludedGmCount !== after.excludedGmCount
   || (before.ranks[0]?.sourceRecordId ?? null) !== (after.ranks[0]?.sourceRecordId ?? null)
@@ -46,6 +46,23 @@ export function AdminMinigamePanel({ week, access, onAuthEnded, onFinalized }: {
 
   useEffect(() => { void reload(); return () => request.current?.abort() }, [reload])
   const game = games.find(item => item.gameCode === selected)
+  const backfillWeek = week === '2026-11-09' || week === '2026-11-16'
+  const backfillComplete = backfillWeek && games.length >= 2
+
+  async function prepareBackfill() {
+    if (!access.canOperate || loading) return
+    request.current?.abort()
+    const controller = request.current = new AbortController()
+    setLoading(true); setError('')
+    try {
+      await prepareWeeklyBackfill(controller.signal)
+      if (!controller.signal.aborted) await reload()
+    } catch (cause) {
+      if (controller.signal.aborted) return
+      if (cause instanceof AdminEventsError && cause.kind === 'unauthenticated') onAuthEnded()
+      else setError(cause instanceof Error ? cause.message : '소급 정산 회차를 준비하지 못했습니다.')
+    } finally { if (!controller.signal.aborted) setLoading(false) }
+  }
 
   return <section className="admin-events-panel" aria-label="미니게임 행사 관리">
     <div className="admin-events-panel-head"><h3>미니게임 1위 · {week || '회차 미선택'}</h3>
@@ -56,6 +73,8 @@ export function AdminMinigamePanel({ week, access, onAuthEnded, onFinalized }: {
     {error && <p role="alert" className="admin-feedback-error">{error}</p>}
     {week && !legacy && !loading && !error && games.length === 0 &&
       <p>이 주차에 등록되어 활성화된 미니게임이 없습니다. 행사 기간과 상품 설정을 확인해주세요.</p>}
+    {week && !legacy && !loading && !error && backfillWeek && !backfillComplete && access.canOperate &&
+      <button type="button" onClick={() => void prepareBackfill()}>11월 이벤트 소급 정산 회차 준비</button>}
     {week && (legacy || games.length > 0) && <label className="admin-events-game-select">
       미니게임 선택
       <select value={selected} onChange={event => setSelected(event.target.value)}>
@@ -149,7 +168,7 @@ function WeeklyMinigame({ week, game, access, onAuthEnded, onFinalized }: {
     {loading && <p role="status">서버 검증 기록을 조회하고 있습니다…</p>}
     {error && <p role="alert" className="admin-feedback-error">{error}</p>}
     {ranking && !loading && <>
-      <p>후보 {ranking.candidateCount}명 · GM 제외 {ranking.excludedGmCount}명 · 제외 후 {ranking.candidateCount - ranking.excludedGmCount}명</p>
+      <p>후보 {ranking.candidateCount}명 · GM·검토 제외 {ranking.excludedGmCount}명 · 제외 후 {ranking.candidateCount - ranking.excludedGmCount}명</p>
       {ranking.status === 'PROVISIONAL' && <p role="status">기록 마감과 정산 대기 전의 잠정 순위입니다. 아직 확정할 수 없습니다.</p>}
       {ranking.status !== 'FINALIZED' && Date.now() >= Date.parse(game.announcesAt) &&
         <p role="status">발표 시각이 지났지만 결과가 아직 확정되지 않았습니다. 검증 랭킹과 확정 상태를 확인해주세요.</p>}

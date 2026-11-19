@@ -1,6 +1,9 @@
 package com.ssafy.ontop.event.minigame;
 
 import com.ssafy.ontop.event.minigame.MinigameAwardResponse.Winner;
+import com.ssafy.ontop.game.jumprope.JumpRopeRulesV2;
+import com.ssafy.ontop.game.mole.domain.MoleRules;
+import com.ssafy.ontop.game.speedmole.SpeedMoleRules;
 import com.ssafy.ontop.minigame.service.BungeoppangV5Spec;
 import com.ssafy.ontop.world.jumpmap.JumpCourse;
 import com.ssafy.ontop.world.jumpmap.JumpmapRankingEligibility;
@@ -60,6 +63,19 @@ public final class MinigameAwardRepository {
         return type == MinigameAwardType.BUNGEOPPANG
                 ? bungeoppangCandidates(startsAt, endsAt)
                 : jumpmapCandidates(startsAt, endsAt);
+    }
+
+    /** Verified records used by the configurable and one-off reviewed award flow. */
+    public List<Candidate> weeklyCandidates(String code, Instant startsAt, Instant endsAt) {
+        return switch (code) {
+            case "BUNGEOPPANG" -> bungeoppangCandidates(startsAt, endsAt);
+            case "JUMPMAP" -> jumpmapCandidates(startsAt, endsAt);
+            case "MG_MOLE" -> moleCandidates(startsAt, endsAt);
+            case "MG_SPEED_MOLE" -> speedMoleCandidates(startsAt, endsAt);
+            case "MG_JUMP_ROPE" -> jumpRopeCandidates(startsAt, endsAt);
+            case "MG_JUMPMAP_220" -> renewalJumpmapCandidates(startsAt, endsAt);
+            default -> throw new IllegalArgumentException("Unsupported weekly minigame award: " + code);
+        };
     }
 
     private List<Candidate> bungeoppangCandidates(Instant startsAt, Instant endsAt) {
@@ -130,6 +146,100 @@ public final class MinigameAwardRepository {
                 rows.getLong("user_id"), rows.getString("nickname"), rows.getLong("finish_ms"),
                 rows.getTimestamp("ended_at").toInstant(), 0),
                 JumpCourse.STAGES, JumpCourse.RULES_VERSION, JumpCourse.COURSE_VERSION,
+                Timestamp.from(startsAt), Timestamp.from(endsAt));
+    }
+
+    private List<Candidate> moleCandidates(Instant startsAt, Instant endsAt) {
+        return jdbc.query("""
+                WITH eligible AS (
+                    SELECT r.id AS record_id, r.user_id, r.score, r.max_combo, r.settled_at
+                    FROM mole_rounds r JOIN users u ON u.id = r.user_id
+                    WHERE r.status = 'SETTLED' AND r.rules_version = ?
+                      AND r.settled_at >= ? AND r.settled_at < ?
+                      AND u.deleted_at IS NULL
+                ), choices AS (
+                    SELECT eligible.*, ROW_NUMBER() OVER (PARTITION BY user_id
+                        ORDER BY score DESC, max_combo DESC, settled_at ASC, record_id ASC) AS choice
+                    FROM eligible
+                )
+                SELECT CAST(choices.record_id AS CHAR) AS record_id, choices.user_id,
+                       u.nickname, score, max_combo, settled_at
+                FROM choices JOIN users u ON u.id = choices.user_id WHERE choice = 1
+                ORDER BY score DESC, max_combo DESC, settled_at ASC, record_id ASC, user_id ASC
+                """, (rows, index) -> new Candidate(rows.getString("record_id"),
+                rows.getLong("user_id"), rows.getString("nickname"), rows.getLong("score"),
+                rows.getTimestamp("settled_at").toInstant(), rows.getLong("max_combo")),
+                MoleRules.RULES_VERSION, Timestamp.from(startsAt), Timestamp.from(endsAt));
+    }
+
+    private List<Candidate> speedMoleCandidates(Instant startsAt, Instant endsAt) {
+        return jdbc.query("""
+                WITH eligible AS (
+                    SELECT r.id AS record_id, r.user_id, r.score, r.misses, r.completed_at
+                    FROM speed_mole_rounds r JOIN users u ON u.id = r.user_id
+                    WHERE r.status = 'SETTLED' AND r.rules_version = ?
+                      AND r.completed_at >= ? AND r.completed_at < ?
+                      AND u.deleted_at IS NULL
+                ), choices AS (
+                    SELECT eligible.*, ROW_NUMBER() OVER (PARTITION BY user_id
+                        ORDER BY score DESC, misses ASC, completed_at ASC, record_id ASC) AS choice
+                    FROM eligible
+                )
+                SELECT CAST(choices.record_id AS CHAR) AS record_id, choices.user_id,
+                       u.nickname, score, misses, completed_at
+                FROM choices JOIN users u ON u.id = choices.user_id WHERE choice = 1
+                ORDER BY score DESC, misses ASC, completed_at ASC, record_id ASC, user_id ASC
+                """, (rows, index) -> new Candidate(rows.getString("record_id"),
+                rows.getLong("user_id"), rows.getString("nickname"), rows.getLong("score"),
+                rows.getTimestamp("completed_at").toInstant(), rows.getLong("misses")),
+                SpeedMoleRules.VERSION, Timestamp.from(startsAt), Timestamp.from(endsAt));
+    }
+
+    private List<Candidate> jumpRopeCandidates(Instant startsAt, Instant endsAt) {
+        return jdbc.query("""
+                WITH eligible AS (
+                    SELECT r.id AS record_id, r.user_id, r.score, r.miss_count, r.completed_at
+                    FROM jump_rope_rounds r JOIN users u ON u.id = r.user_id
+                    WHERE r.status = 'SETTLED' AND r.rules_version = ?
+                      AND r.started_at >= ? AND r.completed_at < ?
+                      AND u.deleted_at IS NULL
+                ), choices AS (
+                    SELECT eligible.*, ROW_NUMBER() OVER (PARTITION BY user_id
+                        ORDER BY score DESC, miss_count ASC, completed_at ASC, record_id ASC) AS choice
+                    FROM eligible
+                )
+                SELECT CAST(choices.record_id AS CHAR) AS record_id, choices.user_id,
+                       u.nickname, score, miss_count, completed_at
+                FROM choices JOIN users u ON u.id = choices.user_id WHERE choice = 1
+                ORDER BY score DESC, miss_count ASC, completed_at ASC, record_id ASC, user_id ASC
+                """, (rows, index) -> new Candidate(rows.getString("record_id"),
+                rows.getLong("user_id"), rows.getString("nickname"), rows.getLong("score"),
+                rows.getTimestamp("completed_at").toInstant(), rows.getLong("miss_count")),
+                JumpRopeRulesV2.VERSION, Timestamp.from(startsAt), Timestamp.from(endsAt));
+    }
+
+    private List<Candidate> renewalJumpmapCandidates(Instant startsAt, Instant endsAt) {
+        return jdbc.query("""
+                WITH eligible AS (
+                    SELECT r.id AS record_id, r.user_id, r.finish_ms, r.ended_at
+                    FROM jump_runs r JOIN users u ON u.id = r.user_id
+                    WHERE r.status = 'ENDED' AND r.end_reason = 'FINISH'
+                      AND r.suspicious = FALSE AND r.finish_ms > 0
+                      AND r.final_reached = TRUE AND r.gates_passed = 10
+                      AND r.rules_version = 'v4' AND r.course_version = 'park220-jump10-v1'
+                      AND r.ended_at >= ? AND r.ended_at < ?
+                      AND u.deleted_at IS NULL
+                ), choices AS (
+                    SELECT eligible.*, ROW_NUMBER() OVER (PARTITION BY user_id
+                        ORDER BY finish_ms ASC, ended_at ASC, record_id ASC) AS choice
+                    FROM eligible
+                )
+                SELECT choices.record_id, choices.user_id, u.nickname, finish_ms, ended_at
+                FROM choices JOIN users u ON u.id = choices.user_id WHERE choice = 1
+                ORDER BY finish_ms ASC, ended_at ASC, record_id ASC, user_id ASC
+                """, (rows, index) -> new Candidate(rows.getString("record_id"),
+                rows.getLong("user_id"), rows.getString("nickname"), rows.getLong("finish_ms"),
+                rows.getTimestamp("ended_at").toInstant(), 0),
                 Timestamp.from(startsAt), Timestamp.from(endsAt));
     }
 

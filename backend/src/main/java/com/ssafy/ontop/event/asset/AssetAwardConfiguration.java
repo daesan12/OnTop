@@ -2,6 +2,7 @@ package com.ssafy.ontop.event.asset;
 
 import com.ssafy.ontop.admin.security.AdminAccessPolicy;
 import com.ssafy.ontop.config.RuntimeProfiles;
+import com.ssafy.ontop.event.EventAwardExclusions;
 import java.time.Clock;
 import java.time.LocalDate;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -26,9 +27,10 @@ public class AssetAwardConfiguration {
     AssetAwardService assetAwardService(AssetAwardRepository repository,
             AdminAccessPolicy administrators, PlatformTransactionManager transactions,
             @Qualifier("oauthClock") Clock clock,
-            @Value("${ASSET_AWARD_WEEK:2026-11-09}") String eventWeek) {
+            @Value("${ASSET_AWARD_WEEK:2026-11-09}") String eventWeek,
+            @Value("${EVENT_AWARD_EXCLUDED_USER_IDS:}") String excludedUserIds) {
         return new AssetAwardService(repository, administrators, transactions,
-                clock, LocalDate.parse(eventWeek));
+                clock, LocalDate.parse(eventWeek), EventAwardExclusions.parse(excludedUserIds));
     }
 
     @Bean

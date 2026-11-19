@@ -51,6 +51,23 @@ export interface EventRound {
   vacantPrizeCount: number
   winners: EventWinner[]
 }
+export interface AssetPreviewRank {
+  place: number
+  userId: number
+  nickname: string
+  sourceRecordId: string
+  coinBalance: number
+  firstReachedAt: string
+}
+export interface AssetPreview {
+  week: string
+  startsAt: string
+  endsAt: string
+  announcesAt: string
+  candidateCount: number
+  excludedGmCount: number
+  ranks: AssetPreviewRank[]
+}
 export interface AdminEventWinner {
   winnerId: number
   userId: number
@@ -111,6 +128,12 @@ export function schedule(week: string, kind: EventKind) {
   const next = new Date(`${week}T00:00:00Z`)
   next.setUTCDate(next.getUTCDate() + 7)
   const nextWeek = next.toISOString().slice(0, 10)
+  if (kind === 'asset' && week === assetWeek) return {
+    startsAt: '2026-11-09T09:00:00+09:00',
+    endsAt: '2026-11-19T00:00:00+09:00',
+    eligibleAt: '2026-11-19T00:05:00+09:00',
+    announcesAt: '2026-11-19T09:00:00+09:00',
+  }
   return {
     startsAt: `${week}T09:00:00+09:00`,
     endsAt: `${nextWeek}T00:00:00+09:00`,
@@ -196,6 +219,25 @@ export function parseEventRound(value: unknown, kind: EventKind, week: string): 
     excludedGmCount: value.finalized ? value.excludedGmCount : null,
     expectedPrizeCount, awardedPrizeCount: winners.length,
     vacantPrizeCount: expectedPrizeCount - winners.length, winners }
+}
+
+export function parseAssetPreview(value: unknown, week: string): AssetPreview {
+  if (!record(value) || value.eventType !== 'ASSET_VALUE' || value.valuationBasis !== 'COIN_BALANCE'
+    || value.weekStartDate !== week || value.status !== 'READY'
+    || !instant(value.startsAt) || !instant(value.endsAt) || !instant(value.announcesAt)
+    || !integer(value.candidateCount) || !integer(value.excludedGmCount)
+    || value.excludedGmCount > value.candidateCount || !Array.isArray(value.ranks)) return invalid()
+  const ranks = value.ranks.map((item): AssetPreviewRank => {
+    if (!record(item) || !positive(item.place) || !positive(item.userId) || typeof item.nickname !== 'string'
+      || !item.nickname.trim() || typeof item.sourceRecordId !== 'string' || !item.sourceRecordId
+      || !integer(item.coinBalance) || !instant(item.firstReachedAt)) return invalid()
+    return { place: item.place, userId: item.userId, nickname: item.nickname,
+      sourceRecordId: item.sourceRecordId, coinBalance: item.coinBalance,
+      firstReachedAt: item.firstReachedAt }
+  })
+  if (ranks.length > 3 || ranks.some((rank, index) => rank.place !== index + 1)) return invalid()
+  return { week, startsAt: value.startsAt, endsAt: value.endsAt, announcesAt: value.announcesAt,
+    candidateCount: value.candidateCount, excludedGmCount: value.excludedGmCount, ranks }
 }
 
 export function parseAdminWinners(value: unknown): AdminWinnersPage {
@@ -299,6 +341,21 @@ export async function loadEventRound(kind: EventKind, week: string, signal: Abor
 
 export function finalizeEventRound(kind: EventKind, week: string, signal: AbortSignal): Promise<EventRound> {
   return request(`${roundPath(kind, week)}/finalize`, 'POST', signal, value => parseEventRound(value, kind, week))
+}
+
+export function loadAssetPreview(week: string, signal: AbortSignal): Promise<AssetPreview> {
+  return request(`${roundPath('asset', week)}/preview`, 'GET', signal,
+    value => parseAssetPreview(value, week))
+}
+
+export function confirmAssetPreview(week: string, preview: AssetPreview,
+  signal: AbortSignal): Promise<EventRound> {
+  return request(`${roundPath('asset', week)}/finalize`, 'POST', signal,
+    value => parseEventRound(value, 'asset', week), {
+      candidateCount: preview.candidateCount,
+      excludedGmCount: preview.excludedGmCount,
+      expectedSourceRecordIds: preview.ranks.map(rank => rank.sourceRecordId),
+    })
 }
 
 export async function loadCurrentRaffleReview(week: string, signal: AbortSignal): Promise<RaffleReview | null> {

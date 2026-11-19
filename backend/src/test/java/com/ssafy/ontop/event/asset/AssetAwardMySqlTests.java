@@ -26,7 +26,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class AssetAwardMySqlTests {
     private static final LocalDate WEEK = LocalDate.of(2026, 11, 9);
     private static final Instant START = Instant.parse("2026-11-09T00:00:00Z");
-    private static final Instant END = Instant.parse("2026-11-15T15:00:00Z");
+    private static final Instant END = Instant.parse("2026-11-18T15:00:00Z");
     private JdbcTemplate jdbc;
 
     @Test
@@ -70,13 +70,27 @@ class AssetAwardMySqlTests {
         assertThat(service(repository, admins, manager, END.plusSeconds(9 * 3600))
                 .memberResult(WEEK, early).status()).isEqualTo("PENDING");
         assertThat(repository.round(WEEK, false)).isEmpty();
-        assertThatThrownBy(() -> before.finalizeRound(WEEK, gm))
+        assertThatThrownBy(() -> before.finalizeRound(WEEK, gm,
+                new AssetAwardFinalizeRequest(0, 0, java.util.List.of())))
                 .isInstanceOf(AssetAwardException.class)
                 .satisfies(error -> assertThat(((AssetAwardException) error).code())
                         .isEqualTo("EVENT_RECORDS_OPEN"));
 
         var awards = service(repository, admins, manager, END.plusSeconds(300));
-        var result = awards.finalizeRound(WEEK, gm);
+        var preview = awards.preview(WEEK, gm);
+        assertThat(repository.round(WEEK, false)).isEmpty();
+        assertThat(preview.ranks()).extracting(value -> value.userId())
+                .containsExactly(early, later, third);
+        var expected = new AssetAwardFinalizeRequest(preview.candidateCount(), preview.excludedGmCount(),
+                preview.ranks().stream().map(value -> value.sourceRecordId()).toList());
+        assertThatThrownBy(() -> awards.finalizeRound(WEEK, gm,
+                new AssetAwardFinalizeRequest(preview.candidateCount(), preview.excludedGmCount(),
+                        java.util.List.of("wallet_transaction:wrong"))))
+                .isInstanceOf(AssetAwardException.class)
+                .satisfies(error -> assertThat(((AssetAwardException) error).code())
+                        .isEqualTo("EVENT_RANKING_CHANGED"));
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM event_asset_snapshots", Integer.class)).isZero();
+        var result = awards.finalizeRound(WEEK, gm, expected);
         assertThat(result.finalized()).isTrue();
         assertThat(result.valuationBasis()).isEqualTo("COIN_BALANCE");
         assertThat(result.candidateCount()).isEqualTo(5);
@@ -92,7 +106,7 @@ class AssetAwardMySqlTests {
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM event_asset_snapshots "
                 + "WHERE event_round_id = (SELECT id FROM event_rounds WHERE event_type = 'ASSET_VALUE')",
                 Integer.class)).isEqualTo(5);
-        assertThat(awards.finalizeRound(WEEK, gm).alreadyFinalized()).isTrue();
+        assertThat(awards.finalizeRound(WEEK, gm, expected).alreadyFinalized()).isTrue();
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM event_winners w JOIN event_rounds r "
                 + "ON r.id = w.event_round_id WHERE r.event_type = 'ASSET_VALUE'", Integer.class))
                 .isEqualTo(3);
