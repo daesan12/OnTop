@@ -16,8 +16,10 @@ import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -50,7 +52,8 @@ public final class WeeklyMinigameAwardService {
     private final TransactionTemplate writes;
     private final TransactionTemplate reads;
     private final Clock clock;
-    private final Set<Long> reviewedExcludedUserIds;
+    private final Set<Long> globallyExcludedUserIds;
+    private final Map<String, Set<Long>> excludedUserIdsByGame;
 
     public WeeklyMinigameAwardService(WeeklyMinigameRepository configurations,
             MinigameAwardRepository records, AdminAccessPolicy admins,
@@ -61,6 +64,13 @@ public final class WeeklyMinigameAwardService {
     public WeeklyMinigameAwardService(WeeklyMinigameRepository configurations,
             MinigameAwardRepository records, AdminAccessPolicy admins,
             PlatformTransactionManager transactions, Clock clock, Set<Long> reviewedExcludedUserIds) {
+        this(configurations, records, admins, transactions, clock, reviewedExcludedUserIds, Map.of());
+    }
+
+    public WeeklyMinigameAwardService(WeeklyMinigameRepository configurations,
+            MinigameAwardRepository records, AdminAccessPolicy admins,
+            PlatformTransactionManager transactions, Clock clock, Set<Long> globallyExcludedUserIds,
+            Map<String, Set<Long>> excludedUserIdsByGame) {
         this.configurations = configurations;
         this.records = records;
         this.admins = admins;
@@ -69,11 +79,18 @@ public final class WeeklyMinigameAwardService {
         this.reads = new TransactionTemplate(transactions);
         this.reads.setReadOnly(true);
         this.clock = clock;
-        if (reviewedExcludedUserIds == null
-                || reviewedExcludedUserIds.stream().anyMatch(id -> id == null || id <= 0)) {
+        if (globallyExcludedUserIds == null
+                || globallyExcludedUserIds.stream().anyMatch(id -> id == null || id <= 0)) {
             throw new IllegalArgumentException("이벤트 제외 회원은 양수 ID여야 합니다.");
         }
-        this.reviewedExcludedUserIds = Set.copyOf(reviewedExcludedUserIds);
+        if (excludedUserIdsByGame == null || excludedUserIdsByGame.entrySet().stream().anyMatch(entry ->
+                entry.getKey() == null || entry.getKey().isBlank() || entry.getValue() == null
+                        || entry.getValue().stream().anyMatch(id -> id == null || id <= 0))) {
+            throw new IllegalArgumentException("게임별 이벤트 제외 회원 설정을 확인하세요.");
+        }
+        this.globallyExcludedUserIds = Set.copyOf(globallyExcludedUserIds);
+        this.excludedUserIdsByGame = excludedUserIdsByGame.entrySet().stream().collect(
+                Collectors.toUnmodifiableMap(Map.Entry::getKey, entry -> Set.copyOf(entry.getValue())));
     }
 
     public List<Game> games(LocalDate week, long adminId) {
@@ -178,7 +195,7 @@ public final class WeeklyMinigameAwardService {
             int excluded = 0;
             List<Rank> ranks = new ArrayList<>();
             for (Candidate candidate : candidates) {
-                if (excluded(candidate.userId())) {
+                if (excluded(game.gameCode(), candidate.userId())) {
                     excluded++;
                 } else if (ranks.size() < PREVIEW_LIMIT) {
                     ranks.add(new Rank(ranks.size() + 1, candidate.userId(), candidate.nickname(), candidate.recordId(),
@@ -218,7 +235,7 @@ public final class WeeklyMinigameAwardService {
             int excluded = 0;
             Candidate winner = null;
             for (Candidate candidate : candidates) {
-                if (excluded(candidate.userId())) {
+                if (excluded(game.gameCode(), candidate.userId())) {
                     excluded++;
                 } else if (winner == null) {
                     winner = candidate;
@@ -347,8 +364,9 @@ public final class WeeklyMinigameAwardService {
         }
     }
 
-    private boolean excluded(long userId) {
-        return admins.canRead(userId) || reviewedExcludedUserIds.contains(userId);
+    private boolean excluded(String gameCode, long userId) {
+        return admins.canRead(userId) || globallyExcludedUserIds.contains(userId)
+                || excludedUserIdsByGame.getOrDefault(gameCode, Set.of()).contains(userId);
     }
 
     private void requireBackfillMatch(AwardSpec spec, ConfiguredGame game) {

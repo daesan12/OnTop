@@ -294,6 +294,10 @@ class RestSecurityTests {
         mvc.perform(authAs(43, post(weeklyPath + "/BUNGEOPPANG/finalize")
                 .contentType(org.springframework.http.MediaType.APPLICATION_JSON)))
                 .andExpect(status().isBadRequest());
+        String backfillPath = "/api/v1/admin/events/minigames/backfills/2026-11-09/prepare";
+        mvc.perform(post(backfillPath)).andExpect(status().isUnauthorized());
+        mvc.perform(auth(post(backfillPath))).andExpect(status().isForbidden());
+        mvc.perform(authAs(43, post(backfillPath))).andExpect(status().isServiceUnavailable());
         mvc.perform(get("/api/v1/events/minigames/rounds/2026-11-09/games/BUNGEOPPANG/result"))
                 .andExpect(status().isUnauthorized());
     }
@@ -304,8 +308,12 @@ class RestSecurityTests {
         mvc.perform(get(adminPath)).andExpect(status().isUnauthorized());
         mvc.perform(authAs(44, get(adminPath))).andExpect(status().isForbidden());
         mvc.perform(auth(get(adminPath))).andExpect(status().isServiceUnavailable());
+        mvc.perform(get(adminPath + "/preview")).andExpect(status().isUnauthorized());
+        mvc.perform(authAs(44, get(adminPath + "/preview"))).andExpect(status().isForbidden());
+        mvc.perform(auth(get(adminPath + "/preview"))).andExpect(status().isServiceUnavailable());
         mvc.perform(auth(post(adminPath + "/finalize"))).andExpect(status().isForbidden());
-        mvc.perform(authAs(43, post(adminPath + "/finalize")))
+        mvc.perform(authAs(43, post(adminPath + "/finalize")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON).content("{}")))
                 .andExpect(status().isServiceUnavailable());
         mvc.perform(get("/api/v1/events/assets/rounds/2026-11-09/result"))
                 .andExpect(status().isUnauthorized());
@@ -546,6 +554,7 @@ class RestSecurityTests {
                 "GET /api/v1/events/minigames/{type}/rounds/{weekStart}/result",
                 "GET /api/v1/admin/events/minigames/{type}/rounds/{weekStart}",
                 "POST /api/v1/admin/events/minigames/{type}/rounds/{weekStart}/finalize",
+                "POST /api/v1/admin/events/minigames/backfills/{eventWeek}/prepare",
                 "GET /api/v1/admin/events/minigames/rounds/{weekStart}/games",
                 "GET /api/v1/admin/events/minigames/supported-games",
                 "PUT /api/v1/admin/events/minigames/rounds/{weekStart}/games/{gameCode}",
@@ -554,6 +563,7 @@ class RestSecurityTests {
                 "GET /api/v1/events/minigames/rounds/{weekStart}/games/{gameCode}/result",
                 "GET /api/v1/events/assets/rounds/{weekStart}/result",
                 "GET /api/v1/admin/events/assets/rounds/{weekStart}",
+                "GET /api/v1/admin/events/assets/rounds/{weekStart}/preview",
                 "POST /api/v1/admin/events/assets/rounds/{weekStart}/finalize",
                 "GET /api/v1/events/winnings/me",
                 "PUT /api/v1/events/winnings/weeks/{weekStart}/contact",

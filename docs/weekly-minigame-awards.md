@@ -18,7 +18,7 @@
 | `MG_JUMP_ROPE` | `jump-rope-v2` | 11/16 14:00 KST 이후 시작해 마감 전에 정산된 v2 기록 | 점수, 적은 실수, 먼저 달성한 순 |
 | `MG_JUMPMAP_220` | `v4-park220-jump10-v1` | 11/16 16:00 KST 이후의 정상 10구간 완주 기록 | 소요 시간, 먼저 달성한 순 |
 
-각 회원의 행사 기간 내 최고 기록 하나만 후보로 삼는다. 삭제된 회원은 SQL에서 제외하고 GM은 서버 관리자 조회 권한 목록을 기준으로 제외한다. 운영 검토가 끝난 추가 제외 회원은 `EVENT_AWARD_EXCLUDED_USER_IDS`에 내부 회원 ID를 쉼표로 구분해 넣는다. 동일한 수치와 부가 점수에서는 서버가 확정한 기록 시각이 빠른 사람이 우선이다. 그 시각도 같으면 기록 ID로 결정해 반복 조회 결과를 안정적으로 유지한다. 현재 지원 게임 외의 `MG_*` 코드는 V163 스키마에서 예약되어 있으나 검증 랭킹 어댑터가 구현될 때까지 API에서 설정·노출·확정할 수 없다.
+각 회원의 행사 기간 내 최고 기록 하나만 후보로 삼는다. 삭제된 회원은 SQL에서 제외한다. GM은 서버 관리자 조회 권한 목록과 `EVENT_AWARD_EXCLUDED_USER_IDS`를 기준으로 모든 미니게임상에서 제외한다. 확인된 매크로 계정은 `MINIGAME_AWARD_EXCLUDED_USER_IDS`에 `MG_MOLE:245;MG_SPEED_MOLE:271` 형식으로 넣어 해당 게임에서만 제외한다. 이 두 설정은 응모권 추첨 후보에는 영향을 주지 않는다. 동일한 수치와 부가 점수에서는 서버가 확정한 기록 시각이 빠른 사람이 우선이다. 그 시각도 같으면 기록 ID로 결정해 반복 조회 결과를 안정적으로 유지한다. 현재 지원 게임 외의 `MG_*` 코드는 V163 스키마에서 예약되어 있으나 검증 랭킹 어댑터가 구현될 때까지 API에서 설정·노출·확정할 수 없다.
 
 ## 2026-11 소급 정산
 
@@ -31,8 +31,8 @@
 1. 주차별 게임과 상품이 확정되면 운영 권한 관리자가 `PUT /api/v1/admin/events/minigames/rounds/{weekStart}/games/{gameCode}`에 기간과 규칙을 등록한다. `weekStart`는 KST 월요일이다. 기간은 해당 주차 안에 있어야 한다. 새 회차 등록은 기록 마감 전에만 가능하다. 기존 설정은 행사 시작 전까지만 변경할 수 있고 확정 후에는 변경할 수 없다.
    등록 가능한 코드와 정확한 규칙 버전은 `GET /api/v1/admin/events/minigames/supported-games`에서 조회한다.
 2. `GET /api/v1/admin/events/minigames/rounds/{weekStart}/games`는 활성화된, 서버가 지원하는 게임만 반환한다. 관리자 화면의 드롭다운은 이 응답을 사용한다.
-3. `GET /api/v1/admin/events/minigames/rounds/{weekStart}/games/{gameCode}/ranking`으로 후보 수, GM 제외 수, 상위 100명의 서버 기록 ID와 점수를 확인한다. 마감 후 5분이 지나기 전에는 `PROVISIONAL`, 이후에는 `READY`다.
-4. 관리자가 검토한 후보 수·GM 제외 수·1위 기록 ID를 `POST /api/v1/admin/events/minigames/rounds/{weekStart}/games/{gameCode}/finalize`에 보낸다. 확정 시 서버가 순위를 다시 계산해 값이 달라졌으면 `409 EVENT_RANKING_CHANGED`를 반환한다. 후보가 없으면 기록 ID는 `null`이고 공석으로 확정한다.
+3. `GET /api/v1/admin/events/minigames/rounds/{weekStart}/games/{gameCode}/ranking`으로 후보 수, 정책 제외 수, 상위 100명의 서버 기록 ID와 점수를 확인한다. 기존 응답 필드명 `excludedGmCount`는 호환성을 위해 유지하며 GM과 해당 게임의 매크로 제외를 합산한다. 마감 후 5분이 지나기 전에는 `PROVISIONAL`, 이후에는 `READY`다.
+4. 관리자가 검토한 후보 수·정책 제외 수·1위 기록 ID를 `POST /api/v1/admin/events/minigames/rounds/{weekStart}/games/{gameCode}/finalize`에 보낸다. 확정 시 서버가 순위를 다시 계산해 값이 달라졌으면 `409 EVENT_RANKING_CHANGED`를 반환한다. 후보가 없으면 기록 ID는 `null`이고 공석으로 확정한다.
 5. 같은 회차의 중복 요청은 저장된 당첨자를 그대로 반환한다. 확정된 결과는 이후 기록이나 설정 변경으로 바뀌지 않는다. 회원은 발표 시각 이후 `GET /api/v1/events/minigames/rounds/{weekStart}/games/{gameCode}/result`에서 본인 결과를 볼 수 있다.
 
 `PUT` 본문 예시(값은 **예시일 뿐**이며, 실제 2026-11-09 게임·상품이 결정되기 전에는 호출하지 않는다):
