@@ -4541,6 +4541,41 @@ paths:
                 type: object
       security:
       - AccessJwt: []
+  /api/v1/admin/raffles/rounds/{weekStart}/live-finalize:
+    post:
+      tags:
+      - Raffle
+      summary: 공개 추첨 행사 검토 결과 최종 확정
+      description: 공개 추첨 행사 회차에서만 연결된 모든 회차의 후보를 다시 검증한 뒤 확정한다. 행사에 포함된 원본 회차나 연결이
+        끝나지 않은 행사 회차는 거부한다.
+      operationId: finalizeLiveEventRound
+      parameters:
+      - name: weekStart
+        in: path
+        required: true
+        schema:
+          type: string
+          format: date
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConfirmRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RaffleDrawResponse"
+      security:
+      - AccessJwt: []
   /api/v1/admin/raffles/rounds/{weekStart}/finalize:
     post:
       tags:

@@ -121,6 +121,7 @@ abstract class OpenApiHttpTestSupport {
                 "POST /api/v1/admin/raffles/rounds/{weekStart}/draws",
                 "POST /api/v1/admin/raffles/rounds/{weekStart}/draws/reroll",
                 "POST /api/v1/admin/raffles/rounds/{weekStart}/finalize",
+                "POST /api/v1/admin/raffles/rounds/{weekStart}/live-finalize",
                 "GET /api/v1/events/minigames/{type}/rounds/{weekStart}/result",
                 "GET /api/v1/admin/events/minigames/{type}/rounds/{weekStart}",
                 "POST /api/v1/admin/events/minigames/{type}/rounds/{weekStart}/finalize",

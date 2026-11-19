@@ -248,6 +248,12 @@ class RestSecurityTests {
                         .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
                         .content("{\"drawId\":1}")))
                 .andExpect(status().isServiceUnavailable());
+        mvc.perform(auth(post(adminPath + "/live-finalize")))
+                .andExpect(status().isForbidden());
+        mvc.perform(authAs(43, post(adminPath + "/live-finalize")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("{\"drawId\":1}")))
+                .andExpect(status().isServiceUnavailable());
         mvc.perform(auth(get(adminPath + "/draws/current")))
                 .andExpect(status().isServiceUnavailable());
         mvc.perform(auth(post(adminPath + "/draws")))
@@ -551,6 +557,7 @@ class RestSecurityTests {
                 "POST /api/v1/admin/raffles/rounds/{weekStart}/draws",
                 "POST /api/v1/admin/raffles/rounds/{weekStart}/draws/reroll",
                 "POST /api/v1/admin/raffles/rounds/{weekStart}/finalize",
+                "POST /api/v1/admin/raffles/rounds/{weekStart}/live-finalize",
                 "GET /api/v1/events/minigames/{type}/rounds/{weekStart}/result",
                 "GET /api/v1/admin/events/minigames/{type}/rounds/{weekStart}",
                 "POST /api/v1/admin/events/minigames/{type}/rounds/{weekStart}/finalize",
