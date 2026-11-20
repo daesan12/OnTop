@@ -12,6 +12,7 @@ const plain = (value: unknown) => JSON.parse(JSON.stringify(value))
 describe('FE legacy map against the committed BE collision-feedback data', () => {
   it('matches the provenance fingerprint and facility version, not an arbitrary replacement string', () => {
     const manifest = readFileSync(new URL('../../../docs/integration/collision-feedback/source-manifest.json', import.meta.url))
+    expect(server.schemaVersion).toBe(1)
     expect(createHash('sha256').update(manifest).digest('hex')).toBe(EXPECTED_MAP_VERSION)
     expect(server.sourceSha256).toBe(EXPECTED_MAP_VERSION)
     expect(facilities.mapVersion).toBe(EXPECTED_MAP_VERSION)
