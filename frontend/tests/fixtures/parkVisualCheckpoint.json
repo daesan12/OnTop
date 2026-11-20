@@ -1,4 +1,10 @@
 {
+  "winterTreesReview20261120": {
+    "referenceCommit": "9c8069c8f5dd08e14ab9d8161fa4f7af13b9f8d4",
+    "reviewedFiles": [
+      { "file": "src/world/art/FacetedParkTreeInstances.tsx", "commit": "fe8ab8eb", "reason": "사용자 요청의 눈 덮인 로우폴리 침엽수에 coneGeometry 입력을 추가했다. 기존 기본 지오메트리·재질·나무 배치는 유지하며 겨울 호출부에서만 적설 침엽수 지오메트리를 선택한다." }
+    ]
+  },
   "mergedVisualSourceReview20261117": {
     "referenceCommit": "67c6d66bb9684e41b9646a99f13a3324678f47c1",
     "reviewedFiles": [
@@ -92,7 +98,7 @@
     "src/world/art/DistantLandscape.tsx": "4a4f23fb9abb6b1bc0aad5c7e5419231ec252dad1c0ad51ca7b62f9eddd79412",
     "src/world/art/EllipticalStation.tsx": "2065eaf9165e27b0cfae5b0b03ac54dd5ac14582378d81a20f5b77db624cb65e",
     "src/world/art/ExerciseStation.tsx": "8ff8c19543fbcf12b0a6771bcb582c4d18578da3da4061e53503d8a5750ee88a",
-    "src/world/art/FacetedParkTreeInstances.tsx": "173644cd2f3631ee647dabdfb6456c4d5d21111d359dab56524ac138077a4e92",
+    "src/world/art/FacetedParkTreeInstances.tsx": "dcd29733b4c68db67d9a3f58d3857b98c260d1e8a3b8ac650908dbb54a575727",
     "src/world/art/FartCloud.tsx": "312b785743a10b15fa96cb99af63c909648bfcfd446bc965047c864003489779",
     "src/world/art/fishCartGeometry.ts": "3d4f4654a48b3c1ad3ee18b599d6ee06de470ec2e68ab81eae6d28b2f351315a",
     "src/world/art/fishCartShape.ts": "0c0149238f0b03e65bf18c7b6de23bc726f3f94d1bb25089dc59665ea65bbe7c",
