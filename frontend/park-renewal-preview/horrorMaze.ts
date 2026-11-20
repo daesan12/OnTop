@@ -197,4 +197,3 @@ export function mazeDistance(maze: Maze, from: Cell, to: Cell) {
   }
   return Infinity
 }
-
