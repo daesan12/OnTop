@@ -428,7 +428,10 @@ export function buildRenewalPhysics(tables: readonly TableAnchor[]) {
     winterSnowPiles: SNOW_PILES.map(p => ({ ...p, y: groundSurfaceHeight(p.x, p.z) })), boxes, hulls, meshes, fountainPolicy, steppingStones: [], pavilionTunedJumpSpeed: 9.8,
     secretCorridor: { x0: HORROR.x0, x1: HORROR.x1, z0: HORROR.z0, z1: HORROR.z1, floor: HORROR.floor, ceiling: HORROR.ceiling },
     secretTerrainCuts, duckBoat: BOAT_ROUTE,
-    interiorAccess: { routes: interiorAccess, annex, upperArrival, entrancesOpen: SECRET_ENTRANCES_OPEN },
+    interiorAccess: { routes: interiorAccess, annex, upperArrival, entrancesOpen: SECRET_ENTRANCES_OPEN,
+      approaches: HORROR_PORTALS.map(p => ({ x0: Math.min(p.x, p.x + p.outward * 3.6),
+        x1: Math.max(p.x, p.x + p.outward * 3.6), z0: p.z - p.width / 2, z1: p.z + p.width / 2,
+        floor: p.floor, ceiling: p.floor + p.height })) },
     tower: { ...basePhysics.tower, x: tower.x, z: tower.z, height: 40, topY: towerRampStartY + 40, surfaceOffset: towerRampStartY },
     terrain: { ...basePhysics.terrain, halfSize: RENEWAL_HALF_SIZE, step: 1, columns: 221, rows: 221 },
     spawn: { ...basePhysics.spawn, position: [RENEWAL_SPAWN[0], spawnY, RENEWAL_SPAWN[1]] as Point3, groundClearance } }

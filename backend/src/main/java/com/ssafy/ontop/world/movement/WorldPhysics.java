@@ -998,7 +998,22 @@ public final class WorldPhysics implements AutoCloseable {
                 && position.y < scene.groundHeight(position.x, position.z)
                         + number("halfHeight") + number("radius") - .35
                 && !inSecretCorridor(position) && !nearSecretDoor(position, 1.4)
-                && !insideVolume(position, scene.data.path("interiorAccess").path("annex"));
+                && !insideVolume(position, scene.data.path("interiorAccess").path("annex"))
+                && !inInteriorApproach(position);
+    }
+
+    // 절개된 입구의 낮은 발판은 절벽의 원래 높이 조회값보다 아래에 있다.
+    private boolean inInteriorApproach(Vector3f position) {
+        var layout = scene.data.path("interiorAccess");
+        if (!layout.path("entrancesOpen").asBoolean(true)) {
+            return false;
+        }
+        for (var bounds : layout.path("approaches")) {
+            if (insideVolume(position, bounds)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean specialMovement(Vector3f p) { return swimming(p) || isTower(p); }

@@ -1,7 +1,7 @@
 import { HORROR_PORTALS } from './horrorPlan'
 
-// Flip this and regenerate the renewal map to reopen the outdoor entrances.
-export const SECRET_ENTRANCES_OPEN = false
+// Outdoor entrances and their terrain openings share the generated FE/BE map contract.
+export const SECRET_ENTRANCES_OPEN = true
 
 const floor = 8.35
 export const annex = { x0: -2.12, x1: 2.12, z0: -47.8, z1: -39.8, floor, ceiling: floor + 3 }
