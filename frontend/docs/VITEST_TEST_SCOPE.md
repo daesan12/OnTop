@@ -49,11 +49,11 @@ pnpm exec vitest run --config vitest.local.config.ts tests/local-unit/parkVisual
 
 `jumpRopeGrandpaHuman.test.ts`는 사람 3종 × seed 300개의 현재 설정 검사와, 실제 assertion에서 쓰는 서툰 사람의 과거 설정 300회를 유지한다. assertion 없이 표 출력에만 사용되던 다른 두 사람의 과거 설정 600회는 제거했다. seed·완주율·피격·회피 직후 MISS·과거 대비 개선 기준은 바꾸지 않았다.
 
-2026-11-20 로컬 Node 24.18.0, Vitest 5.0.4, `--maxWorkers=1`에서 같은 파일의 전체 실행 시간은 변경 전 11.98초, 변경 후 7.45초였다. 각 1회 측정 결과이며 서버·전체 Jenkins의 단축 시간을 보장하지 않는다.
+2026-11-20 로컬 Node 24.18.0, Vitest 5.0.4, `--maxWorkers=1`에서 같은 파일의 전체 실행 시간은 변경 전 11.98초, 변경 후 7.45초였다. 성능 측정 기준은 `6a690e05`이며 각 1회 측정 결과다. 서버·전체 Jenkins의 단축 시간을 보장하지 않는다.
 
 ## 이번 변경의 검증 기록
 
-- 기준 dev: `6a690e05a76063c5d6269d3443ecfebb4f902c41`, 작업 시작 시 최신 dev 포함. 통합 충돌 없음.
+- 시작 dev: `6a690e05a76063c5d6269d3443ecfebb4f902c41`. 추가 푸시 직전 `fa1516e15ea256e6ad903383dfec6e89b2dfed95`까지 merge로 반영했다. 새 dev 변경은 BE 월드 틱 계측 3개 파일이며 FE 변경은 없고 통합 충돌도 없다. 이 작업이 작성한 diff는 최신 dev 대비 FE 테스트와 문서에 한정된다.
 - 변경한 기본 회귀 7개 파일: 31 passed, 25 skipped. skip은 지침의 전수 검사이며 실행하지 않았다.
 - 줄넘기 사람 모델: 변경 전·후 각각 1 passed.
 - 분리한 로컬 검토 5개 파일: 소스 보존 검사 1 passed, 외부 trace가 없는 진단 5 skipped. 실제 trace 기반 재현은 미검증이다.
