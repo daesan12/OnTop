@@ -12,6 +12,7 @@ assertion에 쓰이지 않는 반복 계산과 같은 계약을 중복 확인하
 | `layoutJump.test.ts` | 실제 controller로 113개 표면을 모두 순회하는 본문 | 시작·보상·실패·게이트 순서·입력 버퍼 |
 | `parkCheckpoint.test.ts` | 19,881개 좌표의 이동·높이·수영 순회와 사용하지 않게 된 import | 기존 정적 배치 데이터 checkpoint |
 | `fixtures/parkCheckpoint.json` | 삭제한 순회만 사용하던 movement checksum | 기존 정적 배치 데이터 해시 전체를 값 변경 없이 보존 |
+| `horrorMaze.test.ts` (!647 통합) | 지하미궁 전체를 0.3m 격자로 탐색하는 초기화와 전체 셀 도달 검사 1건 | 미로 생성·벽 배치·길이·분기·램프·개별 경로·분필 화살표 검사 7건 |
 
 전수 탐색은 기존 사용자 지침의 실행 제외 대상이며 이번 요청에 따라 skip 본문을 남기지 않고 삭제했다. 자전거·킥보드 주행 검사는 추가하거나 실행하지 않았다.
 

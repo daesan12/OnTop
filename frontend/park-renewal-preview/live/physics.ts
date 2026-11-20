@@ -29,7 +29,7 @@ import { towerRampStartY } from '../towerEntrance'
 import { facilityYaw } from '../facilityPlacement'
 import { HORROR, HORROR_CRYPT, HORROR_PORTALS, HORROR_SOLIDS } from '../horrorPlan'
 import { horrorShell } from '../horrorGeometry'
-import { annex, annexVolumes, galleryVolumes, interiorAccess, passageVolumes, SECRET_ENTRANCES_OPEN, upperArrival, upperRamp, upperRoomVolumes } from '../interiorAccess'
+import { annex, annexVolumes, catwalkVolumes, galleryVolumes, interiorAccess, interiorRamps, passageVolumes, SECRET_ENTRANCES_OPEN, upperArrival, upperRoomVolumes } from '../interiorAccess'
 
 export const RENEWAL_HALF_SIZE = 110
 export const RENEWAL_SPAWN = [0, 96] as const
@@ -180,11 +180,11 @@ export function buildRenewalPhysics(tables: readonly TableAnchor[]) {
       [exterior, p.z + p.width / 2], [p.x, p.z + p.width / 2]], () => p.floor)
     putBox('interior-portal-' + p.id, [p.x, p.floor + p.height / 2, p.z], [.18, p.height / 2, p.width / 2])
   }
-  for (const [index, volume] of [...annexVolumes, ...passageVolumes, ...galleryVolumes, ...upperRoomVolumes].entries()) {
+  for (const [index, volume] of [...annexVolumes, ...passageVolumes, ...galleryVolumes, ...upperRoomVolumes, ...catwalkVolumes].entries()) {
     const [w, h, d] = volume.size
     putBox('interior-volume-' + index, volume.center, [w / 2, h / 2, d / 2])
   }
-  ramp('interior-upper-access', upperRamp.x, 0, upperRamp.width, upperRamp.z0, upperRamp.z1, upperRamp.y0, upperRamp.y1)
+  interiorRamps.forEach((r, i) => ramp('interior-upper-access-' + i, r.x, 0, r.width, r.z0, r.z1, r.y0, r.y1))
   for (const s of HORROR_SOLIDS) putBox('secret-corridor-' + s.id,
     [(s.x0 + s.x1) / 2, HORROR.floor + s.height / 2, (s.z0 + s.z1) / 2],
     [(s.x1 - s.x0) / 2, s.height / 2, (s.z1 - s.z0) / 2])

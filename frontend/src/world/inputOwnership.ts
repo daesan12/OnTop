@@ -4,6 +4,8 @@ export const inputState = {
   emoteWheelOpen: false, minigameOpen: false, feedbackOpen: false, notesOpen: false,
   shopOpen: false, wardrobeOpen: false, advertisementOpen: false, followMenuOpen: false,
   welcomeFlight: false, fortuneOpen: false, localBalloon: false,
+  /** An underground scare has hold of the player: no walking for its few seconds (InteriorEncounters). */
+  encounterHeld: false,
 }
 export const roamingInput = { ready: false, draggingCamera: false }
 /** A physical scene control can own one pointer without locking keyboard/chat or other games. */
