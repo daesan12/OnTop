@@ -51,7 +51,6 @@ export function createSleighArt(deer = false) {
       for (const z of [-1, .9]) beam(gold, [s * .77, -.9, z], [s * .77, -.4, z], .04, 'gold')
       const trim = [[s * .91, .6, -1.4], [s * .91, .72, -1], [s * .91, .3, .45], [s * .91, .35, 1.5]] as P[]
       add(new TubeGeometry(new CatmullRomCurve3(trim.map(p => new Vector3(...p))), 24, .035, 6, false), gold, [0, 0, 0], [1, 1, 1], [0, 0, 0], 'gold')
-      beam('#69462c', [s * .65, .25, 1.4], [s * .85, .4, 8.6], .018)
     }
     ball('#ba2738', [0, .6, -1.5], [.7, .9, .6])
     ball('#cc3540', [.15, 1.35, -1.45], [.3, .45, .28])

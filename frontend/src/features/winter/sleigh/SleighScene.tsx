@@ -7,6 +7,8 @@ import { createSleighArt, createReindeerLegArt } from './art'
 import { SLEIGH_DOCK, SLEIGH_ID, sleighPose } from './route'
 import { sleighElapsed } from './controller'
 import { reindeerGallop } from './gallop'
+import { sleighTeamPose } from './formation'
+import { Reins } from './Reins'
 
 function Art({ art }: { art: ReturnType<typeof createSleighArt> }) {
   return <>{Object.entries(art).map(([finish, geometry]) => <mesh key={finish} geometry={geometry as BufferGeometry}
@@ -29,8 +31,10 @@ export function SleighScene() {
     root.current.rotation.y = pose.yaw
     deer.current?.children.forEach((animal, index) => {
       const stride = reindeerGallop(elapsed, index, 0)
-      animal.position.y = lease ? stride.lift : 0
-      animal.rotation.x = lease ? stride.pitch : 0
+      const row = Math.floor(index / 2), side = index % 2 ? .85 : -.85
+      const path = sleighTeamPose(elapsed, [3.4, 5.9, 8.4][row]!, side)
+      animal.position.set(path.x, path.y + (lease ? stride.lift : 0), path.z)
+      animal.rotation.set(lease ? path.pitch + stride.pitch : 0, lease ? path.yaw : 0, lease ? path.bank : 0, 'YXZ')
       animal.children.forEach(node => {
         if (node.userData.leg === undefined) return
         const leg = reindeerGallop(elapsed, index, node.userData.leg)
@@ -38,9 +42,10 @@ export function SleighScene() {
         node.children[1]!.rotation.x = lease ? leg.knee : .16
       })
     })
-  })
+  }, -.5)
   return <group ref={root} name="winter-sleigh" position={[SLEIGH_DOCK.x, SLEIGH_DOCK.y, SLEIGH_DOCK.z]} rotation={[0, SLEIGH_DOCK.yaw, 0]}>
     <Art art={art.sleigh} />
+    <Reins team={deer} />
     <group ref={deer} name="sleigh-reindeer-team">{[3.4, 5.9, 8.4].flatMap((z, row) => [-.85, .85].map((x, side) =>
       <group key={row + '-' + side} position={[x, 0, z]} name={row === 2 && side === 0 ? 'rudolph' : 'reindeer'}>
         <Art art={art.deer} />

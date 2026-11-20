@@ -5,8 +5,32 @@ import { parseFacilityDefinition } from '../../src/features/facilities/protocol'
 import { createSleighClock } from '../../src/features/winter/sleigh/flightClock'
 import { SleighCamera } from '../../src/features/winter/sleigh/camera'
 import { PerspectiveCamera, Vector3 } from 'three'
+import { sleighTeamPose } from '../../src/features/winter/sleigh/formation'
 
 describe('루돌프 썰매', () => {
+  it('순록의 각 줄이 커브를 따라 다르게 선회하고 탑승장에서는 원래 대형을 유지한다', () => {
+    let bend = 0, bank = 0
+    for (let at = 0; at <= SLEIGH_LAP_MS; at += 100) {
+      const near = sleighTeamPose(at, 3.4, -.85), far = sleighTeamPose(at, 8.4, -.85)
+      const right = sleighTeamPose(at, 8.4, .85)
+      expect(Object.values(far).every(Number.isFinite)).toBe(true)
+      expect(Math.hypot(far.x - right.x, far.z - right.z)).toBeCloseTo(1.7, 1)
+      bend = Math.max(bend, Math.abs(far.x - near.x))
+      bank = Math.max(bank, Math.abs(far.bank))
+      if (at > 0) {
+        const previous = sleighTeamPose(at - .01, 8.4, -.85)
+        expect(Math.hypot(far.x - previous.x, far.y - previous.y, far.z - previous.z)).toBeLessThan(.005)
+      }
+    }
+    expect(bend).toBeGreaterThan(.15)
+    expect(bank).toBeGreaterThan(.05)
+    for (const at of [0, SLEIGH_LAP_MS]) {
+      const pose = sleighTeamPose(at, 8.4, -.85)
+      for (const [key, value] of Object.entries({ x: -.85, y: 0, z: 8.4, yaw: 0, pitch: 0, bank: 0 })) {
+        expect(pose[key as keyof typeof pose]).toBeCloseTo(value)
+      }
+    }
+  })
   it('항로 표본 경계와 각도 래핑에서 시선이 튀지 않는다', () => {
     for (let at = 100; at < SLEIGH_LAP_MS - 100; at += 100) {
       const a = sleighPose(at - .01), b = sleighPose(at + .01)
