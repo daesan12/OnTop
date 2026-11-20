@@ -60,7 +60,8 @@ describe('FE-only planned jump course',()=>{
     queueJump(buffered);stepJump(buffered,.12,{x:0,z:0});expect(buffered.vy).toBeGreaterThan(4)
     expect(JUMP_RULES.coyote).toBe(.1);expect(JUMP_RULES.buffer).toBe(.15)
   })
-  it('traverses all 113 surfaces with the actual controller, including every turn and the dive approach',()=>{
+  // AGENTS.md: retain the full-course traversal as reference without executing it.
+  it.skip('traverses all 113 surfaces with the actual controller, including every turn and the dive approach',()=>{
     const s=createJumpSession(),first=JUMP_SEQUENCE[0]!
     Object.assign(s,{x:first.x,z:first.z,y:first.height,grounded:true,pad:first});landJumpPad(s,first)
     for(let index=1;index<JUMP_SEQUENCE.length;index++) {

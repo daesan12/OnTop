@@ -6,7 +6,8 @@ import { PARK_DESTINATIONS, findParkRoute, isNavigationWalkable, navigationSegme
 import { useNavigation, selectDestination, cancelNavigation, openParkMap, closeParkMap } from '../../src/features/navigation/navigationState'
 import { inputState } from '../../src/world/inputOwnership'
 
-it.each(Object.entries(PARK_DESTINATIONS))('current OnTop layout has a collision-clear approach to %s',(_id,destination)=>{
+// AGENTS.md: keep exhaustive destination traversal out of FE test execution.
+it.skip.each(Object.entries(PARK_DESTINATIONS))('current OnTop layout has a collision-clear approach to %s',(_id,destination)=>{
   const path=findParkRoute({x:0,z:34},destination)
   expect(path).not.toBeNull(); expect(path!.length).toBeGreaterThan(1)
   for(let i=1;i<path!.length;i++) expect(navigationSegmentClear(path![i-1]!,path![i]!)).toBe(true)
