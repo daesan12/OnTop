@@ -265,6 +265,8 @@ public class TableHub {
     private long receivedMessages;
     private final LongAdder sentMessages = new LongAdder();
     private final LongAdder sentBytes = new LongAdder();
+    private long worldTickRuns;
+    private volatile WorldTickTiming lastWorldTickTiming;
     private final Map<ConnectionCloseReason, LongAdder> closedByReason = new EnumMap<>(ConnectionCloseReason.class);
     private boolean stopped;
     private BehaviorLog behaviorLog = BehaviorLog.disabled();
@@ -2281,13 +2283,35 @@ public class TableHub {
         if (stopped) {
             return;
         }
+        long started = System.nanoTime();
+        long registryNanos = 0;
+        long physicsNanos = 0;
+        long snapshotNanos = 0;
+        long simulationLagNanos = 0;
+        long publishNanos = 0;
+        long encodeNanos = 0;
+        long queueNanos = 0;
+        long positionLogNanos = 0;
+        long watchNanos = 0;
+        int patches = 0;
+        int recipients = 0;
         try {
             advanceWinter();
             syncSpectatorPresence();
             advanceRentals();
             advanceDuckBoats();
             advanceSleighs();
+            long registryStarted = System.nanoTime();
+            long previousPhysicsTick = channels.lastTickTiming().tick();
             var worlds = channels.advance(Set.copyOf(seating.keySet()), follows.activeStates());
+            registryNanos = System.nanoTime() - registryStarted;
+            var registryTiming = channels.lastTickTiming();
+            if (registryTiming.tick() != previousPhysicsTick) {
+                physicsNanos = registryTiming.physicsNanos();
+                snapshotNanos = registryTiming.snapshotNanos();
+                simulationLagNanos = registryTiming.schedulerLagNanos();
+            }
+            patches = worlds.size();
             dispatchJumpmap(channels.drainJumpmap());
             for (var ended : channels.drainSuspensionEnds()) {
                 publishChannel(ended, null, null);
@@ -2302,19 +2326,41 @@ public class TableHub {
                         cancelEmote(avatar.userId(), "MOVEMENT");
                     }
                 }
-                publishWorld(state, null, null);
+                WorldPublishTiming published = publishWorld(state, null, null);
+                publishNanos += published.totalNanos();
+                encodeNanos += published.encodeNanos();
+                queueNanos += published.queueNanos();
+                recipients += published.recipients();
+                long positionLogStarted = System.nanoTime();
                 recordPositions(state, null);
+                positionLogNanos += System.nanoTime() - positionLogStarted;
+                long watchStarted = System.nanoTime();
                 for (Member member : java.util.List.copyOf(members.values())) {
                     if (channels.isInChannel(member.userId(), state.channelId())) {
                         refreshWatchRange(member);
                     }
                 }
+                watchNanos += System.nanoTime() - watchStarted;
             }
         } catch (RuntimeException exception) {
             // Do not silently lose the scheduled simulation after one failed tick.
             org.slf4j.LoggerFactory.getLogger(TableHub.class).error("광장 이동 tick 실패", exception);
+        } finally {
+            lastWorldTickTiming = new WorldTickTiming(++worldTickRuns, System.nanoTime() - started,
+                    registryNanos, physicsNanos, snapshotNanos, simulationLagNanos, publishNanos,
+                    encodeNanos, queueNanos, positionLogNanos, watchNanos, patches, recipients);
         }
     }
+
+    /** 마지막 예약 실행의 구간별 시간. 클라이언트·회원 식별자는 포함하지 않는다. */
+    public WorldTickTiming lastWorldTickTiming() {
+        return lastWorldTickTiming;
+    }
+
+    public record WorldTickTiming(long run, long totalNanos, long registryNanos, long physicsNanos,
+                                  long snapshotNanos, long simulationLagNanos, long publishNanos,
+                                  long encodeNanos, long queueNanos, long positionLogNanos,
+                                  long watchNanos, int patches, int recipients) { }
 
     /** 점프맵 판정 신호는 레지스트리 잠금 밖에서 넘긴다. 서비스가 없으면 버린다. */
     private void dispatchJumpmap(java.util.List<WorldChannelRegistry.JumpmapDelivery> deliveries) {
@@ -2987,24 +3033,40 @@ public class TableHub {
                         .anyMatch(link -> link.followerId().equals(userId) || link.targetId().equals(userId));
     }
 
-    private void publishWorld(WorldChannelRegistry.WorldState state, Member actor, String requestId) {
+    private WorldPublishTiming publishWorld(WorldChannelRegistry.WorldState state, Member actor, String requestId) {
+        long started = System.nanoTime();
+        long encodeNanos = 0;
+        long queueNanos = 0;
+        int offered = 0;
         Set<String> recipients = state.avatars().stream().map(WorldChannelRegistry.Avatar::userId)
                 .collect(Collectors.toSet());
         String notification = null;
         for (Member target : members.values()) {
             if (recipients.contains(target.userId())) {
+                String message;
                 if (target == actor && requestId != null) {
-                    target.peer().offer(protocol.encode(requestId, "WORLD_STATE", state));
+                    long encodeStarted = System.nanoTime();
+                    message = protocol.encode(requestId, "WORLD_STATE", state);
+                    encodeNanos += System.nanoTime() - encodeStarted;
                 } else {
                     // 같은 방송의 공개 상태만 재사용한다. 요청 응답과 다음 버전은 별도로 직렬화한다.
                     if (notification == null) {
+                        long encodeStarted = System.nanoTime();
                         notification = protocol.encode(null, "WORLD_STATE", state);
+                        encodeNanos += System.nanoTime() - encodeStarted;
                     }
-                    target.peer().offer(notification);
+                    message = notification;
                 }
+                long queueStarted = System.nanoTime();
+                target.peer().offer(message);
+                queueNanos += System.nanoTime() - queueStarted;
+                offered++;
             }
         }
+        return new WorldPublishTiming(System.nanoTime() - started, encodeNanos, queueNanos, offered);
     }
+
+    private record WorldPublishTiming(long totalNanos, long encodeNanos, long queueNanos, int recipients) { }
 
     /** 공개 게시판 변경 번호만 모든 입장 채널에 전파한다. 본문·작성자 정보는 포함하지 않는다. */
     public synchronized void notesChanged(long revision) {
