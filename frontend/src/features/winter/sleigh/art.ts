@@ -27,10 +27,6 @@ export function createSleighArt(deer = false) {
     for (const s of [-1, 1]) {
       ball(brown, [s * .3, 1.27, .61], [.22, .105, .1])
       ball('#1c1d21', [s * .21, 1.1, .8], [.043, .045, .041])
-      for (const z of [-.43, .44]) {
-        beam(brown, [s * .2, .18, z], [s * .23, -.7, z - .16], .065)
-        box('#302a28', [s * .23, -.76, z - .12], [.16, .16, .24])
-      }
       const a: P = [s * .13, 1.26, .59], tip: P = [s * .48, 1.96, .28]
       beam('#e2cda6', a, tip, .045)
       beam('#e2cda6', [s * .26, 1.55, .46], [s * .57, 1.73, .65], .032)
@@ -63,5 +59,13 @@ export function createSleighArt(deer = false) {
     box('#29694c', [-.4, .2, -.9], [.48, .5, .5])
     box(gold, [-.4, .2, -.9], [.09, .51, .51])
   }
+  return b.finish()
+}
+
+/** Local origins are shoulder/hip and knee, so the hoof follows the bent leg. */
+export function createReindeerLegArt(lower = false) {
+  const b = new PropBuilder([8, 5])
+  b.add('wood', new CylinderGeometry(.055, .065, .44, 6), brown, [0, -.22, 0], [1, 1, 1], [0, 0, 0], false, true)
+  if (lower) b.add('paint', new BoxGeometry(.16, .16, .24), '#302a28', [0, -.46, .045], [1, 1, 1], [0, 0, 0], false, true)
   return b.finish()
 }

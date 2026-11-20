@@ -22,11 +22,14 @@ export function sleighPose(elapsedMs: number) {
   const u = Math.max(0, Math.min(count, elapsedMs / SLEIGH_LAP_MS * count))
   const i = Math.min(count - 1, Math.floor(u)), f = u - i
   const a = SLEIGH_ROUTE.points[i]!, b = SLEIGH_ROUTE.points[i + 1]!
-  const before = SLEIGH_ROUTE.points[Math.max(0, i - 2)]!, after = SLEIGH_ROUTE.points[Math.min(count, i + 3)]!
-  const dx = after.x - before.x, dz = after.z - before.z
+  // Interpolate neighbouring tangents too: a bucketed heading turned the camera every 100ms.
+  const before = SLEIGH_ROUTE.points[Math.max(0, i - 1)]!, after = SLEIGH_ROUTE.points[Math.min(count, i + 2)]!
+  const dx = (b.x - before.x) * (1 - f) + (after.x - a.x) * f
+  const dy = (b.y - before.y) * (1 - f) + (after.y - a.y) * f
+  const dz = (b.z - before.z) * (1 - f) + (after.z - a.z) * f
   return { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f, z: a.z + (b.z - a.z) * f,
     yaw: Math.hypot(dx, dz) < .01 ? Math.PI : Math.atan2(dx, dz),
-    pitch: Math.max(-.22, Math.min(.22, -Math.atan2(after.y - before.y, Math.hypot(dx, dz)))),
+    pitch: Math.max(-.22, Math.min(.22, -Math.atan2(dy, Math.hypot(dx, dz)))),
     seatIndex: 0, moving: false }
 }
 export function buildSleighFacility() {

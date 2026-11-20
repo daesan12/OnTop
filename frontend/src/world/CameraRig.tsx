@@ -1,4 +1,5 @@
 import { sleighRider } from '../features/winter/sleigh/controller'
+import { SleighCamera } from '../features/winter/sleigh/camera'
 import { ALKKAGI_FOV, alkkagiCameraActive, alkkagiTopDownFrame } from '../game/alkkagi/camera'
 import { gatheringCameraActive } from '../features/tableLobby/gathering'
 import { oneCardPlayerViewActive, oneCardCameraPose, oneCardSpectatorCameraPose, ONECARD_CAMERA } from '../game/onecard/camera'
@@ -99,6 +100,7 @@ export function CameraRig() {
       targetUp: new Vector3(0, 1, 0), lookMatrix: new Matrix4(), omokTransition: false, diceTransition: false, alkkagiTransition: false,
       center: new Vector3(), pan: new Vector3(), feet: new Vector3(),
       jumpOrbitRun: '', jumpOrbitDirection: new Vector3(),
+      sleighCamera: new SleighCamera(),
     }),
     [],
   )
@@ -156,14 +158,10 @@ export function CameraRig() {
       interactionAim.ready = false
       cameraOcclusion.strength.value = 0
       occlusion.reset()
-      const radius = Math.max(1, Math.hypot(sleigh.x, sleigh.z)), ox = sleigh.x / radius, oz = sleigh.z / radius
-      // Follow from outside the circuit and frame inward, so the park stays behind the team.
-      camera.position.set(sleigh.x + ox * 11 - Math.sin(sleigh.yaw) * 7, sleigh.y + 9,
-        sleigh.z + oz * 11 - Math.cos(sleigh.yaw) * 7)
-      camera.lookAt(sleigh.x - ox * 12 + Math.sin(sleigh.yaw) * 7, sleigh.y - 8,
-        sleigh.z - oz * 12 + Math.cos(sleigh.yaw) * 7)
+      state.sleighCamera.follow(camera, sleigh, delta)
       return
     }
+    if (state.sleighCamera.leave(camera)) state.owner = ''
     const balloonRider = localBalloonRider(useSession.getState().sessionId)
     if (balloonRider) {
       interactionAim.ready = false
@@ -654,6 +652,7 @@ export function CameraRig() {
       } else camera.lookAt(state.look)
     }
     diceCamera.ready = diceFocus || diceSpectator ? omokSettled : !!(spectatorBoard && game?.dice) && camera.position.distanceTo(state.desired) < .005
+    state.sleighCamera.returnToPark(camera, state.desired, state.look, delta)
     camera.getWorldDirection(state.direction)
     setInteractionCamera(camera)
     interactionAim.ready = true
