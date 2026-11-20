@@ -92,6 +92,47 @@ class WinterSnowballFlowTests {
     }
 
     @Test
+    void 입력_없이_동결이_자연_만료되면_틱이_양쪽에_해제를_알리고_실제_이동을_복구한다() throws Exception {
+        try (var first = client("naver", "a"); var second = client("ssafy", "a")) {
+            place(first, 88); place(second, 83);
+            for (int i = 0; i < 3; i++) {
+                if (i > 0) {
+                    Thread.sleep(930);
+                }
+                first.request("WORLD_SNOWBALL_PICKUP", Map.of("pileId", "snow-entry"));
+                assertThat(first.request("WORLD_SNOWBALL_THROW", Map.of("yaw", Math.PI))
+                        .at("/payload/hitUserId").asText()).isEqualTo(second.userId);
+            }
+            var frozen = player(second.request("WORLD_SNOWBALL_CHECK", Map.of()), second.userId);
+            assertThat(frozen.path("freezeId").asText()).isNotBlank();
+            long frozenVersion = channels.worldState("a").version();
+            double z = channels.positionOf(second.userId).z();
+            second.request("WORLD_MOVE", Map.of("seq", 10, "dx", 0, "dz", 1, "run", false, "jump", false));
+            clock.addAndGet(120_000_000L);
+            channels.advance(java.util.Set.of(), java.util.List.of());
+            assertThat(channels.positionOf(second.userId).z()).isEqualTo(z);
+
+            // 이 뒤에는 체크·A/D 요청 없이 실제 예약 틱의 자연 해제 방송만 기다린다.
+            Thread.sleep(800);
+            var thawed = second.await(message -> message.path("type").asText().equals("WORLD_SNOWBALL_STATE")
+                    && player(message, second.userId).path("freezeId").asText().isEmpty());
+            assertThat(player(thawed, second.userId).path("hits").asInt()).isZero();
+            first.await(message -> message.path("type").asText().equals("WORLD_STATE")
+                    && message.at("/payload/version").asLong() > frozenVersion);
+            var shared = first.await(message -> message.path("type").asText().equals("WORLD_SNOWBALL_STATE")
+                    && player(message, second.userId).path("freezeId").asText().isEmpty());
+            assertThat(player(shared, second.userId).path("hits").asInt()).isZero();
+
+            clock.addAndGet(40_000_000L);
+            channels.advance(java.util.Set.of(), java.util.List.of());
+            second.request("WORLD_MOVE", Map.of("seq", 11, "dx", 0, "dz", 1, "run", false, "jump", false));
+            clock.addAndGet(80_000_000L);
+            channels.advance(java.util.Set.of(), java.util.List.of());
+            assertThat(channels.positionOf(second.userId).z()).isGreaterThan(z + .05);
+        }
+    }
+
+    @Test
     void 세번_맞은_사용자의_이동과_활동을_막고_AD_교대_입력으로_풀어준다() throws Exception {
         try (var first = client("naver", "a"); var second = client("ssafy", "a")) {
             place(first, 88); place(second, 83);
