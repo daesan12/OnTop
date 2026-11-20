@@ -1,0 +1,38 @@
+import { useEffect, useMemo, useRef } from 'react'
+import { useFrame } from '@react-three/fiber'
+import { Group, type BufferGeometry } from 'three'
+import { estimatedServerTime, useSession } from '../../../network/worldClient'
+import { useFacilityState } from '../../facilities/state'
+import { createSleighArt } from './art'
+import { SLEIGH_DOCK, SLEIGH_ID, sleighPose } from './route'
+
+function Art({ art }: { art: ReturnType<typeof createSleighArt> }) {
+  return <>{Object.entries(art).map(([finish, geometry]) => <mesh key={finish} geometry={geometry as BufferGeometry}
+    dispose={null} castShadow receiveShadow>
+    <meshStandardMaterial vertexColors roughness={finish === 'gold' ? .32 : .8} metalness={finish === 'gold' ? .55 : 0} />
+  </mesh>)}</>
+}
+export function SleighScene() {
+  const root = useRef<Group>(null), deer = useRef<Group>(null)
+  const art = useMemo(() => ({ sleigh: createSleighArt(), deer: createSleighArt(true) }), [])
+  useEffect(() => () => { for (const set of Object.values(art)) for (const g of Object.values(set)) g.dispose() }, [art])
+  useFrame(() => {
+    if (!root.current) return
+    const channel = useSession.getState().roomId
+    const lease = Object.values(useFacilityState.getState().occupancies).find(l => l.facilityId === SLEIGH_ID && l.channelId === channel)
+    const elapsed = lease ? estimatedServerTime() - Date.parse(lease.startedAt) : 0
+    const pose = lease ? sleighPose(elapsed) : SLEIGH_DOCK
+    root.current.position.set(pose.x, pose.y, pose.z)
+    root.current.rotation.y = pose.yaw
+    if (deer.current) deer.current.position.y = lease ? Math.sin(elapsed / 140) * .06 : 0
+  })
+  return <group ref={root} name="winter-sleigh" position={[SLEIGH_DOCK.x, SLEIGH_DOCK.y, SLEIGH_DOCK.z]} rotation={[0, SLEIGH_DOCK.yaw, 0]}>
+    <Art art={art.sleigh} />
+    <group ref={deer} name="sleigh-reindeer-team">{[3.4, 5.9, 8.4].flatMap((z, row) => [-.85, .85].map((x, side) =>
+      <group key={row + '-' + side} position={[x, 0, z]} name={row === 2 && side === 0 ? 'rudolph' : 'reindeer'}>
+        <Art art={art.deer} />
+        {row === 2 && side === 0 && <mesh position={[0, .97, 1.15]}><icosahedronGeometry args={[.105, 1]} />
+          <meshStandardMaterial color="#f1333e" emissive="#ed2135" emissiveIntensity={1.4} toneMapped={false} /></mesh>}
+      </group>))}</group>
+  </group>
+}

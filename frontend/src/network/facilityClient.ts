@@ -1,3 +1,5 @@
+import { SLEIGH_ID } from '../features/winter/sleigh/route'
+import { RENEWAL_PARK_ENABLED } from '../park/mapSelection'
 import { BENCH_IDS, DUCK_BOAT, FITNESS_STATIONS, TELESCOPES } from '../park/mapConfig'
 import { EXPECTED_MAP_VERSION } from '../park/mapConfig'
 import { clearRoamingInput } from '../world/inputOwnership'
@@ -14,6 +16,7 @@ interface Dependencies {
   blockMovement(): void
 }
 const expectedKinds = new Map<string, FacilityKind>([
+  ...(RENEWAL_PARK_ENABLED ? [[SLEIGH_ID, 'SLEIGH'] as const] : []),
   ...BENCH_IDS.map(id => [id, 'BENCH'] as const),
   ...FITNESS_STATIONS.map(s => [s.id, 'FITNESS'] as const),
   ...TELESCOPES.map(t => [t.id, 'TELESCOPE'] as const),

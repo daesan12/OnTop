@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber'
 import { BufferAttribute, BufferGeometry, Float32BufferAttribute, Group, InstancedMesh, Object3D, ShaderMaterial, type Points } from 'three'
 import { groundSurfaceHeight } from '../../../park-renewal-preview/groundSurface'
 import { estimatedServerTime, useSession, avatars, sampleAvatar } from '../../network/worldClient'
+import { SleighScene } from './sleigh/SleighScene'
 import { RoofSnow } from './roofSnow'
 import { WINTER_DECOR, SNOW_PILES } from './plan'
 import { useWinter, winterFrozen, type WinterPlayer } from './state'
@@ -147,6 +148,7 @@ export function WinterScene({ low = false }: { low?: boolean }) {
   const art = useMemo(() => new Map([...new Set(WINTER_DECOR.map(d => d.kind))].map(kind => [kind, decoration(kind)])), [])
   useEffect(() => () => { for (const value of art.values()) for (const g of Object.values(value)) g?.dispose() }, [art])
   return <group name="winter-park">
+    <SleighScene />
     <RoofSnow />
     <Snowfall low={low} />
     <Snowballs />

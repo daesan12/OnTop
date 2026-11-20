@@ -2,6 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useState, type
 import { installBrowserShortcutGuard } from './browserShortcuts'
 import { NotificationCenter } from '../features/notifications/NotificationCenter'
 import { SkinCatalogLifecycle } from '../features/skins/SkinCatalogLifecycle'
+import { SleighHud } from '../features/winter/sleigh/SleighHud'
 import { WinterHud } from '../features/winter/WinterHud'
 import { RENEWAL_PARK_ENABLED } from './mapSelection'
 import { ParkScene } from './ParkScene'
@@ -232,7 +233,7 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked, welco
       <div className="park-roaming-ui" hidden={bungeoppang} inert={bungeoppang}>
         <ParkTools />
         <ParkInteractionHint />
-        {RENEWAL_PARK_ENABLED && !omokFocus && <WinterHud />}
+        {RENEWAL_PARK_ENABLED && !omokFocus && <><WinterHud /><SleighHud /></>}
         <MobilityHud />
         <PolicePrivateNotice />
         <div hidden={omokFocus} inert={omokFocus}>

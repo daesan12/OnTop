@@ -1,3 +1,4 @@
+import { sleighRider } from '../features/winter/sleigh/controller'
 import { gatheringCameraActive } from '../features/tableLobby/gathering'
 import { OneCardHeldHand } from '../game/onecard/OneCardHeldHand'
 import { oneCardHeldCount, oneCardHoldingPose } from '../game/onecard/heldHand'
@@ -186,6 +187,7 @@ function Avatar({
     const localPilot = localBalloon.flight && localBalloon.owner === localBalloon.leader
       ? { id: localBalloon.owner, position: localBalloon.flight.position } : undefined
     const balloonRider = own ? localBalloonRider(id) : remoteBalloonRider(id, frameAt, localPilot)
+    const rider = sleighRider(id) ?? balloonRider
     const ownAvatar = !own && useJumpmap.getState().run ? avatars.get(useSession.getState().sessionId) : undefined
     const ownPose = ownAvatar && samplePose(ownAvatar, frameAt, overlapPose)
     const overlap = !!ownPose && Math.hypot(pose.x - ownPose.x, pose.z - ownPose.z) < .7 && Math.abs(pose.y - ownPose.y) < 1.8
@@ -207,16 +209,16 @@ function Avatar({
     const showRideHands = ownXR && !!avatar.vehicle
     model.showRideHands(showRideHands)
     figure.current.visible = !ownXR || showRideHands
-    const visibleOutsideXR = !hideBalloonRider && (!!balloonRider || !!debrisMotion
+    const visibleOutsideXR = !hideBalloonRider && (!!rider || !!debrisMotion
       || !(own && ((avatar.tableId && seated && !gatheringCameraActive() || avatar.benchId && seated || avatar.telescopeId)
       || roamingFirstPerson(avatar, !!useGame.getState().watchedGameId))))
     root.current.visible = !hiddenForCooking && firstAppearanceReady.current && opacity > 0
       && (ownXR ? !!avatar.vehicle : visibleOutsideXR)
     appearance.current?.set(root.current.visible ? opacity : 1)
     root.current.userData.appearanceOpacity = root.current.visible ? opacity : 0
-    if (balloonRider) {
-      const seatLift = balloonRider.seatIndex >= 0 ? model.seatedContactLift - model.hipHeight : 0
-      root.current.position.set(balloonRider.x, balloonRider.y + seatLift, balloonRider.z)
+    if (rider) {
+      const seatLift = rider.seatIndex >= 0 ? model.seatedContactLift - model.hipHeight : 0
+      root.current.position.set(rider.x, rider.y + seatLift, rider.z)
     }
     else root.current.position.set(
       pose.x,
@@ -225,7 +227,7 @@ function Avatar({
           + (RENEWAL_PARK_ENABLED ? model.seatedContactLift : model.seatedHipLift) - model.hipHeight : 0),
       pose.z,
     )
-    root.current.rotation.y = balloonRider?.yaw ?? pose.yaw
+    root.current.rotation.y = rider?.yaw ?? pose.yaw
     const carryAnimation = carryMotion.get(id)
     if (!root.current.visible && !carryAnimation) return
     // The visitors parent has an identity transform; this position is already
@@ -237,10 +239,10 @@ function Avatar({
     const holdingCards = seated && oneCardHeldCount(id, avatar.tableId) > 0
     const displayFlags = own && localMovement.ready ? localMovement.displayFlags(frameAt)
       : !own ? remoteMovement.flags(id) : undefined
-    const motionAvatar = balloonRider ? { ...avatar, seatIndex: balloonRider.seatIndex,
-      moving: balloonRider.moving, running: false, swimming: false } : avatar
-    const displayAvatar = presentation.sample(motionAvatar, balloonRider ? undefined : displayFlags,
-      own || balloonRider ? undefined : pose, frameAt)
+    const motionAvatar = rider ? { ...avatar, seatIndex: rider.seatIndex,
+      moving: rider.moving, running: false, swimming: false } : avatar
+    const displayAvatar = presentation.sample(motionAvatar, rider ? undefined : displayFlags,
+      own || rider ? undefined : pose, frameAt)
     const active = !!avatar.vehicle || mountedVehicle.root.children.length > 0 || !!carryAnimation || !!reaction || avatarPoseActive(displayAvatar, now)
     // Keep the authoritative position interpolation above at display cadence.
     // State changes (seat, action, reconnect) must never wait for the next pose tick.

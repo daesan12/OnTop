@@ -482,7 +482,7 @@ public class TableHub {
         this.preparedPark = preparedPark;
         this.facilities = preparedPark == null ? new WorldFacilityService()
                 : new WorldFacilityService(preparedPark.facilities(), java.time.Clock.systemUTC(), System::nanoTime,
-                        preparedPark.boatRoute());
+                        preparedPark.boatRoute(), preparedPark.sleighRoute());
         if (preparedPark != null && (!channels.mapMetadata().equals(preparedPark.metadata())
                 || !maps.metadata().equals(preparedPark.metadata()))) {
             throw new IllegalArgumentException("채널·시설·연결 응답은 같은 맵을 사용해야 합니다.");
@@ -2024,6 +2024,24 @@ public class TableHub {
                 Map.of("status", status, "fare", DuckBoatSchedule.FARE, "leaseId", leaseId)));
     }
 
+    /** 서버의 고정 항로로 이동시키고 한 바퀴가 끝나면 지상 하차를 확정한다. */
+    private void advanceSleighs() {
+        for (var lease : facilities.sleighRiders()) {
+            if (!facilities.sleighArrived(lease)) {
+                channels.moveHeld(lease.userId(), facilities.sleighPose(lease));
+                continue;
+            }
+            var exit = channels.facilityExit(lease.userId(), lease);
+            if (exit == null) continue; // Keep the rider held at the dock until a safe ground exit is available.
+            channels.releaseFacility(lease.userId(), exit);
+            facilities.release(lease.userId());
+            var member = boatMember(lease.userId());
+            recordFacility(member == null ? null : member.accountId(), lease, "ARRIVED");
+            publishFacilities(lease.channelId(), null, null);
+            publishWorld(channels.worldState(lease.channelId()), null, null);
+        }
+    }
+
     /** 운항 중인 배가 있으면 장식 순환 배를 숨기고 충돌도 뺀다. */
     private void syncDuckBoat(String channel) {
         boolean sailing = facilities.boatSailing(channel);
@@ -2268,6 +2286,7 @@ public class TableHub {
             syncSpectatorPresence();
             advanceRentals();
             advanceDuckBoats();
+            advanceSleighs();
             var worlds = channels.advance(Set.copyOf(seating.keySet()), follows.activeStates());
             dispatchJumpmap(channels.drainJumpmap());
             for (var ended : channels.drainSuspensionEnds()) {

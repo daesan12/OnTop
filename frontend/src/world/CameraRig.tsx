@@ -1,3 +1,4 @@
+import { sleighRider } from '../features/winter/sleigh/controller'
 import { ALKKAGI_FOV, alkkagiCameraActive, alkkagiTopDownFrame } from '../game/alkkagi/camera'
 import { gatheringCameraActive } from '../features/tableLobby/gathering'
 import { oneCardPlayerViewActive, oneCardCameraPose, oneCardSpectatorCameraPose, ONECARD_CAMERA } from '../game/onecard/camera'
@@ -148,6 +149,19 @@ export function CameraRig() {
       interactionAim.ready = false
       cameraOcclusion.strength.value = 0
       occlusion.reset()
+      return
+    }
+    const sleigh = sleighRider(useSession.getState().sessionId)
+    if (sleigh) {
+      interactionAim.ready = false
+      cameraOcclusion.strength.value = 0
+      occlusion.reset()
+      const radius = Math.max(1, Math.hypot(sleigh.x, sleigh.z)), ox = sleigh.x / radius, oz = sleigh.z / radius
+      // Follow from outside the circuit and frame inward, so the park stays behind the team.
+      camera.position.set(sleigh.x + ox * 11 - Math.sin(sleigh.yaw) * 7, sleigh.y + 9,
+        sleigh.z + oz * 11 - Math.cos(sleigh.yaw) * 7)
+      camera.lookAt(sleigh.x - ox * 12 + Math.sin(sleigh.yaw) * 7, sleigh.y - 8,
+        sleigh.z - oz * 12 + Math.cos(sleigh.yaw) * 7)
       return
     }
     const balloonRider = localBalloonRider(useSession.getState().sessionId)

@@ -5,6 +5,7 @@ import { parkRuntime } from '../../park/runtime/runtime'
 import { MOVEMENT } from '../../config'
 import { renewalGroundHeight } from '../../park/renewalMap'
 import { carryPlayerAvailable } from '../carry/interaction'
+import { useFacilityState } from '../facilities/state'
 import { createCarryEscape, CARRY_ESCAPE_PRESSES } from '../carry/escape'
 import { SANTA, SNOW_PILES } from './plan'
 import { useWinter, winterFrozen } from './state'
@@ -12,6 +13,7 @@ import './winter.css'
 
 export function WinterHud() {
   const self = useSession(s => s.sessionId), player = useWinter(s => s.players[self]), notice = useWinter(s => s.notice)
+  const sleigh = useFacilityState(s => s.occupancies[self]?.kind === 'SLEIGH')
   const [ready, setReady] = useState(false), [nearSanta, setNearSanta] = useState(false)
   const [pileId, setPileId] = useState(''), [cooldown, setCooldown] = useState(false), [now, setNow] = useState(estimatedServerTime)
   const escape = useRef(createCarryEscape()), completed = useRef(false), queue = useRef(Promise.resolve())
@@ -70,6 +72,7 @@ export function WinterHud() {
     window.addEventListener('keydown', key, true)
     return () => window.removeEventListener('keydown', key, true)
   }, [ready, cooldown, frozen, pileId, player, self])
+  if (sleigh) return null
   return <aside className="winter-hud" aria-label="겨울 공원 눈싸움">
     {frozen ? <div className="winter-frozen" role="status">
       <strong>얼었어요! {Math.max(1, Math.ceil((Date.parse(player!.frozenUntil!) - now) / 1000))}초</strong>
