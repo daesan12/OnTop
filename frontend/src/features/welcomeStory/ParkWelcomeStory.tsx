@@ -15,6 +15,10 @@ const scenes = [
     portrait: 'fortune.webp',
     dialogue: '어디부터 둘러볼지 모르겠으면 운세방에 들러 운세함을 열어 보게. 공원에 뭐가 새로 생겼는지는 ‘이벤트/공지’의 패치노트에 적혀 있다네.',
   },
+  {
+    portrait: 'welcome.webp',
+    dialogue: '참, 이 공원 지하에는 보물이 많이 숨겨져 있다네. 구석구석 잘 살펴보게. 뜻밖의 보물을 발견할지도 모르니 말이야. 허허.',
+  },
 ] as const
 
 export function ParkWelcomeStory({ blocked, deadline, onComplete }: {

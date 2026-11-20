@@ -61,7 +61,7 @@ test('온보딩 직후 첫 입장에서 카메라를 고정한 채 환영하고 
   expect(await welcomeCamera.evaluate(sample => sample.farthest)).toBeLessThan(15)
   const story = page.getByRole('dialog', { name: '박영감' })
   await expect(story).toBeVisible()
-  await expect(story).toContainText('1 / 2')
+  await expect(story).toContainText('1 / 3')
   const portrait = story.locator('.joke-portrait')
   const frame = story.locator('.joke-dialogue-frame')
   const insideFrame = async () => {
@@ -72,8 +72,12 @@ test('온보딩 직후 첫 입장에서 카메라를 고정한 채 환영하고 
   }
   await expect.poll(insideFrame).toBe(true)
   await story.getByRole('button', { name: '다음' }).click()
-  await expect(story).toContainText('2 / 2')
+  await expect(story).toContainText('2 / 3')
   await expect(story).toContainText('패치노트')
+  await expect.poll(insideFrame).toBe(true)
+  await story.getByRole('button', { name: '다음' }).click()
+  await expect(story).toContainText('3 / 3')
+  await expect(story).toContainText('공원 지하에는 보물이 많이 숨겨져 있다네')
   await expect.poll(insideFrame).toBe(true)
   await story.getByRole('button', { name: '공원 둘러보기' }).click()
   await expect(story).toBeHidden()
