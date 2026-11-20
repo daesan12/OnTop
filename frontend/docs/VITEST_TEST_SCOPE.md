@@ -27,6 +27,8 @@
 
 다음 검사는 `tests/local-unit/`으로 옮겼다. 파일 깊이가 같아 기존 fixture·src import 경로를 유지한다.
 
+`movementComparison`, `unifiedMovementRegions`를 호출하는 기존 BE 진단과 `movementQuality`의 문서화된 CLI 경로를 위해 `tests/unit/`에는 얇은 호환 진입점을 남긴다. 환경변수가 있을 때만 로컬 진단 모듈을 import하고, 일반 회귀에서는 skip을 등록한다. BE 코드와 기존 명령 경로를 바꾸지 않는다.
+
 | 파일 | 목적과 조건 |
 | --- | --- |
 | `parkVisualPreservation.test.ts` | 승인 소스 200개의 원문 해시 보존 검토. 기능 회귀나 실제 화면 비교를 뜻하지 않는다 |
@@ -55,6 +57,8 @@ pnpm exec vitest run --config vitest.local.config.ts tests/local-unit/parkVisual
 - 변경한 기본 회귀 7개 파일: 31 passed, 25 skipped. skip은 지침의 전수 검사이며 실행하지 않았다.
 - 줄넘기 사람 모델: 변경 전·후 각각 1 passed.
 - 분리한 로컬 검토 5개 파일: 소스 보존 검사 1 passed, 외부 trace가 없는 진단 5 skipped. 실제 trace 기반 재현은 미검증이다.
-- 전체 `src` 및 변경 테스트 13개 파일의 타입 검사 통과.
+- 기존 CLI 경로의 호환 진입점 3개: 외부 trace 없는 상태에서 4 skipped, 무거운 진단 모듈을 로딩하지 않는다.
+- 환경변수를 설정한 `vitest list --no-static-parse`로 기존 CLI 경로에서 진단 4개가 등록되는 것을 확인했다. 이 수집 검증은 진단 본문을 실행하거나 trace 파일을 생성하지 않는다.
+- 전체 `src` 및 변경 테스트 16개 파일의 타입 검사 통과.
 - 기존 전체 테스트 타입 검사에는 수정하지 않은 `tests/e2e/admin-mole-audit.spec.ts:227`의 `window.innerWidth` 타입 오류가 남아 있다. 해당 파일은 dev와 동일하고 단독 포함 검사에서도 같은 오류가 재현된다. 이번 작업에서는 별도 기능의 E2E 코드를 변경하지 않았다.
 - 제품 코드·공통 runtime·맵·BE·migration·의존성·Jenkins 및 Vitest 실행 설정 변경 없음. 실제 서버 연결 및 전체 공원 통합 검증은 수행하지 않았다.
