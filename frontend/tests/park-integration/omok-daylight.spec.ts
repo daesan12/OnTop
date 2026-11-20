@@ -211,7 +211,7 @@ test('220m 공원 오목과 알까기의 판 보기는 낮과 밤에 같은 밝�
     { timeout: 30000 }).toBeGreaterThan(0)
   await page.getByRole('button', { name: 'E 테이블에 앉기', exact: true }).click()
   await expect.poll(() => probe(page, 'winterPresentation')).toMatchObject({ parkVisible: false, visibleRoofs: 0 })
-  await expect(page.getByRole('complementary', { name: '겨울 공원 눈싸움' })).toHaveCount(0)
+  await expect(page.getByRole('region', { name: '겨울 공원 눈싸움' })).toHaveCount(0)
   server.host('101')
   const tablet = page.getByRole('dialog', { name: '게임 태블릿', exact: true })
   await tablet.getByLabel('1인 참가비').fill('1')
@@ -272,6 +272,14 @@ test('220m 공원 오목과 알까기의 판 보기는 낮과 밤에 같은 밝�
   expect(await page.evaluate(async () => (await import('/src/park/runtime/runtime.ts' as string)).parkRuntime.leaveTable())).toBe(true)
   await expect.poll(() => probe(page, 'winterPresentation')).toMatchObject({ parkVisible: true })
   await expect.poll(async () => (await probe<{ visibleRoofs: number }>(page, 'winterPresentation')).visibleRoofs).toBeGreaterThan(0)
-  await expect(page.getByRole('complementary', { name: '겨울 공원 눈싸움' })).toBeVisible()
+  // The contextual Q cue returns when snow can actually be collected or thrown.
+  await page.evaluate(async () => {
+    const { useWinter } = await import('/src/features/winter/state.ts' as string)
+    const { useSession } = await import('/src/network/worldClient.ts' as string)
+    const id = useSession.getState().sessionId
+    useWinter.setState({ players: { ...useWinter.getState().players, [id]: { userId: id, snowballs: 1,
+      hits: 0, freezeId: '', frozenUntil: null, escapePresses: 0 } } })
+  })
+  await expect(page.getByRole('region', { name: '겨울 공원 눈싸움' })).toBeVisible()
   await page.screenshot({ path: info.outputPath('winter-park-return.png') })
 })

@@ -1,9 +1,10 @@
 import { SLEIGH_ID } from '../winter/sleigh/route'
 import { boardSleigh } from '../winter/sleigh/controller'
+import { winterFrozen } from '../winter/state'
 import { DUCK_BOAT, FITNESS, FITNESS_STATIONS, TABLES, TELESCOPES, TELESCOPE, MAILBOX, MAILBOX_BASE_Y } from '../../park/mapConfig'
 import { boatQueueOpen } from '../duckBoat/controller'
 import { openBoatChooser } from '../duckBoat/model'
-import { authoritativePose, avatars, useSession } from '../../network/worldClient'
+import { authoritativePose, avatars, useSession, estimatedServerTime } from '../../network/worldClient'
 import { parkRuntime } from '../../park/runtime/runtime'
 import { balloonEntrance, canReachBalloonDoor } from '../balloon/boarding'
 import { openLocalBalloon } from '../balloon/localRide'
@@ -105,6 +106,7 @@ export interface ParkInteraction {
 export function getParkInteraction(preferredGuide?: typeof STONE_RUMBLE_GUIDE_ID): ParkInteraction | null {
   const session = useSession.getState(), benches = useBenchState.getState(), fitness = useFitnessState.getState()
   const p = avatars.get(session.sessionId)
+  if (winterFrozen(session.sessionId, estimatedServerTime())) return null
   const mobility = useMobility.getState()
   if (mobility.target || mobility.phase !== 'idle' || p?.vehicle || facilityMovementBlocked(session.sessionId)) return null
   if (!roamingInput.ready || !p || session.status !== 'connected' || !session.mapCompatible || session.tableId || p.seatIndex >= 0

@@ -57,7 +57,7 @@ test('existing bungeoppang game opens at the new cart, cooks and returns to the 
     (await import('/tests/park-bungeoppang/probe.ts' as string)).cookingStageReady())).toBe(true);
   if (map) {
     await expect.poll(winter).toMatchObject({ winterVisible: false, visibleSnow: 0, workingSnowVertices: 0 });
-    await expect(page.getByRole('complementary', { name: '겨울 공원 눈싸움' })).toHaveCount(0);
+    await expect(page.getByRole('region', { name: '겨울 공원 눈싸움' })).toHaveCount(0);
   }
   await expect.poll(() => visitor('102')).toBe(false);
   server.setPeers([nearGrill, besideGrill]);

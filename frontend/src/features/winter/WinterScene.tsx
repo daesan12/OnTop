@@ -7,7 +7,8 @@ import { SnowballAim } from './SnowballAim'
 import { SleighScene } from './sleigh/SleighScene'
 import { RoofSnow } from './roofSnow'
 import { WINTER_DECOR, SNOW_PILES } from './plan'
-import { useWinter, winterFrozen, type WinterPlayer } from './state'
+import { useWinter, type WinterPlayer } from './state'
+import { FrostEffect } from './FrostEffect'
 import { createHolidayArt } from './holidayArt'
 import { createChristmasTreeArt } from './christmasTreeArt'
 import { winterProtectedSurfaces } from './protectedSurfaces'
@@ -128,7 +129,7 @@ function GroundSnow() {
 }
 
 function WinterActor({ player }: { player: WinterPlayer }) {
-  const group = useRef<Group>(null), ice = useRef<Group>(null)
+  const group = useRef<Group>(null)
   const pose = useRef({ x: 0, y: 0, z: 0, yaw: 0 })
   useFrame(() => {
     const avatar = avatars.get(player.userId), root = group.current
@@ -137,13 +138,9 @@ function WinterActor({ player }: { player: WinterPlayer }) {
     if (!avatar) return
     const p = sampleAvatar(avatar, performance.now(), pose.current)
     root.position.set(p.x, p.y, p.z); root.rotation.y = p.yaw
-    if (ice.current) ice.current.visible = winterFrozen(player.userId, estimatedServerTime())
   })
   return <group ref={group} name={'winter-player-' + player.userId}>
-    <group ref={ice} name={'winter-frozen-' + player.userId} position={[0, .3, 0]}>
-      <mesh raycast={() => {}}><boxGeometry args={[1.05, 2.3, .95]} /><meshStandardMaterial color="#9cddf5" transparent opacity={.36} roughness={.15} depthWrite={false} /></mesh>
-      <mesh position={[0, -1.1, 0]} raycast={() => {}}><cylinderGeometry args={[.7, .8, .12, 12]} /><meshLambertMaterial color="#e7f7ff" /></mesh>
-    </group>
+    <FrostEffect userId={player.userId} />
   </group>
 }
 

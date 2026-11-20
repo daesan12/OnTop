@@ -1,6 +1,12 @@
-.winter-hud{position:absolute;left:20px;top:170px;z-index:6;display:grid;gap:6px;max-width:min(310px,calc(100vw - 40px));color:#fff8e8;pointer-events:none;text-shadow:0 1px 3px #172e28;font:14px/1.5 'Malgun Gothic',sans-serif}
-.winter-hud button{justify-self:start;pointer-events:auto;min-height:44px;padding:9px 15px;color:#fff8e8;background:#234936ed;border:1px solid #c2a76d;border-radius:12px;font:inherit;cursor:pointer}
-.winter-hud button:disabled{opacity:.55;cursor:default}.winter-hud button:focus-visible{outline:3px solid #f3d589;outline-offset:3px}.winter-hud kbd{border:1px solid #b9caac;padding:2px 5px;border-radius:4px}.winter-hud p{margin:0;padding:10px;background:#193b30ed;border-radius:10px}.winter-hud small{font-size:12px}.winter-hud span:empty{display:none}
-@media(max-width:700px),(max-height:600px){.winter-hud{top:176px;left:10px;max-width:205px;font-size:12px}.winter-hud small{display:none}}
-.winter-hud .winter-frozen{padding:12px;background:#173f50f2;border:2px solid #bceafa;border-radius:12px}.winter-hud .winter-frozen p{padding:5px 0;background:none}.winter-escape{display:flex;align-items:center;justify-content:space-between;gap:14px}.winter-escape button{min-width:48px;font-weight:700}
-.winter-hud .winter-aim-hint{padding:5px 8px;border-radius:8px;background:#173e31ed;color:#d9ffe9}
+.park-interaction .winter-hud{display:flex;flex-direction:column;align-items:center;gap:5px;max-width:min(340px,calc(100vw - 64px));font:inherit}
+.winter-hud small,.winter-hud>span{font-size:12px;line-height:1.4}
+.winter-hud>span:empty{display:none}
+.winter-hud button:focus-visible{outline:3px solid #f3d589;outline-offset:3px}
+.winter-hud .winter-frozen{display:flex;flex-direction:column;align-items:center;gap:3px;color:#e4f5ff}
+.winter-hud .winter-frozen strong{font-size:14px}
+.park-page .park-interaction:has(.winter-frozen)>button[aria-keyshortcuts='E']{display:none}
+.park-page .park-interaction:has(.winter-hud){padding:4px 6px;gap:4px;border-radius:10px}
+.park-page .park-interaction .winter-hud>button[aria-keyshortcuts='Q']{display:flex;align-items:center;gap:6px;min-height:40px;max-width:100%;padding:8px 12px;border:0;background:transparent;font-size:15px;line-height:20px}
+.park-page .park-interaction .winter-hud>button[aria-keyshortcuts='Q'] kbd{flex-shrink:0;min-width:22px;margin-right:0}
+@media(max-width:900px){.park-page .park-interaction:has(.winter-hud){bottom:210px}}
+@media(max-height:540px){.park-page .park-interaction:has(.winter-hud){bottom:76px}.winter-hud>small,.winter-hud>span{display:none}}
