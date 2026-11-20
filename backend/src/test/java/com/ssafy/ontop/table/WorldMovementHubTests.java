@@ -146,7 +146,8 @@ class WorldMovementHubTests {
                 JsonNode message = mapper.readTree(text.getPayload());
                 // 잔해·입력 중 상태는 전용 테스트에서 검증하며 이동 알림 순서는 그대로 검사한다.
                 String type = message.path("type").asText();
-                if (!type.equals("WORLD_PARK_DEBRIS_STATE") && !type.equals("WORLD_CHAT_TYPING_STATE")) {
+                if (!type.equals("WORLD_PARK_DEBRIS_STATE") && !type.equals("WORLD_CHAT_TYPING_STATE")
+                        && !type.equals("WORLD_SNOWBALL_STATE")) {
                     peer.messages.add(message);
                 }
             }
