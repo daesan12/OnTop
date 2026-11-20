@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { BufferGeometry, Float32BufferAttribute, Matrix4, Mesh, MeshLambertMaterial, Vector3, type Object3D } from 'three'
 
@@ -43,6 +43,7 @@ export function snowRoofGeometry(root: Object3D, protectedAreas: readonly SnowPr
 export function RoofSnow({ visible = alwaysVisible, protectedAreas = [] }: {
   visible?: () => boolean; protectedAreas?: readonly SnowProtectedArea[]
 }) {
+  const protectedSignature = useMemo(() => JSON.stringify(protectedAreas), [protectedAreas])
   const state = useRef({ elapsed: 1, roots: new Map<Object3D, { signature: string; mesh: Mesh }>(),
     material: new MeshLambertMaterial({ color: '#edf5f1', polygonOffset: true, polygonOffsetFactor: -1 }) })
   useEffect(() => () => {
@@ -63,8 +64,8 @@ export function RoofSnow({ visible = alwaysVisible, protectedAreas = [] }: {
     for (const root of roots) {
       const parts: string[] = []
       root.traverse(node => { if (node instanceof Mesh && !node.userData.winterSnow) parts.push(node.geometry.uuid) })
-      const signature = parts.join(','), previous = s.roots.get(root)
-      if (!signature || previous?.signature === signature) continue
+      const signature = protectedSignature + '|' + parts.join(','), previous = s.roots.get(root)
+      if (!parts.length || previous?.signature === signature) continue
       const geometry = snowRoofGeometry(root, protectedAreas)
       previous?.mesh.removeFromParent(); previous?.mesh.geometry.dispose()
       const mesh = new Mesh(geometry, s.material)

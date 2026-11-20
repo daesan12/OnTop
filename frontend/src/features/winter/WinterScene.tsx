@@ -10,13 +10,10 @@ import { WINTER_DECOR, SNOW_PILES } from './plan'
 import { useWinter, winterFrozen, type WinterPlayer } from './state'
 import { createHolidayArt } from './holidayArt'
 import { createChristmasTreeArt } from './christmasTreeArt'
-import { TABLES, GOMOKU, tableScale } from '../../park/mapConfig'
+import { winterProtectedSurfaces } from './protectedSurfaces'
 import { snowballHands } from './SnowballHand'
 import { snowballPoint } from './trajectory'
 import { winterSceneryVisible } from './presentation'
-
-const gameSurfaces = TABLES.map(t => ({ x: t.position[0], z: t.position[2], radius: Math.max(3, tableScale(t) * 2.5),
-  topY: t.position[1] + (t.boardOffsetY ?? 0) + GOMOKU.boardY + .5 }))
 
 function decoration(kind: typeof WINTER_DECOR[number]['kind']) {
   return kind === 'tree' ? createChristmasTreeArt() : createHolidayArt(kind)
@@ -162,7 +159,7 @@ export function WinterScene({ low = false }: { low?: boolean }) {
   useFrame(() => { if (group.current) group.current.visible = winterSceneryVisible() })
   return <group ref={group} name="winter-park">
     <SleighScene />
-    <RoofSnow visible={winterSceneryVisible} protectedAreas={gameSurfaces} />
+    <RoofSnow visible={winterSceneryVisible} protectedAreas={winterProtectedSurfaces} />
     <Snowfall low={low} />
     <Snowballs />
     <SnowballAim />

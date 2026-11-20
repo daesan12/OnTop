@@ -78,7 +78,7 @@ export function WinterHud() {
     window.addEventListener('keydown', key, true)
     return () => window.removeEventListener('keydown', key, true)
   }, [ready, cooldown, gathering, windingUp, frozen, pileId, player, self])
-  if (sleigh || boardView) return null
+  if (sleigh || boardView || !winterSceneryVisible()) return null
   return <aside className="winter-hud" aria-label="겨울 공원 눈싸움">
     {frozen ? <div className="winter-frozen" role="status">
       <strong>얼었어요! {Math.max(1, Math.ceil((Date.parse(player!.frozenUntil!) - now) / 1000))}초</strong>

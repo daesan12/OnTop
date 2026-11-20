@@ -2,9 +2,11 @@ import { useSession } from '../../network/worldClient'
 import { useDisplayGame } from '../../game/displayGame'
 import { useTableLobby } from '../tableLobby/state'
 import { winterBoardViewActive } from './boardView'
+import { bungeoppangCookingView } from '../bungeoppang/bungeoppangView'
 
 export function winterSceneryVisible() {
-  return !winterBoardViewActive(useSession.getState(), useDisplayGame.getState(), useTableLobby.getState())
+  return !winterBoardViewActive(useSession.getState(), useDisplayGame.getState(), useTableLobby.getState(),
+    bungeoppangCookingView(performance.now()))
 }
 
 export function useWinterBoardView() {

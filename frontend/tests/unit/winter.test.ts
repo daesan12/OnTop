@@ -61,6 +61,7 @@ describe('겨울 공원 이벤트와 적설', () => {
     const lobby = { joiningAnchorId: '', spectatorRequested: false }
     const active = (s = session, g: { game: unknown; watchedGameId: string } = game, l = lobby) => winterBoardViewActive(s, g, l)
     expect(active()).toBe(false)
+    expect(winterBoardViewActive(session, game, lobby, true)).toBe(true)
     expect(active({ ...session, focusedAnchorId: 'table' })).toBe(true)
     expect(active(session, game, { ...lobby, joiningAnchorId: 'table' })).toBe(true)
     expect(active({ ...session, tableId: 'table' })).toBe(true)
