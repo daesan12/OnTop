@@ -164,7 +164,7 @@ export function mazeRoute(maze: Maze, from: Cell, to: Cell): Cell[] {
 }
 
 /** A chalk arrow on the floor: where, and which way it points (a flat direction). */
-export type MazeArrow = { x: number; z: number; dx: number; dz: number }
+export type MazeArrow = { x: number; z: number; dx: number; dz: number; /** Floor height (the hall's when left out). */ y?: number }
 /**
  * The marks the one who went down first left on the floor (S15P31B105-450): at every turning on the way through
  * where you could go wrong (a crossing, or the doorway out of a chamber), an arrow just before the right doorway.

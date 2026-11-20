@@ -1,6 +1,8 @@
 import { useLayoutEffect, useMemo, useRef } from 'react'
 import { CanvasTexture, Euler, Matrix4, Quaternion, SRGBColorSpace, Vector3, type InstancedMesh } from 'three'
-import { HORROR, HORROR_MAZE_ARROWS } from './horrorPlan'
+import { HORROR, HORROR_MAZE_ARROWS, HORROR_UPPER_ARROWS } from './horrorPlan'
+
+const ARROWS = [...HORROR_MAZE_ARROWS, ...HORROR_UPPER_ARROWS]
 
 // The way through the labyrinth (S15P31B105-450), chalked on the floor by the one who went down first (the note at
 // the way in says so): a rough arrow at every turning where you could go wrong, pointing at the right doorway. Chalk,
@@ -42,15 +44,15 @@ export function MazeArrows() {
     const m = mesh.current
     if (!m) return
     const matrix = new Matrix4(), q = new Quaternion(), scale = new Vector3(1.15, 1.15, 1)
-    HORROR_MAZE_ARROWS.forEach((a, i) => {
+    ARROWS.forEach((a, i) => {
       // Flat on the floor, then turned so the texture's "up" points along (dx, dz).
       q.setFromEuler(new Euler(-Math.PI / 2, Math.atan2(-a.dx, -a.dz), (i % 3 - 1) * .08, 'YXZ'))
-      m.setMatrixAt(i, matrix.compose(new Vector3(a.x, HORROR.floor + .025, a.z), q, scale))
+      m.setMatrixAt(i, matrix.compose(new Vector3(a.x, (a.y ?? HORROR.floor) + .025, a.z), q, scale))
     })
     m.instanceMatrix.needsUpdate = true
   }, [])
   if (!texture) return null
-  return <instancedMesh ref={mesh} name="horror-maze-arrows" args={[undefined, undefined, HORROR_MAZE_ARROWS.length]} frustumCulled={false} userData={{ keepOpaque: true }}>
+  return <instancedMesh ref={mesh} name="horror-maze-arrows" args={[undefined, undefined, ARROWS.length]} frustumCulled={false} userData={{ keepOpaque: true }}>
     <planeGeometry args={[1, 1]} />
     <meshStandardMaterial map={texture} transparent alphaTest={.12} roughness={1} depthWrite={false} polygonOffset polygonOffsetFactor={-2} />
   </instancedMesh>

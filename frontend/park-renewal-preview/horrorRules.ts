@@ -21,7 +21,7 @@ export const NOTE = {
   lead: '이 아래에서 길을 잃은 사람들이 남긴 규칙입니다. 하나라도 어기면, 그것들이 당신을 찾아옵니다.',
   sign: '— 먼저 내려간 사람',
   /** Under the rules: the chalk arrows (MazeArrows). */
-  hint: '아래층은 미로예요. 갈림길 바닥에 분필로 화살표를 그려 두었어요. 그것만 따라오세요.',
+  hint: '아래층은 미로예요. 갈림길 바닥에 분필로 화살표를 그려 두었어요. 그것만 따라오세요. 출구는 창살 너머에 있어요. 위로, 더 위로 올라가야 해요.',
 }
 /** The second note, at the top. It lies. */
 export const TRAP_NOTE = {

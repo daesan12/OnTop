@@ -28,13 +28,14 @@ class InteriorAccessTests {
             assertThat(physics.useInteriorAccess("a", "surface")).isNull();
             physics.place("a", -57.1, 12.67, -88);
             assertThat(physics.useInteriorAccess("a", "exit")).isNull();
-            physics.place("a", -51.4, 12.67, -85.25);
-            for (int index = 0; index < 54; index++) {
-                physics.input("a", new MoveInput(index + 1, 0, -1, false, false), now);
+            // 3층 좁은 통로에서 꼭대기 방 동쪽 문으로 들어서면 출구가 열린다.
+            physics.place("a", -46.5, 15.01, -92.2);
+            for (int index = 0; index < 90; index++) {
+                physics.input("a", new MoveInput(index + 1, -1, 0, false, false), now);
                 physics.step(now += WorldPhysics.STEP_NANOS, Set.of());
             }
             var landing = physics.snapshot("a");
-            assertThat(landing.z()).isLessThan(-91.4);
+            assertThat(landing.x()).isLessThan(-50.0);
             assertThat(landing.y()).isGreaterThan(14.8);
             assertThat(landing.interiorExitReady()).isTrue();
             physics.place("a", -57.1, 12.67, -88);
@@ -81,24 +82,25 @@ class InteriorAccessTests {
         var map = PreparedParkMap.load(path.resolve("server-map.json"), path.resolve("manifest.json"), Set.of("channel-1"));
         try (var physics = new WorldPhysics(map.createScene(), false, () -> now, true)) {
             physics.add("walker");
-            physics.place("walker", -53.1, 12.65, -90.45);
+            // 경사로를 올라온 착지: 출구는 창살 너머에 있다.
+            physics.place("walker", -50.8, 12.65, -86.5);
             for (double[] target : new double[][]{
-                    {-48, -90.45}, {-45, -91}, {18.15, -91}, {18.15, -54},
-                    {-45, -54}, {-45, -91}, {-48, -90.45}, {-53.15, -90.45},
-                    {-56.8, -90.4}, {-57.1, -88}}) {
+                    {-50.8, -90.2}, {-48, -91.6}, {16.9, -91.6}, {16.9, -54},
+                    {-45, -54}, {-45, -91.6}, {-48, -91.6}, {-50.8, -90.2}, {-50.8, -86.5}}) {
                 walk(physics, target[0], target[1]);
                 assertThat(physics.snapshot("walker").y()).isBetween(12.3, 13.0);
             }
+            assertThat(tryWalk(physics, -56.4, -87)).isFalse();
             assertThat(physics.useInteriorAccess("walker", "exit")).isNull();
+            // 동쪽 끝 계단으로 3층 → 다리 → 서쪽 통로 → 꼭대기 방 → 창살 안쪽으로 내려가는 계단 → 출구.
             for (double[] target : new double[][]{
-                    {-56.7, -90.7}, {-53.1, -90.7}, {-53.1, -85.4}, {-51.4, -85.35},
-                    {-51.4, -92}, {-55.25, -92}, {-55.25, -91}}) {
+                    {-50.8, -90.2}, {-48, -91.6}, {16.9, -91.6}, {16.9, -81}, {18.8, -80}, {18.8, -72.2},
+                    {15, -71.7}, {-45.75, -71.7}, {-45.75, -92.2}, {-50.4, -92.2}, {-53.7, -92}}) {
                 walk(physics, target[0], target[1]);
             }
             assertThat(physics.snapshot("walker").y()).isGreaterThan(14.8);
-            for (double[] target : new double[][]{
-                    {-55.25, -92}, {-51.4, -92}, {-51.4, -85.5}, {-53.1, -85.5},
-                    {-53.1, -90.7}, {-56.7, -90.7}, {-57.1, -88}}) {
+            assertThat(physics.snapshot("walker").interiorExitReady()).isTrue();
+            for (double[] target : new double[][]{{-53.7, -91}, {-53.7, -86.6}, {-56.4, -87}, {-57.1, -88}}) {
                 walk(physics, target[0], target[1]);
             }
             assertThat(physics.useInteriorAccess("walker", "exit")).isNotNull();
@@ -106,6 +108,19 @@ class InteriorAccessTests {
     }
 
     private long seq;
+
+    /** Walk towards (x, z) for a while; whether it got there. */
+    private boolean tryWalk(WorldPhysics physics, double x, double z) {
+        for (int i = 0; i < 400; i++) {
+            var pose = physics.snapshot("walker");
+            double dx = x - pose.x(), dz = z - pose.z();
+            double distance = Math.hypot(dx, dz);
+            if (distance < .3) return true;
+            physics.input("walker", new MoveInput(++seq, dx / distance, dz / distance, false, false), now);
+            physics.step(now += WorldPhysics.STEP_NANOS, Set.of());
+        }
+        return false;
+    }
 
     private void walk(WorldPhysics physics, double x, double z) {
         for (int i = 0; i < 800; i++) {

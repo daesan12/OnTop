@@ -3,7 +3,7 @@ import { MAZE_ARRIVAL, MAZE_GOAL, MAZE_SEED, MAZE_X, MAZE_Z, WALL, buildMaze, ma
 import { HORROR, HORROR_MAZE as MAZE, HORROR_MAZE_ARROWS, HORROR_SOLIDS, horrorWalkable, mazeDoorway } from '../../park-renewal-preview/horrorPlan'
 import { HORROR_LAMPS } from '../../park-renewal-preview/horrorGeometry'
 import { diamond } from '../../park-renewal-preview/interiorEvents'
-import { interiorAccess, upperRamp } from '../../park-renewal-preview/interiorAccess'
+import { interiorAccess, upperStair } from '../../park-renewal-preview/interiorAccess'
 
 // Everywhere you can walk from where you come down, on a 0.3 m grid, by the real walk test.
 const STEP = .3, X0 = -58, Z0 = -105, NX = Math.ceil((26 - X0) / STEP), NZ = Math.ceil((-48 - Z0) / STEP)
@@ -37,7 +37,7 @@ describe('the lower hall is a labyrinth (horrorMaze)', () => {
   })
 
   it('stands well under the gallery that looks down on it', () => {
-    for (const w of MAZE.walls) expect(HORROR.floor + w.height).toBeLessThan(upperRamp.y0 - .4)
+    for (const w of MAZE.walls) expect(HORROR.floor + w.height).toBeLessThan(upperStair.y0 - .4)
     expect(WALL.height).toBeGreaterThan(3.5) // over your head: you cannot see over it
   })
 

@@ -1,4 +1,4 @@
-import { annex, annexVolumes, galleryVolumes, passageVolumes, upperRamp, upperRoomVolumes } from './interiorAccess'
+import { annex, annexVolumes, catwalkVolumes, galleryVolumes, interiorRamps, passageVolumes, upperRoomVolumes } from './interiorAccess'
 import { HorrorStoneMaterial } from './HorrorStoneMaterial'
 import { GrimeMaterial } from './HorrorGrimeMaterial'
 
@@ -27,12 +27,11 @@ export function AnnexDetails() {
 }
 
 export function HallDetails() {
-  const run = upperRamp.z0 - upperRamp.z1, rise = upperRamp.y1 - upperRamp.y0
   return <group>
     {passageVolumes.map(({center,size}, index) => <mesh key={index} position={center}>
       <boxGeometry args={[...size]} /><HorrorStoneMaterial color="#57574b" />
     </mesh>)}
-    {[...galleryVolumes, ...upperRoomVolumes].map(({center,size,material}, index) => {
+    {[...galleryVolumes, ...upperRoomVolumes, ...catwalkVolumes].map(({center,size,material}, index) => {
       if (material === 'guard') {
         const alongX = size[0] > size[2], length = alongX ? size[0] : size[2]
         const count = Math.ceil(length / 1.8)
@@ -50,12 +49,17 @@ export function HallDetails() {
         {material === 'wood' ? <GrimeMaterial kind="wood" color="#705340" /> : <HorrorStoneMaterial color="#5a5d55" />}
       </mesh>
     })}
-    <mesh position={[upperRamp.x, (upperRamp.y0 + upperRamp.y1) / 2 - .12, (upperRamp.z0 + upperRamp.z1) / 2]}
-      rotation={[Math.atan2(rise,run),0,0]}>
-      <boxGeometry args={[upperRamp.width,.24,Math.hypot(run,rise)]} />
-      <HorrorStoneMaterial color="#797061" />
-    </mesh>
-    {([[-55,16.48,-90.3],[-45,14.3,-71],[-14,14.3,-54],[22,14.3,-76],[5,14.3,-91]] as const).map(position =>
+    {interiorRamps.map(r => {
+      const run = r.z0 - r.z1, rise = r.y1 - r.y0
+      return <mesh key={r.x} position={[r.x, (r.y0 + r.y1) / 2 - .12, (r.z0 + r.z1) / 2]} rotation={[Math.atan2(rise,run),0,0]}>
+        <boxGeometry args={[r.width,.24,Math.hypot(run,rise)]} />
+        <HorrorStoneMaterial color="#797061" />
+      </mesh>
+    })}
+    {/* The bridge hangs from the vault on iron rods, both sides, every eight metres. */}
+    {Array.from({ length: 8 }, (_, i) => 12 - i * 8).flatMap(x => [-70.82, -72.58].map(z =>
+      <mesh key={x + ',' + z} position={[x, 15.75, z]}><boxGeometry args={[.05, 3.1, .05]} /><meshLambertMaterial color="#3a3a31" /></mesh>))}
+    {([[-55,16.48,-90.3],[-48.6,14.3,-66],[-14,14.3,-54],[22,14.3,-76],[5,14.3,-91]] as const).map(position =>
       <group key={position.join(',')} position={position}>
         <mesh><boxGeometry args={[.2,.32,.2]} /><meshBasicMaterial color="#eac28e" /></mesh>
         <pointLight intensity={19} distance={13} color="#ffc68d" />
