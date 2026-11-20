@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef } from 'react'
-import { useFrame } from '@react-three/fiber'
-import { BufferGeometry, Float32BufferAttribute, Matrix4, Mesh, MeshLambertMaterial, Vector3, type Object3D } from 'three'
+import { useFrame, useThree } from '@react-three/fiber'
+import { BufferGeometry, Float32BufferAttribute, Matrix4, Mesh, Vector3, type Object3D } from 'three'
+import { RoofSnowCache, type SnowProtectedArea } from './RoofSnowCache'
+export type { SnowProtectedArea } from './RoofSnowCache'
 
-const buildings = /^(facility-(pavilion|fortune|lottery|bread|pigeon|cafe|dock|gacha|mole|arcade|vr|folk|shooting|fishing-shop|rest-\d+)|paired-rental-.+)$/
-const roofs = new Set(['garden-stone-pagoda', 'jump-course-entrance-pagoda', 'balloon-station-model', 'forty-metre-tower'])
-export interface SnowProtectedArea { x: number; z: number; radius: number; topY: number }
 const alwaysVisible = () => true
+const noProtectedAreas: readonly SnowProtectedArea[] = []
 
 /** 원본의 위를 향한 삼각형만 복사한다. 기와·간판·벽과 기존 재질은 그대로 유지한다. */
 export function snowRoofGeometry(root: Object3D, protectedAreas: readonly SnowProtectedArea[] = []) {
@@ -40,43 +40,28 @@ export function snowRoofGeometry(root: Object3D, protectedAreas: readonly SnowPr
   return geometry
 }
 
-export function RoofSnow({ visible = alwaysVisible, protectedAreas = [] }: {
+export function RoofSnow({ visible = alwaysVisible, protectedAreas = noProtectedAreas }: {
   visible?: () => boolean; protectedAreas?: readonly SnowProtectedArea[]
 }) {
   const protectedSignature = useMemo(() => JSON.stringify(protectedAreas), [protectedAreas])
-  const state = useRef({ elapsed: 1, roots: new Map<Object3D, { signature: string; mesh: Mesh }>(),
-    material: new MeshLambertMaterial({ color: '#edf5f1', polygonOffset: true, polygonOffsetFactor: -1 }) })
-  useEffect(() => () => {
-    for (const { mesh } of state.current.roots.values()) { mesh.removeFromParent(); mesh.geometry.dispose() }
-    state.current.roots.clear(); state.current.material.dispose()
-  }, [])
-  useFrame(({ scene }, dt) => {
-    const s = state.current
+  const scene = useThree(state => state.scene)
+  const state = useRef({ elapsed: 1, cache: null as RoofSnowCache | null })
+  useEffect(() => {
+    const cache = new RoofSnowCache(scene, noProtectedAreas, snowRoofGeometry)
+    state.current.cache = cache
+    return () => { cache.dispose(); state.current.cache = null }
+  }, [scene])
+  useEffect(() => { state.current.cache?.protect(protectedAreas) }, [protectedSignature, protectedAreas])
+  useFrame((_, dt) => {
+    const s = state.current, cache = s.cache
+    if (!cache) return
     const show = visible()
-    for (const { mesh } of s.roots.values()) mesh.visible = show
+    cache.show(show)
     if (!show) return
     s.elapsed += dt
     if (s.elapsed < .25) return
     s.elapsed = 0
-    const roots: Object3D[] = []
-    scene.traverse(node => { if (buildings.test(node.name) || roofs.has(node.name)) roots.push(node) })
-    // 한 프레임에 건물 하나씩 준비해서 입장 로딩과 경쟁하지 않는다.
-    for (const root of roots) {
-      const parts: string[] = []
-      root.traverse(node => { if (node instanceof Mesh && !node.userData.winterSnow) parts.push(node.geometry.uuid) })
-      const signature = protectedSignature + '|' + parts.join(','), previous = s.roots.get(root)
-      if (!parts.length || previous?.signature === signature) continue
-      const geometry = snowRoofGeometry(root, protectedAreas)
-      previous?.mesh.removeFromParent(); previous?.mesh.geometry.dispose()
-      const mesh = new Mesh(geometry, s.material)
-      mesh.name = 'winter-roof-snow'; mesh.userData.winterSnow = true; mesh.receiveShadow = true
-      mesh.raycast = () => {}
-      root.add(mesh); s.roots.set(root, { signature, mesh })
-      break
-    }
-    for (const [root, { mesh }] of s.roots) if (!root.parent) {
-      mesh.removeFromParent(); mesh.geometry.dispose(); s.roots.delete(root)
-    }
+    cache.processOne()
   })
   return null
 }
