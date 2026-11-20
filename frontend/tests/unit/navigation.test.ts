@@ -2,16 +2,10 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { LAKE, WORLD, MOVEMENT, FOUNTAIN, MINI_PROPS } from '../../src/config'
 import { EXPECTED_MAP_VERSION } from '../../src/config/mapVersion'
-import { PARK_DESTINATIONS, findParkRoute, isNavigationWalkable, navigationSegmentClear, navigationHeight } from '../../src/features/navigation/parkNavigation'
+import { PARK_DESTINATIONS, findParkRoute, isNavigationWalkable, navigationHeight } from '../../src/features/navigation/parkNavigation'
 import { useNavigation, selectDestination, cancelNavigation, openParkMap, closeParkMap } from '../../src/features/navigation/navigationState'
 import { inputState } from '../../src/world/inputOwnership'
 
-// AGENTS.md: keep exhaustive destination traversal out of FE test execution.
-it.skip.each(Object.entries(PARK_DESTINATIONS))('current OnTop layout has a collision-clear approach to %s',(_id,destination)=>{
-  const path=findParkRoute({x:0,z:34},destination)
-  expect(path).not.toBeNull(); expect(path!.length).toBeGreaterThan(1)
-  for(let i=1;i<path!.length;i++) expect(navigationSegmentClear(path![i-1]!,path![i]!)).toBe(true)
-})
 it('rejects water, bounds, non-finite inputs and tower shortcuts without a fabricated straight line',()=>{
   for(const point of [{x:LAKE.x,z:LAKE.z},{x:WORLD.halfSize+1,z:0},{x:NaN,z:0},{x:0,z:Infinity}])expect(findParkRoute({x:0,z:34},point)).toBeNull()
   expect(isNavigationWalkable({x:56,z:50})).toBe(false)

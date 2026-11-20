@@ -1,64 +1,31 @@
-# Vitest 기본 회귀와 로컬 검토 범위
+# Vitest 불필요한 검증 내용 정리
 
-기본 회귀는 `tests/unit/**/*.test.ts`, 별도 로컬 검토는 `tests/local-unit/**/*.test.ts`를 사용한다. `vitest.config.ts`, `vitest.local.config.ts`, package script와 Jenkins 설정은 이번 정리에서 변경하지 않았다. 기본 회귀의 일반 기능 검사를 유지하면서 수동 진단과 소스 보존 검토를 구분한다.
+테스트 개수를 줄이는 것을 목표로 하지 않는다. assertion에 쓰이지 않는 반복 계산과 같은 계약을 중복 확인하는 내용을 삭제하고, 필요한 기능·진단·소스 보존 검사는 유지한다. Jenkins, Vitest 실행 설정, package script, 의존성 및 제품 코드는 변경하지 않는다.
 
-## 기본 회귀에서 유지하는 검사
+## 삭제한 내용과 남긴 검증
 
-- 인증·재접속·입력 소유권·게임 규칙·결과 복구·지갑·바인딩·FE/BE 맵 계약을 유지한다.
-- `worldMapParity.test.ts`에 기존 legacy schema version 검사를 모았다.
-- `frontendTestLayout.test.ts`에 frontend-test 바인딩과 정본의 동등성 검사를 모았다. 기존 dev 바인딩 검사와 함께 `legacyCollisionVersion.test.ts`의 계약을 보존한다.
-- `movementAblation.test.ts`의 순수 품질 집계 및 freshness·relocation 경계 검사 두 개는 기본 회귀에 남긴다.
-- 맵 watcher 및 실제 에셋 welding 검사는 유지한다. 관련 변경만 실행하는 CI 연결은 별도 인프라 작업으로 다룬다.
-
-## 실행하지 않는 전수 검사
-
-사용자 지침에 따라 아래 테스트는 코드를 보존하고 `it.skip`으로 실행을 제외한다. 전체 테스트 실행에서도 이 정책을 유지하며 자전거·킥보드 주행 검사를 추가하거나 실행하지 않는다.
-
-| 파일 | 제외 부분 | 유지 부분 |
+| 대상 | 삭제한 내용 | 유지한 검증 |
 | --- | --- | --- |
-| `generatedServiceMap.test.ts` | 모든 목적지의 접근 경로 순회 | 생성 맵 identity·바인딩·상호작용 좌표 및 개별 횡단 계약 |
-| `navigation.test.ts` | 모든 목적지의 접근 경로 순회 | 입력 소유권·잘못된 좌표·개별 경로 계약 |
-| `layoutJump.test.ts` | controller로 113개 표면 전체 순회 | 게임 시작·보상·실패·게이트 순서·입력 버퍼 |
-| `parkCheckpoint.test.ts` | 19,881개 이동·높이·수영 샘플 | 기존 정적 배치 데이터 checkpoint |
+| `jumpRopeGrandpaHuman.test.ts` | assertion 없이 결과 표에만 쓰던 두 사람의 과거 설정 시뮬레이션 600회 | 현재 설정의 사람 3종 × seed 300개와 assertion에서 사용하는 과거 설정 300회, 기존 판정 기준 |
+| `legacyCollisionVersion.test.ts` | 다른 파일에서 중복 검사하는 테스트 파일 | 고유한 schema version 및 frontend-test 정본 동등성 검사를 `worldMapParity`, `frontendTestLayout`에 통합 |
+| `generatedServiceMap.test.ts`, `navigation.test.ts` | 전체 목적지의 접근 경로를 반복 탐색하는 본문 | 맵 identity·바인딩·좌표·개별 경로·입력 소유권 |
+| `layoutJump.test.ts` | 실제 controller로 113개 표면을 모두 순회하는 본문 | 시작·보상·실패·게이트 순서·입력 버퍼 |
+| `parkCheckpoint.test.ts` | 19,881개 좌표의 이동·높이·수영 순회와 사용하지 않게 된 import | 기존 정적 배치 데이터 checkpoint |
+| `fixtures/parkCheckpoint.json` | 삭제한 순회만 사용하던 movement checksum | 기존 정적 배치 데이터 해시 전체를 값 변경 없이 보존 |
 
-제외 지침이 명시적으로 변경되지 않는 한 이 검사들의 skip을 해제하지 않는다.
+전수 탐색은 기존 사용자 지침의 실행 제외 대상이며 이번 요청에 따라 skip 본문을 남기지 않고 삭제했다. 자전거·킥보드 주행 검사는 추가하거나 실행하지 않았다.
 
-## 필요할 때 실행하는 로컬 검토
+## 원래대로 유지한 테스트
 
-다음 검사는 `tests/local-unit/`으로 옮겼다. 파일 깊이가 같아 기존 fixture·src import 경로를 유지한다.
+이동 trace 진단 네 파일과 `parkVisualPreservation.test.ts`는 원래 `tests/unit/` 경로와 내용으로 유지한다. 이전 MR 수정에서 추가했던 로컬 복제 파일과 호환 진입점은 제거했다. 이 다섯 파일은 최신 dev와 동일하며 기존 BE 진단 호출 및 문서의 CLI 경로도 그대로다. 기존 `tests/local-unit/` 14개와 실행 설정은 변경하지 않았다.
 
-`movementComparison`, `unifiedMovementRegions`를 호출하는 기존 BE 진단과 `movementQuality`의 문서화된 CLI 경로를 위해 `tests/unit/`에는 얇은 호환 진입점을 남긴다. 환경변수가 있을 때만 로컬 진단 모듈을 import하고, 일반 회귀에서는 skip을 등록한다. BE 코드와 기존 명령 경로를 바꾸지 않는다.
+`parkVisualPreservation`과 `parkVisualCheckpoint.json`은 `frontend/docs/PARK_FE_INTEGRATION.md`의 소스 보존 규칙이 지정한 검사다. 단순히 주석 변경에도 실패한다는 이유만으로 불필요하다고 판단해 삭제하지 않는다. 이동 trace 진단도 재현 목적이 있으므로 환경변수에 따른 기존 실행 조건을 유지한다.
 
-| 파일 | 목적과 조건 |
-| --- | --- |
-| `parkVisualPreservation.test.ts` | 승인 소스 200개의 원문 해시 보존 검토. 기능 회귀나 실제 화면 비교를 뜻하지 않는다 |
-| `movementComparison.test.ts` | `MOVEMENT_COMPARISON_DIR`의 실제 Bullet trace와 FE 예측 비교 |
-| `movementQuality.test.ts` | `MOVEMENT_COMPARISON_DIR`를 사용하는 보간·예측 품질 측정 |
-| `unifiedMovementRegions.test.ts` | `UNIFIED_MOVEMENT_DIR`에 FE/BE 지역별 이동 fixture를 생성하는 진단 |
-| `movementAblation.test.ts` | `MOVEMENT_AB_DIR`의 실제 trace를 이용한 ablation 측정 부분만 분리 |
+## 검증 기록
 
-실행 위치는 `frontend/`이다. 환경변수가 필요한 검사는 재현 자료를 준비한 경우에만 해당 파일을 명시적으로 실행한다. 아래는 소스 보존 검토의 예이다.
-
-```bash
-pnpm exec vitest run --config vitest.local.config.ts tests/local-unit/parkVisualPreservation.test.ts
-```
-
-관련 버그의 재현·원인 분석에 필요한 trace 진단은 이 경로로 계속 사용할 수 있다. 기본 회귀에서 파일이 빠졌다고 검증 완료 또는 진단 불필요를 뜻하지 않는다.
-
-## 줄넘기 시뮬레이션 계산량
-
-`jumpRopeGrandpaHuman.test.ts`는 사람 3종 × seed 300개의 현재 설정 검사와, 실제 assertion에서 쓰는 서툰 사람의 과거 설정 300회를 유지한다. assertion 없이 표 출력에만 사용되던 다른 두 사람의 과거 설정 600회는 제거했다. seed·완주율·피격·회피 직후 MISS·과거 대비 개선 기준은 바꾸지 않았다.
-
-2026-11-20 로컬 Node 24.18.0, Vitest 5.0.4, `--maxWorkers=1`에서 같은 파일의 전체 실행 시간은 변경 전 11.98초, 변경 후 7.45초였다. 성능 측정 기준은 `6a690e05`이며 각 1회 측정 결과다. 서버·전체 Jenkins의 단축 시간을 보장하지 않는다.
-
-## 이번 변경의 검증 기록
-
-- 시작 dev: `6a690e05a76063c5d6269d3443ecfebb4f902c41`. 추가 푸시 직전 `fa1516e15ea256e6ad903383dfec6e89b2dfed95`까지 merge로 반영했다. 새 dev 변경은 BE 월드 틱 계측 3개 파일이며 FE 변경은 없고 통합 충돌도 없다. 이 작업이 작성한 diff는 최신 dev 대비 FE 테스트와 문서에 한정된다.
-- 변경한 기본 회귀 7개 파일: 31 passed, 25 skipped. skip은 지침의 전수 검사이며 실행하지 않았다.
-- 줄넘기 사람 모델: 변경 전·후 각각 1 passed.
-- 분리한 로컬 검토 5개 파일: 소스 보존 검사 1 passed, 외부 trace가 없는 진단 5 skipped. 실제 trace 기반 재현은 미검증이다.
-- 기존 CLI 경로의 호환 진입점 3개: 외부 trace 없는 상태에서 4 skipped, 무거운 진단 모듈을 로딩하지 않는다.
-- 환경변수를 설정한 `vitest list --no-static-parse`로 기존 CLI 경로에서 진단 4개가 등록되는 것을 확인했다. 이 수집 검증은 진단 본문을 실행하거나 trace 파일을 생성하지 않는다.
-- 전체 `src` 및 변경 테스트 16개 파일의 타입 검사 통과.
-- 기존 전체 테스트 타입 검사에는 수정하지 않은 `tests/e2e/admin-mole-audit.spec.ts:227`의 `window.innerWidth` 타입 오류가 남아 있다. 해당 파일은 dev와 동일하고 단독 포함 검사에서도 같은 오류가 재현된다. 이번 작업에서는 별도 기능의 E2E 코드를 변경하지 않았다.
-- 제품 코드·공통 runtime·맵·BE·migration·의존성·Jenkins 및 Vitest 실행 설정 변경 없음. 실제 서버 연결 및 전체 공원 통합 검증은 수행하지 않았다.
+- 시작 dev `6a690e05`에서 최신 `fa1516e15ea256e6ad903383dfec6e89b2dfed95`까지 이력을 보존하는 merge로 반영했다. 충돌 없음.
+- 최종 관련 테스트 12개 파일: 33 passed, 5 skipped. skipped는 재현 trace 환경변수가 없는 기존 진단이며, 삭제한 전수 탐색의 본문을 실행한 것이 아니다.
+- 전체 `src`와 관련 테스트의 타입 검사 통과. 정적 배치 해시 값 보존 및 목적 있는 다섯 테스트의 dev 원문 동등성도 확인했다.
+- 기존 전체 테스트 타입 검사에는 수정하지 않은 `tests/e2e/admin-mole-audit.spec.ts:227`의 `window.innerWidth` 오류가 남아 있다. 이번 변경은 해당 파일을 수정하지 않는다.
+- 줄넘기 같은 파일의 앞선 로컬 비교는 Node 24.18.0, Vitest 5.0.4, `maxWorkers=1`, `6a690e05` 기준으로 변경 전 11.98초, 변경 후 7.45초였다. 각 1회 측정이며 Jenkins 전체의 단축 시간을 보장하지 않는다.
+- 실제 서버 연결과 전체 공원 통합 검증은 수행하지 않았다. CI 실행 조건이나 서버 자원·모듈 로딩 병목은 별도 진단 대상이다.

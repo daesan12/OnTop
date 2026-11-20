@@ -60,25 +60,6 @@ describe('FE-only planned jump course',()=>{
     queueJump(buffered);stepJump(buffered,.12,{x:0,z:0});expect(buffered.vy).toBeGreaterThan(4)
     expect(JUMP_RULES.coyote).toBe(.1);expect(JUMP_RULES.buffer).toBe(.15)
   })
-  // AGENTS.md: retain the full-course traversal as reference without executing it.
-  it.skip('traverses all 113 surfaces with the actual controller, including every turn and the dive approach',()=>{
-    const s=createJumpSession(),first=JUMP_SEQUENCE[0]!
-    Object.assign(s,{x:first.x,z:first.z,y:first.height,grounded:true,pad:first});landJumpPad(s,first)
-    for(let index=1;index<JUMP_SEQUENCE.length;index++) {
-      const a=JUMP_SEQUENCE[index-1]!,b=JUMP_SEQUENCE[index]!,dx=b.x-a.x,dz=b.z-a.z,l=Math.hypot(dx,dz),ux=dx/l,uz=dz/l
-      const radius=a.radius??Math.min(a.halfX/Math.max(.001,Math.abs(ux)),a.halfZ/Math.max(.001,Math.abs(uz)))
-      const launch={x:a.x+ux*Math.max(0,radius-.32),z:a.z+uz*Math.max(0,radius-.32)}
-      for(let i=0;i<180&&Math.hypot(s.x-launch.x,s.z-launch.z)>.07;i++)stepJump(s,1/120,{x:launch.x-s.x,z:launch.z-s.z})
-      queueJump(s)
-      for(let i=0;i<300;i++) {
-        const distance=Math.hypot(b.x-s.x,b.z-s.z)
-        stepJump(s,1/120,{x:distance<.06?0:b.x-s.x,z:distance<.06?0:b.z-s.z})
-        if(s.pad?.id===b.id&&s.grounded)break
-      }
-      expect(s.pad?.id,'controller landing '+index+' '+b.id).toBe(b.id)
-    }
-    expect(s.nextGate).toBe(7);expect(s.lastLeaf).toBe(true)
-  })
   it('finds a walkable return route through the actual park gates, without cutting fences',()=>{
     const route=findJumpReturnPath({x:0,z:82})
     expect(route.length).toBeGreaterThan(2);expect(route.at(-1)).toEqual(JUMP_START)
