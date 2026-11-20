@@ -9,6 +9,11 @@ import { WINTER_DECOR, SNOW_PILES } from './plan'
 import { useWinter, winterFrozen, type WinterPlayer } from './state'
 import { createHolidayArt } from './holidayArt'
 import { createChristmasTreeArt } from './christmasTreeArt'
+import { TABLES, GOMOKU, tableScale } from '../../park/mapConfig'
+import { winterSceneryVisible } from './presentation'
+
+const gameSurfaces = TABLES.map(t => ({ x: t.position[0], z: t.position[2], radius: Math.max(3, tableScale(t) * 2.5),
+  topY: t.position[1] + (t.boardOffsetY ?? 0) + GOMOKU.boardY + .5 }))
 
 function decoration(kind: typeof WINTER_DECOR[number]['kind']) {
   return kind === 'tree' ? createChristmasTreeArt() : createHolidayArt(kind)
@@ -16,7 +21,7 @@ function decoration(kind: typeof WINTER_DECOR[number]['kind']) {
 
 function HolidayProp({ art, kind }: { art: ReturnType<typeof createHolidayArt>; kind: string }) {
   return <group name={'winter-art-' + kind}>{Object.entries(art).map(([finish, geometry]) =>
-    <mesh key={finish} geometry={geometry} dispose={null} castShadow receiveShadow>
+    <mesh key={finish} geometry={geometry} dispose={null} castShadow receiveShadow raycast={() => {}}>
       <meshStandardMaterial vertexColors roughness={finish === 'gold' ? .34 : .74}
         metalness={finish === 'gold' ? .48 : 0} side={2}
         emissive={finish === 'glow' ? '#ffc775' : '#000000'} emissiveIntensity={finish === 'glow' ? .9 : 0}
@@ -145,11 +150,13 @@ function WinterActors() {
 }
 
 export function WinterScene({ low = false }: { low?: boolean }) {
+  const group = useRef<Group>(null)
   const art = useMemo(() => new Map([...new Set(WINTER_DECOR.map(d => d.kind))].map(kind => [kind, decoration(kind)])), [])
   useEffect(() => () => { for (const value of art.values()) for (const g of Object.values(value)) g?.dispose() }, [art])
-  return <group name="winter-park">
+  useFrame(() => { if (group.current) group.current.visible = winterSceneryVisible() })
+  return <group ref={group} name="winter-park">
     <SleighScene />
-    <RoofSnow />
+    <RoofSnow visible={winterSceneryVisible} protectedAreas={gameSurfaces} />
     <Snowfall low={low} />
     <Snowballs />
     <GroundSnow />

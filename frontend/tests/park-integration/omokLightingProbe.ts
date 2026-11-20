@@ -6,6 +6,14 @@ import { omokCamera } from '../../src/game/cameraState'
 import { GOMOKU } from '../../src/config'
 
 const root = () => _roots.get(document.querySelector('canvas')!)!.store.getState()
+export function winterPresentation() {
+  const { scene } = root(), park = scene.getObjectByName('winter-park')
+  let roofs = 0, visibleRoofs = 0
+  scene.traverse(node => {
+    if (node.name === 'winter-roof-snow') { roofs++; if (node.visible) visibleRoofs++ }
+  })
+  return { parkVisible: park?.visible ?? false, roofs, visibleRoofs }
+}
 const pin = { hour: null as number | null }
 let pinned = false
 /** Hold the park clock at an in-game hour. The epoch getter wins over later WORLD_TIME_STATE samples. */

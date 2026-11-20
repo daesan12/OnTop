@@ -8,7 +8,7 @@ import { SLEIGH_DOCK, SLEIGH_ID, sleighPose } from './route'
 
 function Art({ art }: { art: ReturnType<typeof createSleighArt> }) {
   return <>{Object.entries(art).map(([finish, geometry]) => <mesh key={finish} geometry={geometry as BufferGeometry}
-    dispose={null} castShadow receiveShadow>
+    dispose={null} castShadow receiveShadow raycast={() => {}}>
     <meshStandardMaterial vertexColors roughness={finish === 'gold' ? .32 : .8} metalness={finish === 'gold' ? .55 : 0} />
   </mesh>)}</>
 }
@@ -31,7 +31,7 @@ export function SleighScene() {
     <group ref={deer} name="sleigh-reindeer-team">{[3.4, 5.9, 8.4].flatMap((z, row) => [-.85, .85].map((x, side) =>
       <group key={row + '-' + side} position={[x, 0, z]} name={row === 2 && side === 0 ? 'rudolph' : 'reindeer'}>
         <Art art={art.deer} />
-        {row === 2 && side === 0 && <mesh position={[0, .97, 1.15]}><icosahedronGeometry args={[.105, 1]} />
+        {row === 2 && side === 0 && <mesh position={[0, .97, 1.15]} raycast={() => {}}><icosahedronGeometry args={[.105, 1]} />
           <meshStandardMaterial color="#f1333e" emissive="#ed2135" emissiveIntensity={1.4} toneMapped={false} /></mesh>}
       </group>))}</group>
   </group>

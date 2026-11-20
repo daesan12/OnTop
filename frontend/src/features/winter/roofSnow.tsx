@@ -4,9 +4,11 @@ import { BufferGeometry, Float32BufferAttribute, Matrix4, Mesh, MeshLambertMater
 
 const buildings = /^(facility-(pavilion|fortune|lottery|bread|pigeon|cafe|dock|gacha|mole|arcade|vr|folk|shooting|fishing-shop|rest-\d+)|paired-rental-.+)$/
 const roofs = new Set(['garden-stone-pagoda', 'jump-course-entrance-pagoda', 'balloon-station-model', 'forty-metre-tower'])
+export interface SnowProtectedArea { x: number; z: number; radius: number; topY: number }
+const alwaysVisible = () => true
 
 /** 원본의 위를 향한 삼각형만 복사한다. 기와·간판·벽과 기존 재질은 그대로 유지한다. */
-export function snowRoofGeometry(root: Object3D) {
+export function snowRoofGeometry(root: Object3D, protectedAreas: readonly SnowProtectedArea[] = []) {
   root.updateWorldMatrix(true, true)
   const inverse = new Matrix4().copy(root.matrixWorld).invert(), vertices: number[] = []
   const a = new Vector3(), b = new Vector3(), c = new Vector3(), ab = new Vector3(), ac = new Vector3()
@@ -22,6 +24,10 @@ export function snowRoofGeometry(root: Object3D) {
       c.fromBufferAttribute(p, index ? index.getX(i + 2) : i + 2).applyMatrix4(node.matrixWorld)
       ab.subVectors(b, a); ac.subVectors(c, a); ab.cross(ac).normalize()
       if (ab.y < .48 || Math.min(a.y, b.y, c.y) < floor) continue
+      // Combined pavilion meshes can contain furniture and raised floors. Never copy those onto a game surface.
+      if (protectedAreas.some(p => Math.min(a.y, b.y, c.y) <= p.topY
+        && Math.max(a.x, b.x, c.x) >= p.x - p.radius && Math.min(a.x, b.x, c.x) <= p.x + p.radius
+        && Math.max(a.z, b.z, c.z) >= p.z - p.radius && Math.min(a.z, b.z, c.z) <= p.z + p.radius)) continue
       for (const v of [a, b, c]) {
         v.y += .055
         v.applyMatrix4(inverse)
@@ -34,7 +40,9 @@ export function snowRoofGeometry(root: Object3D) {
   return geometry
 }
 
-export function RoofSnow() {
+export function RoofSnow({ visible = alwaysVisible, protectedAreas = [] }: {
+  visible?: () => boolean; protectedAreas?: readonly SnowProtectedArea[]
+}) {
   const state = useRef({ elapsed: 1, roots: new Map<Object3D, { signature: string; mesh: Mesh }>(),
     material: new MeshLambertMaterial({ color: '#edf5f1', polygonOffset: true, polygonOffsetFactor: -1 }) })
   useEffect(() => () => {
@@ -43,6 +51,9 @@ export function RoofSnow() {
   }, [])
   useFrame(({ scene }, dt) => {
     const s = state.current
+    const show = visible()
+    for (const { mesh } of s.roots.values()) mesh.visible = show
+    if (!show) return
     s.elapsed += dt
     if (s.elapsed < .25) return
     s.elapsed = 0
@@ -54,7 +65,7 @@ export function RoofSnow() {
       root.traverse(node => { if (node instanceof Mesh && !node.userData.winterSnow) parts.push(node.geometry.uuid) })
       const signature = parts.join(','), previous = s.roots.get(root)
       if (!signature || previous?.signature === signature) continue
-      const geometry = snowRoofGeometry(root)
+      const geometry = snowRoofGeometry(root, protectedAreas)
       previous?.mesh.removeFromParent(); previous?.mesh.geometry.dispose()
       const mesh = new Mesh(geometry, s.material)
       mesh.name = 'winter-roof-snow'; mesh.userData.winterSnow = true; mesh.receiveShadow = true

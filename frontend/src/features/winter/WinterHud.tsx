@@ -10,10 +10,12 @@ import { createCarryEscape, CARRY_ESCAPE_PRESSES } from '../carry/escape'
 import { SANTA, SNOW_PILES } from './plan'
 import { useWinter, winterFrozen } from './state'
 import './winter.css'
+import { useWinterBoardView, winterSceneryVisible } from './presentation'
 
 export function WinterHud() {
   const self = useSession(s => s.sessionId), player = useWinter(s => s.players[self]), notice = useWinter(s => s.notice)
   const sleigh = useFacilityState(s => s.occupancies[self]?.kind === 'SLEIGH')
+  const boardView = useWinterBoardView()
   const [ready, setReady] = useState(false), [nearSanta, setNearSanta] = useState(false)
   const [pileId, setPileId] = useState(''), [cooldown, setCooldown] = useState(false), [now, setNow] = useState(estimatedServerTime)
   const escape = useRef(createCarryEscape()), completed = useRef(false), queue = useRef(Promise.resolve())
@@ -23,7 +25,7 @@ export function WinterHud() {
     const timer = setInterval(() => {
       const session = useSession.getState(), own = avatars.get(session.sessionId)
       setNow(estimatedServerTime())
-      setReady(session.status === 'connected' && session.mapCompatible && !!own && !own.carry
+      setReady(winterSceneryVisible() && session.status === 'connected' && session.mapCompatible && !!own && !own.carry
         && carryPlayerAvailable(session.sessionId, own) && !own.vehicle && !session.pending && !panelOwnsKeys())
       setNearSanta(!!own && Math.hypot(own.current.x - SANTA.x, own.current.z - SANTA.z) < 5)
       setPileId(own ? SNOW_PILES.find(p => Math.hypot(own.current.x - p.x, own.current.z - p.z) <= p.radius
@@ -38,7 +40,7 @@ export function WinterHud() {
   }, [cooldown])
   const act = () => {
     const session = useSession.getState(), own = avatars.get(session.sessionId)
-    if (!ready || cooldown || frozen || panelOwnsKeys() || !own || own.carry || session.pending) return
+    if (!winterSceneryVisible() || !ready || cooldown || frozen || panelOwnsKeys() || !own || own.carry || session.pending) return
     if (!player?.snowballs) {
       if (pileId) void parkRuntime.pickupSnowball?.(pileId).then(() => focusParkCanvas())
       return
@@ -62,7 +64,7 @@ export function WinterHud() {
   }
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
-      if (e.repeat || e.isComposing || e.ctrlKey || e.altKey || e.metaKey || textInputOwnsKeys(e.target) || panelOwnsKeys()) return
+      if (!winterSceneryVisible() || e.repeat || e.isComposing || e.ctrlKey || e.altKey || e.metaKey || textInputOwnsKeys(e.target) || panelOwnsKeys()) return
       if (frozen && (e.code === 'KeyA' || e.code === 'KeyD')) {
         e.preventDefault(); e.stopImmediatePropagation(); pressEscape(e.code === 'KeyA' ? 'A' : 'D'); return
       }
@@ -72,7 +74,7 @@ export function WinterHud() {
     window.addEventListener('keydown', key, true)
     return () => window.removeEventListener('keydown', key, true)
   }, [ready, cooldown, frozen, pileId, player, self])
-  if (sleigh) return null
+  if (sleigh || boardView) return null
   return <aside className="winter-hud" aria-label="겨울 공원 눈싸움">
     {frozen ? <div className="winter-frozen" role="status">
       <strong>얼었어요! {Math.max(1, Math.ceil((Date.parse(player!.frozenUntil!) - now) / 1000))}초</strong>

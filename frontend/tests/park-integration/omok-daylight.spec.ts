@@ -205,7 +205,13 @@ test('220m 공원 오목과 알까기의 판 보기는 낮과 밤에 같은 밝�
     connectedMap: renewal.identity, mapVersion: renewal.identity.mapVersion, anchorId: anchor.id,
     position: { x: approach[0], y: approach[1] + .8, z: approach[2], yaw: 0 } })
   await load(page)
+  await expect.poll(() => probe<{ parkVisible: boolean; roofs: number; visibleRoofs: number }>(page, 'winterPresentation'),
+    { timeout: 30000 }).toMatchObject({ parkVisible: true, roofs: expect.any(Number) })
+  await expect.poll(async () => (await probe<{ visibleRoofs: number }>(page, 'winterPresentation')).visibleRoofs,
+    { timeout: 30000 }).toBeGreaterThan(0)
   await page.getByRole('button', { name: 'E 테이블에 앉기', exact: true }).click()
+  await expect.poll(() => probe(page, 'winterPresentation')).toMatchObject({ parkVisible: false, visibleRoofs: 0 })
+  await expect(page.getByRole('complementary', { name: '겨울 공원 눈싸움' })).toHaveCount(0)
   server.host('101')
   const tablet = page.getByRole('dialog', { name: '게임 태블릿', exact: true })
   await tablet.getByLabel('1인 참가비').fill('1')
@@ -215,11 +221,16 @@ test('220m 공원 오목과 알까기의 판 보기는 낮과 밤에 같은 밝�
   server.readyTabletOthers(true)
   await tablet.getByRole('button', { name: '게임 시작', exact: true }).click()
   await omokReady(page)
+  const point = await page.evaluate(async () => (await import('/tests/park-integration/probe.ts' as string)).omokPlayProbe(7, 7))
+  await page.mouse.click(point!.point.x, point!.point.y)
+  await expect.poll(() => server.sent.filter(m => m.type === 'GAME_ACTION_SEND').length).toBe(1)
+  expect(server.sent.find(m => m.type === 'GAME_ACTION_SEND')?.payload.input).toEqual({ x: 7, y: 7 })
 
   const verifyBoard = async (game: 'omok' | 'alkkagi') => {
     const pixels: number[] = []
     for (const value of [12, 0]) {
       await hour(page, value)
+      expect(await probe(page, 'winterPresentation')).toMatchObject({ parkVisible: false, visibleRoofs: 0 })
       const frames = await drawn(page)
       expect(frames.length).toBeGreaterThan(0)
       for (const frame of frames) expect(frame).toMatchObject({
@@ -230,6 +241,11 @@ test('220m 공원 오목과 알까기의 판 보기는 낮과 밤에 같은 밝�
     }
     expect(Math.min(...pixels)).toBeGreaterThan(60)
     expect(withinThreePercent(pixels), `${game} wood: ${pixels.join(', ')}`).toBeLessThanOrEqual(.03)
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.waitForTimeout(400)
+    expect(await probe(page, 'winterPresentation')).toMatchObject({ parkVisible: false, visibleRoofs: 0 })
+    await page.screenshot({ path: info.outputPath(`${game}-winter-mobile.png`) })
+    await page.setViewportSize({ width: 1920, height: 1080 })
   }
   await verifyBoard('omok')
   await page.evaluate(async payload => {
@@ -250,4 +266,12 @@ test('220m 공원 오목과 알까기의 판 보기는 낮과 밤에 같은 밝�
   await expect.poll(async () => (await lighting(page)).cameraLayers).toBe(1)
   expect((await drawn(page)).at(-1)).toMatchObject({ cameraLayers: 1, sun: .65, night: 1, exposure: .815 })
   await probe(page, 'pinParkHour', null)
+  server.nextRound()
+  await expect.poll(() => page.evaluate(async () =>
+    (await import('/src/game/displayGame.ts' as string)).useDisplayGame.getState().game)).toBeNull()
+  expect(await page.evaluate(async () => (await import('/src/park/runtime/runtime.ts' as string)).parkRuntime.leaveTable())).toBe(true)
+  await expect.poll(() => probe(page, 'winterPresentation')).toMatchObject({ parkVisible: true })
+  await expect.poll(async () => (await probe<{ visibleRoofs: number }>(page, 'winterPresentation')).visibleRoofs).toBeGreaterThan(0)
+  await expect(page.getByRole('complementary', { name: '겨울 공원 눈싸움' })).toBeVisible()
+  await page.screenshot({ path: info.outputPath('winter-park-return.png') })
 })
