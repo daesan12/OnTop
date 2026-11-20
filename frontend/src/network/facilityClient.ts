@@ -1,4 +1,4 @@
-import { SLEIGH_ID } from '../features/winter/sleigh/route'
+import { SLEIGH_ID } from '../features/winter/sleigh/constants'
 import { RENEWAL_PARK_ENABLED } from '../park/mapSelection'
 import { BENCH_IDS, DUCK_BOAT, FITNESS_STATIONS, TELESCOPES } from '../park/mapConfig'
 import { EXPECTED_MAP_VERSION } from '../park/mapConfig'

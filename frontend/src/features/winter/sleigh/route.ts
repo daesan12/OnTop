@@ -1,7 +1,8 @@
 import { CatmullRomCurve3, Vector3 } from 'three'
 import { groundSurfaceHeight } from '../../../../park-renewal-preview/groundSurface'
+import { SLEIGH_ID } from './constants'
 
-export const SLEIGH_ID = 'winter-sleigh'
+export { SLEIGH_ID } from './constants'
 export const SLEIGH_LAP_MS = 40_000
 const dock = { x: 6, y: groundSurfaceHeight(6, 86) + .95, z: 86 }
 // Lift above the entrance first, then circle the current park above its tallest roofs.

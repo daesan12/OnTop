@@ -1,5 +1,5 @@
-import { SLEIGH_ID } from '../winter/sleigh/route'
-import { boardSleigh } from '../winter/sleigh/controller'
+import { SLEIGH_ID } from '../winter/sleigh/constants'
+import { boardSleigh } from '../winter/sleigh/boarding'
 import { winterFrozen } from '../winter/state'
 import { DUCK_BOAT, FITNESS, FITNESS_STATIONS, TABLES, TELESCOPES, TELESCOPE, MAILBOX, MAILBOX_BASE_Y } from '../../park/mapConfig'
 import { boatQueueOpen } from '../duckBoat/controller'
@@ -10,7 +10,6 @@ import { balloonEntrance, canReachBalloonDoor } from '../balloon/boarding'
 import { openLocalBalloon } from '../balloon/localRide'
 import { A_FRAME, A_FRAME_SIGNS } from '../../config/parkAdvertising'
 import { renewalAdSigns } from '../../../park-renewal-preview/live/advertisingPlacement'
-import { groundSurfaceHeight } from '../../../park-renewal-preview/groundSurface'
 import { BALLOON_RIDE_ENABLED } from '../../park/mapSelection'
 import { viewControls } from '../../world/cameraPerspective'
 import { tableBusy, useGame } from '../../game/store'
@@ -80,7 +79,8 @@ const stoneRumbleGuidePosition = stoneRumbleTable && stoneRumbleStelePosition(st
 
 const plazaKiosksEnabled = GENERATED_PARK_ENABLED || RENEWAL_PARK_ENABLED
 const advertisementSigns = RENEWAL_PARK_ENABLED
-  ? renewalAdSigns.map(sign => ({ ...sign, y: groundSurfaceHeight(sign.x, sign.z) }))
+  ? await import('../../../park-renewal-preview/groundSurface').then(({ groundSurfaceHeight }) =>
+    renewalAdSigns.map(sign => ({ ...sign, y: groundSurfaceHeight(sign.x, sign.z) })))
   : GENERATED_PARK_ENABLED ? [] : A_FRAME_SIGNS.map(sign => ({ ...sign, y: 0 }))
 const recreationLabels: Record<RenewalRecreationId, string> = {
   fortune: '오늘의 운세 보기',
