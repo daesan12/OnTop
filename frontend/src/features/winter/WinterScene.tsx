@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber'
 import { BufferAttribute, BufferGeometry, Float32BufferAttribute, Group, InstancedMesh, Object3D, ShaderMaterial, type Points } from 'three'
 import { groundSurfaceHeight } from '../../../park-renewal-preview/groundSurface'
 import { estimatedServerTime, useSession, avatars, sampleAvatar } from '../../network/worldClient'
+import { SnowballAim } from './SnowballAim'
 import { SleighScene } from './sleigh/SleighScene'
 import { RoofSnow } from './roofSnow'
 import { WINTER_DECOR, SNOW_PILES } from './plan'
@@ -10,6 +11,8 @@ import { useWinter, winterFrozen, type WinterPlayer } from './state'
 import { createHolidayArt } from './holidayArt'
 import { createChristmasTreeArt } from './christmasTreeArt'
 import { TABLES, GOMOKU, tableScale } from '../../park/mapConfig'
+import { snowballHands } from './SnowballHand'
+import { snowballPoint } from './trajectory'
 import { winterSceneryVisible } from './presentation'
 
 const gameSurfaces = TABLES.map(t => ({ x: t.position[0], z: t.position[2], radius: Math.max(3, tableScale(t) * 2.5),
@@ -59,19 +62,23 @@ function Snowfall({ low }: { low: boolean }) {
 
 function Snowballs() {
   const mesh = useRef<InstancedMesh>(null), shots = useWinter(s => s.shots)
+  const launches = useRef(new Map<string, { x: number; y: number; z: number }>())
   const dummy = useMemo(() => new Object3D(), [])
   useFrame(() => {
     if (!mesh.current) return
     const now = estimatedServerTime(), channel = useSession.getState().roomId
     for (let i = 0; i < 32; i++) {
       const shot = shots[i], age = shot ? now - Date.parse(shot.sentAt) : -1
+      if (shot && !launches.current.has(shot.shotId)) {
+        const hand = snowballHands.get(shot.userId)
+        launches.current.set(shot.shotId, hand ? { x: hand.x, y: hand.y, z: hand.z } : { x: shot.x, y: shot.y, z: shot.z })
+      }
       const visible = !!shot && channel === shot.channelId && age >= 0 && age < shot.durationMs + 450
       const t = shot ? Math.max(0, Math.min(1, age / shot.durationMs)) : 0
       for (let j = 0; j < 9; j++) {
         dummy.scale.setScalar(0)
         if (visible && shot) {
-          const dx = shot.endX - shot.x, dz = shot.endZ - shot.z
-          dummy.position.set(shot.x + dx * t, shot.y + .7 * Math.sin(Math.PI * Math.hypot(dx, dz) * t / 16), shot.z + dz * t)
+          snowballPoint(shot, t, launches.current.get(shot.shotId), dummy.position)
           if (j === 0 && t < 1) dummy.scale.setScalar(1)
           if (j > 0 && t === 1) {
             const burst = Math.max(0, (age - shot.durationMs) / 450), a = j * 2.4
@@ -84,6 +91,7 @@ function Snowballs() {
         dummy.updateMatrix(); mesh.current.setMatrixAt(i * 9 + j, dummy.matrix)
       }
     }
+    for (const key of launches.current.keys()) if (!shots.some(s => s.shotId === key)) launches.current.delete(key)
     mesh.current.instanceMatrix.needsUpdate = true
   })
   return <instancedMesh ref={mesh} name="winter-snowballs" args={[undefined, undefined, 288]} frustumCulled={false} raycast={() => {}}>
@@ -123,7 +131,7 @@ function GroundSnow() {
 }
 
 function WinterActor({ player }: { player: WinterPlayer }) {
-  const group = useRef<Group>(null), ice = useRef<Group>(null), held = useRef<Group>(null)
+  const group = useRef<Group>(null), ice = useRef<Group>(null)
   const pose = useRef({ x: 0, y: 0, z: 0, yaw: 0 })
   useFrame(() => {
     const avatar = avatars.get(player.userId), root = group.current
@@ -133,10 +141,8 @@ function WinterActor({ player }: { player: WinterPlayer }) {
     const p = sampleAvatar(avatar, performance.now(), pose.current)
     root.position.set(p.x, p.y, p.z); root.rotation.y = p.yaw
     if (ice.current) ice.current.visible = winterFrozen(player.userId, estimatedServerTime())
-    if (held.current) held.current.visible = player.snowballs === 1 && !winterFrozen(player.userId, estimatedServerTime())
   })
   return <group ref={group} name={'winter-player-' + player.userId}>
-    <group ref={held} position={[.52, .05, .12]}><mesh raycast={() => {}}><sphereGeometry args={[.17, 10, 8]} /><meshLambertMaterial color="#f4fbff" /></mesh></group>
     <group ref={ice} name={'winter-frozen-' + player.userId} position={[0, .3, 0]}>
       <mesh raycast={() => {}}><boxGeometry args={[1.05, 2.3, .95]} /><meshStandardMaterial color="#9cddf5" transparent opacity={.36} roughness={.15} depthWrite={false} /></mesh>
       <mesh position={[0, -1.1, 0]} raycast={() => {}}><cylinderGeometry args={[.7, .8, .12, 12]} /><meshLambertMaterial color="#e7f7ff" /></mesh>
@@ -159,6 +165,7 @@ export function WinterScene({ low = false }: { low?: boolean }) {
     <RoofSnow visible={winterSceneryVisible} protectedAreas={gameSurfaces} />
     <Snowfall low={low} />
     <Snowballs />
+    <SnowballAim />
     <GroundSnow />
     <WinterActors />
     {WINTER_DECOR.map(d => <group key={d.id} name={'winter-' + d.id} position={[d.x, groundSurfaceHeight(d.x, d.z), d.z]}>

@@ -1,3 +1,6 @@
+import { SnowballHand } from '../features/winter/SnowballHand'
+import { poseWinterAvatar, winterPoseActive } from '../features/winter/avatarPose'
+import { winterSceneryVisible } from '../features/winter/presentation'
 import { sleighRider } from '../features/winter/sleigh/controller'
 import { gatheringCameraActive } from '../features/tableLobby/gathering'
 import { OneCardHeldHand } from '../game/onecard/OneCardHeldHand'
@@ -129,6 +132,8 @@ function Avatar({
   const presentation = useMemo(() => new AvatarPresentation(), [])
   const mountedVehicle = useMemo(createMountedVehicle, [])
   const motion = useMemo(() => createAvatarMotion(model, RENEWAL_PARK_ENABLED), [model])
+  const winterPose = useMemo(() => (rig: typeof model, figure: Group) =>
+    poseWinterAvatar(rig, figure, id, estimatedServerTime(), pose.yaw, avatars.get(id)?.moving ?? false), [id, pose])
   const carriedPartner = useRef({ id: '', carryId: '' })
   const cadence = useMemo(() => new AvatarPoseCadence(avatarCrowdGroup(id)), [id, model])
   const appearance = useRef<ReturnType<typeof createAvatarOpacity> | null>(null)
@@ -243,7 +248,8 @@ function Avatar({
       moving: rider.moving, running: false, swimming: false } : avatar
     const displayAvatar = presentation.sample(motionAvatar, rider ? undefined : displayFlags,
       own || rider ? undefined : pose, frameAt)
-    const active = !!avatar.vehicle || mountedVehicle.root.children.length > 0 || !!carryAnimation || !!reaction || avatarPoseActive(displayAvatar, now)
+    const winterActive = RENEWAL_PARK_ENABLED && winterSceneryVisible() && winterPoseActive(id, now)
+    const active = winterActive || !!avatar.vehicle || mountedVehicle.root.children.length > 0 || !!carryAnimation || !!reaction || avatarPoseActive(displayAvatar, now)
     // Keep the authoritative position interpolation above at display cadence.
     // State changes (seat, action, reconnect) must never wait for the next pose tick.
     const poseDelta = cadence.advance(
@@ -253,7 +259,7 @@ function Avatar({
       active,
       presentation.key(motionAvatar, reaction?.key ?? '', holdingCards, active),
       !reaction && avatarPoseAmbient(displayAvatar),
-      crowded && !carryAnimation && !reaction && !seated && !displayAvatar.emote && !displayAvatar.fitnessId && !displayAvatar.telescopeId,
+      crowded && !winterActive && !carryAnimation && !reaction && !seated && !displayAvatar.emote && !displayAvatar.fitnessId && !displayAvatar.telescopeId,
       crowdFrame.current,
       crowdedXR,
     )
@@ -272,7 +278,7 @@ function Avatar({
     if (!mountedVehicle.apply(avatar.vehicle, pose, root.current.position.y, delta, figure.current, model, showRideHands))
       motion.apply(displayAvatar, now, poseDelta, pose, figure.current, reaction,
       holdingCards ? oneCardHoldingPose : undefined, throwFlight,
-      carryAnimation?.releasedAt !== null ? carryAnimation?.age : undefined, seatForward)
+      carryAnimation?.releasedAt !== null ? carryAnimation?.age : undefined, seatForward, winterActive ? winterPose : undefined)
     // Follow the posed head when swimming; a tilted standing-height marker
     // otherwise puts the nickname in front of the swimmer's face/water.
     model.bones.head.getWorldPosition(worldPosition)
@@ -304,6 +310,7 @@ function Avatar({
       <group ref={figure} name={`figure-${id}`}>
         <primitive object={model.root} dispose={null} />
         <OneCardHeldHand userId={id} model={model} />
+        {RENEWAL_PARK_ENABLED && <SnowballHand id={id} model={model} />}
       </group>
       <group ref={marker} position={[0, CHARACTER.height - 0.5, 0]} />
     </group>

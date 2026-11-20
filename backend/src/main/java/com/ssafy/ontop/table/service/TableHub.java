@@ -996,7 +996,7 @@ public class TableHub {
                     }
                 }
                 case "WORLD_EMOTE_SEND" -> sendEmote(member, request);
-                case "WORLD_SNOWBALL_THROW" -> throwSnowball(member, request);
+                case "WORLD_SNOWBALL_THROW", "WORLD_SNOWBALL_PREPARE", "WORLD_SNOWBALL_AIM" -> throwSnowball(member, request);
                 case "WORLD_SNOWBALL_PICKUP", "WORLD_SNOWBALL_ESCAPE", "WORLD_SNOWBALL_CHECK" ->
                         snowballState(member, request);
                 case "WORLD_CARRY_PICKUP", "WORLD_CARRY_THROW", "WORLD_CARRY_RELEASE" -> carry(member, request);
@@ -2840,6 +2840,21 @@ public class TableHub {
                 || origin.swimming()) {
             fail(request, "SNOWBALL_ACTIVITY_CONFLICT", "공원에서 다른 활동을 마친 뒤 눈싸움을 해주세요.");
         }
+        if (request.type().equals("WORLD_SNOWBALL_PREPARE")) {
+            try {
+                var motion = snowballs.prepare(request.requestId(), channel, user, request.payload().path("yaw").asDouble(),
+                        System.nanoTime(), java.time.Instant.now());
+                for (Member target : members.values()) {
+                    if (channels.isInChannel(target.userId(), channel)) {
+                        target.peer().offer(protocol.encode(target == member ? request.requestId() : null,
+                                "WORLD_SNOWBALL_WINDUP", motion));
+                    }
+                }
+            } catch (com.ssafy.ontop.world.winter.SnowballService.Rejected failure) {
+                fail(request, failure.code(), failure.getMessage());
+            }
+            return;
+        }
         var targets = members.values().stream()
                 .filter(target -> channels.isInChannel(target.userId(), channel))
                 .filter(target -> !carryBusy(target.userId()) && channels.carryState(target.userId()) == null
@@ -2849,6 +2864,12 @@ public class TableHub {
                 .filter(target -> target.position() != null && !target.position().swimming()).toList();
         com.ssafy.ontop.world.winter.SnowballService.Event event;
         try {
+            if (request.type().equals("WORLD_SNOWBALL_AIM")) {
+                var aim = snowballs.preview(channel, user, origin, request.payload().path("yaw").asDouble(), targets,
+                        yaw -> channels.snowballDistance(user, yaw), System.nanoTime());
+                member.peer().offer(protocol.encode(request.requestId(), "WORLD_SNOWBALL_AIM_STATE", aim));
+                return;
+            }
             event = snowballs.create(request.requestId(), channel, user, origin,
                     request.payload().path("yaw").asDouble(), targets,
                     yaw -> channels.snowballDistance(user, yaw), System.nanoTime(), java.time.Instant.now());

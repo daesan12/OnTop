@@ -21,6 +21,42 @@ class SnowballServiceTests {
     void 눈을_준비한다() { service.pickup("park", "self", 0); }
 
     @Test
+    void 조준_미리보기는_실제_발사와_같은_대상을_계산하지만_소지량과_명중을_바꾸지_않는다() {
+        var before = service.state("park");
+        var aim = service.preview("park", "self", origin, 0, targets, yaw -> 16, 0);
+        assertThat(aim.hitUserId()).isEqualTo("near");
+        assertThat(service.state("park")).isEqualTo(before);
+        var shot = service.create("shot", "park", "self", origin, 0, targets, yaw -> 16, 0, Instant.EPOCH);
+        assertThat(shot.hitUserId()).isEqualTo(aim.hitUserId());
+        assertThat(shot.endX()).isEqualTo(aim.endX());
+        assertThat(shot.endY()).isEqualTo(aim.endY());
+        assertThat(shot.endZ()).isEqualTo(aim.endZ());
+    }
+
+    @Test
+    void 같은_높이의_중간_거리_상대도_낮아진_포물선_안에서_맞출_수_있다() {
+        for (double distance : List.of(3.0, 6.0, 8.0, 12.0, 15.0)) {
+            var target = new SnowballService.Target("other", new Position(0, 0, .84, distance, 0));
+            assertThat(service.preview("park", "self", origin, 0, List.of(target), yaw -> 16, 0).hitUserId())
+                    .as("거리 %.1fm", distance).isEqualTo("other");
+        }
+    }
+
+    @Test
+    void 준비_동작은_탄약을_쓰지_않고_중복과_빠른_반복을_구분한다() {
+        var before = service.state("park");
+        var motion = service.prepare("prepare", "park", "self", 0, 0, Instant.EPOCH);
+        assertThat(motion.durationMs()).isEqualTo(300);
+        assertThat(service.prepare("prepare", "park", "self", 0, 1, Instant.EPOCH)).isSameAs(motion);
+        assertThat(service.state("park")).isEqualTo(before);
+        assertThatThrownBy(() -> service.prepare("spam", "park", "self", 0, 1, Instant.EPOCH))
+                .extracting("code").isEqualTo("SNOWBALL_COOLDOWN");
+        service.disconnected("self");
+        assertThatThrownBy(() -> service.prepare("again", "park", "self", 0, 1, Instant.EPOCH))
+                .extracting("code").isEqualTo("SNOWBALL_REQUIRED");
+    }
+
+    @Test
     void 앞쪽의_가장_가까운_사용자에게_맞는다() {
         var event = service.create("shot", "park", "self", origin, 0, targets, yaw -> 16, 0, Instant.EPOCH);
 

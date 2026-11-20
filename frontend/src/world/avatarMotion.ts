@@ -69,7 +69,7 @@ export function createAvatarMotion(model: Rig, fittedSeats = false) {
   let phase = 0, swimPhase = 0, move = 0, run = 0, previousCarry = '', releaseAge = 1, throwAge = 0
   let releasingThrow = false, releaseYaw = 0, releaseTurn = 0, releaseDirectionKnown = false, launchX = 0, launchZ = 0
   return {
-    apply(avatar: Avatar, now: number, delta: number, pose: Pose, figure: Group, reaction?: DefeatReaction | null, seatedPose?: (model: Rig) => void, throwFlight?: Pick<AvatarSnapshot, 'current'> | null, carryThrowAge?: number, seatForward?: number) {
+    apply(avatar: Avatar, now: number, delta: number, pose: Pose, figure: Group, reaction?: DefeatReaction | null, seatedPose?: (model: Rig) => void, throwFlight?: Pick<AvatarSnapshot, 'current'> | null, carryThrowAge?: number, seatForward?: number, groundPose?: (rig: Rig, figure: Group) => void) {
       const kind = avatarPoseKind(avatar)
       const seated = kind === 'seated'
       const age = avatarEmoteAge(avatar, now)
@@ -222,6 +222,7 @@ export function createAvatarMotion(model: Rig, fittedSeats = false) {
         set('upperLeg_L', -.35); set('upperLeg_R', .3)
         set('lowerLeg_L', .6); set('lowerLeg_R', .4)
       }
+      if (!role && kind === 'ground' && age === null && !reaction) groundPose?.(model, figure)
       model.apply(delta)
       if (!role && (kind === 'ground' || kind === 'telescope') || role === 'CARRIER') {
         figure.position.y = pavingLift(pose.x, pose.z, pose.y - 0.8) + model.groundShift() + 0.003

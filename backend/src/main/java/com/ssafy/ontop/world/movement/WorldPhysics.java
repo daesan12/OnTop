@@ -1605,7 +1605,8 @@ public final class WorldPhysics implements AutoCloseable {
             for (int i = 1; i <= 32; i++) {
                 double distance = i * .5;
                 Vector3f next = new Vector3f((float) (x + Math.sin(yaw) * distance),
-                        (float) (y + .35 + .7 * Math.sin(Math.PI * distance / 16)),
+                        (float) (y + .35 + com.ssafy.ontop.world.winter.SnowballService.ARC_HEIGHT
+                                * Math.sin(Math.PI * distance / 16)),
                         (float) (z + Math.cos(yaw) * distance));
                 double fraction = space.rayTest(previous, next).stream()
                         .filter(hit -> hit.getCollisionObject().getCollisionGroup() == 2)

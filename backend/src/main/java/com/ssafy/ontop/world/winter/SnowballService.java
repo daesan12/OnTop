@@ -13,11 +13,14 @@ import java.util.function.DoubleUnaryOperator;
 /** TableHub 잠금 아래에서 눈 소지·명중·동결·탈출을 확정한다. 재화/경기 상태는 만들지 않는다. */
 public final class SnowballService {
     public static final double RANGE = 16;
+    public static final double ARC_HEIGHT = .55;
     public static final int FREEZE_SECONDS = 5;
     public static final int ESCAPE_PRESSES = 6;
     private final Map<String, Recent> recent = new HashMap<>();
     private final Map<String, Player> players = new HashMap<>();
     private final Map<String, Long> versions = new HashMap<>();
+    private final Map<String, Preparation> preparations = new HashMap<>();
+    public static final int WINDUP_MILLIS = 300;
 
     public record Target(String userId, Position position) { }
     public record Event(String shotId, String channelId, String userId, String hitUserId,
@@ -26,6 +29,11 @@ public final class SnowballService {
     public record PlayerState(String userId, int snowballs, int hits, String freezeId,
                               String frozenUntil, int escapePresses) { }
     public record State(String channelId, long version, List<PlayerState> players) { }
+    public record Aim(String channelId, String userId, double yaw, double x, double y, double z,
+                      double endX, double endY, double endZ, double distance, String hitUserId) { }
+    public record Windup(String motionId, String channelId, String userId, double yaw,
+                         String startedAt, int durationMs) { }
+    private record Preparation(String requestId, long at, Windup motion) { }
     private record Recent(String requestId, String channelId, long at, Event event) { }
     private static final class Player {
         final String channel;
@@ -87,28 +95,10 @@ public final class SnowballService {
         if (previous != null && now - previous.at() < 900_000_000L) {
             throw new Rejected("SNOWBALL_COOLDOWN", "잠시 뒤 다시 던져주세요.");
         }
-        if (!Double.isFinite(yaw) || Math.abs(yaw) > Math.PI) {
-            throw new IllegalArgumentException("눈덩이를 던질 방향을 확인해주세요.");
-        }
         Player shooter = player(channelId, userId);
-        if (frozen(userId, now)) { throw new Rejected("SNOWBALL_FROZEN", "얼음부터 깨고 던져주세요."); }
-        if (shooter.snowballs == 0) { throw new Rejected("SNOWBALL_REQUIRED", "바닥의 눈더미에서 눈을 먼저 주워주세요."); }
-        double dx = Math.sin(yaw), dz = Math.cos(yaw);
-        double distance = Math.clamp(obstacle.applyAsDouble(yaw), 0, RANGE);
-        String hit = "";
-        for (Target target : targets) {
-            Player victim = players.get(target.userId());
-            if (target.userId().equals(userId) || frozen(target.userId(), now)
-                    || victim != null && victim.immuneUntil > now) { continue; }
-            Position p = target.position();
-            double x = p.x() - origin.x(), z = p.z() - origin.z();
-            double along = x * dx + z * dz, side = Math.abs(x * dz - z * dx);
-            double flightY = origin.y() + .35 + .7 * Math.sin(Math.PI * along / RANGE);
-            if (along > .6 && along < distance && side < .65 && Math.abs(p.y() - flightY) < 1) {
-                distance = along; hit = target.userId();
-            }
-        }
+        Aim aim = preview(channelId, userId, origin, yaw, targets, obstacle, now);
         shooter.snowballs = 0;
+        String hit = aim.hitUserId();
         if (!hit.isEmpty()) {
             Player victim = player(channelId, hit);
             victim.hits++;
@@ -121,11 +111,61 @@ public final class SnowballService {
             }
         }
         changed(channelId);
-        Event event = new Event(userId + ":" + requestId, channelId, userId, hit, origin.x(), origin.y() + .35, origin.z(),
-                origin.x() + dx * distance, origin.y() + .35 + .7 * Math.sin(Math.PI * distance / RANGE),
-                origin.z() + dz * distance, sentAt.toString(), (int) Math.max(100, distance / 22 * 1000));
+        Event event = new Event(userId + ":" + requestId, channelId, userId, hit, aim.x(), aim.y(), aim.z(),
+                aim.endX(), aim.endY(), aim.endZ(), sentAt.toString(),
+                (int) Math.max(100, aim.distance() / 22 * 1000));
         recent.put(userId, new Recent(requestId, channelId, now, event));
         return event;
+    }
+
+    private void requireSnowball(String channel, String user, double yaw, long now) {
+        if (!Double.isFinite(yaw) || Math.abs(yaw) > Math.PI) {
+            throw new IllegalArgumentException("눈덩이를 던질 방향을 확인해주세요.");
+        }
+        if (frozen(user, now)) { throw new Rejected("SNOWBALL_FROZEN", "얼음부터 깨고 던져주세요."); }
+        Player p = players.get(user);
+        if (p == null || !p.channel.equals(channel) || p.snowballs == 0) {
+            throw new Rejected("SNOWBALL_REQUIRED", "바닥의 눈더미에서 눈을 먼저 주워주세요.");
+        }
+    }
+
+    /** 준비 동작은 재화·명중 상태를 바꾸지 않는다. 실제 발사는 기존 create에서 다시 검증한다. */
+    public Windup prepare(String requestId, String channel, String user, double yaw, long now, Instant at) {
+        requireSnowball(channel, user, yaw, now);
+        Preparation previous = preparations.get(user);
+        if (previous != null && previous.requestId().equals(requestId)) { return previous.motion(); }
+        Recent shot = recent.get(user);
+        if (previous != null && now - previous.at() < 900_000_000L
+                || shot != null && now - shot.at() < 900_000_000L) {
+            throw new Rejected("SNOWBALL_COOLDOWN", "잠시 뒤 다시 던져주세요.");
+        }
+        Windup motion = new Windup(user + ":" + requestId, channel, user, yaw, at.toString(), WINDUP_MILLIS);
+        preparations.put(user, new Preparation(requestId, now, motion));
+        return motion;
+    }
+
+    /** 실발사와 같은 벽 차단·대상 선택 계산이며 소지량·명중·버전을 변경하지 않는다. */
+    public Aim preview(String channelId, String userId, Position origin, double yaw,
+                       Collection<Target> targets, DoubleUnaryOperator obstacle, long now) {
+        requireSnowball(channelId, userId, yaw, now);
+        double dx = Math.sin(yaw), dz = Math.cos(yaw);
+        double distance = Math.clamp(obstacle.applyAsDouble(yaw), 0, RANGE);
+        String hit = "";
+        for (Target target : targets) {
+            Player victim = players.get(target.userId());
+            if (target.userId().equals(userId) || frozen(target.userId(), now)
+                    || victim != null && victim.immuneUntil > now) { continue; }
+            Position p = target.position();
+            double x = p.x() - origin.x(), z = p.z() - origin.z();
+            double along = x * dx + z * dz, side = Math.abs(x * dz - z * dx);
+            double flightY = origin.y() + .35 + ARC_HEIGHT * Math.sin(Math.PI * along / RANGE);
+            if (along > .6 && along < distance && side < .65 && Math.abs(p.y() - flightY) < 1) {
+                distance = along; hit = target.userId();
+            }
+        }
+        return new Aim(channelId, userId, yaw, origin.x(), origin.y() + .35, origin.z(),
+                origin.x() + dx * distance, origin.y() + .35 + ARC_HEIGHT * Math.sin(Math.PI * distance / RANGE),
+                origin.z() + dz * distance, distance, hit);
     }
 
     public State escape(String requestId, String channel, String user, String freezeId, String key, long now) {
@@ -162,6 +202,7 @@ public final class SnowballService {
     }
 
     public void disconnected(String userId) {
+        preparations.remove(userId);
         recent.remove(userId);
         Player p = players.remove(userId);
         if (p != null) { changed(p.channel); }

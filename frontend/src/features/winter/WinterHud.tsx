@@ -8,6 +8,7 @@ import { carryPlayerAvailable } from '../carry/interaction'
 import { useFacilityState } from '../facilities/state'
 import { createCarryEscape, CARRY_ESCAPE_PRESSES } from '../carry/escape'
 import { SANTA, SNOW_PILES } from './plan'
+import { useSnowballAim } from './aimState'
 import { useWinter, winterFrozen } from './state'
 import './winter.css'
 import { useWinterBoardView, winterSceneryVisible } from './presentation'
@@ -16,9 +17,12 @@ export function WinterHud() {
   const self = useSession(s => s.sessionId), player = useWinter(s => s.players[self]), notice = useWinter(s => s.notice)
   const sleigh = useFacilityState(s => s.occupancies[self]?.kind === 'SLEIGH')
   const boardView = useWinterBoardView()
+  const motion = useWinter(s => s.motions[self]), aim = useSnowballAim(s => s.aim)
   const [ready, setReady] = useState(false), [nearSanta, setNearSanta] = useState(false)
   const [pileId, setPileId] = useState(''), [cooldown, setCooldown] = useState(false), [now, setNow] = useState(estimatedServerTime)
   const escape = useRef(createCarryEscape()), completed = useRef(false), queue = useRef(Promise.resolve())
+  const gathering = motion?.kind === 'gather' && now - motion.at < 800
+  const windingUp = motion?.kind === 'windup' && now - motion.at < 800
   const frozen = !!player?.freezeId && !!player.frozenUntil && Date.parse(player.frozenUntil) > now
   useEffect(() => { escape.current.reset(); completed.current = false }, [player?.freezeId])
   useEffect(() => {
@@ -35,12 +39,12 @@ export function WinterHud() {
   }, [])
   useEffect(() => {
     if (!cooldown) return
-    const timer = setTimeout(() => setCooldown(false), 1000)
+    const timer = setTimeout(() => setCooldown(false), 1300)
     return () => clearTimeout(timer)
   }, [cooldown])
   const act = () => {
     const session = useSession.getState(), own = avatars.get(session.sessionId)
-    if (!winterSceneryVisible() || !ready || cooldown || frozen || panelOwnsKeys() || !own || own.carry || session.pending) return
+    if (!winterSceneryVisible() || !ready || cooldown || gathering || windingUp || frozen || panelOwnsKeys() || !own || own.carry || session.pending) return
     if (!player?.snowballs) {
       if (pileId) void parkRuntime.pickupSnowball?.(pileId).then(() => focusParkCanvas())
       return
@@ -73,7 +77,7 @@ export function WinterHud() {
     }
     window.addEventListener('keydown', key, true)
     return () => window.removeEventListener('keydown', key, true)
-  }, [ready, cooldown, frozen, pileId, player, self])
+  }, [ready, cooldown, gathering, windingUp, frozen, pileId, player, self])
   if (sleigh || boardView) return null
   return <aside className="winter-hud" aria-label="겨울 공원 눈싸움">
     {frozen ? <div className="winter-frozen" role="status">
@@ -81,10 +85,11 @@ export function WinterHud() {
       <p>A·D를 번갈아 {CARRY_ESCAPE_PRESSES}번 눌러 얼음을 깨세요</p>
       <div className="winter-escape"><button type="button" onClick={() => { pressEscape('A'); focusParkCanvas() }}>A</button><span>{player?.escapePresses ?? 0} / {CARRY_ESCAPE_PRESSES}</span><button type="button" onClick={() => { pressEscape('D'); focusParkCanvas() }}>D</button></div>
     </div> : <>
-      <button type="button" disabled={!ready || cooldown || !player?.snowballs && !pileId} onClick={act}>
-        <kbd>Q</kbd> {cooldown ? '눈 뭉치는 중…' : player?.snowballs ? '눈덩이 던지기' : '눈 줍기'}
+      <button type="button" disabled={!ready || cooldown || gathering || windingUp || !player?.snowballs && !pileId} onClick={act}>
+        <kbd>Q</kbd> {gathering ? '눈 모아 뭉치는 중…' : windingUp ? '던지는 중…' : cooldown ? '다음 동작 준비 중…' : player?.snowballs ? '눈덩이 던지기' : '눈 줍기 · 뭉치기'}
       </button>
       <small>{player?.snowballs ? '눈덩이 1/1 · 캐릭터 정면으로 던져요' : pileId ? '바닥의 눈더미에서 눈을 주울 수 있어요' : '하얀 눈더미 가까이에서 Q로 주워요'}</small>
+      {player?.snowballs === 1 && !gathering && <span className="winter-aim-hint" role="status">{aim?.hitUserId ? `${avatars.get(aim.hitUserId)?.nickname ?? '상대'} 명중 예상 · ${aim.distance.toFixed(1)}m` : aim ? `점선 끝의 표적으로 던져요 · ${aim.distance.toFixed(1)}m` : '캐릭터 정면에 예상 궤적을 표시해요'}</span>}
       <span>피격 {player?.hits ?? 0} / 3 · 세 번 맞으면 얼어요</span>
       {nearSanta && <p>산타: 눈더미에서 눈을 주워 보렴! 얼었다면 A·D로 얼음을 깨는 거야.</p>}
     </>}

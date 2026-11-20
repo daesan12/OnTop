@@ -72,7 +72,8 @@ public final class TableProtocol {
                     && payload.path("pileId").isTextual() && payload.path("pileId").asText().matches("snow-[a-z-]{1,40}");
             case "WORLD_SNOWBALL_ESCAPE" -> fields(payload, Set.of("freezeId", "key"))
                     && prankUuid(payload.path("freezeId")) && Set.of("A", "D").contains(payload.path("key").asText());
-            case "WORLD_SNOWBALL_THROW" -> fields(payload, Set.of("yaw")) && payload.path("yaw").isNumber()
+            case "WORLD_SNOWBALL_THROW", "WORLD_SNOWBALL_PREPARE", "WORLD_SNOWBALL_AIM" ->
+                    fields(payload, Set.of("yaw")) && payload.path("yaw").isNumber()
                     && Double.isFinite(payload.path("yaw").asDouble())
                     && Math.abs(payload.path("yaw").asDouble()) <= Math.PI;
             case "WORLD_EMOTE_SEND" -> fields(payload, Set.of("emoteCode")) && validEmoteCode(payload.get("emoteCode"));

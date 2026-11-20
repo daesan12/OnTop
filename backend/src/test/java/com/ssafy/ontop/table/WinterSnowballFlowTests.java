@@ -48,6 +48,29 @@ class WinterSnowballFlowTests {
     }
 
     @Test
+    void 조준은_요청자에게만_준비_동작은_같은_채널에만_보내고_실제_발사와_일치한다() throws Exception {
+        try (var first = client("naver", "a"); var second = client("ssafy", "a"); var other = client("303", "b")) {
+            place(first, 88); place(second, 80);
+            var picked = first.request("WORLD_SNOWBALL_PICKUP", Map.of("pileId", "snow-entry"));
+            var aim = first.request("WORLD_SNOWBALL_AIM", Map.of("yaw", Math.PI));
+            assertThat(aim.path("type").asText()).isEqualTo("WORLD_SNOWBALL_AIM_STATE");
+            assertThat(aim.at("/payload/hitUserId").asText()).isEqualTo(second.userId);
+            assertThat(first.request("WORLD_SNOWBALL_CHECK", Map.of()).at("/payload/version")).isEqualTo(picked.at("/payload/version"));
+            var prepared = first.request("WORLD_SNOWBALL_PREPARE", Map.of("yaw", Math.PI));
+            assertThat(prepared.path("type").asText()).isEqualTo("WORLD_SNOWBALL_WINDUP");
+            assertThat(prepared.at("/payload/durationMs").asInt()).isEqualTo(300);
+            second.await(m -> m.path("type").asText().equals("WORLD_SNOWBALL_WINDUP"));
+            second.assertNoMessage(m -> m.path("type").asText().equals("WORLD_SNOWBALL_AIM_STATE"));
+            other.assertNoMessage(m -> m.path("type").asText().equals("WORLD_SNOWBALL_WINDUP"));
+            assertThat(player(first.request("WORLD_SNOWBALL_CHECK", Map.of()), first.userId).path("snowballs").asInt()).isEqualTo(1);
+            var shot = first.request("WORLD_SNOWBALL_THROW", Map.of("yaw", Math.PI));
+            assertThat(shot.at("/payload/hitUserId")).isEqualTo(aim.at("/payload/hitUserId"));
+            assertThat(shot.at("/payload/endZ")).isEqualTo(aim.at("/payload/endZ"));
+            assertThat(first.request("WORLD_SNOWBALL_AIM", Map.of("yaw", 9)).at("/payload/code").asText()).isEqualTo("INVALID_PAYLOAD");
+        }
+    }
+
+    @Test
     void 눈더미_거리와_소지량을_확인하고_동일_채널에만_발사를_공유한다() throws Exception {
         try (var first = client("naver", "a"); var second = client("ssafy", "a"); var other = client("303", "b")) {
             assertThat(first.request("WORLD_SNOWBALL_THROW", Map.of("yaw", 0)).at("/payload/code").asText())
