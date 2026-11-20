@@ -2,6 +2,7 @@ package com.ssafy.ontop.world.map;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ssafy.ontop.world.winter.SleighRoute;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ssafy.ontop.table.domain.TableRoom;
 import com.ssafy.ontop.world.config.WorldProximityProperties;
@@ -36,6 +37,7 @@ public final class PreparedParkMap {
     private final WorldProximityProperties proximity;
     private final Catalog facilities;
     private final DuckBoatRoute boatRoute;
+    private final SleighRoute sleighRoute;
     private final Reach notes;
     private final Reach feedback;
     private final Reach vrEntrance;
@@ -106,6 +108,7 @@ public final class PreparedParkMap {
         proximity = new WorldProximityProperties(null, null, tablePoints);
         facilities = facilities(data.path("interactions"), map);
         boatRoute = boatRoute(data.path("interactions").path("boats"));
+        sleighRoute = SleighRoute.from(data.path("interactions").path("sleighs").path(0).path("route"));
         constructionSites = data.path("interactions").path("construction").deepCopy();
         JsonNode notesNode = data.path("interactions").path("notes");
         require("legacy-avatar-origin".equals(notesNode.path("heightReference").asText())
@@ -142,6 +145,7 @@ public final class PreparedParkMap {
     public List<Binding> bindings() { return bindings; }
     public WorldProximityProperties proximity() { return proximity; }
     public Catalog facilities() { return facilities; }
+    public SleighRoute sleighRoute() { return sleighRoute; }
     public DuckBoatRoute boatRoute() { return boatRoute; }
     public Reach notes() { return notes; }
     public Reach feedback() { return feedback; }
@@ -220,7 +224,7 @@ public final class PreparedParkMap {
         root.put("sourceSha256", map.metadata().mapVersion());
         root.set("boxes", physics.path("boxes").deepCopy());
         root.set("hulls", physics.path("hulls").deepCopy());
-        for (String key : List.of("furniturePolicy", "fountainPolicy", "pavilionJumpSpeed", "pavilionTunedJumpSpeed", "secretCorridor", "interiorAccess")) {
+        for (String key : List.of("furniturePolicy", "fountainPolicy", "pavilionJumpSpeed", "pavilionTunedJumpSpeed", "secretCorridor", "interiorAccess", "winterSnowPiles")) {
             if (physics.has(key)) root.set(key, physics.path(key).deepCopy());
         }
         if (data.has("pavilions")) root.set("pavilions", data.path("pavilions").deepCopy());
@@ -402,6 +406,14 @@ public final class PreparedParkMap {
             }
             definitions.add(new Definition(id, WorldFacilityService.BOAT, center, positive(item.path("radius")),
                     positive(item.path("heightTolerance")), List.copyOf(seats), pose(item.path("exit"))));
+        }
+        for (JsonNode item : interactions.path("sleighs")) {
+            String id = item.path("id").asText();
+            require(!id.isBlank() && ids.add(id) && "SLEIGH".equals(item.path("kind").asText()), "썰매 시설을 확인해주세요.");
+            Pose center = position(item.path("position"), number(item.path("yaw")));
+            center = new Pose(center.x(), center.y() + .8, center.z(), center.yaw());
+            definitions.add(new Definition(id, "SLEIGH", center, positive(item.path("radius")),
+                    positive(item.path("heightTolerance")), List.of(pose(item.path("use"))), pose(item.path("exit"))));
         }
         require(!definitions.isEmpty(), "이용 가능한 시설이 없습니다.");
         definitions.sort(Comparator.comparing(Definition::facilityId));

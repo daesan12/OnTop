@@ -1,3 +1,5 @@
+import { SNOW_PILES } from '../../src/features/winter/plan'
+import { mainPagodaCollision } from '../pagodaCollision'
 import { ShapeUtils, Vector2, type BufferGeometry } from 'three'
 import { createTowerDeck, createTowerRamp, MOVEMENT, OBSERVATION_TOWER, TOWER_DECK_RAIL_SEGMENTS, towerPoint } from '../../src/config'
 import { tableSeats, type TableAnchor } from '../../src/park/tablePlacement'
@@ -202,6 +204,7 @@ export function buildRenewalPhysics(tables: readonly TableAnchor[]) {
       [a[0], groundSurfaceHeight(...a), a[1]], [z[0], groundSurfaceHeight(...z), z[1]], .14, h))
   }
   parkPropBlockers.forEach((b, i) => {
+    if (b.previewOnly) return
     const id = 'park-prop-' + i
     if (b.kind === 'circle') cylinder(id, b.x, b.z, b.radius, b.bottom, b.top)
     else putBox(id, [b.x, (b.bottom + b.top) / 2, b.z], [b.halfX, (b.top - b.bottom) / 2, b.halfZ], Math.atan2(b.sin, b.cos))
@@ -264,6 +267,8 @@ export function buildRenewalPhysics(tables: readonly TableAnchor[]) {
       spectatorBenchTop: top + SPECTATOR_BENCH_HEIGHTS.rest * subScale * REST_FURNITURE_VERTICAL_SCALE })
   }
   const pagoda = site('pagoda'), pg = heightAt(pagoda.x, pagoda.z)
+  const pagodaSolid = mainPagodaCollision(pagoda.x, pg, pagoda.z)
+  boxes.push(...pagodaSolid.boxes); hulls.push(...pagodaSolid.hulls)
   ramp('pagoda-terrace', pagoda.x, pagoda.z, 26, -13, 13, pg + 1.8, pg + 1.8)
   deckBody('pagoda-terrace-body', [[pagoda.x - 13, pagoda.z - 13], [pagoda.x + 13, pagoda.z - 13],
     [pagoda.x + 13, pagoda.z + 13], [pagoda.x - 13, pagoda.z + 13]], pg - .6, pg + 1.75)
@@ -419,10 +424,14 @@ export function buildRenewalPhysics(tables: readonly TableAnchor[]) {
   const groundClearance = 0
   const spawnY = groundSurfaceHeight(...RENEWAL_SPAWN) + MOVEMENT.halfHeight + MOVEMENT.radius + MOVEMENT.offset + groundClearance
   // The enlarged benches need more clearance under the tuned jump's stronger gravity.
-  const physics = { ...basePhysics, boxes, hulls, meshes, fountainPolicy, steppingStones: [], pavilionTunedJumpSpeed: 9.8,
+  const physics = { ...basePhysics,
+    winterSnowPiles: SNOW_PILES.map(p => ({ ...p, y: groundSurfaceHeight(p.x, p.z) })), boxes, hulls, meshes, fountainPolicy, steppingStones: [], pavilionTunedJumpSpeed: 9.8,
     secretCorridor: { x0: HORROR.x0, x1: HORROR.x1, z0: HORROR.z0, z1: HORROR.z1, floor: HORROR.floor, ceiling: HORROR.ceiling },
     secretTerrainCuts, duckBoat: BOAT_ROUTE,
-    interiorAccess: { routes: interiorAccess, annex, upperArrival, entrancesOpen: SECRET_ENTRANCES_OPEN },
+    interiorAccess: { routes: interiorAccess, annex, upperArrival, entrancesOpen: SECRET_ENTRANCES_OPEN,
+      approaches: HORROR_PORTALS.map(p => ({ x0: Math.min(p.x, p.x + p.outward * 3.6),
+        x1: Math.max(p.x, p.x + p.outward * 3.6), z0: p.z - p.width / 2, z1: p.z + p.width / 2,
+        floor: p.floor, ceiling: p.floor + p.height })) },
     tower: { ...basePhysics.tower, x: tower.x, z: tower.z, height: 40, topY: towerRampStartY + 40, surfaceOffset: towerRampStartY },
     terrain: { ...basePhysics.terrain, halfSize: RENEWAL_HALF_SIZE, step: 1, columns: 221, rows: 221 },
     spawn: { ...basePhysics.spawn, position: [RENEWAL_SPAWN[0], spawnY, RENEWAL_SPAWN[1]] as Point3, groundClearance } }

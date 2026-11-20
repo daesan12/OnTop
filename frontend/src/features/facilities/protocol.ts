@@ -2,7 +2,7 @@ import { integer, record } from '../../network/protocol'
 import type { Pose } from '../../network/worldClient'
 import { EXPECTED_MAP_VERSION } from '../../park/mapConfig'
 
-export type FacilityKind = 'BENCH' | 'FITNESS' | 'TELESCOPE' | 'BOAT'
+export type FacilityKind = 'BENCH' | 'FITNESS' | 'TELESCOPE' | 'BOAT' | 'SLEIGH'
 export interface FacilityDefinition {
   facilityId: string; kind: FacilityKind; center: Pose; radius: number
   heightTolerance: number; seats: Pose[]; exit: Pose
@@ -27,7 +27,7 @@ export interface DuckBoatView { fare: number; lapMillis: number; teams: DuckBoat
 export interface FacilitySnapshot { channelId: string; version: number; mapVersion: string; occupancies: FacilityLease[]; boats: DuckBoatView | null }
 const text = (v: unknown): v is string => typeof v === 'string' && v.length > 0 && v.length <= 128
 const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v)
-const kind = (v: unknown): v is FacilityKind => ['BENCH', 'FITNESS', 'TELESCOPE', 'BOAT'].includes(String(v))
+const kind = (v: unknown): v is FacilityKind => ['BENCH', 'FITNESS', 'TELESCOPE', 'BOAT', 'SLEIGH'].includes(String(v))
 /** BOAT: two dock queue spots, then two seats on each of the four ride boats. */
 /** BOAT: four dock queue spots (two teams of two), then two seats on each of the four ride boats. */
 export const facilitySeatCount = (k: FacilityKind) => k === 'BENCH' ? 2 : k === 'BOAT' ? 12 : 1

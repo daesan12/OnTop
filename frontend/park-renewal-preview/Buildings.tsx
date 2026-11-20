@@ -216,7 +216,7 @@ export function Buildings({live=false,distantReady=true,upperFacilitiesReady=dis
  <FishingPier/>
  <LakePart at={LakeStage.Boats}><Boats live={live}/></LakePart>
  <LakePart at={LakeStage.FishingShop}>
-  <group position={[FISHING_SHOP.x,FISHING_SHOP.y+.1,FISHING_SHOP.z]} rotation={[0,FISHING_SHOP.yaw,0]}><LocalFactory kind="fishing-shop"/></group>
+  <group name="facility-fishing-shop" position={[FISHING_SHOP.x,FISHING_SHOP.y+.1,FISHING_SHOP.z]} rotation={[0,FISHING_SHOP.yaw,0]}><LocalFactory kind="fishing-shop"/></group>
  </LakePart>
 
  </group>}

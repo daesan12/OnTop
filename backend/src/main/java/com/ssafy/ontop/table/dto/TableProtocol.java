@@ -67,6 +67,15 @@ public final class TableProtocol {
             case "WORLD_CHAT_SEND" -> fields(payload, Set.of("text")) && validChatText(payload.get("text"));
             case "WORLD_CHAT_TYPING_SET" -> fields(payload, Set.of("typing")) && payload.path("typing").isBoolean();
             case "WORLD_MYROOM_SET" -> fields(payload, Set.of("open")) && payload.path("open").isBoolean();
+            case "WORLD_SNOWBALL_CHECK" -> fields(payload, Set.of());
+            case "WORLD_SNOWBALL_PICKUP" -> fields(payload, Set.of("pileId"))
+                    && payload.path("pileId").isTextual() && payload.path("pileId").asText().matches("snow-[a-z-]{1,40}");
+            case "WORLD_SNOWBALL_ESCAPE" -> fields(payload, Set.of("freezeId", "key"))
+                    && prankUuid(payload.path("freezeId")) && Set.of("A", "D").contains(payload.path("key").asText());
+            case "WORLD_SNOWBALL_THROW", "WORLD_SNOWBALL_PREPARE", "WORLD_SNOWBALL_AIM" ->
+                    fields(payload, Set.of("yaw")) && payload.path("yaw").isNumber()
+                    && Double.isFinite(payload.path("yaw").asDouble())
+                    && Math.abs(payload.path("yaw").asDouble()) <= Math.PI;
             case "WORLD_EMOTE_SEND" -> fields(payload, Set.of("emoteCode")) && validEmoteCode(payload.get("emoteCode"));
             case "WORLD_MOVE" -> validMove(payload);
             case "WORLD_BALLOON_START" -> validBalloonStart(payload);
@@ -90,7 +99,7 @@ public final class TableProtocol {
             case "WORLD_SECRET_DOORS_SET" -> fields(payload, Set.of("open")) && payload.path("open").isBoolean();
             case "WORLD_INTERIOR_ACCESS" -> fields(payload, Set.of("access"))
                     && payload.path("access").isTextual()
-                    && Set.of("vestibule", "surface", "passage", "entry", "exit").contains(payload.path("access").asText());
+                    && Set.of("vestibule", "surface", "passage", "entry", "return", "exit").contains(payload.path("access").asText());
             case "WORLD_POSITION_FALLBACK" -> fields(payload, Set.of("epoch"))
                     && payload.path("epoch").isIntegralNumber() && payload.path("epoch").canConvertToLong()
                     && payload.path("epoch").asLong() >= 0 && payload.path("epoch").asLong() <= 9_007_199_254_740_991L;

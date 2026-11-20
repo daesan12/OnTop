@@ -193,6 +193,8 @@ public class TableHub {
     private final com.ssafy.ontop.world.service.WorldTyping typing =
             new com.ssafy.ontop.world.service.WorldTyping(System::nanoTime);
     private final WorldEmoteService emotes;
+    private final com.ssafy.ontop.world.winter.SnowballService snowballs =
+            new com.ssafy.ontop.world.winter.SnowballService();
     private final WorldProximity proximity;
     private final WorldFacilityService facilities;
     private final PreparedParkMap preparedPark;
@@ -480,7 +482,7 @@ public class TableHub {
         this.preparedPark = preparedPark;
         this.facilities = preparedPark == null ? new WorldFacilityService()
                 : new WorldFacilityService(preparedPark.facilities(), java.time.Clock.systemUTC(), System::nanoTime,
-                        preparedPark.boatRoute());
+                        preparedPark.boatRoute(), preparedPark.sleighRoute());
         if (preparedPark != null && (!channels.mapMetadata().equals(preparedPark.metadata())
                 || !maps.metadata().equals(preparedPark.metadata()))) {
             throw new IllegalArgumentException("채널·시설·연결 응답은 같은 맵을 사용해야 합니다.");
@@ -877,6 +879,14 @@ public class TableHub {
                 gameResults.get().check(sessionId, requestId, request.payload().get("gameSessionId").textValue());
                 return;
             }
+            advanceWinter();
+            if (snowballs.frozen(member.userId(), System.nanoTime()) && Set.of(
+                    "TABLE_JOIN", "TABLE_WATCH", "GAME_WATCH", "WORLD_CARRY_PICKUP", "WORLD_FACILITY_USE",
+                    "WORLD_FOLLOW_START", "WORLD_EMOTE_SEND", "WORLD_SECRET_DOORS_SET", "WORLD_INTERIOR_ACCESS",
+                    "WORLD_MOBILITY_START", "WORLD_BALLOON_START", "WORLD_BOAT_JOIN", "WORLD_BOAT_REPLY",
+                    "WORLD_MYROOM_SET", "WORLD_SNOWBALL_PICKUP", "WORLD_SNOWBALL_THROW").contains(request.type())) {
+                fail(request, "SNOWBALL_FROZEN", "얼어 있어요. A·D를 번갈아 눌러 얼음을 깨주세요.");
+            }
             if (request.type().equals("WORLD_CHAT_TYPING_SET")) {
                 String channel = channels.channelOf(member.userId());
                 if (channel == null) { fail(request, "NOT_IN_CHANNEL", "먼저 채널에 입장해주세요."); }
@@ -986,6 +996,9 @@ public class TableHub {
                     }
                 }
                 case "WORLD_EMOTE_SEND" -> sendEmote(member, request);
+                case "WORLD_SNOWBALL_THROW", "WORLD_SNOWBALL_PREPARE", "WORLD_SNOWBALL_AIM" -> throwSnowball(member, request);
+                case "WORLD_SNOWBALL_PICKUP", "WORLD_SNOWBALL_ESCAPE", "WORLD_SNOWBALL_CHECK" ->
+                        snowballState(member, request);
                 case "WORLD_CARRY_PICKUP", "WORLD_CARRY_THROW", "WORLD_CARRY_RELEASE" -> carry(member, request);
                 case "WORLD_INTERACTION_SET" -> interactionBusy(member, request);
                 case "WORLD_FOLLOW_START", "WORLD_FOLLOW_STOP", "WORLD_FOLLOW_CHECK" -> follow(member, request);
@@ -1060,6 +1073,7 @@ public class TableHub {
         chat.disconnected(member.userId());
         cancelEmote(member.userId(), "DISCONNECTED");
         emotes.disconnected(member.userId());
+        clearWinter(member.userId());
         appearancePushes.remove(member.userId());
         profileMemberships.remove(member);
         positionSampler.forget(member.userId());
@@ -1407,6 +1421,7 @@ public class TableHub {
             member.peer().offer(protocol.encode(request.requestId(), "CHANNEL_STATE", change.state()));
             member.peer().offer(protocol.encode(null, "WORLD_STATE", channels.worldState(channelId)));
         }
+        publishWinter(channelId, member, null);
         publishTyping(channelId, member, null, false);
         sendParkDebris(member, channelId);
         if (balloons != null) {
@@ -1581,6 +1596,7 @@ public class TableHub {
             recordFacility(member.accountId(), facilityLease, "CHANNEL_LEFT");
             syncDuckBoat(facilityLease.channelId());
         }
+        clearWinter(member.userId());
         WorldChannelRegistry.State state = channels.leave(member.userId());
         String typingChannel = typing.remove(member.userId());
         if (typingChannel != null) { publishTyping(typingChannel, null, null, true); }
@@ -2008,6 +2024,24 @@ public class TableHub {
                 Map.of("status", status, "fare", DuckBoatSchedule.FARE, "leaseId", leaseId)));
     }
 
+    /** 서버의 고정 항로로 이동시키고 한 바퀴가 끝나면 지상 하차를 확정한다. */
+    private void advanceSleighs() {
+        for (var lease : facilities.sleighRiders()) {
+            if (!facilities.sleighArrived(lease)) {
+                channels.moveHeld(lease.userId(), facilities.sleighPose(lease));
+                continue;
+            }
+            var exit = channels.facilityExit(lease.userId(), lease);
+            if (exit == null) continue; // Keep the rider held at the dock until a safe ground exit is available.
+            channels.releaseFacility(lease.userId(), exit);
+            facilities.release(lease.userId());
+            var member = boatMember(lease.userId());
+            recordFacility(member == null ? null : member.accountId(), lease, "ARRIVED");
+            publishFacilities(lease.channelId(), null, null);
+            publishWorld(channels.worldState(lease.channelId()), null, null);
+        }
+    }
+
     /** 운항 중인 배가 있으면 장식 순환 배를 숨기고 충돌도 뺀다. */
     private void syncDuckBoat(String channel) {
         boolean sailing = facilities.boatSailing(channel);
@@ -2248,9 +2282,11 @@ public class TableHub {
             return;
         }
         try {
+            advanceWinter();
             syncSpectatorPresence();
             advanceRentals();
             advanceDuckBoats();
+            advanceSleighs();
             var worlds = channels.advance(Set.copyOf(seating.keySet()), follows.activeStates());
             dispatchJumpmap(channels.drainJumpmap());
             for (var ended : channels.drainSuspensionEnds()) {
@@ -2741,6 +2777,115 @@ public class TableHub {
         for (Member target : members.values()) {
             if (channels.isInChannel(target.userId(), state.channelId())) {
                 target.peer().offer(protocol.encode(target == actor ? requestId : null, "WORLD_FOLLOW_STATE", state));
+            }
+        }
+    }
+
+    private void publishWinter(String channel, Member actor, String requestId) {
+        var state = snowballs.state(channel);
+        for (Member target : members.values()) {
+            if (channels.isInChannel(target.userId(), channel)) {
+                target.peer().offer(protocol.encode(target == actor ? requestId : null, "WORLD_SNOWBALL_STATE", state));
+            }
+        }
+    }
+
+    private void advanceWinter() {
+        for (String user : snowballs.expire(System.nanoTime())) {
+            var world = channels.winterFreeze(user, false);
+            if (world != null) { publishWorld(world, null, null); publishWinter(world.channelId(), null, null); }
+        }
+    }
+
+    private void clearWinter(String user) {
+        String channel = channels.channelOf(user);
+        snowballs.disconnected(user);
+        channels.winterFreeze(user, false);
+        if (channel != null) { publishWinter(channel, null, null); }
+    }
+
+    private void snowballState(Member member, Request request) {
+        String user = member.userId(), channel = channels.channelOf(user);
+        if (channel == null) { fail(request, "NOT_IN_CHANNEL", "먼저 공원에 입장해주세요."); }
+        try {
+            if (request.type().equals("WORLD_SNOWBALL_PICKUP")) {
+                if (carryBusy(user) || channels.carryState(user) != null || mobilityRides.containsKey(user)) {
+                    fail(request, "SNOWBALL_ACTIVITY_CONFLICT", "다른 활동을 마친 뒤 눈을 주워주세요.");
+                }
+                if (!channels.snowPileInReach(user, request.payload().path("pileId").asText())) {
+                    fail(request, "SNOW_PILE_OUT_OF_RANGE", "바닥의 눈더미 가까이에서 주워주세요.");
+                }
+                snowballs.pickup(channel, user, System.nanoTime());
+            } else if (request.type().equals("WORLD_SNOWBALL_ESCAPE")) {
+                snowballs.escape(request.requestId(), channel, user, request.payload().path("freezeId").asText(),
+                        request.payload().path("key").asText(), System.nanoTime());
+                if (!snowballs.frozen(user, System.nanoTime())) {
+                    var world = channels.winterFreeze(user, false);
+                    if (world != null) { publishWorld(world, null, null); }
+                }
+            }
+            publishWinter(channel, member, request.requestId());
+        } catch (com.ssafy.ontop.world.winter.SnowballService.Rejected failure) {
+            fail(request, failure.code(), failure.getMessage());
+        }
+    }
+
+    private void throwSnowball(Member member, Request request) {
+        String user = member.userId(), channel = channels.channelOf(user);
+        var origin = channels.positionOf(user);
+        if (channel == null || origin == null) {
+            fail(request, "NOT_IN_CHANNEL", "먼저 공원에 입장해주세요.");
+        }
+        if (carryBusy(user) || channels.carryState(user) != null || mobilityRides.containsKey(user)
+                || origin.swimming()) {
+            fail(request, "SNOWBALL_ACTIVITY_CONFLICT", "공원에서 다른 활동을 마친 뒤 눈싸움을 해주세요.");
+        }
+        if (request.type().equals("WORLD_SNOWBALL_PREPARE")) {
+            try {
+                var motion = snowballs.prepare(request.requestId(), channel, user, request.payload().path("yaw").asDouble(),
+                        System.nanoTime(), java.time.Instant.now());
+                for (Member target : members.values()) {
+                    if (channels.isInChannel(target.userId(), channel)) {
+                        target.peer().offer(protocol.encode(target == member ? request.requestId() : null,
+                                "WORLD_SNOWBALL_WINDUP", motion));
+                    }
+                }
+            } catch (com.ssafy.ontop.world.winter.SnowballService.Rejected failure) {
+                fail(request, failure.code(), failure.getMessage());
+            }
+            return;
+        }
+        var targets = members.values().stream()
+                .filter(target -> channels.isInChannel(target.userId(), channel))
+                .filter(target -> !carryBusy(target.userId()) && channels.carryState(target.userId()) == null
+                        && !mobilityRides.containsKey(target.userId()))
+                .map(target -> new com.ssafy.ontop.world.winter.SnowballService.Target(
+                        target.userId(), channels.positionOf(target.userId())))
+                .filter(target -> target.position() != null && !target.position().swimming()).toList();
+        com.ssafy.ontop.world.winter.SnowballService.Event event;
+        try {
+            if (request.type().equals("WORLD_SNOWBALL_AIM")) {
+                var aim = snowballs.preview(channel, user, origin, request.payload().path("yaw").asDouble(), targets,
+                        yaw -> channels.snowballDistance(user, yaw), System.nanoTime());
+                member.peer().offer(protocol.encode(request.requestId(), "WORLD_SNOWBALL_AIM_STATE", aim));
+                return;
+            }
+            event = snowballs.create(request.requestId(), channel, user, origin,
+                    request.payload().path("yaw").asDouble(), targets,
+                    yaw -> channels.snowballDistance(user, yaw), System.nanoTime(), java.time.Instant.now());
+        } catch (com.ssafy.ontop.world.winter.SnowballService.Rejected failure) {
+            fail(request, failure.code(), failure.getMessage());
+            return;
+        }
+        if (!event.hitUserId().isEmpty() && snowballs.frozen(event.hitUserId(), System.nanoTime())) {
+            var frozen = channels.winterFreeze(event.hitUserId(), true);
+            if (frozen != null) { publishWorld(frozen, null, null); }
+        }
+        publishWinter(channel, null, null);
+        for (Member target : members.values()) {
+            if (channels.isInChannel(target.userId(), channel)) {
+                target.peer().offer(protocol.encode(target == member ? request.requestId() : null,
+                        "WORLD_SNOWBALL_EVENT", event));
             }
         }
     }

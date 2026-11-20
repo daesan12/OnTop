@@ -1,6 +1,7 @@
 package com.ssafy.ontop.world.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ssafy.ontop.world.winter.SleighRoute;
 import com.ssafy.ontop.world.boat.DuckBoatRoute;
 import com.ssafy.ontop.world.boat.DuckBoatSchedule;
 import com.ssafy.ontop.world.movement.ParkScene;
@@ -26,6 +27,7 @@ public final class WorldFacilityService {
     private final Clock clock;
     private final LongSupplier nanos;
     private final DuckBoatSchedule boats;
+    private final SleighRoute sleighRoute;
 
     public WorldFacilityService() {
         this(load(), Clock.systemUTC(), System::nanoTime);
@@ -36,7 +38,16 @@ public final class WorldFacilityService {
     }
 
     public WorldFacilityService(Catalog catalog, Clock clock, LongSupplier nanos, DuckBoatRoute boatRoute) {
+        this(catalog, clock, nanos, boatRoute, null);
+    }
+
+    public WorldFacilityService(Catalog catalog, Clock clock, LongSupplier nanos, DuckBoatRoute boatRoute,
+            SleighRoute sleighRoute) {
         this.catalog = catalog;
+        this.sleighRoute = sleighRoute;
+        if (catalog.facilities().stream().anyMatch(d -> d.kind().equals("SLEIGH")) != (sleighRoute != null)) {
+            throw new IllegalStateException("썰매 시설과 항로를 함께 확인해주세요.");
+        }
         this.clock = clock;
         this.nanos = nanos;
         boolean boatFacility = catalog.facilities().stream().anyMatch(item -> item.kind().equals(BOAT));
@@ -299,6 +310,19 @@ public final class WorldFacilityService {
 
     public boolean boatSailing(String channelId) {
         return boats != null && boats.sailing(channelId);
+    }
+
+    /** Immutable leases retain departure time; the channel's held pose advances on the world tick. */
+    public List<Lease> sleighRiders() {
+        return users.values().stream().filter(l -> l.kind().equals("SLEIGH")).toList();
+    }
+
+    public boolean sleighArrived(Lease lease) {
+        return clock.millis() - lease.startedAt().toEpochMilli() >= sleighRoute.durationMs();
+    }
+
+    public Pose sleighPose(Lease lease) {
+        return sleighRoute.pose(clock.millis() - lease.startedAt().toEpochMilli());
     }
 
     public void disconnected(String userId) {

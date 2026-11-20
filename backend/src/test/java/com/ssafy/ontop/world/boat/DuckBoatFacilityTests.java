@@ -34,7 +34,7 @@ class DuckBoatFacilityTests {
     }
 
     private WorldFacilityService service() {
-        return new WorldFacilityService(map.facilities(), clock, System::nanoTime, map.boatRoute());
+        return new WorldFacilityService(map.facilities(), clock, System::nanoTime, map.boatRoute(), map.sleighRoute());
     }
 
     private Position atDock() {

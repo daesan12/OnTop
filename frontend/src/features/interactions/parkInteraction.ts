@@ -1,7 +1,10 @@
+import { SLEIGH_ID } from '../winter/sleigh/route'
+import { boardSleigh } from '../winter/sleigh/controller'
+import { winterFrozen } from '../winter/state'
 import { DUCK_BOAT, FITNESS, FITNESS_STATIONS, TABLES, TELESCOPES, TELESCOPE, MAILBOX, MAILBOX_BASE_Y } from '../../park/mapConfig'
 import { boatQueueOpen } from '../duckBoat/controller'
 import { openBoatChooser } from '../duckBoat/model'
-import { authoritativePose, avatars, useSession } from '../../network/worldClient'
+import { authoritativePose, avatars, useSession, estimatedServerTime } from '../../network/worldClient'
 import { parkRuntime } from '../../park/runtime/runtime'
 import { balloonEntrance, canReachBalloonDoor } from '../balloon/boarding'
 import { openLocalBalloon } from '../balloon/localRide'
@@ -89,7 +92,7 @@ const recreationLabels: Record<RenewalRecreationId, string> = {
 }
 
 export interface ParkInteraction {
-  kind: 'bench' | 'table' | 'fitness' | 'telescope' | 'boat' | 'balloon' | 'feedback' | 'notes' | 'bungeoppang' | 'rps-roulette' | 'renewal-game' | 'spot-difference' | 'construction' | 'gacha' | 'ranking-board' | 'vr' | 'jumpmap-guide' | 'stone-rumble-guide' | 'avatar-pickup' | 'avatar-throw' | 'joke-judge' | 'interior-item' | 'interior-access' | 'advertisement'
+  kind: 'sleigh' | 'bench' | 'table' | 'fitness' | 'telescope' | 'boat' | 'balloon' | 'feedback' | 'notes' | 'bungeoppang' | 'rps-roulette' | 'renewal-game' | 'spot-difference' | 'construction' | 'gacha' | 'ranking-board' | 'vr' | 'jumpmap-guide' | 'stone-rumble-guide' | 'avatar-pickup' | 'avatar-throw' | 'joke-judge' | 'interior-item' | 'interior-access' | 'advertisement'
   id: string
   label: string
   seat?: 0 | 1
@@ -103,6 +106,7 @@ export interface ParkInteraction {
 export function getParkInteraction(preferredGuide?: typeof STONE_RUMBLE_GUIDE_ID): ParkInteraction | null {
   const session = useSession.getState(), benches = useBenchState.getState(), fitness = useFitnessState.getState()
   const p = avatars.get(session.sessionId)
+  if (winterFrozen(session.sessionId, estimatedServerTime())) return null
   const mobility = useMobility.getState()
   if (mobility.target || mobility.phase !== 'idle' || p?.vehicle || facilityMovementBlocked(session.sessionId)) return null
   if (!roamingInput.ready || !p || session.status !== 'connected' || !session.mapCompatible || session.tableId || p.seatIndex >= 0
@@ -151,6 +155,13 @@ export function getParkInteraction(preferredGuide?: typeof STONE_RUMBLE_GUIDE_ID
     if (distance > 2.5 || Math.abs(p.current.y - (sign.y + .8)) > 1) continue
     choices.push({ kind: 'advertisement', id: `a-frame-${sign.id}`, label: '광고 보기',
       occupied: false, available: true, distance, score: interactionScore(distance, { ...sign, y: sign.y + A_FRAME.panelY }) })
+  }
+  if (RENEWAL_PARK_ENABLED && facilityInRange(p.current, SLEIGH_ID)) {
+    const d = useFacilityState.getState().catalog[SLEIGH_ID]
+    const occupied = Object.values(useFacilityState.getState().occupancies).some(l => l.facilityId === SLEIGH_ID)
+    const distance = Math.hypot(p.current.x - d.center.x, p.current.z - d.center.z)
+    choices.push({ kind: 'sleigh', id: SLEIGH_ID, label: occupied ? '썰매 비행 중 · 잠시 기다려주세요' : '루돌프 썰매 타기 · 무료',
+      occupied, available: !occupied && facilityAvailable(SLEIGH_ID), distance, score: interactionScore(distance, d.center) })
   }
   if (BALLOON_RIDE_ENABLED && balloonEntrance && canReachBalloonDoor(p.current)) {
     const distance = Math.hypot(p.current.x - balloonEntrance.x, p.current.z - balloonEntrance.z)
@@ -295,6 +306,7 @@ export function interactWithPark(expectedId?: string): boolean {
   else if (target.kind === 'vr') openParkVrZone()
   else if (target.kind === 'gacha') openParkGacha()
   else if (target.kind === 'spot-difference') openSpotDifference()
+  else if (target.kind === 'sleigh') { if (!target.available) return false; void boardSleigh(target.id); return true }
   else if (target.kind === 'balloon') return openLocalBalloon()
   else if (target.kind === 'construction') openConstructionNotice(target.id)
   else if (target.kind === 'bungeoppang') openBungeoppang()

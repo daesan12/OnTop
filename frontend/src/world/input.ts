@@ -1,6 +1,7 @@
+import { winterFrozen } from '../features/winter/state'
 import { CAMERA, TELESCOPE } from '../config'
 import { parkXRView } from './xrView'
-import { avatars, useSession } from '../network/worldClient'
+import { avatars, useSession, estimatedServerTime } from '../network/worldClient'
 import { parkRuntime } from '../park/runtime/runtime'
 import { aimAtRental, canReachRental } from '../features/mobility/targets'
 import { HOLD_MS, rentalCapability, rentalNotice, resetMobility, sameTarget, useMobility } from '../features/mobility/state'
@@ -61,6 +62,7 @@ export function installRoamingInput(canvas: HTMLCanvasElement) {
   const blocked = () =>
     parkXRView.ownsInput ||
     document.hidden ||
+    winterFrozen(useSession.getState().sessionId, estimatedServerTime()) ||
     useSession.getState().status !== 'connected' ||
     !avatars.has(useSession.getState().sessionId) ||
     panelOwnsMovement() ||

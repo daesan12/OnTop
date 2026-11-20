@@ -43,6 +43,17 @@ async function ready(pose = origin) {
   return { sim, prediction }
 }
 describe('own movement prediction; authority and other avatars stay separate', () => {
+  it('표시용 정적 충돌 조회는 준비된 현재 월드만 사용하고 중단·초기화 후에는 조회하지 않는다', async () => {
+    let probes = 0
+    const sim = Object.assign(new FlatSimulation(), { raycastStatic: () => { probes++; return .4 } })
+    const prediction = new LocalMovementPrediction(async () => sim, () => 0)
+    expect(prediction.raycastStatic(origin, origin)).toBeUndefined()
+    prediction.reconcile('one', origin, motion(), true, 0); await prediction.prepare()
+    expect(prediction.raycastStatic(origin, origin)).toBe(.4)
+    prediction.suspend(); expect(prediction.raycastStatic(origin, origin)).toBeUndefined()
+    prediction.reset(); expect(prediction.raycastStatic(origin, origin)).toBeUndefined()
+    expect(probes).toBe(1)
+  })
   it('records bounded request RTT diagnostics without shifting jump replay by a guessed half-RTT', async () => {
     const { prediction } = await ready()
     prediction.intend(walk, 100); prediction.sentInput(1, 100, walk)
@@ -244,6 +255,16 @@ describe('own movement prediction; authority and other avatars stay separate', (
   })
 })
 describe('the actual shared-map collision predictor', () => {
+  it('정적 광선은 자기 캡슐을 제외하고 지면을 찾으며 이동 상태를 바꾸지 않는다', async () => {
+    const sim = await createPredictionPhysics()
+    try {
+      sim.reset({ ...origin, y: groundHeight(origin.x, origin.z) + .9 }, 0, true)
+      sim.step(stop, 1 / 60)
+      const before = sim.pose(), fraction = sim.raycastStatic!(before, { ...before, y: before.y - 5 })
+      expect(fraction).toBeGreaterThan(.05); expect(fraction).toBeLessThan(.5)
+      expect(sim.pose()).toEqual(before)
+    } finally { sim.dispose() }
+  })
   it('converges to a confirmed platform landing even when the old display is below its underside', async () => {
     const sim = await createPredictionPhysics()
     const prediction = new LocalMovementPrediction(async () => sim, () => 0)

@@ -861,6 +861,17 @@ public final class WorldPhysics implements AutoCloseable {
             }
             if (!a.seated) updateInteriorArrival(a);
             if (a.throwTicks > 0 && (--a.throwTicks == 0 || supported || a.swimming)) {
+                // onGround도 층 모서리의 캡슐 겹침을 허용하므로 안전한 지지면을 확인한다.
+                if (supported && !a.swimming && !canOccupy(position)) {
+                    Vector3f raised = position.add(0, .12f, 0);
+                    Vector3f landing = canStand(raised.x, raised.y, raised.z) ? raised : nearbyStand(raised);
+                    if (landing == null) {
+                        landing = carryExit(raised, a);
+                    }
+                    a.body.warp(landing);
+                    a.body.setLinearVelocity(Vector3f.ZERO);
+                    position.set(landing);
+                }
                 a.throwTicks = 0;
                 a.throwX = a.throwZ = 0;
                 stopNow(entry.getKey());
@@ -987,7 +998,22 @@ public final class WorldPhysics implements AutoCloseable {
                 && position.y < scene.groundHeight(position.x, position.z)
                         + number("halfHeight") + number("radius") - .35
                 && !inSecretCorridor(position) && !nearSecretDoor(position, 1.4)
-                && !insideVolume(position, scene.data.path("interiorAccess").path("annex"));
+                && !insideVolume(position, scene.data.path("interiorAccess").path("annex"))
+                && !inInteriorApproach(position);
+    }
+
+    // 절개된 입구의 낮은 발판은 절벽의 원래 높이 조회값보다 아래에 있다.
+    private boolean inInteriorApproach(Vector3f position) {
+        var layout = scene.data.path("interiorAccess");
+        if (!layout.path("entrancesOpen").asBoolean(true)) {
+            return false;
+        }
+        for (var bounds : layout.path("approaches")) {
+            if (insideVolume(position, bounds)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean specialMovement(Vector3f p) { return swimming(p) || isTower(p); }
@@ -1568,6 +1594,45 @@ public final class WorldPhysics implements AutoCloseable {
             stopNow(entry.getKey());
             resetMotion(target);
         }
+    }
+
+    public boolean snowPileInReach(String userId, String pileId) {
+        return call(() -> {
+            Actor actor = actors.get(userId);
+            if (actor == null) { return false; }
+            Vector3f p = actor.body.getPhysicsLocation(null);
+            for (JsonNode pile : scene.data.path("winterSnowPiles")) {
+                if (pile.path("id").asText().equals(pileId)) {
+                    double centerY = scene.groundHeight(p.x, p.z) + number("halfHeight") + number("radius")
+                            + number("offset");
+                    return Math.hypot(p.x - pile.path("x").asDouble(), p.z - pile.path("z").asDouble())
+                            <= pile.path("radius").asDouble() && Math.abs(p.y - centerY) <= .65;
+                }
+            }
+            return false;
+        });
+    }
+
+    /** 눈덩이 포물선과 정적 구조물의 첫 충돌 거리를 반환한다. */
+    public double snowballDistance(double x, double y, double z, double yaw) {
+        return call(() -> {
+            Vector3f previous = new Vector3f((float) x, (float) (y + .35), (float) z);
+            for (int i = 1; i <= 32; i++) {
+                double distance = i * .5;
+                Vector3f next = new Vector3f((float) (x + Math.sin(yaw) * distance),
+                        (float) (y + .35 + com.ssafy.ontop.world.winter.SnowballService.ARC_HEIGHT
+                                * Math.sin(Math.PI * distance / 16)),
+                        (float) (z + Math.cos(yaw) * distance));
+                double fraction = space.rayTest(previous, next).stream()
+                        .filter(hit -> hit.getCollisionObject().getCollisionGroup() == 2)
+                        .mapToDouble(hit -> hit.getHitFraction()).min().orElse(1);
+                if (fraction < 1) {
+                    return distance - .5 + fraction * .5;
+                }
+                previous = next;
+            }
+            return 16.0;
+        });
     }
 
     private boolean canOccupy(Vector3f center) {
