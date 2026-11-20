@@ -2,7 +2,7 @@ import { estimatedServerTime, useSession } from '../../../network/worldClient'
 import { parkRuntime } from '../../../park/runtime/runtime'
 import { RENEWAL_PARK_ENABLED } from '../../../park/mapSelection'
 import { useFacilityState } from '../../facilities/state'
-import { sleighPose } from './route'
+import { sleighChassisPose } from './formation'
 import { createSleighClock } from './flightClock'
 import type { FacilityLease } from '../../facilities/protocol'
 
@@ -15,7 +15,7 @@ export function sleighRider(userId: string) {
   if (!RENEWAL_PARK_ENABLED) return null
   const lease = useFacilityState.getState().occupancies[userId]
   return lease?.kind === 'SLEIGH' && lease.channelId === useSession.getState().roomId
-    ? sleighPose(sleighElapsed(lease)) : null
+    ? sleighChassisPose(sleighElapsed(lease)) : null
 }
 export async function boardSleigh(id: string) {
   try {

@@ -128,6 +128,7 @@ function Avatar({
   const pose = useMemo(() => ({ x: 0, y: 0, z: 0, yaw: 0 }), [])
   const overlapPose = useMemo(() => ({ x: 0, y: 0, z: 0, yaw: 0 }), [])
   const worldPosition = useMemo(() => new Vector3(), [])
+  const sleighSeatOffset = useMemo(() => new Vector3(), [])
   const inverseRoot = useMemo(() => new Matrix4(), [])
   const presentation = useMemo(() => new AvatarPresentation(), [])
   const mountedVehicle = useMemo(createMountedVehicle, [])
@@ -192,7 +193,7 @@ function Avatar({
     const localPilot = localBalloon.flight && localBalloon.owner === localBalloon.leader
       ? { id: localBalloon.owner, position: localBalloon.flight.position } : undefined
     const balloonRider = own ? localBalloonRider(id) : remoteBalloonRider(id, frameAt, localPilot)
-    const rider = sleighRider(id) ?? balloonRider
+    const sleigh = sleighRider(id), rider = sleigh ?? balloonRider
     const ownAvatar = !own && useJumpmap.getState().run ? avatars.get(useSession.getState().sessionId) : undefined
     const ownPose = ownAvatar && samplePose(ownAvatar, frameAt, overlapPose)
     const overlap = !!ownPose && Math.hypot(pose.x - ownPose.x, pose.z - ownPose.z) < .7 && Math.abs(pose.y - ownPose.y) < 1.8
@@ -221,9 +222,12 @@ function Avatar({
       && (ownXR ? !!avatar.vehicle : visibleOutsideXR)
     appearance.current?.set(root.current.visible ? opacity : 1)
     root.current.userData.appearanceOpacity = root.current.visible ? opacity : 0
+    root.current.rotation.set(sleigh?.pitch ?? 0, rider?.yaw ?? pose.yaw, sleigh?.bank ?? 0, 'YXZ')
     if (rider) {
       const seatLift = rider.seatIndex >= 0 ? model.seatedContactLift - model.hipHeight : 0
-      root.current.position.set(rider.x, rider.y + seatLift, rider.z)
+      sleighSeatOffset.set(0, seatLift, 0)
+      if (sleigh) sleighSeatOffset.applyQuaternion(root.current.quaternion)
+      root.current.position.set(rider.x + sleighSeatOffset.x, rider.y + sleighSeatOffset.y, rider.z + sleighSeatOffset.z)
     }
     else root.current.position.set(
       pose.x,
@@ -232,7 +236,6 @@ function Avatar({
           + (RENEWAL_PARK_ENABLED ? model.seatedContactLift : model.seatedHipLift) - model.hipHeight : 0),
       pose.z,
     )
-    root.current.rotation.y = rider?.yaw ?? pose.yaw
     const carryAnimation = carryMotion.get(id)
     if (!root.current.visible && !carryAnimation) return
     // The visitors parent has an identity transform; this position is already

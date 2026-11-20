@@ -16,8 +16,7 @@ export function Reins({ team }: { team: RefObject<Group | null> }) {
     work.curves.forEach((curve, side) => {
       for (let row = 0; row < 3; row++) {
         const animal = team.current!.children[row * 2 + side]!
-        curve.points[row + 1]!.copy(animal.position)
-        curve.points[row + 1]!.y += .4
+        curve.points[row + 1]!.set(0, .4, 0).applyQuaternion(animal.quaternion).add(animal.position)
       }
       for (let i = 0; i < 20; i++) {
         curve.getPoint(i / 20, work.from); curve.getPoint((i + 1) / 20, work.to)

@@ -5,9 +5,28 @@ import { parseFacilityDefinition } from '../../src/features/facilities/protocol'
 import { createSleighClock } from '../../src/features/winter/sleigh/flightClock'
 import { SleighCamera } from '../../src/features/winter/sleigh/camera'
 import { PerspectiveCamera, Vector3 } from 'three'
-import { sleighTeamPose } from '../../src/features/winter/sleigh/formation'
+import { sleighChassisPose, sleighTeamPose } from '../../src/features/winter/sleigh/formation'
 
 describe('루돌프 썰매', () => {
+  it('썰매 본체도 커브를 미리 향하고 기울면서 서버 항로의 중심을 유지한다', () => {
+    let bank = 0, anticipatedTurn = 0
+    for (let at = 0; at <= SLEIGH_LAP_MS; at += 100) {
+      const chassis = sleighChassisPose(at), base = sleighPose(at), team = sleighTeamPose(at, 3.4, 0)
+      expect([chassis.x, chassis.y, chassis.z]).toEqual([base.x, base.y, base.z])
+      expect(Object.values(chassis).filter(v => typeof v === 'number').every(Number.isFinite)).toBe(true)
+      expect(Math.abs(chassis.bank)).toBeLessThanOrEqual(.24)
+      expect(Math.abs(chassis.pitch)).toBeLessThanOrEqual(.32)
+      if (Math.abs(team.bank) > .05) expect(Math.sign(chassis.bank)).toBe(Math.sign(team.bank))
+      bank = Math.max(bank, Math.abs(chassis.bank))
+      anticipatedTurn = Math.max(anticipatedTurn, Math.abs(chassis.yaw - base.yaw))
+    }
+    expect(bank).toBeGreaterThan(.05)
+    expect(anticipatedTurn).toBeGreaterThan(.01)
+    for (const at of [0, SLEIGH_LAP_MS]) {
+      const chassis = sleighChassisPose(at)
+      expect(chassis.bank).toBeCloseTo(0); expect(chassis.pitch).toBeCloseTo(0)
+    }
+  })
   it('순록의 각 줄이 커브를 따라 다르게 선회하고 탑승장에서는 원래 대형을 유지한다', () => {
     let bend = 0, bank = 0
     for (let at = 0; at <= SLEIGH_LAP_MS; at += 100) {

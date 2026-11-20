@@ -46,3 +46,9 @@ export function sleighTeamPose(elapsed: number, ahead: number, side: number) {
     bank: Math.max(-.24, Math.min(.24, -turnAngle * 1.2)) * blend,
   }
 }
+
+/** Follow the nearest pair's heading, climb and bank, including changes between left/right bends. */
+export function sleighChassisPose(elapsed: number) {
+  const base = sleighPose(elapsed), heading = sleighTeamPose(elapsed, 3.4, 0)
+  return { ...base, yaw: base.yaw + heading.yaw, pitch: heading.pitch, bank: heading.bank }
+}
