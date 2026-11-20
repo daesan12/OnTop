@@ -22,12 +22,14 @@ import java.time.Instant;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Objects;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
 public class RaffleService {
     private static final String OPEN = "OPEN";
+    private static final int NUMBER_COLLISION_RETRIES = 20;
     private final RaffleRepository raffles;
     private final WalletRepository wallets;
     private final WalletTransactionRepository ledger;
@@ -71,12 +73,24 @@ public class RaffleService {
         if (idempotencyKey == null || !idempotencyKey.matches("[A-Za-z0-9_-]{1,64}")) {
             throw error(400, "INVALID_REQUEST", "중복 방지 키를 확인하세요.");
         }
-        return Objects.requireNonNull(transactions.execute(status -> purchaseInTransaction(userId, idempotencyKey)));
+        for (int attempt = 0; attempt < NUMBER_COLLISION_RETRIES; attempt++) {
+            try {
+                return Objects.requireNonNull(transactions.execute(
+                        status -> purchaseInTransaction(userId, idempotencyKey)));
+            } catch (DuplicateKeyException collision) {
+                if (!String.valueOf(collision.getMessage()).contains("uk_raffle_tickets_round_number")) {
+                    throw collision;
+                }
+            }
+        }
+        throw error(503, "RAFFLE_UNAVAILABLE", "응모권 구매가 몰리고 있습니다. 잠시 후 다시 시도하세요.");
     }
 
     private RafflePurchaseResponse purchaseInTransaction(long userId, String idempotencyKey) {
         Instant now = clock.instant();
         RaffleRound round = currentRound(now, true);
+        Wallet wallet = wallets.findForUpdateByUserId(userId).orElseThrow(() ->
+                error(409, "WALLET_NOT_READY", "지갑 초기화가 필요합니다."));
         var previous = raffles.ticket(round.id(), userId, idempotencyKey);
         if (previous.isPresent()) {
             return purchaseResponse(previous.get(), raffles.ticketCount(round.id(), userId), round.weeklyTicketLimit());
@@ -90,8 +104,6 @@ public class RaffleService {
         if (purchasedCount >= round.weeklyTicketLimit()) {
             throw error(409, "RAFFLE_WEEKLY_LIMIT_REACHED", "이번 주 응모권 구매 한도를 모두 사용했습니다.");
         }
-        Wallet wallet = wallets.findForUpdateByUserId(userId).orElseThrow(() ->
-                error(409, "WALLET_NOT_READY", "지갑 초기화가 필요합니다."));
         long availableBalance = availableBalance(wallet);
         if (availableBalance < round.ticketPrice()) {
             throw error(409, "INSUFFICIENT_BALANCE", "사용 가능한 엽전이 부족합니다.");
@@ -113,9 +125,22 @@ public class RaffleService {
     private RaffleRound currentRound(Instant now, boolean locked) {
         var selection = saleWindows.select(now);
         RaffleSaleWindow window = selection.window();
+        if (!selection.overridden()) {
+            var existing = raffles.round(window.weekStartDate());
+            if (existing.isPresent() && readyForPurchase(existing.get(), window, now)) {
+                return raffles.shareRound(window.weekStartDate())
+                        .orElseThrow(() -> error(503, "RAFFLE_UNAVAILABLE", "이번 주 응모 정보를 확인할 수 없습니다."));
+            }
+        }
         raffles.synchronizeRound(window, now, selection.overridden());
         return (locked ? raffles.lockRound(window.weekStartDate()) : raffles.round(window.weekStartDate()))
                 .orElseThrow(() -> error(503, "RAFFLE_UNAVAILABLE", "이번 주 응모 정보를 확인할 수 없습니다."));
+    }
+
+    private boolean readyForPurchase(RaffleRound round, RaffleSaleWindow window, Instant now) {
+        return OPEN.equals(round.salesStatus()) && window.isOpenAt(now)
+                && round.salesStartsAt().equals(window.salesStartsAt())
+                && round.salesEndsAt().equals(window.salesEndsAt());
     }
 
     private CurrentRaffleResponse currentResponse(RaffleRound round, Wallet wallet, List<RaffleTicket> tickets) {

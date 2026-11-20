@@ -200,6 +200,24 @@ ERROR와 CONNECTED는 요청 타입이 아니다.
 
 서버는 비행 위치와 탑승 상태를 `WORLD_BALLOON_STATE`로 같은 채널에 공유한다. 종료 상태의 `flight`는 `null`이다. 관찰자는 이 상태로 기체와 탑승 아바타를 표시한다. [열기구 이용 및 검증 절차](../../frontend/src/features/balloon/README.md)
 
+## 겨울 공원 · 눈싸움
+
+기존 인증·맵 확인·채널 입장 절차를 그대로 사용한다. 공원 놀이이며 경기 보상·지갑·정산을 만들지 않는다.
+상세 필드·오류·동결 해제는 [겨울 공원·눈싸움 계약](../world-winter-api.md)을 따른다.
+
+| 요청 | payload | 응답/방송 |
+| --- | --- | --- |
+| WORLD_SNOWBALL_PICKUP | `{pileId}`. 서버가 바닥 눈더미까지의 거리를 확인해 한 개를 줍는다. | WORLD_SNOWBALL_STATE |
+| WORLD_SNOWBALL_CHECK | `{}`. 현재 채널의 눈 소지·피격·동결 상태를 조회한다. | WORLD_SNOWBALL_STATE |
+| WORLD_SNOWBALL_PREPARE | `{yaw}`. 300ms 던지기 준비 동작이며 소지량·명중은 변경하지 않는다. | WORLD_SNOWBALL_WINDUP |
+| WORLD_SNOWBALL_AIM | `{yaw}`. 실제 발사와 같은 서버 판정으로 표적을 조회하며 요청자에게만 응답한다. | WORLD_SNOWBALL_AIM_STATE |
+| WORLD_SNOWBALL_THROW | `{yaw}`. 서버 위치·정적 구조물·현재 대상을 확인해 눈 한 개를 소비하고 발사한다. | WORLD_SNOWBALL_EVENT |
+| WORLD_SNOWBALL_ESCAPE | `{freezeId, key}`. 현재 동결 ID와 A/D 교대 입력으로 탈출한다. | WORLD_SNOWBALL_STATE |
+
+`WORLD_SNOWBALL_STATE`는 채널 입장과 상태 변경 시 같은 채널에 공유한다. 3회 피격 시 5초 동안 동결되며,
+자연 만료와 A/D 탈출 모두 물리 이동 잠금을 해제하고 월드·눈싸움 상태를 전파한다. FE의 소지 중 미리보기는
+로컬 물리 월드를 사용하고, 서버 조준 조회는 승인된 준비 동작당 최대 한 번으로 제한한다. 실제 명중은 서버가 확정한다.
+
 ## 오리배 대기·초대·운항
 
 220m 공원 생성물의 `interactions.boats`(선착장 대기 자리 4곳, 하차 위치, 1분 운항 경로)가 있고 DB 지갑이 있는 서버에서만 쓸 수 있다. 시설 종류는 `BOAT`이며 좌석 0~3은 대기 자리(팀×2+자리), 4번부터는 배마다 두 좌석이다. 일반 `WORLD_FACILITY_USE`로는 들어올 수 없다(`BOAT_JOIN_REQUIRED`).

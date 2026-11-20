@@ -88,12 +88,13 @@ class RaffleServiceTests {
         when(raffles.lockRound(LocalDate.of(2026, 11, 2))).thenReturn(Optional.of(round));
         when(raffles.ticket(3, 7, "request-1")).thenReturn(Optional.of(saved));
         when(raffles.ticketCount(3, 7)).thenReturn(1);
+        when(wallets.findForUpdateByUserId(7)).thenReturn(Optional.of(mock(Wallet.class)));
 
         var result = service.purchase(7, "request-1");
 
         assertThat(result.ticketId()).isEqualTo(13);
         assertThat(result.ticketNumber()).isEqualTo(3140);
-        verify(wallets, never()).findForUpdateByUserId(anyLong());
+        verify(wallets).findForUpdateByUserId(7);
         verify(ledger, never()).saveAndFlush(any());
     }
 
@@ -102,12 +103,44 @@ class RaffleServiceTests {
         when(raffles.lockRound(LocalDate.of(2026, 11, 2))).thenReturn(Optional.of(round("OPEN", 10)));
         when(raffles.ticket(anyLong(), anyLong(), anyString())).thenReturn(Optional.empty());
         when(raffles.ticketCount(3, 7)).thenReturn(10);
+        when(wallets.findForUpdateByUserId(7)).thenReturn(Optional.of(mock(Wallet.class)));
 
         assertThatThrownBy(() -> service.purchase(7, "request-11"))
                 .isInstanceOf(RaffleException.class)
                 .satisfies(error -> assertThat(((RaffleException) error).code())
                         .isEqualTo("RAFFLE_WEEKLY_LIMIT_REACHED"));
-        verify(wallets, never()).findForUpdateByUserId(anyLong());
+        verify(wallets).findForUpdateByUserId(7);
+    }
+
+    @Test
+    void 정상_판매_중인_회차는_공유_잠금으로_읽고_매번_갱신하지_않는다() {
+        RaffleRound round = round("OPEN", 10);
+        when(raffles.round(LocalDate.of(2026, 11, 2))).thenReturn(Optional.of(round));
+        when(raffles.shareRound(LocalDate.of(2026, 11, 2))).thenReturn(Optional.of(round));
+        when(wallets.findForUpdateByUserId(7)).thenReturn(Optional.of(mock(Wallet.class)));
+        when(raffles.ticketCount(3, 7)).thenReturn(10);
+
+        assertThatThrownBy(() -> service.purchase(7, "new-key"))
+                .isInstanceOf(RaffleException.class)
+                .satisfies(error -> assertThat(((RaffleException) error).code())
+                        .isEqualTo("RAFFLE_WEEKLY_LIMIT_REACHED"));
+        verify(raffles, never()).synchronizeRound(any(), any(), org.mockito.ArgumentMatchers.anyBoolean());
+        verify(raffles, never()).lockRound(any());
+    }
+
+    @Test
+    void 정상_판매_중인_회차_조회도_갱신하지_않는다() {
+        RaffleRound round = round("OPEN", 10);
+        Wallet wallet = mock(Wallet.class);
+        when(raffles.round(LocalDate.of(2026, 11, 2))).thenReturn(Optional.of(round));
+        when(raffles.shareRound(LocalDate.of(2026, 11, 2))).thenReturn(Optional.of(round));
+        when(wallets.findByUserId(7)).thenReturn(Optional.of(wallet));
+        when(wallet.balance()).thenReturn(500L);
+        when(wallet.reserved()).thenReturn(0L);
+        when(raffles.tickets(3, 7)).thenReturn(java.util.List.of());
+
+        assertThat(service.current(7).roundId()).isEqualTo(3);
+        verify(raffles, never()).synchronizeRound(any(), any(), org.mockito.ArgumentMatchers.anyBoolean());
     }
 
     @Test

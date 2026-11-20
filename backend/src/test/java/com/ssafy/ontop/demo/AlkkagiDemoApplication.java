@@ -64,7 +64,7 @@ public final class AlkkagiDemoApplication {
         private final ObjectMapper mapper;
         private final java.time.Clock clock;
         private final Map<String, Client> clients = new ConcurrentHashMap<>();
-        private final ScheduledExecutorService physics = Executors.newSingleThreadScheduledExecutor();
+        private final ScheduledExecutorService physics;
         private final ScheduledExecutorService sender = Executors.newSingleThreadScheduledExecutor();
         private final AtomicReference<Outbound> latest = new AtomicReference<>();
         private final AtomicBoolean sendScheduled = new AtomicBoolean();
@@ -82,7 +82,12 @@ public final class AlkkagiDemoApplication {
         public DemoSocket(ObjectMapper mapper) { this(mapper, java.time.Clock.systemUTC()); }
 
         public DemoSocket(ObjectMapper mapper, java.time.Clock clock) {
+            this(mapper, clock, Executors.newSingleThreadScheduledExecutor());
+        }
+
+        DemoSocket(ObjectMapper mapper, java.time.Clock clock, ScheduledExecutorService physics) {
             this.mapper = mapper; this.clock = clock;
+            this.physics = physics;
             // 생성부터 변경·조회까지 dyn4j 접근은 오직 이 스레드에서만 수행한다.
             physics.execute(() -> match = new AlkkagiMatch(tuning, itemRules));
             physics.scheduleAtFixedRate(this::step, 0, 8_333_333, TimeUnit.NANOSECONDS);

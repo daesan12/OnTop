@@ -30,8 +30,9 @@ import org.springframework.transaction.TransactionException;
 public class WorldChannelRegistry implements ChannelPresence {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(WorldChannelRegistry.class);
     private long physicsTick;
-    private TickTiming lastTiming = new TickTiming(0, 0, 0, 0, 0);
-    public record TickTiming(long tick, long schedulerLagNanos, int steps, long processingNanos, int worldPatches) {}
+    private TickTiming lastTiming = new TickTiming(0, 0, 0, 0, 0, 0, 0);
+    public record TickTiming(long tick, long schedulerLagNanos, int steps, long processingNanos,
+                             int worldPatches, long physicsNanos, long snapshotNanos) {}
     public synchronized TickTiming lastTickTiming() { return lastTiming; }
 
     /** Upper bound for a server-issued activity end: v5 is 1s buffer + 3.5s countdown + 180s play. */
@@ -1017,6 +1018,7 @@ public class WorldChannelRegistry implements ChannelPresence {
         }
         long processingStarted = System.nanoTime();
         long schedulerLag = Math.max(0, now - lastStep - WorldPhysics.STEP_NANOS);
+        long physicsStarted = System.nanoTime();
         for (int i = 0; i < steps; i++) {
             physicsTick++;
             long tick = now - (steps - i - 1) * WorldPhysics.STEP_NANOS;
@@ -1037,9 +1039,11 @@ public class WorldChannelRegistry implements ChannelPresence {
                 }
             }
         }
+        long physicsNanos = System.nanoTime() - physicsStarted;
         lastStep = now - lastStep > 3 * WorldPhysics.STEP_NANOS ? now : lastStep + steps * WorldPhysics.STEP_NANOS;
         expireMinigames(now);
         expireSuspensions(now);
+        long snapshotStarted = System.nanoTime();
         var changes = new java.util.ArrayList<WorldState>();
         for (Room room : rooms.values()) {
             if (room.physics == null) {
@@ -1072,7 +1076,9 @@ public class WorldChannelRegistry implements ChannelPresence {
         if (now - lastPatch >= 100_000_000L) {
             lastPatch = now;
         }
-        lastTiming = new TickTiming(physicsTick, schedulerLag, steps, System.nanoTime() - processingStarted, changes.size());
+        long snapshotNanos = System.nanoTime() - snapshotStarted;
+        lastTiming = new TickTiming(physicsTick, schedulerLag, steps, System.nanoTime() - processingStarted,
+                changes.size(), physicsNanos, snapshotNanos);
         if (!changes.isEmpty()) {
             log.debug("공원 물리/방송 준비 tick={} steps={} schedulerLagMs={} processingMs={} patches={}",
                     physicsTick, steps, schedulerLag / 1_000_000.0, lastTiming.processingNanos() / 1_000_000.0, changes.size());
