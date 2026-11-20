@@ -23,6 +23,7 @@ import {groundObject} from './assetSizing.ts'
 import {bridgeApproachGuards,lakeFenceSegments} from './lakePlan.ts'
 import {cloneBakedFacility} from './static/facilities.ts'
 import {DOCK_REAR_RAIL} from './dockRailPlan.ts'
+import {BALLOON_CABIN_FLOOR_HEIGHT} from './plan.ts'
 function islandBridge(){
  const b=new LakeBuilder('light'),n=Math.ceil((BRIDGE.x1-BRIDGE.x0)/.26)
  for(let i=0;i<n;i++){
@@ -117,7 +118,7 @@ export function factory(kind,options={}){
  if(kind==='fishing-shop'||kind==='rod-rack'||kind==='lake-notice')return createFishingLakeProp(kind==='fishing-shop'?'tackle-shop':kind==='lake-notice'?'notice-board':'rod-rack',{quality:'light'}).group
  const factories={bridge:islandBridge,'lake-fence':lakeFence,'bridge-guards':bridgeGuards,ebike:electricBicycle,sub:createSubPavilion,willow:createPreviewWillow,balloon:createLowPolyBalloon,station:createLowPolyStation,bike:createBicycleRentalStation,scooter:createScooterRentalStation,sign:createWayfindingSign,bicycle:createBicycle,kickboard:createScooter}
  const indigo='#304a65'
- const appearance=kind==='balloon'?{decoration:'simple',accent:indigo,cream:'#e6d6b7'}:
+ const appearance=kind==='balloon'?{decoration:'simple',accent:indigo,cream:'#e6d6b7',basketDoor:true}:
   kind==='station'?{deckAccent:indigo,includeBench:false,entranceTreads:false}:{}
  const group=factories[kind]({...options,...appearance,quality:'light'}).group
  if(kind==='station'){
@@ -133,20 +134,19 @@ export function factory(kind,options={}){
  // The approved envelope has inward-facing panels. Keep the package intact and
  // show both sides on this local instance so its exterior remains visible.
  if(kind==='balloon'){
-  const baseFloorY=.425,floorY=options.cabinFloorY??baseFloorY
-  const raised=floorY>baseFloorY
-  const radius=raised?1.77:1.69,thickness=raised?floorY-baseFloorY:.07
+  const floorY=BALLOON_CABIN_FLOOR_HEIGHT
+  const radius=1.77,thickness=floorY-.425
   const floor=new Mesh(new CylinderGeometry(radius,radius,thickness,12),new MeshLambertMaterial({color:'#b5844e'}))
   floor.position.y=floorY-thickness/2
   floor.name='solid-timber-passenger-floor'
-  floor.receiveShadow=raised
+  floor.receiveShadow=true
   group.add(floor)
   for(const z of[-1.2,-.6,0,.6,1.2]){
    const length=2*Math.sqrt(1.68**2-z*z)
    const seam=new Mesh(new BoxGeometry(length,.008,.018),new MeshLambertMaterial({color:'#855b35'}))
    seam.position.set(0,floorY+.003,z)
    seam.name='passenger-floor-seam'
-   seam.receiveShadow=raised
+   seam.receiveShadow=true
    group.add(seam)
   }
   for(let i=1;i<=4;i++){

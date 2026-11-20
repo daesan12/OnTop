@@ -1,3 +1,5 @@
+import { sleighRider } from '../features/winter/sleigh/controller'
+import { SleighCamera } from '../features/winter/sleigh/camera'
 import { ALKKAGI_FOV, alkkagiCameraActive, alkkagiTopDownFrame } from '../game/alkkagi/camera'
 import { gatheringCameraActive } from '../features/tableLobby/gathering'
 import { oneCardPlayerViewActive, oneCardCameraPose, oneCardSpectatorCameraPose, ONECARD_CAMERA } from '../game/onecard/camera'
@@ -42,7 +44,7 @@ import { useFeedbackState } from '../features/feedback/state'
 import { useNotesState } from '../features/notes/state'
 import { benchBoardLook, benchLook, benchTable, benchViewScope, spectatorClearHeight, useBenchSpectator } from '../features/interactions/benchSpectator'
 import { advanceOmokCamera, OMOK_FOCUS_LAYER, omokTopDownHeight, omokSpectatorFrame } from './omokCamera'
-import { omokFocusLighting } from './boardFocusLighting'
+import { boardFocusLighting } from './boardFocusLighting'
 import { wardrobeView } from '../features/wardrobe/view'
 import { parkXRView } from './xrView'
 
@@ -98,6 +100,7 @@ export function CameraRig() {
       targetUp: new Vector3(0, 1, 0), lookMatrix: new Matrix4(), omokTransition: false, diceTransition: false, alkkagiTransition: false,
       center: new Vector3(), pan: new Vector3(), feet: new Vector3(),
       jumpOrbitRun: '', jumpOrbitDirection: new Vector3(),
+      sleighCamera: new SleighCamera(),
     }),
     [],
   )
@@ -124,7 +127,7 @@ export function CameraRig() {
       }
       omokCamera.ready = false
       omokCamera.anchorId = ''
-      omokFocusLighting.requested = false
+      boardFocusLighting.requested = false
       mountedCamera.layers.set(0)
       delete mountedCamera.userData.showConstellationLines
       raycaster.layers.set(0)
@@ -141,7 +144,7 @@ export function CameraRig() {
     camera.userData.showConstellationLines = false
     diceCamera.ready = false
     omokCamera.ready = false
-    omokFocusLighting.requested = false
+    boardFocusLighting.requested = false
     camera.layers.set(0)
     raycaster.layers.set(0)
     if (parkXRView.ownsInput) {
@@ -150,6 +153,15 @@ export function CameraRig() {
       occlusion.reset()
       return
     }
+    const sleigh = sleighRider(useSession.getState().sessionId)
+    if (sleigh) {
+      interactionAim.ready = false
+      cameraOcclusion.strength.value = 0
+      occlusion.reset()
+      state.sleighCamera.follow(camera, sleigh, delta)
+      return
+    }
+    if (state.sleighCamera.leave(camera)) state.owner = ''
     const balloonRider = localBalloonRider(useSession.getState().sessionId)
     if (balloonRider) {
       interactionAim.ready = false
@@ -344,8 +356,7 @@ export function CameraRig() {
     const ownAlkkagi = seated && !!avatar.tableId && (session.tableStates[session.tableId]?.gameCode === 'ALKKAGI'
       || game?.role === 'PLAYER' && !!game.alkkagi)
     const focusedAlkkagi = alkkagiCamera && (game?.role === 'PLAYER' ? !looking : spectatorBoard)
-    // Omok only: the fixed board lighting applies on frames that keep this focus layer (not Alkkagi).
-    omokFocusLighting.requested = focusedOmok
+    boardFocusLighting.requested = focusedOmok || focusedAlkkagi
     if (focusedOmok || focusedAlkkagi) {
       camera.layers.set(OMOK_FOCUS_LAYER)
       raycaster.layers.set(OMOK_FOCUS_LAYER)
@@ -582,6 +593,7 @@ export function CameraRig() {
         center.y + orbitY * distance,
         center.z + orbitZ * distance,
       )
+      const orbitHeight = state.desired.y
       state.desired.y = Math.max(
         state.desired.y,
         groundHeight(state.desired.x, state.desired.z) + 0.3,
@@ -605,6 +617,8 @@ export function CameraRig() {
       }
       state.look.copy(center)
       if (RENEWAL_PARK_ENABLED) constrainMonumentStairCamera(state.desired, state.look)
+      // Keep the requested upward angle when the ground prevents the orbit from lowering.
+      if (orbitY < 0 && !wardrobeView.active) state.look.y += Math.max(0, state.desired.y - orbitHeight)
     }
     const targetFov = debrisAnchor ? 55 : tablet ? 43 : focusedAlkkagi ? ALKKAGI_FOV : gathering ? ownOmok ? 60 : CAMERA.fov : seated && oneCardPlayerViewActive(game) ? ONECARD_CAMERA.fov : diceFocus ? DICE_CAMERA.fov : ledgerFocus ? LEDGER_CAMERA.fov : diceSpectator ? DICE_SPECTATOR_CAMERA.fov : boardFocus || spectatorBoard ? GOMOKU.topDownFov : seated ? GOMOKU.seatedFov : CAMERA.fov
     const smoothingOmok = focusedOmok || ownOmok || state.omokTransition
@@ -638,6 +652,7 @@ export function CameraRig() {
       } else camera.lookAt(state.look)
     }
     diceCamera.ready = diceFocus || diceSpectator ? omokSettled : !!(spectatorBoard && game?.dice) && camera.position.distanceTo(state.desired) < .005
+    state.sleighCamera.returnToPark(camera, state.desired, state.look, delta)
     camera.getWorldDirection(state.direction)
     setInteractionCamera(camera)
     interactionAim.ready = true

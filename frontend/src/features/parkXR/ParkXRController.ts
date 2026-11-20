@@ -16,6 +16,7 @@ import { canStartJumpmapXR, inJumpmapXRRegion } from '../jumpmap/xrEntry'
 import { acquireVRProtection } from '../vrSession/protection'
 import { createTouchModel, disposeTouchModel } from '../vrSession/touchModel'
 import { OmokXR, ownOmokGame } from '../../game/omok/OmokXR'
+import { OmokLobbyXR } from '../../game/omok/OmokLobbyXR'
 import { XRChat } from './xrChat'
 import { XRNames } from './xrNames'
 import { TelescopeXR } from '../telescopes/TelescopeXR'
@@ -28,7 +29,9 @@ import { useMobility } from '../mobility/state'
 type XRMode = 'park' | 'jumpmap' | 'omok'
 import { jumpmapXRFeedback } from '../jumpmap/xrFeedback'
 import { SkewerXREntry } from './SkewerXREntry'
-import { canReachParkVr, openParkVrZone } from '../vrZone/parkBridge'
+import { canReachParkVr } from '../vrZone/parkBridge'
+import { CoopXR } from '../skewer/coop/CoopXR'
+import { SKEWER_COOP_ENABLED } from '../skewer/coop/availability'
 import { setXRHeightNotice, useXRComfort, XRHeightCalibration } from './comfort'
 
 /** XR follows the existing predicted/replicated avatar; it never integrates a second player. */
@@ -50,12 +53,13 @@ export class ParkXRController {
   private readonly skewerEntry: SkewerXREntry
   private chat?: XRChat
   private omok?: OmokXR
+  private omokLobby?: OmokLobbyXR
   private telescope?: TelescopeXR
   private balloon?: BalloonXR
   private mobility?: MobilityXR
   private mobilityMotion: 'walking' | 'waiting' | 'riding' = 'walking'
   private readonly names: XRNames
-  private enterSkewerAfterEnd = false
+  private skewer?: CoopXR
   private readonly rotation = new THREE.Quaternion()
   private readonly direction = new THREE.Vector3()
   private readonly head = new THREE.Vector3()
@@ -117,10 +121,11 @@ export class ParkXRController {
   start = (): Promise<void> => this.begin('park')
   startJumpmap = (): Promise<void> => this.begin('jumpmap')
   startOmok = (): Promise<void> => this.begin('omok')
-  private canKeepSession(kind: XRMode) {
-    if (kind !== 'omok') return canControlRoamingCamera(this.telescope?.id, this.balloon?.active)
+  private canKeepSession() {
     const session = useSession.getState()
-    return !!this.omokGameId && ownOmokGame()?.gameId === this.omokGameId && !!session.tableId && session.seatIndex >= 0
+    if (this.omokGameId) return ownOmokGame()?.gameId === this.omokGameId && !!session.tableId && session.seatIndex >= 0
+    if (this.omokLobby?.ownsSession || this.skewer?.active) return true
+    return canControlRoamingCamera(this.telescope?.id, this.balloon?.active)
   }
 
   private async begin(kind: XRMode): Promise<void> {
@@ -135,7 +140,7 @@ export class ParkXRController {
     this.kind = kind
     this.omokGameId = kind === 'omok' ? ownOmokGame()?.gameId ?? '' : ''
     this.gl.domElement.focus({ preventScroll: true })
-    if (!this.canKeepSession(kind)) {
+    if ((kind === 'omok' && !this.omokGameId) || !this.canKeepSession()) {
       useParkXR.setState({ error: '공원에 연결된 산책 상태에서 시작해 주세요. 열린 메뉴나 게임을 먼저 닫아주세요.', notice: '' }); return
     }
     if (!window.isSecureContext || !navigator.xr) {
@@ -154,14 +159,17 @@ export class ParkXRController {
       // A confirmed game seat already blocks carry; the server rejects world-presence changes during a match.
       const release = kind === 'omok' ? undefined : await acquireVRProtection(parkRuntime)
       const current = avatars.get(useSession.getState().sessionId)
-      if (this.disposed || this.currentScope() !== this.scope || !this.canKeepSession(kind)
+      if (this.disposed || this.currentScope() !== this.scope || !this.canKeepSession()
         || !current?.connected || current.carry || current.vehicle || useMobility.getState().phase !== 'idle'
         || kind === 'jumpmap' && (!canStartJumpmapXR(current.current) || current.swimming || !useJumpmap.getState().available)) {
         release?.(); await granted.end(); return
       }
       this.releaseVR = release
-      if (kind === 'omok') this.omok ??= new OmokXR(this.headAnchor)
-      else this.telescope ??= new TelescopeXR(this.scene, this.headAnchor)
+      if (kind === 'omok') this.omok ??= new OmokXR(this.headAnchor, this.scene)
+      else {
+        this.telescope ??= new TelescopeXR(this.scene, this.headAnchor)
+        this.omokLobby ??= new OmokLobbyXR(this.headAnchor)
+      }
       if (kind !== 'omok' && BALLOON_RIDE_ENABLED) this.balloon ??= new BalloonXR(this.scene, this.headAnchor)
       if (kind !== 'omok' && RENEWAL_PARK_ENABLED) this.mobility ??= new MobilityXR(this.scene, this.headAnchor)
       this.session = granted; this.ending = false; this.started = false
@@ -201,26 +209,23 @@ export class ParkXRController {
     }
   }
 
-  end = async (notice = 'VR을 종료했어요. 기존 공원 조작으로 돌아왔어요.', reason: 'exit' | 'skewer' = 'exit'): Promise<void> => {
-    // A later ordinary exit overrides an entrance request, even while end() is pending.
-    if (reason !== 'skewer') this.enterSkewerAfterEnd = false
+  end = async (notice = 'VR을 종료했어요. 기존 공원 조작으로 돌아왔어요.'): Promise<void> => {
     if (!this.session || this.ending) return
     jumpmapXRFeedback.suspend()
     this.ending = true; this.movement.reset(); useParkXR.setState({ phase: 'ending', notice })
     try { await this.session.end() }
     catch {
-      this.enterSkewerAfterEnd = false
-      this.ending = false
+        this.ending = false
       if (!this.disposed) useParkXR.setState({ phase: 'active', error: 'VR 종료 요청을 완료하지 못했어요. Meta 버튼으로 브라우저 메뉴를 열어 종료해 주세요.' })
     }
   }
   showGuide = () => {
-    if (this.session && useParkXR.getState().phase === 'active' && this.kind !== 'omok' && !this.chat?.open && !this.telescope?.id && !this.balloon?.active && !this.mobility?.active) {
+    if (this.session && useParkXR.getState().phase === 'active' && this.kind !== 'omok' && !this.omokLobby?.blocking && !this.skewer?.active && !this.chat?.open && !this.telescope?.id && !this.balloon?.active && !this.mobility?.active) {
       this.panel.toggleGuide(this.kind === 'park')
     }
   }
   showSettings = () => {
-    if (this.session && useParkXR.getState().phase === 'active' && this.kind !== 'omok' && !this.chat?.open && !this.telescope?.id && !this.balloon?.active && !this.mobility?.active) this.panel.showComfort()
+    if (this.session && useParkXR.getState().phase === 'active' && this.kind !== 'omok' && !this.omokLobby?.blocking && !this.skewer?.active && !this.chat?.open && !this.telescope?.id && !this.balloon?.active && !this.mobility?.active) this.panel.showComfort()
   }
 
   private currentScope(): string { const s = useSession.getState(); return `${s.sessionId}|${s.roomId}|${s.mapVersion}` }
@@ -229,34 +234,32 @@ export class ParkXRController {
     this.yaw = viewControls.yaw; this.panel.recenter(); this.interrupted()
   }
   private interrupted = (): void => {
-    this.enterSkewerAfterEnd = false
     if (!this.session) return
     jumpmapXRFeedback.suspend()
     this.movement.reset(); this.exitArmed = this.guideArmed = this.chatArmed = this.primaryArmed = this.selectArmed = false
-    this.panel.setVisible(false); this.skewerEntry.hide(); this.chat?.hide(); this.omok?.hide(); this.names.hide()
+    this.panel.setVisible(false); this.skewerEntry.hide(); this.chat?.hide(); this.omok?.hide(); this.omokLobby?.hide(); this.skewer?.hide(); this.names.hide()
     this.telescope?.hide()
     this.balloon?.hide()
     this.mobility?.hide()
     if (document.hidden || this.session.visibilityState !== 'visible') this.mobility?.endRental()
     // Other games may suspend the render loop; don't wait for a frame to release XR.
     queueMicrotask(() => {
-      if (this.session && !document.hidden && this.session.visibilityState === 'visible' && !this.canKeepSession(this.kind))
+      if (this.session && !document.hidden && this.session.visibilityState === 'visible' && !this.canKeepSession())
         void this.end('공원 메뉴·활동이 열려 VR을 종료했어요. 화면에서 확인 후 다시 시작해 주세요.')
     })
   }
   private finished = (): void => {
-    const enterSkewer = this.enterSkewerAfterEnd && !this.exitPressed() && this.currentScope() === this.scope
     this.restore()
-    if (!this.disposed) {
-      useParkXR.setState({ phase: 'idle' })
-      if (enterSkewer && !openParkVrZone()) useParkXR.setState({ error: '꼬치왕 입구와 공원 연결을 확인한 뒤 다시 선택해 주세요.' })
-    }
+    if (!this.disposed) useParkXR.setState({ phase: 'idle' })
   }
   private enterSkewer(): void {
     const own = avatars.get(useSession.getState().sessionId)
-    if (!own?.connected || own.carry || !canReachParkVr(own.current) || this.ending || !this.session) return
-    this.enterSkewerAfterEnd = true
-    void this.end('꼬치왕 준비 화면으로 이동해요.', 'skewer')
+    if (!own?.connected || own.carry || !canReachParkVr(own.current) || this.ending || !this.session || this.skewer?.active) return
+    const transport = parkRuntime.cooperativeGame
+    if (!SKEWER_COOP_ENABLED || !transport?.scope().connected) return
+    this.skewer ??= new CoopXR(this.headAnchor, this.gl)
+    this.skewer.open(transport)
+    this.movement.reset()
   }
   private exitPressed(): boolean {
     return Array.from(this.session?.inputSources ?? []).some(source => source.handedness === 'right'
@@ -264,7 +267,7 @@ export class ParkXRController {
   }
   private restore(): void {
     jumpmapXRFeedback.stop()
-    this.enterSkewerAfterEnd = false; this.skewerEntry.hide()
+    this.skewerEntry.hide(); this.skewer?.reset(true)
     this.telescope?.hide()
     this.balloon?.hide()
     this.mobility?.hide()
@@ -273,6 +276,7 @@ export class ParkXRController {
     if (this.balloon?.active) cancelLocalBalloon()
     if (this.telescope?.id) void this.telescope.close()
     this.omokGameId = ''; this.chat?.reset(); this.omok?.hide(); this.names.dispose()
+    this.omokLobby?.reset()
     this.releaseVR?.(); this.releaseVR = undefined
     closeJumpCompletion()
     this.session?.removeEventListener('end', this.finished)
@@ -297,9 +301,6 @@ export class ParkXRController {
   update(frame?: XRFrame): void {
     const session = this.session
     if (!session || !parkXRView.active || this.disposed) return
-    // Closing can stop tracking/rendering. Sample cancellation before the early return,
-    // and check once more in finished() if no further XR frame reaches us.
-    if (this.ending && this.exitPressed()) this.enterSkewerAfterEnd = false
     if (this.currentScope() !== this.scope || useSession.getState().status !== 'connected') {
       void this.end('공원 연결 상태가 바뀌어 VR을 종료했어요.'); return
     }
@@ -309,13 +310,20 @@ export class ParkXRController {
       jumpmapXRFeedback.suspend()
       this.movement.update(emptyInput(), this.headYaw, performance.now(), false)
       this.exitArmed = this.guideArmed = this.chatArmed = this.primaryArmed = this.selectArmed = false
-      this.headAnchor.visible = false; this.panel.setVisible(false); this.skewerEntry.hide(); this.chat?.hide(); this.omok?.hide(); this.names.hide()
+      this.headAnchor.visible = false; this.panel.setVisible(false); this.skewerEntry.hide(); this.chat?.hide(); this.omok?.hide(); this.omokLobby?.hide(); this.skewer?.hide(); this.names.hide()
       this.telescope?.hide()
       this.balloon?.hide()
       this.mobility?.hide()
       this.rays.forEach(({ line }) => { line.visible = false }); return
     }
-    if (!this.canKeepSession(this.kind)) { void this.end('일반 화면으로 돌아왔어요.'); return }
+    if (!this.canKeepSession()) { void this.end('일반 화면으로 돌아왔어요.'); return }
+    if (this.skewer?.cooking) {
+      this.headAnchor.visible = false
+      const exit = this.exitPressed()
+      if (exit && this.exitArmed) this.skewer.back()
+      this.exitArmed = !exit
+      return
+    }
     const now = performance.now(), transform = viewer.transform
     this.head.set(transform.position.x, transform.position.y, transform.position.z)
     this.rotation.set(transform.orientation.x, transform.orientation.y, transform.orientation.z, transform.orientation.w)
@@ -347,19 +355,22 @@ export class ParkXRController {
     if (!exit) this.exitArmed = true
     if (exit && this.exitArmed) {
       this.exitArmed = false
-      if (usingTelescope) void this.telescope?.close()
+      if (this.skewer?.active) this.skewer.back()
+      else if (usingTelescope) void this.telescope?.close()
       else if (usingBalloon) this.balloon?.back()
       else if (usingMobility) this.mobility?.endRental()
       else { void this.end(); return }
     }
     if (!guide) this.guideArmed = true
     if (!chat) this.chatArmed = true
-    const playingOmok = this.kind === 'omok'
-    if (chat && this.chatArmed && !playingOmok && !usingTelescope && !usingBalloon && !usingMobility && !this.panel.blocking) {
+    const playingOmok = !!this.omokGameId || !!this.omokLobby?.playing
+    const atOmokTable = !!this.omokLobby?.blocking
+    const inSkewerLobby = !!this.skewer?.active
+    if (chat && this.chatArmed && !playingOmok && !atOmokTable && !inSkewerLobby && !usingTelescope && !usingBalloon && !usingMobility && !this.panel.blocking) {
       this.chat ??= new XRChat(this.headAnchor)
       this.chatArmed = false; this.chat.toggle(); this.movement.reset(); this.selectArmed = false
     }
-    if (guide && this.guideArmed && !playingOmok && !usingTelescope && !usingBalloon && !usingMobility && !this.chat?.open) { this.guideArmed = false; this.panel.toggleGuide(this.kind === 'park') }
+    if (guide && this.guideArmed && !playingOmok && !atOmokTable && !inSkewerLobby && !usingTelescope && !usingBalloon && !usingMobility && !this.chat?.open) { this.guideArmed = false; this.panel.toggleGuide(this.kind === 'park') }
     const { sessionId } = useSession.getState()
     const avatar = avatars.get(sessionId)
     if (!avatar) { void this.end('공원 캐릭터 연결을 다시 확인해 주세요.'); return }
@@ -373,7 +384,7 @@ export class ParkXRController {
     }
     // Server position selects presentation only. Falling/leaving the course must
     // never release the immersive session or its server-confirmed carry protection.
-    const kind = playingOmok ? 'omok' : !usingBalloon && !usingMobility && !avatar.vehicle && !avatar.swimming && useJumpmap.getState().available && inJumpmapXRRegion(avatar.current) ? 'jumpmap' : 'park'
+    const kind = playingOmok ? 'omok' : !atOmokTable && !usingBalloon && !usingMobility && !avatar.vehicle && !avatar.swimming && useJumpmap.getState().available && inJumpmapXRRegion(avatar.current) ? 'jumpmap' : 'park'
     if (this.kind !== kind) {
       this.kind = kind
       if (kind === 'jumpmap') jumpmapXRFeedback.start(session)
@@ -416,18 +427,26 @@ export class ParkXRController {
     this.rig.position.set(feet.x - this.offset.x, floorY + this.heightCalibration.offset, feet.z - this.offset.z)
     parkXRView.position.copy(this.head).applyQuaternion(this.rig.quaternion).add(this.rig.position)
     this.panel.update(now, parkXRView.position, this.headYaw, this.rig.position)
-    const immersivePanel = playingOmok || usingTelescope || usingBalloon || !!this.chat?.open
+    const immersivePanel = playingOmok || atOmokTable || inSkewerLobby || usingTelescope || usingBalloon || !!this.chat?.open
     if (immersivePanel) this.panel.setVisible(false)
     this.chat?.update(!playingOmok)
-    if (playingOmok) this.omok?.update()
+    if (playingOmok) {
+      this.omok ??= new OmokXR(this.headAnchor, this.scene)
+      this.omok.update()
+    } else this.omok?.hide()
     const parkEntriesAllowed = !this.panel.blocking && !immersivePanel && !usingMobility && !avatar.vehicle
-    this.skewerEntry.update(avatar.current, parkXRView.position, parkEntriesAllowed)
+    this.skewer?.update(session, this.head, this.rotation)
+    this.skewerEntry.update(avatar.current, parkXRView.position, parkEntriesAllowed && SKEWER_COOP_ENABLED && !!parkRuntime.cooperativeGame)
     this.telescope?.updateEntry(avatar.current, parkXRView.position,
       kind === 'park' && parkEntriesAllowed && !avatar.swimming)
     this.balloon?.update(avatar.current, parkXRView.position,
-      kind === 'park' && !this.panel.blocking && !playingOmok && !usingTelescope && !this.chat?.open && !usingMobility && !avatar.vehicle && !avatar.swimming)
+      kind === 'park' && !this.panel.blocking && !playingOmok && !atOmokTable && !inSkewerLobby && !usingTelescope && !this.chat?.open && !usingMobility && !avatar.vehicle && !avatar.swimming)
     this.mobility?.update(avatar.current, parkXRView.position,
       kind === 'park' && parkEntriesAllowed && !avatar.swimming && !avatar.carry)
+    this.omokLobby?.update(avatar.current,
+      kind === 'park' && parkEntriesAllowed && !avatar.swimming && !avatar.carry
+        && !this.skewerEntry.visible && !this.telescope?.entryVisible && !this.balloon?.entryVisible && !this.mobility?.entryVisible,
+      () => this.gl.domElement.focus({ preventScroll: true }))
     if (this.panelKey !== this.panel.key) {
       this.panelKey = this.panel.key; this.movement.reset(); this.primaryArmed = this.selectArmed = false
     }
@@ -441,7 +460,7 @@ export class ParkXRController {
     const motion = this.panel.blocking || immersivePanel || this.mobility?.holding || mobilityMotion === 'waiting'
       ? emptyInput() : driving ? { ...input, forward: input.forward * .5, strafe: input.strafe * .5, jump: false, run: false } : input
     if (rider) motion.turn = input.turn
-    const turn = this.movement.update(motion, this.headYaw, now, true,
+    const turn = this.movement.update(motion, this.headYaw, now, !atOmokTable && !inSkewerLobby,
       !usingBalloon && !avatar.vehicle && localMovement.positionMode, this.comfortSettings)
     if (this.kind === 'jumpmap') jumpmapXRFeedback.update(avatar, !this.panel.blocking && !immersivePanel && !this.ending)
     if (turn) {
@@ -467,9 +486,10 @@ export class ParkXRController {
     let rentalStarted = false
     let chatHover: string | null = null
     let omokHover: ReturnType<OmokXR['hit']> = null
+    let lobbyHover = -1, skewerHover = -1
     let selected = false
     const aiming = usingBalloon ? !!this.balloon?.entryVisible
-      : !usingTelescope && (immersivePanel || this.panel.blocking || this.skewerEntry.visible || !!this.telescope?.entryVisible || !!this.balloon?.entryVisible || !!this.mobility?.entryVisible)
+      : !usingTelescope && (immersivePanel || this.panel.blocking || this.skewerEntry.visible || !!this.telescope?.entryVisible || !!this.balloon?.entryVisible || !!this.mobility?.entryVisible || !!this.omokLobby?.visible)
     this.rays.forEach(({ line }) => { line.visible = aiming })
     if (aiming && frame && space) for (const source of session.inputSources) {
       if (source.targetRayMode !== 'tracked-pointer') continue
@@ -483,6 +503,21 @@ export class ParkXRController {
         const cell = this.omok.hit(this.rayOrigin, this.rayDirection)
         if (cell && (!omokHover || source.handedness === 'right')) omokHover = cell
         if (cell && pressed) { selected = true; this.omok.select(cell) }
+        continue
+      }
+      if (inSkewerLobby && this.skewer) {
+        const action = this.skewer.hit(this.rayOrigin, this.rayDirection)
+        if (action >= 0 && (skewerHover < 0 || source.handedness === 'right')) skewerHover = action
+        if (action >= 0 && pressed) { selected = true; this.skewer.select(action) }
+        continue
+      }
+      if (this.omokLobby?.visible) {
+        const action = this.omokLobby.hit(this.rayOrigin, this.rayDirection)
+        if (action >= 0 && (lobbyHover < 0 || source.handedness === 'right')) lobbyHover = action
+        if (action >= 0 && pressed) {
+          selected = true
+          this.omokLobby.select(action)
+        }
         continue
       }
       if (this.chat?.open) {
@@ -516,6 +551,7 @@ export class ParkXRController {
     }
     this.panel.setHover(hover)
     this.chat?.setHover(chatHover); this.omok?.setHover(omokHover)
+    this.omokLobby?.setHover(lobbyHover); this.skewer?.hover(skewerHover)
     this.skewerEntry.setHover(entryHovered)
     this.telescope?.setHover(telescopeHovered)
     this.balloon?.setHover(balloonHovered)
@@ -531,8 +567,8 @@ export class ParkXRController {
     document.removeEventListener('visibilitychange', this.interrupted); this.unsubscribe()
     for (const { grip, model } of this.handles) { disposeTouchModel(model); grip.removeFromParent() }
     for (const { target, line } of this.rays) { target.removeFromParent(); line.removeFromParent(); line.geometry.dispose(); line.material.dispose() }
-    this.rig.removeFromParent(); this.panel.dispose(); this.skewerEntry.dispose()
-    this.chat?.dispose(); this.omok?.dispose(); this.names.dispose()
+    this.rig.removeFromParent(); this.panel.dispose(); this.skewerEntry.dispose(); this.skewer?.dispose()
+    this.chat?.dispose(); this.omok?.dispose(); this.omokLobby?.dispose(); this.names.dispose()
     this.telescope?.dispose()
     this.balloon?.dispose()
     this.mobility?.dispose()

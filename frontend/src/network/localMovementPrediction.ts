@@ -16,6 +16,7 @@ export interface MotionSnapshot {
   movingPad?: MovingPad
 }
 export interface PredictionSimulation {
+  raycastStatic?(from: { x: number; y: number; z: number }, to: { x: number; y: number; z: number }): number
   setFollowTarget?(target: {x:number;z:number} | undefined): void
   stopHorizontal?(): void
   setMotionProfile?(profile: 'PARK_V1' | undefined): void
@@ -99,6 +100,10 @@ export class LocalMovementPrediction {
     (await import('./predictionPhysics')).createPredictionPhysics(), private readonly now = () => performance.now()) {}
 
   get ready() { return this.allowed && !!this.sim && !!this.baseline }
+  /** 표시 전용 조회. 미준비·채널 전환 중인 물리 월드는 사용하지 않는다. */
+  raycastStatic(from: { x: number; y: number; z: number }, to: { x: number; y: number; z: number }) {
+    return this.ready ? this.sim?.raycastStatic?.(from, to) : undefined
+  }
   get epoch() { return this.baseline?.motion.epoch ?? null }
   get motionProfile() { return this.baseline?.motion.profile }
   get positionMode() { return this.baseline?.motion.authority === 'CLIENT_VALIDATED' }

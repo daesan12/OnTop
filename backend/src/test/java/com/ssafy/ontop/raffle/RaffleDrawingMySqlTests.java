@@ -87,9 +87,9 @@ class RaffleDrawingMySqlTests {
                         .isEqualTo("RAFFLE_ROUND_NOT_FOUND"));
         var review = draw.createReview(week, gm);
         assertThat(review.picks()).extracting(winner -> winner.userId())
-                .containsExactly(first, second);
+                .containsExactly(gm, first);
         assertThat(review.candidateCount()).isEqualTo(4);
-        assertThat(review.excludedGmCount()).isOne();
+        assertThat(review.excludedGmCount()).isZero();
         assertThat(review.vacantPrizeCount()).isEqualTo(6);
         assertThat(draw.createReview(week, gm).drawId()).isEqualTo(review.drawId());
         assertThat(draw.currentReview(week, viewer).drawId()).isEqualTo(review.drawId());
@@ -132,18 +132,19 @@ class RaffleDrawingMySqlTests {
         var announced = service("2026-11-09T00:00:00Z");
         assertThat(announced.memberResult(week, first).status()).isEqualTo("SELECTED");
         assertThat(announced.memberResult(week, first).prizes()).singleElement()
-                .satisfies(prize -> assertThat(prize.place()).isEqualTo(1));
-        assertThat(announced.memberResult(week, gm).status()).isEqualTo("NOT_SELECTED");
+                .satisfies(prize -> assertThat(prize.place()).isEqualTo(2));
+        assertThat(announced.memberResult(week, gm).status()).isEqualTo("SELECTED");
 
-        LocalDate nextWeek = week.plusWeeks(1);
+        // 2026-11-09·11-16 주차는 V182가 공개 추첨 행사로 묶어 잠그므로, 일반 회차 회귀는 그 뒤 주차로 검증한다.
+        LocalDate nextWeek = week.plusWeeks(3);
         long nextRound = round(nextWeek);
-        ticket(nextRound, first, 1, "2026-11-15T14:59:59.999Z");
-        ticket(nextRound, second, 2, "2026-11-15T14:59:59.999Z");
-        assertThatThrownBy(() -> service("2026-11-15T14:59:59.999Z").createReview(nextWeek, gm))
+        ticket(nextRound, first, 1, "2026-11-29T14:59:59.999Z");
+        ticket(nextRound, second, 2, "2026-11-29T14:59:59.999Z");
+        assertThatThrownBy(() -> service("2026-11-29T14:59:59.999Z").createReview(nextWeek, gm))
                 .isInstanceOf(RaffleException.class)
                 .satisfies(error -> assertThat(((RaffleException) error).code()).isEqualTo("RAFFLE_SALES_OPEN"));
 
-        var concurrent = service("2026-11-15T15:00:00Z");
+        var concurrent = service("2026-11-29T15:00:00Z");
         var start = new CountDownLatch(1);
         try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
             var calls = List.of(
@@ -177,17 +178,17 @@ class RaffleDrawingMySqlTests {
 
         LocalDate emptyWeek = nextWeek.plusWeeks(1);
         round(emptyWeek);
-        var emptyReview = service("2026-11-22T15:00:00Z").createReview(emptyWeek, gm);
+        var emptyReview = service("2026-12-06T15:00:00Z").createReview(emptyWeek, gm);
         assertThat(emptyReview.picks()).isEmpty();
-        service("2026-11-22T15:00:00Z").confirmReview(emptyWeek, gm, emptyReview.drawId());
+        service("2026-12-06T15:00:00Z").confirmReview(emptyWeek, gm, emptyReview.drawId());
         assertThat(drawings.round(emptyWeek, false)).isPresent()
                 .get().extracting(RaffleDrawingRepository.EventRound::finalizedAt).isNotNull();
         assertThat(drawings.winners(drawings.round(emptyWeek, false).orElseThrow().id())).isEmpty();
 
         LocalDate failedWeek = emptyWeek.plusWeeks(1);
         long failedRound = round(failedWeek);
-        ticket(failedRound, first, 1, "2026-11-29T14:00:00Z");
-        assertThatThrownBy(() -> service("2026-11-29T15:00:00Z",
+        ticket(failedRound, first, 1, "2026-12-13T14:00:00Z");
+        assertThatThrownBy(() -> service("2026-12-13T15:00:00Z",
                 new RaffleDrawSelector(bound -> bound)).createReview(failedWeek, gm))
                 .isInstanceOf(IllegalStateException.class);
         var failedEvent = drawings.round(failedWeek, false).orElseThrow();
@@ -197,8 +198,8 @@ class RaffleDrawingMySqlTests {
                 SELECT COUNT(*) FROM event_finalization_attempts
                 WHERE event_round_id = ? AND outcome = 'FAILED'
                 """, Integer.class, failedEvent.id())).isOne();
-        var recovered = service("2026-11-29T15:00:01Z").createReview(failedWeek, gm);
-        assertThat(service("2026-11-29T15:00:01Z")
+        var recovered = service("2026-12-13T15:00:01Z").createReview(failedWeek, gm);
+        assertThat(service("2026-12-13T15:00:01Z")
                 .confirmReview(failedWeek, gm, recovered.drawId()).winners()).hasSize(1);
     }
 

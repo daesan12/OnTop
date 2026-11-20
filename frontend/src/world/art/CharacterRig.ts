@@ -446,11 +446,15 @@ export function createCharacterRig(source: GLTF, look?: Look, sources?: Readonly
         ? Math.max(-0.2, Math.min(0.2, -bottom))
         : 0
     },
-    lod(distance: number) {
+    lod(distance: number, crowdedXR = false) {
+      // Preserve the closest faces and hand poses while reducing skinned geometry
+      // sooner when many avatars are rendered for both eyes.
+      const nearDistance = crowdedXR ? 4 : CHARACTER.nearDistance
+      const farDistance = crowdedXR ? 6 : CHARACTER.farDistance
       const next =
-        distance > CHARACTER.farDistance
+        distance > farDistance
           ? true
-          : distance < CHARACTER.nearDistance
+          : distance < nearDistance
             ? false
             : far
       if (next === far) return

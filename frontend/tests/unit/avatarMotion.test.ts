@@ -19,6 +19,18 @@ function avatar(patch: Partial<AvatarSnapshot> = {}): AvatarSnapshot {
 }
 
 describe('avatar pose transitions and resource ownership', () => {
+  it('applies the winter ground extension without replacing seated, carried, swimming or emote poses', async () => {
+    const rig = createCharacterRig(await characterSource('man')), motion = createAvatarMotion(rig), figure = new Group()
+    const winter = vi.fn()
+    const step = (a: AvatarSnapshot) => motion.apply(a, 100, 1 / 60, pose, figure, null, undefined, null, undefined, undefined, winter)
+    step(avatar())
+    expect(winter).toHaveBeenCalledTimes(1)
+    for (const a of [avatar({ seatIndex: 0 }), avatar({ swimming: true }), avatar({ emote: 'EMOTE_WAVE', emoteAt: 0 }),
+      avatar({ carry: { carryId: 'carry', partnerId: 'other', role: 'CARRIER' } })]) step(a)
+    expect(winter).toHaveBeenCalledTimes(1)
+    rig.dispose()
+  })
+
   it('uses the full authored duration and suppresses hand gestures in incompatible states', () => {
     const wave = avatar({ emote: 'EMOTE_WAVE', emoteAt: 100 })
     expect(avatarPoseActive(wave, 2100)).toBe(true)

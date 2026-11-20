@@ -1,3 +1,7 @@
+import { SnowballHand } from '../features/winter/SnowballHand'
+import { poseWinterAvatar, winterPoseActive } from '../features/winter/avatarPose'
+import { winterSceneryVisible } from '../features/winter/presentation'
+import { sleighRider } from '../features/winter/sleigh/controller'
 import { gatheringCameraActive } from '../features/tableLobby/gathering'
 import { OneCardHeldHand } from '../game/onecard/OneCardHeldHand'
 import { oneCardHeldCount, oneCardHoldingPose } from '../game/onecard/heldHand'
@@ -6,7 +10,7 @@ import { localBalloonRider, useLocalBalloon } from '../features/balloon/localRid
 import { remoteBalloonRider } from '../features/balloon/remoteRide'
 import { useFrame, useLoader, useThree } from '@react-three/fiber'
 import { Group, Matrix4, Vector3 } from 'three'
-import { cameraWorldPosition, parkXRView } from './xrView'
+import { cameraWorldPosition, PARK_XR_CROWD_THRESHOLD, parkXRView } from './xrView'
 import { ParkAssetLoader } from './art/assetLoader'
 import { characterUrls } from './worldAssets'
 import { createSafeCharacterRig } from './art/safeCharacterRig'
@@ -20,7 +24,7 @@ import { SwimmingRipples } from './SwimmingRipples'
 import { AvatarPoseCadence } from '../performance/avatarPoseCadence'
 import { CHARACTER, TABLES } from '../park/mapConfig'
 import { FartCloud } from './art/FartCloud'
-import { bungeoppangReturnOpacity } from '../features/bungeoppang/bungeoppangView'
+import { bungeoppangCookingView, bungeoppangReturnOpacity } from '../features/bungeoppang/bungeoppangView'
 import { createAvatarOpacity } from './avatarOpacity'
 import { avatarMenuRaycast } from './avatarMenuPicking'
 import { useAvatarFrameSampler } from './AvatarPoseFrame'
@@ -124,10 +128,13 @@ function Avatar({
   const pose = useMemo(() => ({ x: 0, y: 0, z: 0, yaw: 0 }), [])
   const overlapPose = useMemo(() => ({ x: 0, y: 0, z: 0, yaw: 0 }), [])
   const worldPosition = useMemo(() => new Vector3(), [])
+  const sleighSeatOffset = useMemo(() => new Vector3(), [])
   const inverseRoot = useMemo(() => new Matrix4(), [])
   const presentation = useMemo(() => new AvatarPresentation(), [])
   const mountedVehicle = useMemo(createMountedVehicle, [])
   const motion = useMemo(() => createAvatarMotion(model, RENEWAL_PARK_ENABLED), [model])
+  const winterPose = useMemo(() => (rig: typeof model, figure: Group) =>
+    poseWinterAvatar(rig, figure, id, estimatedServerTime(), pose.yaw, avatars.get(id)?.moving ?? false), [id, pose])
   const carriedPartner = useRef({ id: '', carryId: '' })
   const cadence = useMemo(() => new AvatarPoseCadence(avatarCrowdGroup(id)), [id, model])
   const appearance = useRef<ReturnType<typeof createAvatarOpacity> | null>(null)
@@ -181,11 +188,12 @@ function Avatar({
     const seated = avatar.seatIndex >= 0
     const seatTable = seated && avatar.tableId ? TABLES.find(table => table.id === avatar.tableId) : undefined
     const own = id === useSession.getState().sessionId
+    const crowdedXR = !own && parkXRView.active && crowded
     const localBalloon = useLocalBalloon.getState()
     const localPilot = localBalloon.flight && localBalloon.owner === localBalloon.leader
       ? { id: localBalloon.owner, position: localBalloon.flight.position } : undefined
     const balloonRider = own ? localBalloonRider(id) : remoteBalloonRider(id, frameAt, localPilot)
-    // Hide only this client's own model; other clients retain the full avatar.
+    const sleigh = sleighRider(id), rider = sleigh ?? balloonRider
     const ownAvatar = !own && useJumpmap.getState().run ? avatars.get(useSession.getState().sessionId) : undefined
     const ownPose = ownAvatar && samplePose(ownAvatar, frameAt, overlapPose)
     const overlap = !!ownPose && Math.hypot(pose.x - ownPose.x, pose.z - ownPose.z) < .7 && Math.abs(pose.y - ownPose.y) < 1.8
@@ -193,6 +201,8 @@ function Avatar({
     overlapOpacity.current = targetOpacity + (overlapOpacity.current - targetOpacity) * Math.exp(-Math.min(delta, .1) * 6)
     if (Math.abs(overlapOpacity.current - targetOpacity) < .001) overlapOpacity.current = targetOpacity
     const opacity = own ? bungeoppangReturnOpacity(frameAt, reducedMotion.matches) : overlapOpacity.current
+    // Keep park visitors out of the cooking camera until it returns to the park.
+    const hiddenForCooking = !own && bungeoppangCookingView(frameAt)
     const gateFrameAt = firstGateFrameAt?.current
     // Give the first render and walking input a turn before compiling fade-only variants.
     if (gateFrameAt != null && (frameAt - gateFrameAt >= 1000 || (opacity > 0 && opacity < 1))) {
@@ -205,15 +215,19 @@ function Avatar({
     const showRideHands = ownXR && !!avatar.vehicle
     model.showRideHands(showRideHands)
     figure.current.visible = !ownXR || showRideHands
-    const visibleOutsideXR = !hideBalloonRider && (!!balloonRider || !!debrisMotion
+    const visibleOutsideXR = !hideBalloonRider && (!!rider || !!debrisMotion
       || !(own && ((avatar.tableId && seated && !gatheringCameraActive() || avatar.benchId && seated || avatar.telescopeId)
       || roamingFirstPerson(avatar, !!useGame.getState().watchedGameId))))
-    root.current.visible = firstAppearanceReady.current && opacity > 0 && (ownXR ? !!avatar.vehicle : visibleOutsideXR)
+    root.current.visible = !hiddenForCooking && firstAppearanceReady.current && opacity > 0
+      && (ownXR ? !!avatar.vehicle : visibleOutsideXR)
     appearance.current?.set(root.current.visible ? opacity : 1)
     root.current.userData.appearanceOpacity = root.current.visible ? opacity : 0
-    if (balloonRider) {
-      const seatLift = balloonRider.seatIndex >= 0 ? model.seatedContactLift - model.hipHeight : 0
-      root.current.position.set(balloonRider.x, balloonRider.y + seatLift, balloonRider.z)
+    root.current.rotation.set(sleigh?.pitch ?? 0, rider?.yaw ?? pose.yaw, sleigh?.bank ?? 0, 'YXZ')
+    if (rider) {
+      const seatLift = rider.seatIndex >= 0 ? model.seatedContactLift - model.hipHeight : 0
+      sleighSeatOffset.set(0, seatLift, 0)
+      if (sleigh) sleighSeatOffset.applyQuaternion(root.current.quaternion)
+      root.current.position.set(rider.x + sleighSeatOffset.x, rider.y + sleighSeatOffset.y, rider.z + sleighSeatOffset.z)
     }
     else root.current.position.set(
       pose.x,
@@ -222,23 +236,23 @@ function Avatar({
           + (RENEWAL_PARK_ENABLED ? model.seatedContactLift : model.seatedHipLift) - model.hipHeight : 0),
       pose.z,
     )
-    root.current.rotation.y = balloonRider?.yaw ?? pose.yaw
     const carryAnimation = carryMotion.get(id)
     if (!root.current.visible && !carryAnimation) return
     // The visitors parent has an identity transform; this position is already
     // in world space. Avoid walking/updating the ancestor matrices per avatar.
     const distance = cameraWorldPosition(camera).distanceTo(root.current.position)
-    model.lod(distance)
+    model.lod(distance, crowdedXR)
     const now = estimatedServerTime()
     const reaction = gameReaction(id, avatar, now)
     const holdingCards = seated && oneCardHeldCount(id, avatar.tableId) > 0
     const displayFlags = own && localMovement.ready ? localMovement.displayFlags(frameAt)
       : !own ? remoteMovement.flags(id) : undefined
-    const motionAvatar = balloonRider ? { ...avatar, seatIndex: balloonRider.seatIndex,
-      moving: balloonRider.moving, running: false, swimming: false } : avatar
-    const displayAvatar = presentation.sample(motionAvatar, balloonRider ? undefined : displayFlags,
-      own || balloonRider ? undefined : pose, frameAt)
-    const active = !!avatar.vehicle || mountedVehicle.root.children.length > 0 || !!carryAnimation || !!reaction || avatarPoseActive(displayAvatar, now)
+    const motionAvatar = rider ? { ...avatar, seatIndex: rider.seatIndex,
+      moving: rider.moving, running: false, swimming: false } : avatar
+    const displayAvatar = presentation.sample(motionAvatar, rider ? undefined : displayFlags,
+      own || rider ? undefined : pose, frameAt)
+    const winterActive = RENEWAL_PARK_ENABLED && winterSceneryVisible() && winterPoseActive(id, now)
+    const active = winterActive || !!avatar.vehicle || mountedVehicle.root.children.length > 0 || !!carryAnimation || !!reaction || avatarPoseActive(displayAvatar, now)
     // Keep the authoritative position interpolation above at display cadence.
     // State changes (seat, action, reconnect) must never wait for the next pose tick.
     const poseDelta = cadence.advance(
@@ -248,8 +262,9 @@ function Avatar({
       active,
       presentation.key(motionAvatar, reaction?.key ?? '', holdingCards, active),
       !reaction && avatarPoseAmbient(displayAvatar),
-      crowded && !carryAnimation && !reaction && !seated && !displayAvatar.emote && !displayAvatar.fitnessId && !displayAvatar.telescopeId,
+      crowded && !winterActive && !carryAnimation && !reaction && !seated && !displayAvatar.emote && !displayAvatar.fitnessId && !displayAvatar.telescopeId,
       crowdFrame.current,
+      crowdedXR,
     )
     if (!poseDelta) return
     const partner = avatars.get(carriedPartner.current.id)
@@ -266,7 +281,7 @@ function Avatar({
     if (!mountedVehicle.apply(avatar.vehicle, pose, root.current.position.y, delta, figure.current, model, showRideHands))
       motion.apply(displayAvatar, now, poseDelta, pose, figure.current, reaction,
       holdingCards ? oneCardHoldingPose : undefined, throwFlight,
-      carryAnimation?.releasedAt !== null ? carryAnimation?.age : undefined, seatForward)
+      carryAnimation?.releasedAt !== null ? carryAnimation?.age : undefined, seatForward, winterActive ? winterPose : undefined)
     // Follow the posed head when swimming; a tilted standing-height marker
     // otherwise puts the nickname in front of the swimmer's face/water.
     model.bones.head.getWorldPosition(worldPosition)
@@ -298,6 +313,7 @@ function Avatar({
       <group ref={figure} name={`figure-${id}`}>
         <primitive object={model.root} dispose={null} />
         <OneCardHeldHand userId={id} model={model} />
+        {RENEWAL_PARK_ENABLED && <SnowballHand id={id} model={model} />}
       </group>
       <group ref={marker} position={[0, CHARACTER.height - 0.5, 0]} />
     </group>
@@ -317,23 +333,24 @@ export function Avatars({
   const mounted = useMemo(() => new Set(mountedPeers), [mountedPeers])
   const wanted = useMemo(() => new Set(ids.filter(id => id !== ownId)), [ids, ownId])
   const needsPeers = RENEWAL_PARK_ENABLED && (mounted.size !== wanted.size || mountedPeers.some(id => !wanted.has(id)))
+  const crowded = RENEWAL_PARK_ENABLED && ids.length >= PARK_XR_CROWD_THRESHOLD
   useLayoutEffect(() => { pendingPeers.current = false }, [mountedPeers])
   useFrame(() => {
     if (firstGateFrameAt?.current === null || !needsPeers || pendingPeers.current) return
     const next = mountedPeers.filter(id => wanted.has(id))
     // Cloning several skeletons at once can monopolize a render frame on join.
-    // Retain existing peers and admit at most four new rigs per rendered frame.
+    // A busy VR session has less time to clone rigs before the next input frame.
+    const limit = parkXRView.active && crowded ? 1 : 4
     let admitted = 0
     for (const id of wanted) {
       if (mounted.has(id)) continue
       next.push(id)
-      if (++admitted === 4) break
+      if (++admitted === limit) break
     }
     if (!admitted && next.length === mountedPeers.length) return
     pendingPeers.current = true
     startTransition(() => setMountedPeers(next))
   }, -2.5)
-  const crowded = RENEWAL_PARK_ENABLED && ids.length >= 20
   const crowdFrame = useRef(0)
   useFrame(() => { crowdFrame.current++ }, -1.25)
   const samplePose = useAvatarFrameSampler()

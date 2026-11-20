@@ -17,7 +17,9 @@ import { BenchSpectatorControls } from './BenchSpectatorControls'
 import { useTableLobby } from '../tableLobby/state'
 import { useDisplayGame as useGame } from '../../game/displayGame'
 import { FitnessRewardPanel } from '../fitness/FitnessRewardPanel'
-import { CARRY_ESCAPE_PRESSES } from '../carry/escape'
+import { CarryEscapeHint } from '../carry/CarryEscapeHint'
+import { WinterHud } from '../winter/WinterHud'
+import { RENEWAL_PARK_ENABLED } from '../../park/mapSelection'
 import { parkMinigameInUse } from '../operation/parkGameplay'
 
 export function ParkInteractionHint() {
@@ -45,7 +47,7 @@ export function ParkInteractionHint() {
     const timer = setInterval(sample, 100)
     return () => clearInterval(timer)
   }, [])
-  if (!target && !carry && !benchId && !fitnessId && !pending && !fitness.pending && !telescopePending && !joiningTable && !error && !fitness.error) return null
+  if (!RENEWAL_PARK_ENABLED && !target && !carry && !benchId && !fitnessId && !pending && !fitness.pending && !telescopePending && !joiningTable && !error && !fitness.error) return null
   const station = findFitness(fitnessId)
   return <aside className="park-runtime-panel park-interaction" aria-label="가까운 상호작용"
     hidden={omokWatching}
@@ -69,12 +71,7 @@ export function ParkInteractionHint() {
       {target.kind === 'fitness' && target.available && fitnessService.mode === 'mock' && ' · 목업'}
       {target.kind === 'telescope' && target.available && telescopeService.mode === 'mock' && ' · 목업'}
     </button>}
-    {carry?.role === 'CARRIED' &&
-      <span role="status" className="carry-escape-hint" aria-label={`A와 D를 번갈아 ${CARRY_ESCAPE_PRESSES}회 눌러 내려오기`}>
-        <span className="carry-escape-hint__keys" aria-hidden="true">
-          <kbd>A</kbd><span>↔</span><kbd>D</kbd>
-        </span>
-      </span>}
+    {carry?.role === 'CARRIED' && <CarryEscapeHint />}
     {carry?.role === 'THROWN' && <span role="status">날아가는 중 · 착지하면 다시 움직일 수 있어요</span>}
     {carry?.role === 'CARRIER' && <button type="button" aria-keyshortcuts="Escape"
       disabled={actionPending} onClick={event => {
@@ -88,5 +85,6 @@ export function ParkInteractionHint() {
     {telescopePending && <span role="status">망원경 이용 요청 확인 중…</span>}
     {error && <div role="alert">{error}<button type="button" onClick={() => useBenchState.setState({ error: '' })}>닫기</button></div>}
     {fitness.error && <div role="alert">{fitness.error}<button type="button" onClick={() => useFitnessState.setState({ error: '' })}>닫기</button></div>}
+    {RENEWAL_PARK_ENABLED && <WinterHud />}
   </aside>
 }

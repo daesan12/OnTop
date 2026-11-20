@@ -9,7 +9,8 @@ afterEach(() => {
 it.each([
   ['dev.on-top.world', 'park-integration', false, 'true', '0', true],
   ['dev.on-top.world', 'park-integration', false, 'false', '0', false],
-  ['www.on-top.world', 'park-integration', false, 'true', '1', false],
+  ['www.on-top.world', 'park-integration', false, 'true', '1', true],
+  ['www.on-top.world', 'park-integration', false, 'false', '1', false],
   ['on-top.world', 'park-integration', false, 'true', '1', false],
   ['dev.on-top.world.example.com', 'park-integration', false, 'true', '1', false],
   ['localhost', 'park-renewal-integration', true, 'false', '1', true],

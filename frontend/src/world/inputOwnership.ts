@@ -21,8 +21,8 @@ export const panelOwnsKeys = (except?: 'localBalloon') =>
 export const panelBlocksCarry = (carryActive: boolean) =>
   Object.entries(inputState).some(([panel, open]) => open && (panel !== 'chatOpen' || !carryActive)) || dialogOpen()
 /** Return keyboard ownership only when no other panel is using it. */
-export function focusParkCanvas() {
-  if (!panelOwnsKeys() && typeof document !== 'undefined')
+export function focusParkCanvas(except?: 'localBalloon') {
+  if (!panelOwnsKeys(except) && typeof document !== 'undefined')
     document.querySelector<HTMLCanvasElement>('canvas')?.focus({ preventScroll: true })
 }
 /** The wardrobe keeps other shortcuts closed but lets the avatar walk and the view turn behind it. */

@@ -1,3 +1,5 @@
+import { parseSnowballAim } from '../../features/winter/trajectory'
+import { winterFrozen } from '../../features/winter/state'
 import { acceptAlkkagiSocial, resetAlkkagiSocial, syncAlkkagiSocial } from '../../game/alkkagi/spectatorEvents'
 import { notifyOwnBalloonEnd, receiveRemoteBalloon } from '../../features/balloon/remoteRide'
 import type { BalloonBoarding, Input as BalloonInput, Point as BalloonPoint } from '../../features/balloon/flight'
@@ -1209,6 +1211,36 @@ export class ParkRuntime implements ParkRuntimePort {
     return sync()
   }
   // Carry commands stay in the park: retain mouse look while actionBusy still serializes requests.
+  pickupSnowball = (pileId: string) => this.action(async () => {
+    await this.socket.request('WORLD_SNOWBALL_PICKUP', { pileId }, ['WORLD_SNOWBALL_STATE'])
+  }, { blockControls: false })
+  escapeSnowball = async (freezeId: string, key: 'A' | 'D') => {
+    try {
+      await this.socket.request('WORLD_SNOWBALL_ESCAPE', { freezeId, key }, ['WORLD_SNOWBALL_STATE'])
+      return true
+    } catch (error) { this.report(error); return false }
+  }
+  aimSnowball = async (yaw: number) => {
+    const { roomId, sessionId } = useSession.getState(), generation = this.generation
+    try {
+      const { payload } = await this.socket.request('WORLD_SNOWBALL_AIM', { yaw }, ['WORLD_SNOWBALL_AIM_STATE'])
+      const current = useSession.getState()
+      return generation === this.generation && current.roomId === roomId && current.sessionId === sessionId
+        ? parseSnowballAim(payload, roomId, sessionId) : null
+    } catch { return null }
+  }
+  throwSnowball = (yaw: number) => this.action(async () => {
+    const scope = useSession.getState(), generation = this.generation
+    const { payload } = await this.socket.request('WORLD_SNOWBALL_PREPARE', { yaw }, ['WORLD_SNOWBALL_WINDUP'])
+    const at = typeof payload.startedAt === 'string' ? Date.parse(payload.startedAt) : NaN
+    if (!Number.isFinite(at) || payload.durationMs !== 300) throw new Error('눈덩이 준비 동작을 확인하지 못했어요.')
+    await new Promise(resolve => setTimeout(resolve, Math.max(0, at + 300 - estimatedServerTime())))
+    const current = useSession.getState()
+    if (generation !== this.generation || current.roomId !== scope.roomId || current.sessionId !== scope.sessionId
+      || current.status !== 'connected' || current.tableId || winterFrozen(current.sessionId, estimatedServerTime()))
+      throw new Error('현재 위치와 이용 상태를 확인한 뒤 다시 던져주세요.')
+    await this.socket.request('WORLD_SNOWBALL_THROW', { yaw }, ['WORLD_SNOWBALL_EVENT'])
+  }, { blockControls: false })
   pickupAvatar = (targetId: string) => this.action(async () => {
     await this.socket.request('WORLD_CARRY_PICKUP', { targetId }, ['WORLD_STATE'])
   }, { blockControls: false })
@@ -1247,7 +1279,7 @@ export class ParkRuntime implements ParkRuntimePort {
   private canSendMovement(intent: MovementIntent) {
     const s = useSession.getState()
     return this.active && s.status === 'connected' && !!s.roomId && s.mapCompatible && avatars.has(s.sessionId)
-      && !facilityMovementBlocked(s.sessionId)
+      && !winterFrozen(s.sessionId, estimatedServerTime()) && !facilityMovementBlocked(s.sessionId)
       && (!avatars.get(s.sessionId)?.carry || avatars.get(s.sessionId)?.carry?.role === 'CARRIER')
       && !tableBusy() && !s.tableId && (!useGame.getState().watchedGameId || stoppedIntent(intent))
       && (!(inputState.minigameOpen || inputState.localBalloon) || stoppedIntent(intent))

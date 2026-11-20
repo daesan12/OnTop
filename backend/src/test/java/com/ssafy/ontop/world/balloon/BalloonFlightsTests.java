@@ -23,12 +23,52 @@ class BalloonFlightsTests {
     private static final Instant NOW = Instant.parse("2026-11-15T00:00:00Z");
     private static final UUID TICKET = UUID.randomUUID();
     private static final Point DOCK = new Point(-33.608, 22.4, -76);
-    private static final Position GROUND = new Position(1, -40, 23.905, -61.952, 0);
+    private static final Position GROUND = new Position(1, -36.92, 23.905, -76, 0);
     private static final String CHANNEL = "channel-1";
     private static final String PILOT = "101";
     private static final String SESSION = "socket-1";
 
     private BalloonFlights flights;
+
+    @Test
+    void 이전_승강장_안내_지점과_문_안쪽에서는_탑승할_수_없다() {
+        var approach = new Position(1, -40, 23.905, -61.952, 0);
+        var inside = new Position(1, -36, 23.905, -76, 0);
+        flights.authorize(PILOT, TICKET, NOW, NOW);
+
+        assertThat(flights.start(CHANNEL, PILOT, SESSION, TICKET, approach, DOCK, NOW, 0)).isNull();
+        assertThat(flights.start(CHANNEL, PILOT, SESSION, TICKET, inside, DOCK, NOW, 0)).isNull();
+        assertThat(flights.start(CHANNEL, PILOT, SESSION, TICKET, GROUND, DOCK, NOW, 0)).isNotNull();
+    }
+
+    @Test
+    void 열기구_문_앞에서_반경을_벗어나면_거절하고_넓어진_범위에서는_탑승한다() {
+        var outside = new Position(1, GROUND.x() - 2.2, GROUND.y(), GROUND.z(), 0);
+        var nearDoor = new Position(1, GROUND.x() - 1.8, GROUND.y(), GROUND.z(), 0);
+        flights.authorize(PILOT, TICKET, NOW, NOW);
+
+        assertThat(flights.start(CHANNEL, PILOT, SESSION, TICKET, outside, DOCK, NOW, 0)).isNull();
+        assertThat(flights.start(CHANNEL, PILOT, SESSION, TICKET, nearDoor, DOCK, NOW, 0)).isNotNull();
+    }
+
+    @Test
+    void 일인_수동_탑승은_출발_전까지_같은_탑승권으로_내렸다_다시_탈_수_있다() {
+        flights.authorize(PILOT, TICKET, NOW, NOW);
+        var boarding = flights.start(CHANNEL, PILOT, SESSION, TICKET, GROUND, DOCK, NOW, 0, 1, null, "solo");
+
+        assertThat(boarding.party().boarding()).isTrue();
+        assertThat(boarding.flight().cabin().x()).isNegative();
+        var stillBoarding = flights.update(CHANNEL, PILOT, SESSION, TICKET, new Flight(DOCK, true),
+                Duration.ofMillis(200).toNanos());
+        assertThat(stillBoarding.party().boarding()).isTrue();
+        flights.finish(PILOT, SESSION, TICKET);
+        assertThat(flights.ticketAvailable(PILOT, TICKET, NOW)).isTrue();
+        assertThat(flights.drainUsage()).isEmpty();
+
+        flights.start(CHANNEL, PILOT, SESSION, TICKET, GROUND, DOCK, NOW, 0, 1, null, "solo");
+        assertThat(flights.launch(CHANNEL, PILOT, SESSION, TICKET, NOW, 0).party().boarding()).isFalse();
+        assertThat(flights.ticketAvailable(PILOT, TICKET, NOW)).isFalse();
+    }
 
     @Test
     void 분담_조종은_담당_입력만_반영하고_수락_시_두_좌석을_동시에_교대한다() {

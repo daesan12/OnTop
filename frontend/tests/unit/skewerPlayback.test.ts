@@ -4,11 +4,11 @@ import { RestaurantSet } from '../../src/features/skewer/serviceHall/rendering/R
 import { move, SERVER_SPEED } from '../../src/features/skewer/serviceHall/plan'
 import { Group, Mesh, Box3 } from 'three'
 
-it('로컬 서빙도 대각선 가속 없이 초당 5.8의 이동 속도를 사용한다', () => {
-  expect(SERVER_SPEED).toBe(5.8)
+it('로컬 서빙도 대각선 가속 없이 초당 6의 이동 속도를 사용한다', () => {
+  expect(SERVER_SPEED).toBe(6)
   for (const [dx, dz] of [[1, 0], [1, 1]]) {
     const next = move({ x: 0, z: 1.25 }, dx, dz, .05)
-    expect(Math.hypot(next.x, next.z - 1.25)).toBeCloseTo(.29)
+    expect(Math.hypot(next.x, next.z - 1.25)).toBeCloseTo(.30)
   }
 })
 

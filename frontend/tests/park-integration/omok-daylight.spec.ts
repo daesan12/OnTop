@@ -3,11 +3,13 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import sharp from 'sharp'
 import { fixture, screenshot } from '../e2e/contractFixture'
+import { loadRenewalFixtureMap } from '../park-xr/fixture'
+import alkkagiWire from '../fixtures/alkkagi-forfeit.json' with { type: 'json' }
 
 // Night, dawn, noon and dusk of the shared 30-minute park day (1 in-game hour = 75 s).
 const HOURS = [0, 5.5, 6, 6.25, 6.5, 12, 17.5, 18, 18.5]
 const FOCUS = { sun: 2.5, fill: 1.7, points: 0 }
-type Lighting = { hour: number; night: number; cameraLayers: number; sun: number; sunY: number; fill: number; points: number; visiblePoints: number }
+type Lighting = { hour: number; night: number; cameraLayers: number; sun: number; sunY: number; fill: number; points: number; visiblePoints: number; exposure: number }
 const P = '/tests/park-integration/omokLightingProbe.ts'
 const probe = <T,>(page: Page, name: string, arg?: unknown): Promise<T> =>
   page.evaluate(async ([P, name, arg]) => (await import(P as string))[name as string](arg), [P, name, arg] as const)
@@ -48,13 +50,21 @@ async function load(page: Page) {
     expectedOpenAt: null, version: 1, updatedAt: new Date().toISOString(), serverTime: new Date().toISOString() } }))
   await page.route('**/api/v1/announcements', route => route.fulfill({ json: { serverTime: new Date().toISOString(),
     refreshAt: new Date(Date.now() + 600_000).toISOString(), announcements: [] } }))
+  await page.route('**/api/v1/entry-news', route => route.fulfill({ json: { serverTime: new Date().toISOString(), pages: [] } }))
+  await page.route('**/api/v1/ai/features', route => route.fulfill({ json: { companions: false, jokeContest: false } }))
+  await page.route('**/api/v1/gacha', route => route.fulfill({ json: {
+    enabled: false, ticketPrice: 100, products: [],
+    machine: { roundId: '1', version: 1, remaining: 30, refillEndsAt: null,
+      prizes: [1, 2, 3, 4, 5].map(grade => ({ grade, count: 6, initial: 6, remaining: 6 })) },
+    inventory: { tickets: 0, balance: 100, availableBalance: 100, boxes: [] },
+  } }))
   await page.goto('/park'); await expect(page).toHaveTitle('OnTop')
   await expect.poll(() => page.evaluate(async () => (await import('/tests/park-integration/probe.ts' as string)).sceneReady()), { timeout: 90000 }).toBe(true)
   await expect(page.getByText('공원을 준비하고 있어요…')).toBeHidden({ timeout: 90000 })
 }
 /** Median sRGB luminance of the inner wood, plus the mean of a white stone centre when one is given. */
-async function brightness(page: Page, white?: { x: number; y: number }) {
-  const rect = await probe<{ x0: number; y0: number; x1: number; y1: number }>(page, 'boardWoodRect')
+async function brightness(page: Page, white?: { x: number; y: number }, game: 'omok' | 'alkkagi' = 'omok') {
+  const rect = await probe<{ x0: number; y0: number; x1: number; y1: number }>(page, 'boardWoodRect', game)
   const { data, info } = await sharp(await page.screenshot()).raw().toBuffer({ resolveWithObject: true })
   const luminance = (x: number, y: number) => {
     const i = (Math.round(y) * info.width + Math.round(x)) * info.channels
@@ -185,4 +195,91 @@ test('다른 게임(파클 관전) 화면은 고정 조명 없이 공원 낮밤 
   await hour(page, 6.5); expect.soft((await lighting(page)).sun).toBeLessThan(1)
   await hour(page, 12); expect.soft(await lighting(page)).toMatchObject({ cameraLayers: 1, sun: 2.5, fill: 1.7, points: 0 })
   await probe(page, 'pinParkHour', null)
+})
+
+test('220m 공원 오목과 알까기의 판 보기는 낮과 밤에 같은 밝기를 유지한다', { tag: '@renewal-board' }, async ({ page }, info) => {
+  test.skip(process.env.PARK_INTEGRATION_MAP !== 'renewal', '220m 공원 모드 전용')
+  const renewal = loadRenewalFixtureMap()
+  const anchor = renewal.data.tables[0]!, approach = anchor.interactionPoints![0]!
+  const server = await fixture(page, { generatedPark: true, omok: true, manualLobby: true, tabletServer: true,
+    connectedMap: renewal.identity, mapVersion: renewal.identity.mapVersion, anchorId: anchor.id,
+    position: { x: approach[0], y: approach[1] + .8, z: approach[2], yaw: 0 } })
+  await load(page)
+  await expect.poll(() => probe<{ parkVisible: boolean; roofs: number; visibleRoofs: number }>(page, 'winterPresentation'),
+    { timeout: 30000 }).toMatchObject({ parkVisible: true, roofs: expect.any(Number) })
+  await expect.poll(async () => (await probe<{ visibleRoofs: number }>(page, 'winterPresentation')).visibleRoofs,
+    { timeout: 30000 }).toBeGreaterThan(0)
+  await page.getByRole('button', { name: 'E 테이블에 앉기', exact: true }).click()
+  await expect.poll(() => probe(page, 'winterPresentation')).toMatchObject({ parkVisible: false, visibleRoofs: 0 })
+  await expect(page.getByRole('region', { name: '겨울 공원 눈싸움' })).toHaveCount(0)
+  server.host('101')
+  const tablet = page.getByRole('dialog', { name: '게임 태블릿', exact: true })
+  await tablet.getByLabel('1인 참가비').fill('1')
+  await tablet.getByRole('button', { name: '선택하고 준비하기' }).click()
+  await tablet.getByRole('checkbox', { name: '참가 금액을 확인했어요' }).check()
+  await tablet.getByRole('button', { name: '준비 완료', exact: true }).click()
+  server.readyTabletOthers(true)
+  await tablet.getByRole('button', { name: '게임 시작', exact: true }).click()
+  await omokReady(page)
+  const point = await page.evaluate(async () => (await import('/tests/park-integration/probe.ts' as string)).omokPlayProbe(7, 7))
+  await page.mouse.click(point!.point.x, point!.point.y)
+  await expect.poll(() => server.sent.filter(m => m.type === 'GAME_ACTION_SEND').length).toBe(1)
+  expect(server.sent.find(m => m.type === 'GAME_ACTION_SEND')?.payload.input).toEqual({ x: 7, y: 7 })
+
+  const verifyBoard = async (game: 'omok' | 'alkkagi') => {
+    const pixels: number[] = []
+    for (const value of [12, 0]) {
+      await hour(page, value)
+      expect(await probe(page, 'winterPresentation')).toMatchObject({ parkVisible: false, visibleRoofs: 0 })
+      const frames = await drawn(page)
+      expect(frames.length).toBeGreaterThan(0)
+      for (const frame of frames) expect(frame).toMatchObject({
+        cameraLayers: 2, sun: 2.5, fill: 1.57, points: 0, exposure: .72, night: value === 0 ? 1 : 0,
+      })
+      pixels.push((await brightness(page, undefined, game)).wood)
+      await page.screenshot({ path: info.outputPath(`${game}-hour-${value}.png`) })
+    }
+    expect(Math.min(...pixels)).toBeGreaterThan(60)
+    expect(withinThreePercent(pixels), `${game} wood: ${pixels.join(', ')}`).toBeLessThanOrEqual(.03)
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.waitForTimeout(400)
+    expect(await probe(page, 'winterPresentation')).toMatchObject({ parkVisible: false, visibleRoofs: 0 })
+    await page.screenshot({ path: info.outputPath(`${game}-winter-mobile.png`) })
+    await page.setViewportSize({ width: 1920, height: 1080 })
+  }
+  await verifyBoard('omok')
+  await page.evaluate(async payload => {
+    const { useGame } = await import('/src/game/store.ts' as string)
+    const { parseGame } = await import('/src/game/protocol.ts' as string)
+    const { useSession } = await import('/src/network/worldClient.ts' as string)
+    const session = useSession.getState()
+    const game = parseGame(payload, session.sessionId)
+    useGame.setState({ game, permittedGameId: game.gameId, recovery: 'RESTORED', lastResult: null, start: null })
+  }, alkkagiWire.initial.payload)
+  await expect.poll(async () => (await lighting(page)).cameraLayers).toBe(2)
+  await verifyBoard('alkkagi')
+  await page.evaluate(async () => {
+    const { seatScope, useTableLobby } = await import('/src/features/tableLobby/state.ts' as string)
+    const { useSession } = await import('/src/network/worldClient.ts' as string)
+    useTableLobby.setState({ lookScope: seatScope(useSession.getState()) })
+  })
+  await expect.poll(async () => (await lighting(page)).cameraLayers).toBe(1)
+  expect((await drawn(page)).at(-1)).toMatchObject({ cameraLayers: 1, sun: .65, night: 1, exposure: .815 })
+  await probe(page, 'pinParkHour', null)
+  server.nextRound()
+  await expect.poll(() => page.evaluate(async () =>
+    (await import('/src/game/displayGame.ts' as string)).useDisplayGame.getState().game)).toBeNull()
+  expect(await page.evaluate(async () => (await import('/src/park/runtime/runtime.ts' as string)).parkRuntime.leaveTable())).toBe(true)
+  await expect.poll(() => probe(page, 'winterPresentation')).toMatchObject({ parkVisible: true })
+  await expect.poll(async () => (await probe<{ visibleRoofs: number }>(page, 'winterPresentation')).visibleRoofs).toBeGreaterThan(0)
+  // The contextual Q cue returns when snow can actually be collected or thrown.
+  await page.evaluate(async () => {
+    const { useWinter } = await import('/src/features/winter/state.ts' as string)
+    const { useSession } = await import('/src/network/worldClient.ts' as string)
+    const id = useSession.getState().sessionId
+    useWinter.setState({ players: { ...useWinter.getState().players, [id]: { userId: id, snowballs: 1,
+      hits: 0, freezeId: '', frozenUntil: null, escapePresses: 0 } } })
+  })
+  await expect(page.getByRole('region', { name: '겨울 공원 눈싸움' })).toBeVisible()
+  await page.screenshot({ path: info.outputPath('winter-park-return.png') })
 })

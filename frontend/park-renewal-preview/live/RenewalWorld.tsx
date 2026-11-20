@@ -1,7 +1,9 @@
+import { WinterScene } from '../../src/features/winter/WinterScene'
 import { BALLOON_RIDE_ENABLED, RENEWAL_DISTANCE_LOD } from '../../src/park/mapSelection'
 import { BalloonWayfindingLights } from '../../src/features/balloon/BalloonWayfinding'
 import { EntranceBuilding } from '../EntrancePavilion'
 import { EntranceLandscape } from '../EntranceLandscape'
+import { RentalPairs } from '../RentalPairs'
 import { CityBackdrop } from '../CityBackdrop'
 import { ScenicGround } from '../ScenicGround'
 import { OriginalPlaza, ParkBoundary } from '../ParkBoundary'
@@ -53,7 +55,7 @@ const StableParkBoundary = memo(ParkBoundary)
 const StableEntranceBuilding = memo(EntranceBuilding)
 const StableGachaKiosk = lazy(() => import('../ParkGachaKiosk').then(module => ({ default: memo(module.ParkGachaKiosk) })))
 const StableMoleShop = lazy(() => import('../ParkMoleShop').then(module => ({ default: memo(module.ParkMoleShop) })))
-const StableRentalPairs = lazy(() => import('../RentalPairs').then(module => ({ default: memo(module.RentalPairs) })))
+const StableRentalPairs = memo(RentalPairs)
 const StableEntranceTrees = memo(PreviewTreeBatches)
 const StableBuildings = lazy(() => import('../Buildings').then(module => ({ default: memo(module.Buildings) })))
 const StableTable = memo(function StableTable({ index, boards }: { index: number; boards: boolean }) {
@@ -248,17 +250,20 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady, gr
       <LakeStreaming progress={lakeProgress} />
       <StableCityBackdrop distanceLod={RENEWAL_DISTANCE_LOD} />
       <StableScenicGround />
+      {entryPresented && <WinterScene low={quality === 'low'} />}
       <Suspense fallback={null}>
         <StableParkBoundary />
         <OriginalPlaza />
         <StableEntranceTrees live />
         <StableEntranceBuilding id="pavilion" />
+        {/* Include the facilities flanking the spawn in the entrance shader pass. */}
+        <StableEntranceBuilding id="fortune" />
+        <StableRentalPairs area="gate" />
         <StableEntranceLandscape quality={quality} showFitnessStations={entryPresented && stage >= 1} />
         <GroundMounted ready={groundMounted} />
       </Suspense>
       {entryPresented && stage >= 1 && (
         <>
-          <GateFacility><StableEntranceBuilding id="fortune" /></GateFacility>
           <GateFacility><StableEntranceBuilding id="lottery" /></GateFacility>
           <Suspense fallback={null}><RenewalParkAdvertising /></Suspense>
           <Suspense fallback={null}><StableScenicDetails includeGround={false} includeTrees={false} includeLandscape={false} distantReady={stage >= 2} live /></Suspense>
@@ -268,7 +273,7 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady, gr
         <GateFacility><StableGachaKiosk live /></GateFacility>
         <GateFacility><StableMoleShop optimizedReady={stage >= 3} /></GateFacility>
       </>}
-      {entryPresented && stage >= 3 && <GateFacility><StableRentalPairs entrance /></GateFacility>}
+      {entryPresented && stage >= 3 && <GateFacility><StableRentalPairs area="nearby" /></GateFacility>}
       {entryPresented && stage >= 2 && <Suspense fallback={null}><StableBuildings live entrancePavilion={false} entranceDistricts={false} entranceFacilities={false} distantReady={distantReady} upperFacilitiesReady={stage >= 4}
         loadedRentalBatches={stage} /></Suspense>}
       {entryPresented && stage >= 3 && TABLES.map((anchor, index) => <Suspense key={anchor.id} fallback={null}>

@@ -24,6 +24,14 @@ public class RaffleRepository {
     }
 
     public void synchronizeRound(RaffleSaleWindow window, Instant now) {
+        synchronizeRound(window, now, false);
+    }
+
+    public void synchronizeRound(RaffleSaleWindow window, Instant now, boolean overridePeriod) {
+        if (overridePeriod) {
+            synchronizeOverride(window, now);
+            return;
+        }
         jdbc.update("""
                 INSERT INTO raffle_rounds(
                     week_start_date, sales_starts_at, sales_ends_at, sales_status
@@ -41,6 +49,33 @@ public class RaffleRepository {
                 SET sales_status = 'CLOSED'
                 WHERE sales_status <> 'CLOSED' AND sales_ends_at <= ?
                 """, Timestamp.from(now));
+    }
+
+    private void synchronizeOverride(RaffleSaleWindow window, Instant now) {
+        Integer prepared = jdbc.queryForObject("""
+                SELECT COUNT(*)
+                FROM event_rounds er
+                JOIN raffle_rounds rr ON rr.id = er.raffle_round_id
+                WHERE er.event_type = 'RAFFLE' AND rr.week_start_date = ?
+                """, Integer.class, Date.valueOf(window.weekStartDate()));
+        if (prepared != null && prepared > 0) {
+            throw new IllegalStateException("추첨 준비가 시작된 응모권 회차의 판매 기간은 변경할 수 없습니다.");
+        }
+        jdbc.update("""
+                INSERT INTO raffle_rounds(
+                    week_start_date, sales_starts_at, sales_ends_at, sales_status
+                ) VALUES (?, ?, ?, ?)
+                ON DUPLICATE KEY UPDATE
+                    sales_starts_at = VALUES(sales_starts_at),
+                    sales_ends_at = VALUES(sales_ends_at),
+                    sales_status = VALUES(sales_status)
+                """, Date.valueOf(window.weekStartDate()), Timestamp.from(window.salesStartsAt()),
+                Timestamp.from(window.salesEndsAt()), window.salesStatus());
+        jdbc.update("""
+                UPDATE raffle_rounds
+                SET sales_status = 'CLOSED'
+                WHERE sales_status <> 'CLOSED' AND week_start_date <> ? AND sales_ends_at <= ?
+                """, Date.valueOf(window.weekStartDate()), Timestamp.from(now));
     }
 
     public Optional<RaffleRound> round(LocalDate weekStartDate) {

@@ -3,6 +3,7 @@ import {
   Mesh, MeshLambertMaterial, Vector3,
 } from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
+import { WINTER_TREES_ENABLED } from '../src/features/winter/trees'
 
 function willowRandom(seed) {
   let state = seed >>> 0
@@ -50,14 +51,22 @@ function foliageLobe(x, y, z, width, length, depth, angle, drift, sides) {
   return geometry
 }
 
-function coloredFacets(source, color) {
+function coloredFacets(source, color, snowTop = false) {
   const geometry = source.toNonIndexed()
   source.dispose()
   geometry.deleteAttribute('uv')
   geometry.computeVertexNormals()
   const positions = geometry.getAttribute('position')
+  const normals = geometry.getAttribute('normal')
+  geometry.computeBoundingBox()
+  const top = geometry.boundingBox.max.y, height = top - geometry.boundingBox.min.y
+  const snowy = new Color('#f2f7fa'), tone = new Color()
   const colors = new Float32Array(positions.count * 3)
-  for (let i = 0; i < positions.count; i++) color.toArray(colors, i * 3)
+  for (let i = 0; i < positions.count; i++) {
+    const cap = snowTop ? Math.max(0, Math.min(1, (positions.getY(i) - top + height * .22) / (height * .18)))
+      * Math.max(0, Math.min(1, (normals.getY(i) + .1) / .5)) : 0
+    tone.copy(color).lerp(snowy, cap).toArray(colors, i * 3)
+  }
   geometry.setAttribute('color', new BufferAttribute(colors, 3))
   return geometry
 }
@@ -72,19 +81,20 @@ function trunkSegment(from, to, baseRadius, tipRadius, color) {
   return coloredFacets(geometry, color)
 }
 
-export function createPreviewWillow({ seed = 42, height = 7.8, spread = 8.6 } = {}) {
+export function createPreviewWillow({ seed = 42, height = 7.8, spread = 8.6, winter = WINTER_TREES_ENABLED } = {}) {
   const random = willowRandom(seed)
-  const bark = new Color('#86704e')
+  const bark = new Color(winter ? '#766a61' : '#86704e')
   const wood = [
     trunkSegment([0, 0.05, 0], [-0.16, 2.1, 0], 0.47, 0.34, bark),
     trunkSegment([-0.16, 2.1, 0], [0.13, 4.0, 0], 0.35, 0.24, bark),
     trunkSegment([0.13, 4.0, 0], [0.32, 5.95, 0], 0.25, 0.08, bark),
   ]
   const leaves = []
-  const green = new Color('#7e9c52')
+  const heavySnow = winter && seed % 13 === 0
+  const foliageColor = new Color(heavySnow ? '#dce8ec' : winter ? '#68835d' : '#7e9c52')
   const addLobe = (x, y, z, width, length, depth, angle, drift, sides, lightness) => {
-    const tone = green.clone().offsetHSL((random() - 0.5) * 0.045, 0, lightness)
-    leaves.push(coloredFacets(foliageLobe(x, y, z, width, length, depth, angle, drift, sides), tone))
+    const tone = foliageColor.clone().offsetHSL((random() - 0.5) * 0.045, 0, lightness)
+    leaves.push(coloredFacets(foliageLobe(x, y, z, width, length, depth, angle, drift, sides), tone, winter && !heavySnow))
   }
 
   // Overlap the canopy and the pendulous foliage so no bare branch ends
@@ -107,6 +117,7 @@ export function createPreviewWillow({ seed = 42, height = 7.8, spread = 8.6 } = 
 
   const group = new Group()
   group.name = 'lakeside-willow-rounded-canopy'
+  group.userData.winterTree = winter
   group.scale.set(spread / 8.6, height / 7.8, spread / 8.6)
   for (const [name, parts] of [['willow-trunk', wood], ['willow-foliage', leaves]]) {
     const mesh = new Mesh(mergeGeometries(parts), new MeshLambertMaterial({ vertexColors: true, flatShading: true }))

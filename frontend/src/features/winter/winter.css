@@ -1,0 +1,12 @@
+.park-interaction .winter-hud{display:flex;flex-direction:column;align-items:center;gap:5px;max-width:min(340px,calc(100vw - 64px));font:inherit}
+.winter-hud small,.winter-hud>span{font-size:12px;line-height:1.4}
+.winter-hud>span:empty{display:none}
+.winter-hud button:focus-visible{outline:3px solid #f3d589;outline-offset:3px}
+.winter-hud .winter-frozen{display:flex;flex-direction:column;align-items:center;gap:3px;color:#e4f5ff}
+.winter-hud .winter-frozen strong{font-size:14px}
+.park-page .park-interaction:has(.winter-frozen)>button[aria-keyshortcuts='E']{display:none}
+.park-page .park-interaction:has(.winter-hud){padding:4px 6px;gap:4px;border-radius:10px}
+.park-page .park-interaction .winter-hud>button[aria-keyshortcuts='Q']{display:flex;align-items:center;gap:6px;min-height:40px;max-width:100%;padding:8px 12px;border:0;background:transparent;font-size:15px;line-height:20px}
+.park-page .park-interaction .winter-hud>button[aria-keyshortcuts='Q'] kbd{flex-shrink:0;min-width:22px;margin-right:0}
+@media(max-width:900px){.park-page .park-interaction:has(.winter-hud){bottom:210px}}
+@media(max-height:540px){.park-page .park-interaction:has(.winter-hud){bottom:76px}.winter-hud>small,.winter-hud>span{display:none}}

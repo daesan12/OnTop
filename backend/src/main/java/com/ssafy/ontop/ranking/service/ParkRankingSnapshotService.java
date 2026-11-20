@@ -44,6 +44,7 @@ public class ParkRankingSnapshotService {
     private final Clock clock;
     private final LongPredicate gameMasters;
     private final Instant startedAt;
+    private final Instant jumpmapStartedAt;
     private final AtomicBoolean refreshing = new AtomicBoolean();
     private final AtomicReference<ParkRankingResponse> snapshot = new AtomicReference<>();
 
@@ -57,22 +58,43 @@ public class ParkRankingSnapshotService {
             ParkJumpRopeRankingRepository jumpRope,
             ParkJumpmapRankingRepository jumpmap, ParkBungeoppangRankingRepository bungeoppang,
             ParkSkewerRankingRepository skewer, MeterRegistry meters, AdminAccessPolicy administrators,
-            @Value("${ontop.rankings.park.started-at:}") String startedAt) {
-        this(balances, mole, speedMole, jumpRope, meters, startedAt, Clock.systemUTC(), administrators::canRead);
+            @Value("${ontop.rankings.park.started-at:}") String startedAt,
+            @Value("${ontop.rankings.park.jumpmap-started-at:${ontop.rankings.park.started-at:}}")
+                    String jumpmapStartedAt) {
+        this(balances, mole, speedMole, jumpRope, meters, startedAt, jumpmapStartedAt,
+                Clock.systemUTC(), administrators::canRead);
         this.jumpmap = jumpmap; this.bungeoppang = bungeoppang; this.skewer = skewer;
     }
 
     ParkRankingSnapshotService(ParkBalanceRankingRepository balances,
             ParkMoleRankingRepository mole, ParkSpeedMoleRankingRepository speedMole,
             ParkJumpRopeRankingRepository jumpRope,
+            ParkJumpmapRankingRepository jumpmap, ParkBungeoppangRankingRepository bungeoppang,
+            ParkSkewerRankingRepository skewer, MeterRegistry meters, AdminAccessPolicy administrators,
+            String startedAt) {
+        this(balances, mole, speedMole, jumpRope, jumpmap, bungeoppang, skewer, meters,
+                administrators, startedAt, startedAt);
+    }
+
+    ParkRankingSnapshotService(ParkBalanceRankingRepository balances,
+            ParkMoleRankingRepository mole, ParkSpeedMoleRankingRepository speedMole,
+            ParkJumpRopeRankingRepository jumpRope,
             MeterRegistry meters, String startedAt, Clock clock) {
-        this(balances, mole, speedMole, jumpRope, meters, startedAt, clock, ignored -> false);
+        this(balances, mole, speedMole, jumpRope, meters, startedAt, startedAt, clock, ignored -> false);
     }
 
     ParkRankingSnapshotService(ParkBalanceRankingRepository balances,
             ParkMoleRankingRepository mole, ParkSpeedMoleRankingRepository speedMole,
             ParkJumpRopeRankingRepository jumpRope,
             MeterRegistry meters, String startedAt, Clock clock, LongPredicate gameMasters) {
+        this(balances, mole, speedMole, jumpRope, meters, startedAt, startedAt, clock, gameMasters);
+    }
+
+    ParkRankingSnapshotService(ParkBalanceRankingRepository balances,
+            ParkMoleRankingRepository mole, ParkSpeedMoleRankingRepository speedMole,
+            ParkJumpRopeRankingRepository jumpRope,
+            MeterRegistry meters, String startedAt, String jumpmapStartedAt, Clock clock,
+            LongPredicate gameMasters) {
         this.balances = balances;
         this.mole = mole;
         this.speedMole = speedMole;
@@ -82,6 +104,7 @@ public class ParkRankingSnapshotService {
         this.gameMasters = gameMasters;
         // DEV는 최초 배포 시각을 운영자가 고정해 넣는다. 비어 있으면 기존 앱은 계속 기동하되 새 API는 503이다.
         this.startedAt = startedAt.isBlank() ? null : Instant.parse(startedAt);
+        this.jumpmapStartedAt = jumpmapStartedAt.isBlank() ? this.startedAt : Instant.parse(jumpmapStartedAt);
     }
 
     public ParkRankingResponse current() {
@@ -112,7 +135,7 @@ public class ParkRankingSnapshotService {
             List<JumpRopeItem> jumpRopeItems = jumpRope.findTopTen(startedAt).stream()
                     .map(row -> new JumpRopeItem(row.rank(), Long.toString(row.userId()), row.nickname(),
                             row.score(), row.misses(), row.completedAt(), gameMasters.test(row.userId()))).toList();
-            List<ParkRankingResponse.JumpmapItem> jumpmapItems = jumpmap == null ? List.of() : jumpmap.findTopTen(startedAt).stream().map(r ->
+            List<ParkRankingResponse.JumpmapItem> jumpmapItems = jumpmap == null ? List.of() : jumpmap.findTopTen(jumpmapStartedAt).stream().map(r ->
                         new ParkRankingResponse.JumpmapItem(r.rank(), Long.toString(r.userId()), r.nickname(),
                             r.finishMs(), r.completedAt(), gameMasters.test(r.userId()))).toList();
             List<MoleItem> bungeoppangItems = bungeoppang == null ? List.of() : bungeoppang.findTopTen(startedAt).stream().map(r ->

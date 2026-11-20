@@ -15,6 +15,23 @@ class TableProtocolTests {
 
     private final TableProtocol protocol = new TableProtocol(new ObjectMapper());
 
+    @Test
+    void 이스터에그_진입과_복귀_경로만_허용하고_좌표나_사용자_위조는_거절한다() throws Exception {
+        var mapper = new ObjectMapper();
+        for (String access : java.util.List.of("vestibule", "surface", "passage", "entry", "return", "exit")) {
+            assertThat(protocol.parse(mapper.writeValueAsString(Map.of("requestId", "interior",
+                    "type", "WORLD_INTERIOR_ACCESS", "payload", Map.of("access", access)))).type())
+                    .isEqualTo("WORLD_INTERIOR_ACCESS");
+        }
+        for (var payload : java.util.List.of(Map.of(), Map.of("access", "teleport"), Map.of("access", 1),
+                Map.of("access", "return", "x", 0), Map.of("access", "return", "userId", "other"))) {
+            String message = mapper.writeValueAsString(Map.of("requestId", "interior",
+                    "type", "WORLD_INTERIOR_ACCESS", "payload", payload));
+            assertThat(catchThrowableOfType(RequestException.class, () -> protocol.parse(message)).code())
+                    .isEqualTo("INVALID_PAYLOAD");
+        }
+    }
+
     @Test void 마이룸은_불리언_열림만_받고_다른회원이나_채널_위조는_거절한다() throws Exception {
         var mapper = new ObjectMapper();
         for (boolean open : new boolean[] {true, false}) {
