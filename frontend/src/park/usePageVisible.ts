@@ -1,9 +1,11 @@
 import { useSyncExternalStore } from 'react'
 
-const snapshot = () => !document.hidden
+const snapshot = () => typeof document === 'undefined' || !document.hidden
 const subscribe = (changed: () => void) => {
-  document.addEventListener('visibilitychange', changed)
-  return () => document.removeEventListener('visibilitychange', changed)
+  if (typeof document === 'undefined') return () => {}
+  const page = document
+  page.addEventListener('visibilitychange', changed)
+  return () => page.removeEventListener('visibilitychange', changed)
 }
 
 // React checks the snapshot again after subscribing. Restoring a tab between
