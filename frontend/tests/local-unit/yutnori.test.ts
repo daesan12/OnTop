@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
+import { boardNodes, boardJunctions, boardPoint } from '../../src/game/yutnori/Board'
+import { stickFaces } from '../../src/game/yutnori/StickResult'
 import { parseYut } from '../../src/game/yutnori/contracts'
 import { YutClient } from '../../src/game/yutnori/client'
 import type { CoopTransport } from '../../src/features/skewer/coop/contracts'
@@ -6,7 +8,7 @@ import type { CoopTransport } from '../../src/features/skewer/coop/contracts'
 function snapshot() {
   return { gameId: 'yut-test', version: 1, registered: true, role: 'PLAYER', publicState: {
     gameCode: 'YUTNORI', phase: 'PLAYING', channelId: 'channel-1', roomName: '함께', host: '101', turnUser: '101',
-    team: 0, credits: 1, deadline: 90000, winner: -1, reason: '', message: '', entryFee: 0,
+    teamCount: 2, pieceCount: 4, eliminatedTeams: [], team: 0, credits: 1, deadline: 90000, winner: -1, reason: '', message: '', entryFee: 0,
     rules: { emptyBackEnters: false, doubleCaptureBonus: false, backHomeFinish: false },
     players: [{ userId: '101', nickname: '청', team: 0, ready: true, connected: true },
       { userId: '202', nickname: '홍', team: 1, ready: true, connected: true }],
@@ -47,5 +49,38 @@ describe('윷놀이 서버 계약과 유실 입력 복구', () => {
     expect(requests[1]).toEqual(requests[0])
     expect(client.store.getState().uncertain).toBe(false)
     client.stop()
+  })
+})
+
+
+describe('공식 29칸과 빽도 표식, 다팀 계약', () => {
+  it('바깥 20칸 안쪽 9칸을 중복 없이 그리고 다섯 교차점만 크게 그린다', () => {
+    expect(boardNodes).toHaveLength(29)
+    expect(new Set(boardNodes.map(node => boardPoint(node).join(','))).size).toBe(29)
+    expect(boardJunctions).toEqual([5, 10, 15, 20, 23])
+    expect(boardJunctions).not.toContain(25)
+    expect(boardPoint(20)).toEqual([460, 460])
+    expect(boardPoint(1)).toEqual([460, 380])
+  })
+  it('16가지 조합에서 표식은 첫 윷의 평평한 면에만 나타난다', () => {
+    for (let mask = 0; mask < 16; mask++) {
+      const faces = stickFaces(mask)
+      expect(faces.filter(face => face.marked)).toHaveLength(mask & 1 ? 1 : 0)
+      expect(faces.slice(1).every(face => !face.marked)).toBe(true)
+    }
+    expect(stickFaces(1)).toEqual([{ flat: true, marked: true }, ...Array.from({ length: 3 }, () => ({ flat: false, marked: false }))])
+  })
+  it('2~4팀과 말 1~4개를 받고 팀과 말의 범위가 다른 응답을 거절한다', () => {
+    for (const teams of [2, 3, 4]) for (const pieces of [1, 2, 3, 4]) {
+      const state = snapshot()
+      state.publicState.teamCount = teams; state.publicState.pieceCount = pieces
+      state.publicState.pieces = Array.from({ length: teams }, () => Array(pieces).fill(0))
+      state.publicState.winner = teams - 1
+      expect(parseYut(state)).not.toBeNull()
+      state.publicState.players[0].team = teams
+      expect(parseYut(state)).toBeNull()
+    }
+    const wrong = snapshot(); wrong.publicState.pieceCount = 3
+    expect(parseYut(wrong)).toBeNull()
   })
 })

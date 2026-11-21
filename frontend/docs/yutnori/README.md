@@ -10,7 +10,7 @@
 
 `전통놀이존 입구 → E → 윷놀이 카드 → 방 만들기/참가 → 팀 선택 → 전원 준비 → 방장 시작`.
 
-게임 코드는 `YUTNORI`. 2~4명이 두 팀으로 나뉘어 팀당 말 4개를 공유하고, 같은 팀 안에서도 차례를 번갈아 맡는다. 무료 경기이며 판돈·지갑·보상을 변경하지 않는다. 방은 같은 공원 채널에서만 조회·참가한다. 서버는 현재 인증 소켓·맵 일치·시설/테이블 충돌·입구 위치를 확인한다.
+게임 코드는 `YUTNORI`. 방을 만들 때 2~4팀과 팀별 말 1~4개를 선택한다. 최대 4명이 참가하며 선택한 모든 팀에 한 명 이상 필요하다. 같은 팀이 말을 공유하고, 같은 팀 안에서도 차례를 번갈아 맡는다. 무료 경기이며 판돈·지갑·보상을 변경하지 않는다. 방은 같은 공원 채널에서만 조회·참가한다. 서버는 현재 인증 소켓·맵 일치·시설/테이블 충돌·입구 위치를 확인한다.
 
 대기 상태는 기존 인증 REST 전송 포트로, 시작 이후 입력은 기존 `GAME_ACTION_SEND`, `GAME_STATE_CHECK`, `GAME_RECONNECT_CHECK`, `GAME_FORFEIT`로 보낸다. 별도 WS 프로토콜·라우터·지갑을 만들지 않는다. 무료 세션 등록을 명시적으로 허용하며 공통 라우터의 사용자 점유 검사는 유지한다. `privateState`는 빈 객체다. 관전자는 서버가 허용한 같은 경기의 공개 상태만 읽으며 행동을 제출할 수 없다.
 
@@ -24,7 +24,7 @@
 - 참먹이 빽도는 기본 실제 경로로 후퇴, 선택하면 완주다. 규칙은 생성 후 고정한다.
 - 4개 윷면은 서버에서 균등 조합으로 생성한다. 디지털 낙은 던지기별 2% 확률이며 실제 물리 시뮬레이션이 아니다. 낙이면 보관 이동권·추가 던지기를 잃는다.
 - 대표 윷 2개씩의 선공 순위: 모두 엎어짐 > 모두 젖혀짐 > 엇갈림. 동률은 다시 던진다.
-- 한 차례 90초. 시간 초과·기권·접속 유예 만료는 해당 팀의 패배다.
+- 한 차례 90초. 시간 초과·기권·접속 유예 만료는 해당 팀만 탈락시키고 말을 치운다. 남은 팀은 계속 진행하며 마지막 생존 팀이 승리한다. 탈락자는 공원으로 돌아가 다른 방에 참가할 수 있다.
 - 대기방 10분 무활동 시 취소, 종료 기록 메모리 보관 30분. 진행 상태의 서버 재시작 복원은 지원하지 않는다.
 - 동일 `actionId` 재전송은 같은 영수증, 다른 내용은 충돌이다. 낡은 `expectedVersion`, 다른 사용자 차례, 관전자 입력을 거절한다. FE는 응답 불명 입력을 보관하고 같은 ID로 재확인한다.
 - 관전자와 참가자는 경기 전용 채팅·판 위치 핑을 공유한다. 1초 간격·100자 제한이며 다른 경기에는 전파하지 않는다.
@@ -59,7 +59,7 @@ node node_modules/typescript/bin/tsc --noEmit
 
 ## V186 및 저장소
 
-`backend/src/main/resources/db/migration/V186__create_yutnori_results.sql` 하나를 추가했다. `yutnori_results`에 종료 결과 JSON을 경기 ID 기준 멱등 저장하며 지갑·공통 판돈 세션에는 INSERT하지 않는다. 기존 Flyway 파일·location 설정은 변경하지 않는다.
+`backend/src/main/resources/db/migration/V186__create_yutnori_results.sql` 하나를 추가했다. `yutnori_results`에 종료 결과 JSON을 경기 ID 기준 멱등 저장하며 지갑·공통 판돈 세션에는 INSERT하지 않는다. 다른 Flyway 파일·location 설정은 변경하지 않는다. 2026-11-21 사용자가 V186은 공유 DB 미적용이라고 확인하고 같은 파일 통합을 요청하여, 이 파일의 승리 팀 CHECK를 -1/0/1/2/3으로 확장했다. 새 버전 파일은 추가하지 않았다.
 
 사용자가 V186 사용을 지정했다. 생성 전 dev·모든 가져온 원격 브랜치/MR 참조와 로컬 worktree에서 V186 파일이 없음을 확인했다. MR 참조의 open/closed 상태와 별도 팀 예약은 확인 불가다. 실제 MySQL 8.4 및 DB 순차 적용·쓰기 검증은 담당자 확인이 필요하다. 로컬 fixture에서는 메모리 경기만 동작하며 DB 저장 성공으로 보고하지 않는다. DB 쓰기 실패는 주기적으로 재시도하지만 프로세스 종료나 보관 기간 만료 후 저장을 보장하지 않는다.
 
@@ -82,3 +82,14 @@ Image Gen 내장 도구로 만든 `art/cover.webp`와 `art/board.webp`를 사용
 1. Concept: Korean OnTop multiplayer Yutnori full main screen, hanji ivory, forest green, gold double borders, square 29-node board, native UI controls, four blue/red tokens per team, throw and move controls, recent turns.
 2. Cover: warm miniature 3D carved wooden four yut sticks with one marked backdo, red/blue tokens on ivory mat, Korean pavilion and pine, forest green/gold frame, no text.
 3. Board: square top-down blank ivory linen mat, thick carved wooden frame with gold trim and corner knots; empty center for native interactive graph; no circles, lines, tokens or text.
+
+
+## 다팀·칸 수·빽도 후속 수정
+
+- 방 설정은 생성 시 확정하며 기본값은 2팀·말 4개다. FE/BE 공개 상태의 teamCount, pieceCount, eliminatedTeams를 함께 사용한다. 최대 4인 계약은 유지한다.
+- 실제 윷판은 바깥 20 + 안쪽 9 = 29칸이다. 참먹이는 판 위의 한 칸이고 대기석과 완주 상태는 별도 칸으로 그리지 않는다. 대각선 25번 노드가 모서리처럼 크게 그려지던 오류를 고쳤다. 큰 표시는 모서리 4곳과 중앙 1곳뿐이다.
+- 서버 이동은 첫 도 1칸, 바깥길 20칸째 참먹이, 그다음 1칸 완주로 검증한다. 최단 경로는 5+3+3으로 참먹이, 추가 1로 완주다. 완주 규칙은 사용자가 처음 정한 규칙을 따른다.
+- 첫 윷의 평평한 면에 붉은 ‘빽’을 표시하고 둥근 면은 숨긴다. 결과에 ‘빽도·뒤로 1칸’과 항상 보이는 표식 안내를 제공한다.
+- 확인 자료: [국립민속박물관](https://webzine.nfm.go.kr/2021/02/01/설날의-윷놀이-출발과-귀환의-즐거운-한-판/), [한국민족문화대백과사전](https://encykorea.aks.ac.kr/Article/E0042794), [한국문화원연합회 실제 윷판 사진이 있는 설명](https://www.kculture.or.kr/brd/board/682/L/menu/704?bbIdx=13683&brdType=R). 사진은 참고로만 열었고 제품에 복사하지 않았다.
+- 다팀 브라우저 검수: frontend에서 node scripts/verify-yutnori-four.mjs. 기존 2팀 회귀는 node scripts/verify-yutnori.mjs.
+- 네 번째 검수 계정은 기존 테스트 전용 fixture에 606을 추가했다. role=yellow로 접속하며 실제 회원 계정을 만들지 않는다. 다른 브라우저 context에서 role=viewer(505)를 세 번째 팀으로 참가시키면 4팀 검수가 가능하다.

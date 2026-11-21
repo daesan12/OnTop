@@ -780,7 +780,7 @@ export class ParkRuntime implements ParkRuntimePort {
     if (message.type === 'GAME_CONNECTION_STATE' && String(message.payload.gameId ?? '').startsWith('yut-')) {
       routeCoopMessage(message)
       const state = message.payload.state as { publicState?: { phase?: string } } | undefined
-      if (state?.publicState?.phase === 'PLAYING') requestYut()
+      if (state?.publicState?.phase === 'PLAYING' && message.payload.status !== 'ELIMINATED') requestYut()
       if (!useGame.getState().game) useGame.setState({ recovery: 'LOBBY' })
       return
     }

@@ -50,9 +50,12 @@ async function account(role, host) {
 }
 async function state(page) {
   return page.evaluate(async () => {
-    const { parkRuntime } = await import('/src/park/runtime/runtime.ts')
-    const transport = parkRuntime.cooperativeGame
-    return transport.requestJSON(`/api/v1/minigames/yutnori/rooms?channelId=${transport.scope().channelId}`)
+    const { getAuthSession } = await import('/src/auth/authFlow.ts')
+    const auth = getAuthSession()
+    if (auth?.status !== 'AUTHENTICATED') throw new Error('검수 계정의 로그인이 필요합니다.')
+    const response = await fetch('/api/v1/minigames/yutnori/rooms?channelId=channel-1', { headers: { Authorization: 'Bearer ' + auth.accessToken } })
+    if (!response.ok) throw new Error('경기 상태 조회 실패: ' + response.status)
+    return response.json()
   })
 }
 let red, blue
@@ -62,6 +65,9 @@ try {
   if (!movementOnly) {
   await red.getByRole('button', { name: '새 방 만들기', exact: true }).click()
   await red.getByLabel('방 이름', { exact: true }).fill('친구와 함께하는 윷판')
+  await red.getByLabel('팀 수', { exact: true }).selectOption('4')
+  await red.screenshot({ path: path.resolve('docs/yutnori/qa-four-teams/settings-four.png') })
+  await red.getByLabel('팀 수', { exact: true }).selectOption('2')
   await red.getByRole('button', { name: '방 만들기', exact: true }).click()
   await expect(red.getByRole('heading', { name: '친구와 함께하는 윷판', exact: true })).toBeVisible()
   blue = await account('green', 'localhost')

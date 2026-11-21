@@ -80,9 +80,9 @@ export class YutClient {
         : failure.code === 'GAME_RECOVERY_REQUIRED' ? '연결을 복구한 뒤 다시 시도해주세요.' : failure.message ?? '요청을 확인하지 못했어요. 다시 시도해주세요.' })
     } finally { if (!this.stopped) { this.store.setState({ pending: false }); await this.refresh() } }
   }
-  create(roomName: string, rules: YutRules) {
+  create(roomName: string, rules: YutRules, teamCount = 2, pieceCount = 4) {
     return this.run(async () => { this.install(await this.post('/rooms', { channelId: this.transport.scope().channelId,
-      requestKey: this.key, roomName, rules })) })
+      requestKey: this.key, roomName, rules, teamCount, pieceCount })) })
   }
   join(gameId: string, watch = false) {
     return this.run(async () => { this.install(await this.post(watch ? '/watch' : '/rooms', { gameId, channelId: this.transport.scope().channelId })) })
