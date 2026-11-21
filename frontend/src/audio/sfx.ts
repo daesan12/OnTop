@@ -6,7 +6,7 @@ export type SfxName = 'ui-click' | 'ui-manual' | 'ui-equip' | 'coin-gain'
   | 'game-ready' | 'game-start' | 'game-turn' | 'omok-place' | 'dice-roll' | 'card-draw' | 'card-one' | 'halli-bell'
   | 'chess-move' | 'chess-capture' | 'chess-check' | 'chess-checkmate' | 'chess-checkmate-win' | 'chess-checkmate-lose'
   | 'chess-draw' | 'chess-select' | 'chess-invalid'
-  | 'chess-promotion' | 'chess-castle'
+  | 'chess-promotion' | 'chess-castle' | 'chess-en-passant'
   | 'bungeo-pour' | 'bungeo-flip' | 'bungeo-burn'
   | 'emote-clap' | 'emote-tsk' | 'emote-fart' | 'emote-wave-male' | 'emote-wave-female'
   | 'move-jump' | 'move-land' | 'move-splash' | 'move-step-stone' | 'move-step-grass' | 'amb-pigeon-takeoff'
@@ -28,6 +28,7 @@ const LEVEL: Record<SfxName | SfxLoop, number> = {
   'chess-invalid': .28,
   'chess-promotion': .5,
   'chess-castle': .6,
+  'chess-en-passant': .6,
   'game-ready': 0.5, 'game-start': 0.55, 'game-turn': 0.5, 'dice-roll': 0.6, 'card-draw': 0.5, 'card-one': 0.55,
   'halli-bell': 0.55,
   'bungeo-pour': 0.5, 'bungeo-flip': 0.5, 'bungeo-burn': 0.45,

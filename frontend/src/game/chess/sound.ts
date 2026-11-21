@@ -2,9 +2,9 @@ import type { Game, Recovery } from '../protocol'
 import { chessMotion } from './motion'
 import type { Chess } from './protocol'
 
-export type ChessSound = 'chess-castle' | 'chess-promotion' | 'chess-invalid' | 'chess-select' | 'chess-move' | 'chess-capture' | 'chess-check' | 'chess-checkmate' | 'chess-checkmate-win' | 'chess-checkmate-lose' | 'chess-draw'
+export type ChessSound = 'chess-en-passant' | 'chess-castle' | 'chess-promotion' | 'chess-invalid' | 'chess-select' | 'chess-move' | 'chess-capture' | 'chess-check' | 'chess-checkmate' | 'chess-checkmate-win' | 'chess-checkmate-lose' | 'chess-draw'
 export const CHESS_SOUND_DURATION = { 'chess-move': .15, 'chess-capture': .23, 'chess-check': .42,
-  'chess-checkmate': .95, 'chess-checkmate-win': .95, 'chess-checkmate-lose': .88, 'chess-draw': .78, 'chess-select': .09, 'chess-invalid': .16, 'chess-promotion': .48, 'chess-castle': .3 } as const
+  'chess-checkmate': .95, 'chess-checkmate-win': .95, 'chess-checkmate-lose': .88, 'chess-draw': .78, 'chess-select': .09, 'chess-invalid': .16, 'chess-promotion': .48, 'chess-castle': .3, 'chess-en-passant': .34 } as const
 export const isChessSound = (name: string): name is ChessSound => Object.hasOwn(CHESS_SOUND_DURATION, name)
 
 /** Input feedback uses server destinations; choosing another own piece is not a failed move. */
@@ -41,6 +41,9 @@ export function chessMoveSound(previous: Game | null, next: Game, serverNow: num
   const motion = chessMotion({ gameId: previous.gameId, board: previous.chess.board, moves: previous.chess.moves },
     { gameId: next.gameId, board: next.chess.board, moves: next.chess.moves })
   if (!motion) return null
+  // The captured pawn is beside the departure square, rather than on the destination.
+  if (motion.captured && motion.captured.index !== motion.travel[0].to
+    && motion.travel[0].piece.toUpperCase() === 'P') return 'chess-en-passant'
   const king = motion.travel[0]
   if (motion.travel.length === 2 && !motion.captured && (
     king.piece === 'K' && king.from === 4 && [2, 6].includes(king.to)
@@ -62,6 +65,7 @@ export function chessPromotionSound(previous: Game | null, next: Game, serverNow
 export function chessSpecialMoveGap(cue: string, cues: readonly string[]) {
   if (cue !== 'chess-check' && !cue.startsWith('chess-checkmate') && cue !== 'chess-draw') return 0
   if (cues.includes('chess-promotion')) return CHESS_SOUND_DURATION['chess-promotion'] + .06
+  if (cues.includes('chess-en-passant')) return CHESS_SOUND_DURATION['chess-en-passant'] + .06 - .18
   return cues.includes('chess-castle') ? CHESS_SOUND_DURATION['chess-castle'] + .06 - .18 : 0
 }
 
@@ -113,7 +117,7 @@ export function chessSoundSamples(kind: ChessSound, rate: number) {
     }
     return samples
   }
-  const capture = kind === 'chess-capture', castle = kind === 'chess-castle'
+  const capture = kind === 'chess-capture', castle = kind === 'chess-castle', enPassant = kind === 'chess-en-passant'
   let seed = 188, low = 0, peak = 0
   for (let i = 0; i < samples.length; i++) {
     const t = i / rate
@@ -124,8 +128,10 @@ export function chessSoundSamples(kind: ChessSound, rate: number) {
       * (.48 * Math.sin(2 * Math.PI * frequency * age) * Math.exp(-age * 45)
         + .2 * Math.sin(2 * Math.PI * frequency * 2.61 * age) * Math.exp(-age * 80)
         + .32 * low * Math.exp(-age * 65))
-    samples[i] = (impact(t, castle ? 280 : capture ? 245 : kind === 'chess-select' ? 620 : 390)
-      + (castle ? .65 * impact(t - .095, 420) : capture ? .5 * impact(t - .045, 540) : 0))
+    // A brief brushed sweep ends in one light wooden tap for the off-square capture.
+    const sweep = enPassant ? .55 * low * Math.sin(Math.PI * Math.min(1, t / .14)) ** 2 : 0
+    samples[i] = (enPassant ? sweep + .75 * impact(t - .11, 460) : (impact(t, castle ? 280 : capture ? 245 : kind === 'chess-select' ? 620 : 390)
+      + (castle ? .65 * impact(t - .095, 420) : capture ? .5 * impact(t - .045, 540) : 0)))
       * Math.min(1, t / .001) * Math.min(1, (duration - t) / .015)
     peak = Math.max(peak, Math.abs(samples[i]))
   }

@@ -105,9 +105,44 @@ describe('체스 승인 이동 효과음', () => {
     expect(chessMoveSound(a, b, NOW + 1200)).toBeNull()
     expect(chessMoveSound(a, b, NOW - 1201)).toBeNull()
   })
-  it('앙파상은 잡기, 캐슬링은 한 번의 전용 소리로 낸다', () => {
-    expect(chessMoveSound(game({ e5: 'P', d5: 'p' }, [], 0), game({ d6: 'P' }, ['e5d6'], 1), NOW)).toBe('chess-capture')
+  it('앙파상과 캐슬링은 각각 한 번의 전용 소리로 낸다', () => {
+    expect(chessMoveSound(game({ e5: 'P', d5: 'p' }, [], 0), game({ d6: 'P' }, ['e5d6'], 1), NOW)).toBe('chess-en-passant')
     expect(gameSfx(game({ e1: 'K', h1: 'R' }, [], 0), game({ g1: 'K', f1: 'R' }, ['e1g1'], 1), '202', NOW)).toEqual(['chess-castle'])
+  })
+  it('백흑 앙파상은 목적지 밖의 폰 제거를 확인하고 관전자에게도 한 번만 재생한다', () => {
+    for (const [before, after, move] of [
+      [{ e5: 'P', d5: 'p' }, { d6: 'P' }, 'e5d6'],
+      [{ h4: 'p', g4: 'P' }, { g3: 'p' }, 'h4g3'],
+    ] as [Record<string,string>, Record<string,string>, string][]) {
+      const a=game(before,[],0), b=game(after,[move],1)
+      expect(gameSfx(a,b,'101',NOW)).toEqual(['chess-en-passant'])
+      expect(gameSfx({...a,role:'SPECTATOR'},{...b,role:'SPECTATOR'},'505',NOW)).toEqual(['chess-en-passant'])
+      expect(chessMoveSound(null,b,NOW)).toBeNull()
+      expect(chessMoveSound(b,{...b,version:2},NOW)).toBeNull()
+      expect(chessMoveSound(a,b,NOW+1200)).toBeNull()
+      expect(chessMoveSound(a,{...b,role:'SPECTATOR'},NOW)).toBeNull()
+      expect(chessMoveSound(a,game(after,['a2a3',move],2),NOW)).toBeNull()
+    }
+  })
+  it('일반 대각선 잡기는 유지하고 옆 폰이 없거나 남은 불일치 보드는 앙파상으로 알리지 않는다', () => {
+    const a=game({e5:'P',d5:'p'},[],0)
+    expect(chessMoveSound(a,game({d6:'P',d5:'p'},['e5d6'],1),NOW)).toBeNull()
+    expect(chessMoveSound(game({e5:'P'},[],0),game({d6:'P'},['e5d6'],1),NOW)).toBeNull()
+    expect(chessMoveSound(game({e5:'P',d5:'r'},[],0),game({d6:'P'},['e5d6'],1),NOW)).toBeNull()
+    expect(chessMoveSound(a,game({d6:'P',a3:'P'},['e5d6'],1),NOW)).toBeNull()
+    expect(gameSfx(game({e5:'P',d6:'p'},[],0),game({d6:'P'},['e5d6'],1),'101',NOW)).toEqual(['chess-capture'])
+    expect(gameSfx(game({h4:'p',g3:'P'},[],0),game({g3:'p'},['h4g3'],1),'202',NOW)).toEqual(['chess-capture'])
+  })
+  it('앙파상으로 생긴 체크와 종료 안내는 전용음 뒤에 이어진다', () => {
+    const a=game({e5:'P',d5:'p'},[],0), b=game({d6:'P'},['e5d6'],1,{inCheck:true})
+    expect(gameSfx(a,b,'101',NOW)).toEqual(['chess-en-passant','chess-check'])
+    const finished={...b,chess:{...b.chess,status:'FINISHED' as const,endReason:'CHECKMATE',winnerUserId:'101',endedAt:new Date(NOW).toISOString()}}
+    expect(gameSfx(a,finished,'101',NOW)).toEqual(['chess-en-passant','chess-checkmate-win'])
+    expect(gameSfx(a,finished,'202',NOW)).toEqual(['chess-en-passant','chess-checkmate-lose'])
+    expect(gameSfx(a,{...finished,chess:{...finished.chess,endReason:'STALEMATE',winnerUserId:null}},'101',NOW)).toEqual(['chess-en-passant','chess-draw'])
+    for (const cue of ['chess-check','chess-checkmate-win','chess-checkmate-lose','chess-draw'])
+      expect(.18+chessSpecialMoveGap(cue,['chess-en-passant',cue])).toBeCloseTo(CHESS_SOUND_DURATION['chess-en-passant']+.06)
+    expect(chessSpecialMoveGap('chess-en-passant',['chess-en-passant','chess-check'])).toBe(0)
   })
   it('백흑 킹사이드·퀸사이드 모두 두 기물 확정 이동을 전용 소리 한 번으로 묶는다', () => {
     for (const [before, after, move] of [
