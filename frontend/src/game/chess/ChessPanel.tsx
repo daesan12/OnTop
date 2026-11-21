@@ -11,6 +11,7 @@ import { OmokSurrender, type ForfeitConfirmationControls } from '../OmokSurrende
 import { CHESS_END_REASON } from './protocol'
 import { ChessKeyboardBoard } from './ChessBoard3D'
 import { useChessControls, useChessUI } from './parkControls'
+import { chessSelectionLabel } from './moveHints'
 import pieces from './assets/pieces.png'
 import './chess.css'
 
@@ -47,6 +48,7 @@ export function ChessPanel() {
   const blackView = (own === c.blackUserId) !== ui.flip
   const boardProps = { board: c.board, blackView, selected: ui.selected, destinations: c.legalMoves.filter(m => m.from === ui.selected).map(m => m.to),
     pings: [], disabled, onSquare: (index: number) => choose(index, true) }
+  const selectionLabel = chessSelectionLabel(c.board, ui.selected, boardProps.destinations, labels)
   return <section className="chess-hud" aria-label="체스 경기" data-role={game.role} data-status={c.status}>
     <header className="chess-match-header">
       <div className="chess-title"><h2>체스</h2><span role="status" aria-live="polite">{status}</span></div>
@@ -80,7 +82,7 @@ export function ChessPanel() {
       {(state.uncertain || !connected) && <button onClick={() => void runtime.checkRecovery()}>경기 복구 확인</button>}
       {!playing && player && <button onClick={() => void runtime.leaveTable()}>공원으로 나가기</button>}
     </GameHudMenu></div>
-    <footer className="chess-bottom"><p>{looking ? '주변 둘러보는 중 · 메뉴에서 판으로 돌아갈 수 있어요.' : ui.claimMode ? '반복 3회·50수를 채울 예정 수를 선택하세요.' : player ? '기물과 이동할 칸을 차례로 누르세요.' : '관전 중 · 체스판을 누르면 핑을 보냅니다.'}</p>
+    <footer className="chess-bottom"><p role={selectionLabel ? 'status' : undefined} aria-live="polite" className={selectionLabel ? 'chess-selection-hint' : undefined}>{looking ? '주변 둘러보는 중 · 메뉴에서 판으로 돌아갈 수 있어요.' : ui.claimMode ? '반복 3회·50수를 채울 예정 수를 선택하세요.' : selectionLabel || (player ? '기물과 이동할 칸을 차례로 누르세요.' : '관전 중 · 체스판을 누르면 핑을 보냅니다.')}</p>
       {state.error && <p role="alert">{state.error}</p>}{(state.uncertain || !connected) && <p role="alert">연결·반영 상태를 확인해주세요.</p>}
     </footer>
     {c.drawOfferedBy && <aside className="chess-request" role="status"><p>{name(c.drawOfferedBy)}의 무승부 제안</p>{player && c.drawOfferedBy !== own && <div className="chess-pair"><button disabled={!canUse} onClick={() => void runtime.actChess?.({ kind: 'drawRespond', accept: true })}>수락</button><button disabled={!canUse} onClick={() => void runtime.actChess?.({ kind: 'drawRespond', accept: false })}>거절</button></div>}</aside>}
