@@ -446,6 +446,30 @@ public class WorldChannelRegistry implements ChannelPresence {
         return room.physics.snowballDistance(p.x(), p.y(), p.z(), yaw);
     }
 
+    /** 서버가 소유한 NPC 위치 전용이며 클라이언트 요청 좌표를 받지 않는다. */
+    public synchronized double npcSnowballDistance(String channel, Position position, double yaw) {
+        Room room = rooms.get(channel);
+        return room == null || room.physics == null ? 0
+                : room.physics.snowballDistance(position.x(), position.y(), position.z(), yaw);
+    }
+
+    public synchronized boolean npcSnowPileInReach(String channel, Position position) {
+        Room room = rooms.get(channel);
+        return room != null && room.physics != null
+                && room.physics.npcSnowPileInReach(position.x(), position.y(), position.z());
+    }
+
+    /** 눈싸움은 보행·점프·동결 중에도 같은 놀이를 유지한다. 일반 창 점유는 별도 공격 대기로 처리한다. */
+    public synchronized boolean npcSnowballAvailable(String userId) {
+        Room room = rooms.get(membership.get(userId));
+        Position position = positionOf(userId);
+        return room != null && position != null && !position.swimming() && !room.held.contains(userId)
+                && !room.vehicles.containsKey(userId) && !room.vrUsers.contains(userId)
+                && !room.minigameUsers.contains(userId) && !room.tableSeats.containsKey(userId)
+                && publicActivity(userId) == null && jumpmapRun(userId).isEmpty()
+                && room.physics.carryState(userId) == null;
+    }
+
     public synchronized WorldState worldState(String channelId) {
         return rooms.get(channelId).worldState();
     }

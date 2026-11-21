@@ -195,6 +195,8 @@ public class TableHub {
     private final WorldEmoteService emotes;
     private final com.ssafy.ontop.world.winter.SnowballService snowballs =
             new com.ssafy.ontop.world.winter.SnowballService();
+    private com.ssafy.ontop.ai.ontop.OntopNpcService ontopNpc;
+    private long ontopTickAt;
     private final WorldProximity proximity;
     private final WorldFacilityService facilities;
     private final PreparedParkMap preparedPark;
@@ -2421,6 +2423,14 @@ public class TableHub {
         if (!proximity.hasPosition(member.userId())) {
             fail(request, "WORLD_POSITION_REQUIRED", "먼저 광장 위치를 전송해주세요.");
         }
+        String requestedText = request.payload().path("text").asText().trim();
+        if (com.ssafy.ontop.ai.ontop.OntopNpcService.command(requestedText)) {
+            if (ontopNpc == null) {
+                fail(request, "ONTOP_UNAVAILABLE", "이 공원에서는 온탑을 아직 만날 수 없어요.");
+            }
+            ontopNpc.talk(channelId, member.userId(), request.requestId(), requestedText, System.currentTimeMillis());
+            return;
+        }
         WorldChatService.Message message = chat.create(channelId, member.userId(),
                 new ChatText(request.payload().get("text").textValue()));
         member.peer().offer(protocol.encode(request.requestId(), "WORLD_CHAT_MESSAGE", message));
@@ -2827,6 +2837,103 @@ public class TableHub {
         }
     }
 
+    public synchronized void configureOntop(com.ssafy.ontop.ai.ontop.OntopNpcService.Navigation navigation,
+            com.ssafy.ontop.ai.ontop.OntopIntent.Chooser chooser) {
+        ontopNpc = new com.ssafy.ontop.ai.ontop.OntopNpcService(navigation, chooser,
+                new com.ssafy.ontop.ai.ontop.OntopNpcService.Host() {
+                    @Override
+                    public Map<String, Map<String, WorldChannelRegistry.Position>> players() {
+                        var result = new HashMap<String, Map<String, WorldChannelRegistry.Position>>();
+                        for (Member member : members.values()) {
+                            String channel = channels.channelOf(member.userId());
+                            var position = channels.positionOf(member.userId());
+                            if (channel != null && position != null && isMapReady(member)) {
+                                result.computeIfAbsent(channel, ignored -> new HashMap<>())
+                                        .put(member.userId(), position);
+                            }
+                        }
+                        return result;
+                    }
+
+                    @Override
+                    public boolean available(String user) {
+                        var position = channels.positionOf(user);
+                        return position != null && !position.swimming() && !seating.containsKey(user)
+                                && watching.get(user) == null && channels.npcSnowballAvailable(user)
+                                && !emotes.isActive(user) && channels.carryState(user) == null
+                                && !mobilityRides.containsKey(user) && facilities.current(user) == null
+                                && channels.jumpmapRun(user).isEmpty()
+                                && follows.activeStates().stream().flatMap(state -> state.links().stream())
+                                        .noneMatch(link -> link.followerId().equals(user) || link.targetId().equals(user));
+                    }
+
+                    @Override
+                    public boolean canAttack(String user) {
+                        return !carryBusy(user);
+                    }
+
+                    @Override
+                    public boolean canGather(String channel, WorldChannelRegistry.Position position) {
+                        return channels.npcSnowPileInReach(channel, position);
+                    }
+
+                    @Override
+                    public double distance(String channel, WorldChannelRegistry.Position position, double yaw) {
+                        return channels.npcSnowballDistance(channel, position, yaw);
+                    }
+
+                    @Override
+                    public void state(String channel, com.ssafy.ontop.ai.ontop.OntopNpcService.View view) {
+                        publishOntop(channel, "WORLD_ONTOP_STATE", view);
+                    }
+
+                    @Override
+                    public void reply(String user, String requestId,
+                            com.ssafy.ontop.ai.ontop.OntopNpcService.Reply reply) {
+                        for (Member member : members.values()) {
+                            if (member.userId().equals(user) && channels.isInChannel(user, reply.channelId())
+                                    && isolatedChatGame(member).isEmpty()) {
+                                member.peer().offer(protocol.encode(requestId, "WORLD_ONTOP_DIALOGUE", reply));
+                            }
+                        }
+                    }
+
+                    @Override
+                    public void winter(String channel) {
+                        publishWinter(channel, null, null);
+                    }
+
+                    @Override
+                    public void windup(String channel, com.ssafy.ontop.world.winter.SnowballService.Windup motion) {
+                        publishOntop(channel, "WORLD_SNOWBALL_WINDUP", motion);
+                    }
+
+                    @Override
+                    public void shot(String channel, com.ssafy.ontop.world.winter.SnowballService.Event event) {
+                        if (!event.hitUserId().isEmpty() && snowballs.frozen(event.hitUserId(), System.nanoTime())) {
+                            var world = channels.winterFreeze(event.hitUserId(), true);
+                            if (world != null) {
+                                publishWorld(world, null, null);
+                            }
+                        }
+                        publishOntop(channel, "WORLD_SNOWBALL_EVENT", event);
+                    }
+                }, snowballs);
+    }
+
+    public synchronized void disableOntop() {
+        ontopNpc = null;
+    }
+
+    private void publishOntop(String channel, String type, Object payload) {
+        String encoded = protocol.encode(null, type, payload);
+        for (Member member : members.values()) {
+            if (channels.isInChannel(member.userId(), channel) && isMapReady(member)) {
+                member.peer().offer(encoded);
+            }
+        }
+    }
+
     private void publishWinter(String channel, Member actor, String requestId) {
         var state = snowballs.state(channel);
         for (Member target : members.values()) {
@@ -2841,9 +2948,18 @@ public class TableHub {
             var world = channels.winterFreeze(user, false);
             if (world != null) { publishWorld(world, null, null); publishWinter(world.channelId(), null, null); }
         }
+        long now = System.currentTimeMillis();
+        if (ontopNpc != null && now - ontopTickAt >= 100) {
+            double seconds = ontopTickAt == 0 ? .1 : (now - ontopTickAt) / 1000.0;
+            ontopTickAt = now;
+            ontopNpc.tick(now, seconds);
+        }
     }
 
     private void clearWinter(String user) {
+        if (ontopNpc != null) {
+            ontopNpc.leave(user, System.currentTimeMillis());
+        }
         String channel = channels.channelOf(user);
         snowballs.disconnected(user);
         channels.winterFreeze(user, false);
@@ -2908,6 +3024,9 @@ public class TableHub {
                 .map(target -> new com.ssafy.ontop.world.winter.SnowballService.Target(
                         target.userId(), channels.positionOf(target.userId())))
                 .filter(target -> target.position() != null && !target.position().swimming()).toList();
+        if (ontopNpc != null) {
+            targets = ontopNpc.targets(channel, user, targets);
+        }
         com.ssafy.ontop.world.winter.SnowballService.Event event;
         try {
             if (request.type().equals("WORLD_SNOWBALL_AIM")) {

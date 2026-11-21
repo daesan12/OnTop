@@ -1613,6 +1613,20 @@ public final class WorldPhysics implements AutoCloseable {
         });
     }
 
+    /** 계정으로 등록하지 않은 NPC도 실제 맵의 같은 눈더미·높이 조건으로 눈을 모은다. */
+    public boolean npcSnowPileInReach(double x, double y, double z) {
+        return call(() -> {
+            double centerY = scene.groundHeight(x, z) + number("halfHeight") + number("radius") + number("offset");
+            for (JsonNode pile : scene.data.path("winterSnowPiles")) {
+                if (Math.hypot(x - pile.path("x").asDouble(), z - pile.path("z").asDouble())
+                        <= pile.path("radius").asDouble() && Math.abs(y - centerY) <= .65) {
+                    return true;
+                }
+            }
+            return false;
+        });
+    }
+
     /** 눈덩이 포물선과 정적 구조물의 첫 충돌 거리를 반환한다. */
     public double snowballDistance(double x, double y, double z, double yaw) {
         return call(() -> {

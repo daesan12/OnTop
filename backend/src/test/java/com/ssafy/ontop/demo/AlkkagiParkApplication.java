@@ -81,7 +81,8 @@ public final class AlkkagiParkApplication {
                         FilterChain chain) throws ServletException, IOException {
                     String path = request.getRequestURI();
                     Object body = null;
-                    if (path.equals("/dev/alkkagi-park/session") && request.getMethod().equals("POST")) {
+                    if ((path.equals("/dev/alkkagi-park/session") || path.equals("/api/v1/local/ontop/session"))
+                            && request.getMethod().equals("POST")) {
                         String origin=request.getHeader("Origin");
                         if (origin != null && (properties.allowedOrigins() == null || !properties.allowedOrigins().contains(origin))) { response.setStatus(403); return; }
                         long id = switch(mapper.readTree(request.getInputStream()).path("role").asText()) { case "red" -> 101; case "green" -> 202; case "viewer" -> 505; default -> 0; };
