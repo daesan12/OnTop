@@ -25,6 +25,8 @@ public final class WorldPhysics implements AutoCloseable {
     private static final float CARRY_HEIGHT = 1.7f;
     private static final int MAX_THROW_TICKS = 90;
     private static final int CARRY_COOLDOWN_TICKS = 30;
+    // Bullet's 4cm skin can read a few float ulps deeper on a valid floor.
+    private static final float STAND_PENETRATION_TOLERANCE = .0401f;
     private static final double THROW_SPEED = 14;
     private static final double THROW_LIFT = 8;
     private static final double THROW_AIM_LIFT = 6;
@@ -660,11 +662,12 @@ public final class WorldPhysics implements AutoCloseable {
                 dz = a.throwZ / speed;
                 active = false;
             }
-            if (course != null) {
+            if (course != null || a.throwTicks > 0) {
                 // 기본 ghost sweep은 겹친 몸체만 검사해 얇은 발판을 약 27m/s 이상 낙하에서 지나칠 수 있다.
                 // 코스 활성 채널에서 빠르게 떨어지는 틱만 world sweep으로 경로 전체를 검사한다.
                 // 걷기·계단·벽·일반 점프는 기존 ghost sweep 그대로다.
-                a.body.setSweepTest(a.motion.velocityY() >= -FAST_FALL_SWEEP);
+                // Thrown capsules must sweep the whole path, including thin building walls.
+                a.body.setSweepTest(a.throwTicks == 0 && a.motion.velocityY() >= -FAST_FALL_SWEEP);
             }
             float stepX = (float) dx * speed * DT;
             float stepZ = (float) dz * speed * DT;
@@ -860,11 +863,17 @@ public final class WorldPhysics implements AutoCloseable {
                 a.courseRide = false;
             }
             if (!a.seated) updateInteriorArrival(a);
-            if (a.throwTicks > 0 && (--a.throwTicks == 0 || supported || a.swimming)) {
+            boolean thrownOverlap = a.throwTicks > 0 && !canOccupy(position);
+            boolean thrownEdge = a.throwTicks > 0 && supported && !a.swimming
+                    && !canStand(position.x, position.y, position.z);
+            if (a.throwTicks > 0 && (--a.throwTicks == 0 || supported || a.swimming || thrownOverlap)) {
                 // onGround도 층 모서리의 캡슐 겹침을 허용하므로 안전한 지지면을 확인한다.
-                if (supported && !a.swimming && !canOccupy(position)) {
+                if (thrownOverlap || thrownEdge) {
                     Vector3f raised = position.add(0, .12f, 0);
-                    Vector3f landing = canStand(raised.x, raised.y, raised.z) ? raised : nearbyStand(raised);
+                    // A wall hit in midair returns to the last non-penetrating
+                    // point of this flight before searching for a nearby floor.
+                    Vector3f landing = thrownOverlap && !supported && canOccupy(a.beforeStepPosition) ? a.beforeStepPosition.clone()
+                            : canStand(raised.x, raised.y, raised.z) ? raised : nearbyStand(raised);
                     if (landing == null) {
                         landing = carryExit(raised, a);
                     }
@@ -874,6 +883,7 @@ public final class WorldPhysics implements AutoCloseable {
                 }
                 a.throwTicks = 0;
                 a.throwX = a.throwZ = 0;
+                a.body.setSweepTest(true);
                 stopNow(entry.getKey());
                 resetMotion(a);
             }
@@ -1640,7 +1650,7 @@ public final class WorldPhysics implements AutoCloseable {
         boolean[] blocked = {false};
         space.contactTest(standProbe, event -> {
             var other = event.getObjectA() == standProbe ? event.getObjectB() : event.getObjectA();
-            if (other.getCollisionGroup() == 2 && event.getDistance1() < -.04f) { blocked[0] = true; }
+            if (other.getCollisionGroup() == 2 && event.getDistance1() < -STAND_PENETRATION_TOLERANCE) { blocked[0] = true; }
         });
         return !blocked[0];
     }
@@ -1672,7 +1682,7 @@ public final class WorldPhysics implements AutoCloseable {
             probe.setPhysicsLocation(center);
             boolean[] blocked = {false};
             space.contactTest(probe, event -> {
-                if (event.getDistance1() < -0.04f) {
+                if (event.getDistance1() < -STAND_PENETRATION_TOLERANCE) {
                     blocked[0] = true;
                 }
             });
