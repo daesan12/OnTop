@@ -38,26 +38,26 @@ export function DavinciPanel() {
   const state = game.davinci, myTurn = !spectator && state.turnUserId === own
   const shuffling = openingActive(state, estimatedServerTime())
   const tools = <>
-    <GameHudClock embedded game="흑백수사" label={shuffling ? '패를 섞고 나누는 중' : state.stage === 'SETUP' ? '내 패를 확인해주세요' : myTurn ? '내 차례' : `${names[state.turnUserId ?? ''] ?? '상대'}님의 차례`}
+    <GameHudClock game="흑백수사" label={shuffling ? '패를 섞고 나누는 중' : state.stage === 'SETUP' ? '내 패를 확인해주세요' : myTurn ? '내 차례' : `${names[state.turnUserId ?? ''] ?? '상대'}님의 차례`}
       remainingMs={state.turnDeadline ? Date.parse(state.turnDeadline) - estimatedServerTime() : null} limitMs={120000} myTurn={myTurn}
       phase={shuffling ? '섞는 중' : state.status === 'FINISHED' ? '종료' : undefined} hint="중앙 패 클릭 · R 무작위 뽑기" />
-    <GameHudMenu embedded>
+    <GameHudMenu>
       <button type="button" data-icon="manual" onClick={() => openManual('davinci')}>게임 설명</button>
       <button type="button" data-icon="refresh" onClick={() => { if (!connected) runtime.reconnect(); else void runtime.checkRecovery() }}>경기 상태 확인</button>
       {spectator ? <button type="button" data-icon="exit" onClick={() => void runtime.unwatchGame()}>관전 종료</button>
         : <OmokSurrender key={game.gameId} context={{ userId: own, gameId: game.gameId, version: game.version }} disabled={!enabled || pending} />}
     </GameHudMenu></>
-  const content = <DavinciScreen tabletop gameId={game.gameId} state={game.davinci} hand={game.davinciHand} viewerId={spectator ? '' : own} names={names}
+  const content = <>{tools}<DavinciScreen tabletop gameId={game.gameId} state={game.davinci} hand={game.davinciHand} viewerId={spectator ? '' : own} names={names}
     enabled={enabled} busy={pending || worldPending} error={!connected ? '연결이 끊겼어요. 다시 연결한 뒤 경기 상태를 확인해주세요.' : error}
     act={input => { void runtime.actDavinci?.(input) }} recover={() => { if (!connected) runtime.reconnect(); else void runtime.checkRecovery() }}
-    topActions={tools}
+    topActions={null}
     resultActions={spectator ? <button onClick={() => void runtime.unwatchGame()}>관전 종료</button> : <>
       <button onClick={() => void runtime.checkResult()}>정산 결과 확인</button><button className="davinci-primary" disabled={!gathering?.canReturn || pending} onClick={returnToWaiting}>대기실로 돌아가기</button></>}
     rewardStatus={spectator ? undefined : result ? resultSettlement(result) : '서버의 결과·정산을 확인하고 있어요.'}
     ping={{ tileId: ping?.gameId === game.gameId && ping.basedOnVersion === game.version && ping.until > now ? ping.tileId : null,
       canSend: connected && spectator && game.davinci.status === 'PLAYING' && game.davinci.stage !== 'SETUP',
       send: (userId, tileId) => runtime.pingDavinci?.(userId, tileId) ?? Promise.resolve(false) }}
-  />
+  /></>
   return createPortal(spectator && state.status === 'FINISHED'
     ? <DavinciVictory key={game.gameId} gameId={game.gameId} headline={`${state.winnerUserIds.map(id => names[id]).join(' · ')} 승리`}>{content}</DavinciVictory>
     : content, document.querySelector('.park-page') ?? document.body)
