@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { parseRummikub, parseRummikubHand, physical, validMeld, type Placed, type Rummikub } from '../../src/game/rummikub/protocol'
 import { parseGame } from '../../src/game/protocol'
 import { gameSelection } from '../../src/features/tableLobby/model'
+import { sortRummikubTiles, toggleRummikubTile, useRummikubDraft } from '../../src/game/rummikub/draft'
 
 const tile = (color: string, number: number, copy = 0): Placed => ({ id: `${color}-${number}-${copy}`, color: color as Placed['color'], number })
 const fresh = (): Rummikub => ({
@@ -13,6 +14,18 @@ const fresh = (): Rummikub => ({
 })
 const hand = () => ({ userId: '101', tiles: Array.from({ length: 14 }, (_, i) => physical(`RED-${Math.floor(i / 2) + 1}-${i % 2}`)!) })
 describe('수패마루 계약', () => {
+  it('3D 받침대와 조작 목록은 같은 정렬을 쓰고 원본 손패를 바꾸지 않는다', () => {
+    const tiles = [physical('RED-12-0')!, physical('BLUE-3-0')!, physical('BLACK-10-0')!]
+    expect(sortRummikubTiles(tiles, 'number').map(t=>t.number)).toEqual([3,10,12])
+    expect(sortRummikubTiles(tiles, 'color').map(t=>t.color)).toEqual(['BLACK','BLUE','RED'])
+    expect(tiles.map(t=>t.number)).toEqual([12,3,10])
+  })
+  it('공개 조커를 고르면 현재 대체 역할을 조작기에 유지한다', () => {
+    useRummikubDraft.setState({draft:[[{id:'JOKER-0',color:'BLACK',number:10}]],selected:[],jokerColor:'RED',jokerNumber:1})
+    toggleRummikubTile('JOKER-0')
+    expect(useRummikubDraft.getState()).toMatchObject({selected:['JOKER-0'],jokerColor:'BLACK',jokerNumber:10})
+    useRummikubDraft.setState({source:null,draft:null,selected:[],jokerColor:'RED',jokerNumber:1})
+  })
   it('4색 고유 타일과 조커만 허용한다', () => {
     expect(physical('BLUE-13-1')).toEqual({ id: 'BLUE-13-1', color: 'BLUE', number: 13 })
     expect(physical('GREEN-1-0')).toBeNull()

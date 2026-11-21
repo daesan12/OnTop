@@ -67,7 +67,7 @@
 .rummikub-panel:has(.rummi-board-index) button {min-height:30px;font-size:12px;padding:5px 8px;}
 .rummikub-panel:has(.rummi-board-index) .rummi-opponents {gap:4px;padding:7px;}
 .rummikub-panel:has(.rummi-board-index) .rummi-opponents>div {gap:5px;padding:4px 7px;}
-.rummikub-panel:has(.rummi-board-index) .rummi-board {flex:none;min-height:0;max-height:150px;padding:8px;gap:8px;color:#f9ebc8;}
+.rummikub-panel:has(.rummi-board-index) .rummi-board {flex:none;min-height:0;max-height:min(30dvh,260px);padding:8px;gap:8px;color:#f9ebc8;}
 .rummikub-panel:has(.rummi-board-index) .rummi-empty {font-size:12px;margin:4px;color:#f9ebc8;}
 .rummikub-panel:has(.rummi-board-index) .rummi-rack {background:none;display:flex;flex-wrap:wrap;gap:3px;min-height:0;padding:8px;}
 .rummikub-panel:has(.rummi-board-index) .rummi-tile {width:27px;height:36px;padding:0;}

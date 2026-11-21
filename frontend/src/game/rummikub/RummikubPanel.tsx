@@ -22,7 +22,7 @@ export function RummikubPanel() {
   if (!g) return <section className="rummikub-panel"><p>수패마루 상태를 확인하고 있습니다.</p><button onClick={() => void runtime.checkRecovery()}>경기 복구 다시 확인</button></section>
   const r = g.rummikub, player = g.role === 'PLAYER'
   const name = (id: string) => id === own ? '나' : profiles[id]?.nickname ?? `참가자 ${r.players.findIndex(p => p.userId === id) + 1}`
-  const remaining = r.turnDeadline ? Math.max(0, Math.ceil((Date.parse(r.turnDeadline) - now) / 1000)) : null
+  const remaining = r.turnDeadline ? Math.min(r.turnTimeLimitMs / 1000, Math.max(0, Math.ceil((Date.parse(r.turnDeadline) - now) / 1000))) : null
   const canAct = connection === 'connected' && canActRummikub(own, { kind: 'draw' }, now)
   const send = (input: RummikubInput) => { void runtime.actRummikub?.(input) }
   const status = r.status === 'FINISHED' ? `${r.endReason === 'EMPTY_HAND' ? '수패마루! · ' : ''}${r.winnerUserIds.map(name).join(' · ')} 승리`

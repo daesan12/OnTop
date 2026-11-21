@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { useRummikubDraft, toggleRummikubTile } from './draft'
+import { useRummikubDraft, toggleRummikubTile, sortRummikubTiles } from './draft'
 import { COLOR_LABEL, COLORS, physical, validMeld, type Color, type Placed, type Rummikub, type Tile } from './protocol'
 
 function TileButton({ tile, selected, disabled, onClick }: {
@@ -27,9 +27,7 @@ export function RummikubTable({ state, tiles, own, editable, sending, error, not
   const setJokerNumber = (jokerNumber: number) => useRummikubDraft.setState({jokerNumber})
   const registered = state.players.find(p => p.userId === own)?.registered ?? false
   const ownIds = new Set(tiles.map(t => t.id)), placedIds = new Set(draft.flat().map(t => t.id))
-  const rack = tiles.filter(t => !placedIds.has(t.id)).sort((a, b) => sort === 'color'
-    ? COLORS.indexOf(a.color!) - COLORS.indexOf(b.color!) || a.number - b.number
-    : a.number - b.number || COLORS.indexOf(a.color!) - COLORS.indexOf(b.color!))
+  const rack = sortRummikubTiles(tiles.filter(t => !placedIds.has(t.id)), sort)
   const added = draft.flat().filter(t => ownIds.has(t.id))
   const points = added.reduce((sum, t) => sum + t.number, 0)
   const dirty = JSON.stringify(draft) !== JSON.stringify(state.melds)

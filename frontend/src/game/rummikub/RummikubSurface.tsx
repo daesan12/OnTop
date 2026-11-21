@@ -7,7 +7,7 @@ import { useSession } from '../../network/worldClient'
 import { useGame } from '../store'
 import { useTableGameCode } from '../../features/tableLobby/tableGamePresentation'
 import { canActRummikub } from './actions'
-import { useRummikubDraft, toggleRummikubTile } from './draft'
+import { useRummikubDraft, toggleRummikubTile, sortRummikubTiles } from './draft'
 import type { Tile, Placed } from './protocol'
 
 const ink = { BLACK:'#242320', BLUE:'#164d99', RED:'#a82620', YELLOW:'#9e6400' }
@@ -21,9 +21,10 @@ function Block({tile,x,z,selected,enabled}:{tile:Tile|Placed;x:number;z:number;s
   const [face,joker] = useLoader(TextureLoader, ['/art/rummikub/tile-ontop.png','/art/rummikub/joker-ontop.png'])
   return <group position={[x,selected?.1:.035,z]} onClick={e=>{e.stopPropagation();if(enabled)toggleRummikubTile(tile.id)}}>
     <mesh><boxGeometry args={[.135,.04,.18]}/><meshStandardMaterial color={selected?'#f0be54':'#795036'}/></mesh>
-    <mesh rotation={[-Math.PI/2,0,0]} position={[0,.022,0]}><planeGeometry args={[.14,.19]}/><meshBasicMaterial map={face} transparent/></mesh>
-    {tile.id.startsWith('JOKER') ? <mesh rotation={[-Math.PI/2,0,0]} position={[0,.024,0]}><planeGeometry args={[.1,.12]}/><meshBasicMaterial map={joker} transparent/></mesh>
-      : <mesh rotation={[-Math.PI/2,0,0]} position={[0,.025,-.01]}><planeGeometry args={[.1,.115]}/><meshBasicMaterial map={numberMap(tile)} transparent/></mesh>}
+    <mesh renderOrder={1} rotation={[-Math.PI/2,0,0]} position={[0,.022,0]}><planeGeometry args={[.14,.19]}/><meshBasicMaterial map={face} transparent depthWrite={false}/></mesh>
+    {tile.id.startsWith('JOKER') ? <mesh renderOrder={2} rotation={[-Math.PI/2,0,0]} position={[0,.024,0]}><planeGeometry args={[.1,.12]}/><meshBasicMaterial map={joker} transparent depthWrite={false}/></mesh>
+      : <mesh renderOrder={2} rotation={[-Math.PI/2,0,0]} position={[0,.025,-.01]}><planeGeometry args={[.1,.115]}/><meshBasicMaterial map={numberMap(tile)} transparent depthWrite={false}/></mesh>}
+    {tile.id.startsWith('JOKER') && tile.number>0 && <mesh renderOrder={3} rotation={[-Math.PI/2,0,0]} position={[.035,.027,.055]}><planeGeometry args={[.055,.06]}/><meshBasicMaterial map={numberMap(tile)} transparent depthWrite={false}/></mesh>}
   </group>
 }
 
@@ -38,7 +39,7 @@ export function RummikubSurface({anchor}:{anchor:TableAnchor}) {
   if(!selectedGame&&!relevant)return null
   const melds=relevant?(ui.source===g!.rummikub ? ui.draft??g!.rummikub.melds : g!.rummikub.melds):[]
   const publicIds=new Set(melds.flat().map(t=>t.id))
-  const hand=relevant&&g?.role==='PLAYER'?(g.rummikubHand?.tiles??[]).filter(t=>!publicIds.has(t.id)):[]
+  const hand=sortRummikubTiles(relevant&&g?.role==='PLAYER'?(g.rummikubHand?.tiles??[]).filter(t=>!publicIds.has(t.id)):[],ui.sort)
   const enabled=relevant&&s.status==='connected'&&canActRummikub(s.sessionId,{kind:'draw'})
   const width=Math.max(14,...melds.map(m=>m.length)), factor=Math.min(1,14/width,5/Math.max(5,melds.length))
   return <group name={`supae-table-${anchor.id}`} scale={.6} position={[0,1.1,0]} rotation={[0,seat?Math.atan2(seat.x,seat.z):0,0]}>
