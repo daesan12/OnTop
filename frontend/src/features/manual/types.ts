@@ -8,6 +8,7 @@ export const manualGameIds = [
   "onecard",
   "bridge",
   "ledger",
+  "rummikub",
   "halligalli",
   "janggi",
   "fishing",

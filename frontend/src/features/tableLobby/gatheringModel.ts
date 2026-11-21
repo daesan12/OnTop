@@ -4,7 +4,7 @@ import { TABLE_GAMES } from './model'
 import { omokEndReason } from '../../game/omokPresentation'
 import { LEDGER_END_REASON } from '../../game/ledger/protocol'
 
-export const GAME_MANUAL = { STONE_RUMBLE: 'stone-rumble', OMOK: 'gomoku', DICE: 'farkle', ONE_CARD: 'onecard', LIAR_BRIDGE: 'bridge', DICE_LEDGER: 'ledger', HALLI_GALLI: 'halligalli' } as const
+export const GAME_MANUAL = { RUMMIKUB: 'rummikub', STONE_RUMBLE: 'stone-rumble', OMOK: 'gomoku', DICE: 'farkle', ONE_CARD: 'onecard', LIAR_BRIDGE: 'bridge', DICE_LEDGER: 'ledger', HALLI_GALLI: 'halligalli' } as const
 
 interface Context {
   table: TableState; ownId: string; game: Game | null; result: Result | null
@@ -36,11 +36,12 @@ export function gatheringModel({ table, ownId, game, result, start, nickname }: 
   const score = (id: string) => {
     const value = game?.dice ? game.dice.scores[game.dice.players.indexOf(id)] : game?.bridge?.players.find(p => p.userId === id)?.score
       ?? game?.ledger?.players.find(p => p.userId === id)?.total
+      ?? game?.rummikub?.players.find(p => p.userId === id)?.score
     return typeof value === 'number' ? `${value.toLocaleString('ko-KR')}점` : ''
   }
   const winners = !finished || invalid ? [] : result
     ? result.participants.filter(p => p.result === 'WIN').map(p => p.userId)
-    : game?.stone?.winnerUserIds ?? game?.onecard?.winnerUserIds ?? game?.bridge?.winnerUserIds ?? game?.ledger?.winnerUserIds ?? game?.halli?.winnerUserIds ?? (game?.omok?.winnerUserId || game?.dice?.winnerUserId ? [game.omok?.winnerUserId ?? game.dice?.winnerUserId ?? ''] : [])
+    : game?.rummikub?.winnerUserIds ?? game?.stone?.winnerUserIds ?? game?.onecard?.winnerUserIds ?? game?.bridge?.winnerUserIds ?? game?.ledger?.winnerUserIds ?? game?.halli?.winnerUserIds ?? (game?.omok?.winnerUserId || game?.dice?.winnerUserId ? [game.omok?.winnerUserId ?? game.dice?.winnerUserId ?? ''] : [])
   const rows = result ? result.participants.map((p, i) => ({
     playerId: p.userId, nickname: nickname(p.userId), seat: i, winner: !invalid && p.result === 'WIN', ready: false,
     label: participantResultLabel(result.status, p.result), score: invalid ? '' : score(p.userId),
@@ -63,6 +64,7 @@ export function gatheringModel({ table, ownId, game, result, start, nickname }: 
       : draw ? '무승부입니다' : '경기가 종료되었어요',
     rows, own, settled,
     reason: !finished ? '' : code === 'OMOK' && !invalid ? `종료 사유: ${omokEndReason(endReason ?? null)}`
+      : code === 'RUMMIKUB' && endReason ? `종료 사유: ${({ EMPTY_HAND: '손패를 모두 비웠습니다.', STALEMATE: '더미 소진 후 전원 패스', LAST_PLAYER_STANDING: '마지막 참가자 승리' } as Record<string,string>)[endReason] ?? endReason}`
       : code === 'ONE_CARD' && endReason === 'EMPTY_HAND' && !invalid ? '손패를 모두 비웠습니다.'
       : code === 'DICE_LEDGER' && endReason && LEDGER_END_REASON[endReason] && !invalid ? `종료 사유: ${LEDGER_END_REASON[endReason]}`
       : endReason ? `종료 사유: ${endReason}` : '',

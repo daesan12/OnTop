@@ -8,6 +8,7 @@ import { OmokPanel } from './OmokPanel'
 import { FarklePanel } from './farkle/FarklePanel'
 import { OneCardPanel } from './onecard/OneCardPanel'
 import { BridgePanel } from './bridge/BridgePanel'
+import { RummikubPanel } from './rummikub/RummikubPanel'
 import { LedgerPanel } from './ledger/LedgerPanel'
 import { HalliGalliPanel } from './halligalli/HalliGalliPanel'
 import { useGathering } from '../features/tableLobby/gathering'
@@ -40,11 +41,13 @@ export function GamePanel() {
   const bridge = useGame(s => !!s.game?.bridge || (s.start?.gameCode === 'LIAR_BRIDGE' && ['PLAYING', 'SETTLING'].includes(s.start.phase)))
   const ledger = useGame(s => !!s.game?.ledger || (s.start?.gameCode === 'DICE_LEDGER' && ['PLAYING', 'SETTLING'].includes(s.start.phase)))
   const halli = useGame(s => !!s.game?.halli || (s.start?.gameCode === 'HALLI_GALLI' && ['PLAYING', 'SETTLING'].includes(s.start.phase)))
+  const rummikub = useGame(s => !!s.game?.rummikub || s.start?.gameCode === 'RUMMIKUB' && ['PLAYING','SETTLING'].includes(s.start.phase))
   if (npcResult) return <NpcResultPanel practice={npcResult}/>
   if (terminalPlayer && !seated) return null
   if (stone) return <Suspense fallback={<StoneLoadingTips ready={0} total={stonePlayers} ownReady={false} error="" retry={() => void runtime.checkRecovery()} />}><StoneRumblePanel /></Suspense>
   if (alkkagi) return <AlkkagiPanel />
   if (spectatorResult) {
+    if (spectatorResult.rummikub) return <RummikubPanel />
     if (spectatorResult.dice) return <FarklePanel />
     if (spectatorResult.ledger) return <LedgerPanel />
     if (spectatorResult.halli) return <HalliGalliPanel />
@@ -66,5 +69,5 @@ export function GamePanel() {
     <FinishedForfeitStatus />
     <button disabled={pending || !connected} onClick={() => void runtime.checkResult()}>정산 결과 확인</button>
   </section>
-  return halli ? <HalliGalliPanel /> : ledger ? <LedgerPanel /> : bridge ? <BridgePanel /> : card ? <OneCardPanel /> : dice ? <FarklePanel /> : <OmokPanel />
+  return rummikub ? <RummikubPanel /> : halli ? <HalliGalliPanel /> : ledger ? <LedgerPanel /> : bridge ? <BridgePanel /> : card ? <OneCardPanel /> : dice ? <FarklePanel /> : <OmokPanel />
 }
