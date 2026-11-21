@@ -3,7 +3,8 @@ import { parseRummikub, parseRummikubHand, physical, validMeld, type Placed, typ
 import { parseGame } from '../../src/game/protocol'
 import { gameSelection } from '../../src/features/tableLobby/model'
 import { sortRummikubTiles, toggleRummikubTile, useRummikubDraft } from '../../src/game/rummikub/draft'
-import { layoutMelds } from '../../src/game/rummikub/layout'
+import { layoutMelds, PUBLIC_BASE_SCALE, rackLayout } from '../../src/game/rummikub/layout'
+import { rummikubCameraPose } from '../../src/game/rummikub/camera'
 
 const tile = (color: string, number: number, copy = 0): Placed => ({ id: `${color}-${number}-${copy}`, color: color as Placed['color'], number })
 const fresh = (): Rummikub => ({
@@ -15,20 +16,38 @@ const fresh = (): Rummikub => ({
 })
 const hand = () => ({ userId: '101', tiles: Array.from({ length: 14 }, (_, i) => physical(`RED-${Math.floor(i / 2) + 1}-${i % 2}`)!) })
 describe('수패마루 계약', () => {
-  it('여섯 개의 짧은 조합은 축소 없이 두 열로 보여 받침대 영역을 비운다', () => {
+  it('공개 타일은 손패보다 작게 배치하고 여섯 조합을 두 줄 안에 담는다', () => {
     const l = layoutMelds([3,3,3,5,3,3])
-    expect(l.scale).toBe(1)
-    expect(new Set(l.positions.map(p=>p.z)).size).toBe(3)
-    expect(l.positions.every(p=>p.z-.65+.125<.25)).toBe(true)
+    expect(l.scale).toBe(PUBLIC_BASE_SCALE)
+    expect(new Set(l.positions.map(p=>p.z)).size).toBe(2)
+    expect(l.positions.every(p=>p.z*l.scale+l.originZ+.131*l.scale<=l.bottom)).toBe(true)
   })
-  it('최대 길이 조합과 최대 조합 수가 공개 판 너비와 받침대 경계를 넘지 않는다', () => {
-    for(const lengths of [[13,13,13],Array(35).fill(3)]) {
-      const l=layoutMelds(lengths)
+  it('후반 104~106개와 최대 35조합을 받침대와 겹치지 않게 모두 담는다', () => {
+    for(const [lengths,hand] of [[Array(26).fill(4),2],[Array(35).fill(3),1],[[...Array(34).fill(3),4],0],[Array(8).fill(13),2],[[13,13,13,13],42]] as [number[],number][]) {
+      const l=layoutMelds(lengths,hand),rack=rackLayout(hand)
+      expect(l.scale).toBeGreaterThan(.35)
       l.positions.forEach((p,i)=>{
         expect((Math.abs(p.x-.07)+(lengths[i]!*.212+.14)/2)*l.scale).toBeLessThanOrEqual(1.10001)
-        expect(p.z*l.scale-.65+.125*l.scale).toBeLessThan(.25)
+        expect(p.z*l.scale+l.originZ+.131*l.scale).toBeLessThanOrEqual(l.bottom)
+        expect(p.z*l.scale+l.originZ+.131*l.scale).toBeLessThanOrEqual(.12)
+        expect(p.z*l.scale+l.originZ+.131*l.scale).toBeLessThan(rack.z-rack.depth/2*rack.scale)
       })
     }
+  })
+  it('하단바 시점은 네 좌석 모두 테이블 중심을 보고 일정한 거리를 유지한다',()=>{
+    for(const [x,z] of [[0,2],[2,0],[0,-2],[-2,0]]) {
+      const pose=rummikubCameraPose([10,4,20],x!,z!,1.2)
+      expect(pose.target).toEqual([10,5.1,20])
+      expect(Math.hypot(pose.position[0]-10,pose.position[2]-20)).toBeCloseTo(1.62)
+      expect(pose.position[1]).toBeCloseTo(7.64)
+    }
+  })
+  it('세로 화면에서는 판 너비를 맞추되 가로 화면의 배율은 유지한다',()=>{
+    const normal=rummikubCameraPose([0,0,0],0,2,1,{width:1366,height:768})
+    const portrait=rummikubCameraPose([0,0,0],0,2,1,{width:390,height:844})
+    expect(normal.position[2]).toBeCloseTo(1.35)
+    expect(portrait.position[2]/normal.position[2]).toBeCloseTo(.9/(390/844))
+    expect(portrait.target).toEqual(normal.target)
   })
   it('3D 받침대와 조작 목록은 같은 정렬을 쓰고 원본 손패를 바꾸지 않는다', () => {
     const tiles = [physical('RED-12-0')!, physical('BLUE-3-0')!, physical('BLACK-10-0')!]

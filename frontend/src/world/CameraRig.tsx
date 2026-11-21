@@ -32,6 +32,7 @@ import { seatScope, seatedLook, resetSeatedLook, useTableLobby, SEATED_LOOK } fr
 import { useDiceUI, diceCamera, holdBustCamera } from '../game/farkle/controls'
 import { DICE_CAMERA, DICE_SPECTATOR_CAMERA, diceFocusActive, diceSpectatorCameraPose } from '../game/farkle/camera'
 import { LEDGER_CAMERA, ledgerCameraPose, ledgerFocusActive } from '../game/ledger/camera'
+import { rummikubCameraPose } from '../game/rummikub/camera'
 import { HALLI_CAMERA, halliCameraPose, halliPlayerViewActive, halliSpectatorCameraPose, halliSpectatorViewActive } from '../game/halligalli/camera'
 import { roamingFirstPerson } from './roamingCamera'
 import { rememberRoamingView, restoreRoamingView } from './cameraReturn'
@@ -466,7 +467,9 @@ export function CameraRig() {
     } else if (ledgerFocus) {
       const anchor = TABLES.find(t => t.id === avatar.tableId)!
       const seat = tableSeats(anchor, session.seatIndex + 1)[session.seatIndex] ?? tableSeats(anchor)[0]!
-      const scale = tableScale(anchor), pose = ledgerCameraPose(anchor.position, seat.x * scale, seat.z * scale, scale)
+      const scale = tableScale(anchor), pose = game?.rummikub
+        ? rummikubCameraPose(anchor.position, seat.x * scale, seat.z * scale, scale,{width:gl.domElement.clientWidth,height:gl.domElement.clientHeight})
+        : ledgerCameraPose(anchor.position, seat.x * scale, seat.z * scale, scale)
       state.desired.set(...pose.position)
       state.look.set(...pose.target)
     } else if (diceSpectator) {
@@ -478,7 +481,7 @@ export function CameraRig() {
       const anchor = closeAnchor ?? watchedAnchor ?? TABLES.find((t) => t.id === avatar.tableId)!
       state.look.set(
         // 주사위 장부 관전은 오른쪽 2D 장부에 판이 가리지 않도록 화면 왼쪽에 둔다.
-        anchor.position[0] + (spectatorBoard && (game?.ledger || game?.rummikub) ? LEDGER_CAMERA.panOffset * tableScale(anchor) : 0),
+        anchor.position[0] + (spectatorBoard && game?.ledger ? LEDGER_CAMERA.panOffset * tableScale(anchor) : 0),
         anchor.position[1] + GOMOKU.boardY,
         anchor.position[2],
       )

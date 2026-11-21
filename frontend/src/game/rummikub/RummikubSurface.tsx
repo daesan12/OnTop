@@ -29,8 +29,8 @@ function bevel(width: number, length: number, depth: number, radius: number) {
   return geometry
 }
 const tileBody = bevel(.185, .25, .055, .02), selectedBody = bevel(.207, .272, .006, .022)
-const rackBody = bevel(2.07, .82, .075, .04), rackStep = bevel(2.07, .38, .07, .025)
-const rail = new BoxGeometry(2.08, .045, .045), feet = new BoxGeometry(.08, .025, .76)
+const rackBody = bevel(2.07, .52, .075, .04), rackStep = bevel(2.07, .24, .1, .025), backrest = bevel(2.07,.3,.045,.025)
+const rail = new BoxGeometry(2.08, .045, .045), feet = new BoxGeometry(.08, .025, .47)
 const labelPlane = new PlaneGeometry(.157, .211), logoPlane = new PlaneGeometry(.165, .111)
 const badgePlane = new PlaneGeometry(.085, .085), rolePlane = new PlaneGeometry(.065, .07)
 const ivory = new MeshBasicMaterial({ color: '#fff3d7' })
@@ -68,7 +68,7 @@ function Block({ tile, x, z, y = 0, selected, enabled, held = false, logo, begin
   begin?(event: ThreeEvent<PointerEvent>, tile: Tile | Placed): void; ghost?: boolean
 }) {
   const joker = tile.id.startsWith('JOKER')
-  return <group name={`${ghost ? 'supae-ghost' : 'supae-tile'}-${tile.id}`} position={[x, y + (selected ? .09 : .01), z]} rotation={[held ? .42 : 0, 0, 0]} scale={held ? 1.17 : 1}
+  return <group name={`${ghost ? 'supae-ghost' : 'supae-tile'}-${tile.id}`} position={[x, y + (selected ? .065 : .01), z]} rotation={[held ? 1.08 : 0, 0, 0]}
     onPointerDown={e => { if (enabled) begin?.(e,tile); else e.stopPropagation() }} onClick={e => e.stopPropagation()}>
     {selected && <mesh geometry={selectedBody} material={selection} dispose={null} position={[0, -.012, 0]} raycast={ghost ? noRaycast : undefined} />}
     <mesh geometry={tileBody} material={tileMaterials} dispose={null} raycast={ghost ? noRaycast : undefined} />
@@ -94,28 +94,29 @@ export function RummikubSurface({ anchor }: { anchor: TableAnchor }) {
   const enabled = relevant && s.status === 'connected' && canActRummikub(s.sessionId, { kind: 'draw' })
   const drag = useTileDrag(root, {enabled,gameId:g?.gameId??'',version:g?.version??-1,state:relevant ? g!.rummikub : null,melds,
     hand:relevant && g?.role==='PLAYER' ? g.rummikubHand?.tiles??[] : []})
-  const layout = layoutMelds(melds.map(m => m.length))
-  const {racks:rackCount,scale:rackScale,z:rackZ} = rackLayout(hand.length)
+  const layout = layoutMelds(melds.map(m => m.length),hand.length)
+  const {racks:rackCount,scale:rackScale,z:rackZ,step:rackStepZ} = rackLayout(hand.length)
   if (!selectedGame && !relevant) return null
   return <group ref={root} name={`supae-table-${anchor.id}`} scale={.6} position={[0, 1.1, 0]} rotation={[0, seat ? Math.atan2(seat.x, seat.z) : 0, 0]}>
     <mesh position={[0, -.018, -.15]}><boxGeometry args={[2.35, .025, 1.65]} /><meshStandardMaterial color="#244d40" roughness={.85} /></mesh>
     <group ref={drag.marker} visible={false} raycast={noRaycast}><mesh raycast={noRaycast}><boxGeometry args={[1,.005,1]}/><meshBasicMaterial color="#ffdb83" transparent opacity={.35} depthWrite={false}/></mesh></group>
-    <group scale={layout.scale} position={[0, 0, -.65]}>{melds.map((meld, row) => <group key={row} position={[layout.positions[row]!.x, 0, layout.positions[row]!.z]}>
+    <group scale={layout.scale} position={[0, 0, layout.originZ]}>{melds.map((meld, row) => <group key={row} position={[layout.positions[row]!.x, 0, layout.positions[row]!.z]}>
       <mesh geometry={badgePlane} material={label(String(row + 1), '#ffe1a2', true)} dispose={null} rotation={[-Math.PI / 2, 0, 0]} position={[-(meld.length - 1) * .106 - .19, .065, 0]} />
       {meld.map((tile, i) => <Block key={tile.id} tile={tile} x={(i - (meld.length - 1) / 2) * .212} z={0} logo={logo}
         begin={drag.begin} selected={ui.selected.includes(tile.id)} enabled={enabled && (g!.rummikub.players.find(p => p.userId === s.sessionId)?.registered === true || !!g!.rummikubHand?.tiles.some(t => t.id === tile.id))} />)}
     </group>)}</group>
     {relevant && !!g?.rummikubHand?.tiles.length && <group position={[0, .025, rackZ]} scale={rackScale}>
-      {Array.from({ length: rackCount }, (_, rack) => <group key={rack} position={[0, 0, rack * .85]}>
+      {Array.from({ length: rackCount }, (_, rack) => <group key={rack} position={[0, 0, rack * rackStepZ]}>
         <mesh geometry={rackBody} material={wood} dispose={null} />
-        <mesh geometry={rackStep} material={wood} dispose={null} position={[0, .075, -.2]} />
-        <mesh geometry={rail} material={gold} dispose={null} position={[0, .075, .4]} />
-        <mesh geometry={rail} material={gold} dispose={null} position={[0, .16, 0]} />
+        <mesh geometry={backrest} material={wood} dispose={null} position={[0,.17,-.25]} rotation={[1.08,0,0]}/>
+        <mesh geometry={rackStep} material={wood} dispose={null} position={[0, .065, -.13]} />
+        <mesh geometry={rail} material={gold} dispose={null} position={[0, .085, .25]} />
+        <mesh geometry={rail} material={gold} dispose={null} position={[0, .175, -.005]} />
         {[-.96, .96].map(x => <mesh key={x} geometry={feet} material={gold} dispose={null} position={[x, -.012, 0]} />)}
         {hand.slice(rack * 14, rack * 14 + 14).map((tile, i) => <Block key={tile.id} tile={tile} x={(i % 7 - 3) * .275}
-          z={i < 7 ? -.2 : .19} y={i < 7 ? .17 : .08} logo={logo} begin={drag.begin} held selected={ui.selected.includes(tile.id)} enabled={enabled} />)}
+          z={i < 7 ? -.14 : .12} y={i < 7 ? .27 : .18} logo={logo} begin={drag.begin} held selected={ui.selected.includes(tile.id)} enabled={enabled} />)}
       </group>)}
     </group>}
-    <group ref={drag.ghost} visible={false}>{drag.carried.map((tile,i)=><Block key={tile.id} tile={tile} x={(i%7)*.21} z={Math.floor(i/7)*.27} logo={logo} selected={false} enabled={false} ghost/>)}</group>
+    <group ref={drag.ghost} visible={false} scale={layout.scale}>{drag.carried.map((tile,i)=><Block key={tile.id} tile={tile} x={(i%7)*.21} z={Math.floor(i/7)*.27} logo={logo} selected={false} enabled={false} ghost/>)}</group>
   </group>
 }

@@ -55,8 +55,8 @@ describe('수패마루 드래그 초안',()=>{
   })
   it('보이는 조합과 받침대에만 스냅하고 테이블 밖에는 놓지 않는다',()=>{
     const melds=[[tile('RED',4),tile('RED',5),tile('RED',6)]]
-    const center=layoutMelds([3]).positions[0]!
-    expect(tileDropTarget(melds,14,center.x,-.65)?.destination).toMatchObject({kind:'meld',index:0,replace:'RED-5-0'})
+    const layout=layoutMelds([3]),center=layout.positions[0]!
+    expect(tileDropTarget(melds,14,center.x*layout.scale,layout.originZ)?.destination).toMatchObject({kind:'meld',index:0,replace:'RED-5-0'})
     expect(tileDropTarget(melds,14,0,.6)?.destination.kind).toBe('rack')
     expect(tileDropTarget(melds,14,.8,-.15)?.destination.kind).toBe('new')
     expect(tileDropTarget(melds,14,2,-.3)).toBeNull()
