@@ -38,6 +38,8 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.context.annotation.Profile;
+import org.springframework.context.annotation.Import;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.event.EventListener;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -66,11 +68,18 @@ public final class StoneRumbleParkApplication {
                     "--ontop.world.map.manifest-path=../frontend/generated/park-renewal/manifest.json",
                     "--ontop.world.map.require-match=true"));
         }
+        for (String argument : args) {
+            String key = argument.contains("=") ? argument.substring(0, argument.indexOf('=') + 1) : argument;
+            defaults.removeIf(value -> value.startsWith(key));
+            defaults.add(argument);
+        }
         new SpringApplication(OntopApplication.class, Fixture.class).run(defaults.toArray(String[]::new));
     }
 
     @TestConfiguration(proxyBeanMethods = false)
     @Profile("local & stone-rumble-park & !db & !dev & !prod & !production")
+    @Import({com.ssafy.ontop.game.spotdifference.SpotDifferenceParkFixture.class,
+            com.ssafy.ontop.world.balloon.BalloonParkFixture.class})
     public static class Fixture {
         @Bean ActiveMemberLookup stoneRumbleMembers() {
             return (id, sid) -> Set.of(101L,202L,303L,404L,505L,606L,707L,808L,999L).contains(id) && TestLoginSessions.ID.equals(sid)
@@ -92,6 +101,30 @@ public final class StoneRumbleParkApplication {
             };
         }
         @Bean LocalLedger stoneRumbleLedger(ApplicationEventPublisher events) { return new LocalLedger(events); }
+        @Bean
+        @ConditionalOnProperty(name = "ontop.qa-feedback.enabled", havingValue = "true")
+        com.ssafy.ontop.world.mobility.MobilityWallet qaMobilityWallet(LocalLedger ledger) {
+            return new com.ssafy.ontop.world.mobility.MobilityWallet(null, null) {
+                private final Set<String> paid = new java.util.HashSet<>();
+
+                @Override
+                public synchronized Payment charge(long account, String lease, long period, int price,
+                        java.util.function.BooleanSupplier authorize) {
+                    String key = account + ":" + lease + ":" + period;
+                    if (paid.contains(key)) {
+                        return Payment.ALREADY_PAID;
+                    }
+                    if (!authorize.getAsBoolean()) {
+                        return Payment.CANCELLED;
+                    }
+                    if (!ledger.debitForQa(account, price)) {
+                        return Payment.INSUFFICIENT;
+                    }
+                    paid.add(key);
+                    return Payment.PAID;
+                }
+            };
+        }
         @Bean FilterRegistrationBean<OncePerRequestFilter> stoneRumbleFixtureHttp(AccessJwtService jwt,
                 AccessAuthenticationService auth, ObjectMapper mapper,
                 com.ssafy.ontop.auth.config.AuthTokenProperties properties, LocalLedger localLedger) {
@@ -103,7 +136,9 @@ public final class StoneRumbleParkApplication {
                         FilterChain chain) throws ServletException, IOException {
                     String path = request.getRequestURI();
                     Object body = null;
-                    if (path.equals("/dev/stone-rumble-park/session") && request.getMethod().equals("POST")) {
+                    if ((path.equals("/dev/stone-rumble-park/session")
+                            || path.equals("/api/v1/qa/session") && Boolean.getBoolean("ontop.qa-feedback.enabled"))
+                            && request.getMethod().equals("POST")) {
                         String origin=request.getHeader("Origin");
                         if (origin != null && (properties.allowedOrigins() == null || !properties.allowedOrigins().contains(origin))) { response.setStatus(403); return; }
                         long id = switch(mapper.readTree(request.getInputStream()).path("role").asText()) { case "1" -> 101; case "2" -> 202; case "3" -> 303; case "4" -> 404; case "5" -> 505; case "6" -> 606; case "7" -> 707; case "8" -> 808; case "viewer" -> 999; default -> 0; };
@@ -144,6 +179,19 @@ public final class StoneRumbleParkApplication {
         final Map<String, GameStartCommand> games = new ConcurrentHashMap<>();
         final Map<String, GameResultView> results = new ConcurrentHashMap<>();
         final Map<Long, Long> balances = new ConcurrentHashMap<>();
+
+        public synchronized boolean debitForQa(long userId, long amount) {
+            long balance = balances.getOrDefault(userId, 10000L);
+            if (amount < 0 || balance < amount) {
+                return false;
+            }
+            balances.put(userId, balance - amount);
+            return true;
+        }
+
+        public synchronized void creditForQa(long userId, long amount) {
+            balances.compute(userId, (account, balance) -> (balance == null ? 10000L : balance) + amount);
+        }
         final java.util.concurrent.atomic.AtomicLong gameSequence = new java.util.concurrent.atomic.AtomicLong(1_600_000);
         final ApplicationEventPublisher events;
         LocalLedger(ApplicationEventPublisher events) { this.events=events; }
