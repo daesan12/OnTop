@@ -10,7 +10,7 @@ import { TableFurniture } from '../../src/features/tables/TableFurniture'
 import { TABLES } from '../../src/park/mapConfig'
 import { STONE_RUMBLE_ANCHOR_ID } from '../../src/game/stone-rumble/entrance'
 import { STONE_RUMBLE_ENABLED } from '../../src/features/tableLobby/model'
-import { lazy, memo, Suspense, useLayoutEffect, useRef, useState, type RefObject } from 'react'
+import { lazy, memo, Suspense, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Object3D, type Group } from 'three'
 import { authoritativePose, avatars, sampleAvatar, useSession } from '../../src/network/worldClient'
@@ -26,7 +26,8 @@ import { inAnnex } from '../interiorAccess'
 import { interiorVisit, visitScope } from '../interiorEvents'
 import { preloadBungeoppangView } from '../../src/features/bungeoppang/loadBungeoppangView'
 import { preloadJumpRopeView } from '../../src/features/jumpRope/loadJumpRopeView'
-import { EntryStages } from './entryStages'
+import { useEntryStages } from './useEntryStages'
+import { EntranceFacility, EntrancePartReady, EntranceReadiness } from './EntranceReadiness'
 import { collectJumpViewDrawables } from '../../src/features/jumpmap/preparation'
 import { useJumpmap } from '../../src/features/jumpmap/state'
 import { site } from '../plan'
@@ -95,7 +96,8 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady, gr
   const [lakeProgress] = useState(createLakeProgress)
   const [stage, setStage] = useState(() => !atEntrance() || welcomeFlight.active ? finalStage : 0)
   const distantReady = stage > 0
-  const entry = useRef(new EntryStages(finalStage, stage))
+  const entranceReadiness = useMemo(() => new EntranceReadiness(groundMounted), [groundMounted])
+  useEntryStages({ stage, finalStage, firstFrameAt, onStage: setStage })
 
   useLayoutEffect(() => {
     if (distantReady) onDistantReady(true)
@@ -103,19 +105,6 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady, gr
 
   useLayoutEffect(() => () => interiorVisit.reset(), [])
 
-  useLayoutEffect(() => {
-    entry.current.commit(stage, performance.now())
-    if (stage > 0) performance.mark('park-distant-facilities-stage-' + stage)
-    if (stage === finalStage) performance.mark('park-distant-facilities-mounted')
-  }, [stage])
-
-  useFrame(() => {
-    const next = entry.current.next(stage, firstFrameAt.current !== null, performance.now())
-    if (next === stage) return
-    if (next === 1) performance.mark('park-distant-facilities-start')
-    // A committed frame separates batches; low FPS cannot starve a transition.
-    setStage(next)
-  }, .6)
   useFrame(() => {
     const needsBakery = bakery && !queuedBakery.current
     const needsJumpRope = jumpRopeShop && !queuedJumpRope.current
@@ -231,12 +220,12 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady, gr
           {/* Include nearby facilities and decorations in the entrance shader pass. */}
           <StableEntranceBuilding id="fortune" />
           <StableEntranceBuilding id="lottery" />
-          <StableGachaKiosk live />
-          <StableMoleShop optimizedReady={entryPresented && stage >= 3} />
+          <EntranceFacility readiness={entranceReadiness} part="gacha"><StableGachaKiosk live /></EntranceFacility>
+          <EntranceFacility readiness={entranceReadiness} part="mole"><StableMoleShop optimizedReady={entryPresented && stage >= 3} /></EntranceFacility>
           <StableRentalPairs area="gate" />
           <StableRentalPairs area="nearby" />
           <StableEntranceLandscape quality={quality} showFitnessStations />
-          <GroundMounted ready={groundMounted} />
+          <EntrancePartReady readiness={entranceReadiness} part="ground" />
         </EntranceAssetsReady>
       </Suspense>
       {entryPresented && stage >= 1 && (
@@ -260,13 +249,4 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady, gr
       {loaded && <Suspense fallback={null}><AnnexDetails /></Suspense>}
     </group>
   </group>
-}
-
-function GroundMounted({ ready }: { ready: RefObject<boolean> }) {
-  useLayoutEffect(() => {
-    ready.current = true
-    performance.mark('park-gate-ground-mounted')
-    return () => { ready.current = false }
-  }, [ready])
-  return null
 }

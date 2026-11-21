@@ -1,11 +1,13 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
-import { act, createElement as h, Fragment, lazy, Suspense, type ReactNode } from 'react'
+import { act, createElement as h, Fragment, lazy, Suspense, useLayoutEffect, useState, type ReactNode } from 'react'
 import { createRoot, extend, useLoader, type RootState } from '@react-three/fiber'
 import * as THREE from 'three'
 import { WinterFirInstances } from '../../src/features/winter/WinterFirInstances'
 import { FacilityGeometry } from '../../park-renewal-preview/FacilityGeometry'
 import { GeometrySourceReady } from '../../park-renewal-preview/geometrySourceReady'
 import catalog from '../../park-renewal-preview/models/geometry-catalog.json'
+import { useEntryStages } from '../../park-renewal-preview/live/useEntryStages'
+import { EntranceFacility, EntrancePartReady, EntranceReadiness } from '../../park-renewal-preview/live/EntranceReadiness'
 
 vi.mock('@react-three/fiber', async importOriginal => ({
   ...await importOriginal<typeof import('@react-three/fiber')>(),
@@ -69,6 +71,74 @@ function asset(file: keyof typeof catalog) {
 }
 
 describe('공원 geometry 마운트와 프레임 수명주기', () => {
+  it('입장 단계 콜백은 자동 렌더를 중단하지 않고 첫 표시와 커밋 사이 프레임을 기다린다', async () => {
+    let now = 0
+    vi.spyOn(performance, 'now').mockImplementation(() => now)
+    const view = await renderer(), firstFrameAt: { current: number | null } = { current: null }
+    function Stages() {
+      const [stage, onStage] = useState(0)
+      useEntryStages({ stage, finalStage: 2, firstFrameAt, onStage })
+      return h('group', { name: 'stage-' + stage })
+    }
+    await view.mount(h(Stages))
+    expect(view.state.internal.priority).toBe(0)
+    await act(async () => view.tick(.01))
+    expect(view.render).toHaveBeenCalledOnce()
+    expect(view.state.scene.getObjectByName('stage-0')).toBeDefined()
+    firstFrameAt.current = 10; now = 100
+    await act(async () => view.tick(.1))
+    expect(view.state.scene.getObjectByName('stage-1')).toBeDefined()
+    now = 200
+    await act(async () => view.tick(.2))
+    expect(view.state.scene.getObjectByName('stage-1')).toBeDefined()
+    now = 300
+    await act(async () => view.tick(.3))
+    expect(view.state.scene.getObjectByName('stage-2')).toBeDefined()
+    expect(view.render).toHaveBeenCalledTimes(4)
+  })
+
+  it('시설이 각각 늦게 준비되어도 입구 장식은 유지하고 모든 시설 커밋 후 첫 화면을 허용한다', async () => {
+    const view = await renderer(), ground = { current: false }, readiness = new EntranceReadiness(ground)
+    let gachaReady = false, moleReady = false, releaseGacha!: () => void, releaseMole!: () => void
+    let gacha = new Promise<void>(resolve => { releaseGacha = resolve })
+    const mole = new Promise<void>(resolve => { releaseMole = resolve })
+    let builds = 0, mounts = 0, unmounts = 0
+    function Art() {
+      const [object] = useState(() => { builds++; return new THREE.Group() })
+      useLayoutEffect(() => { mounts++; return () => { unmounts++ } }, [])
+      object.name = 'entrance-decoration'
+      return h('primitive', { object })
+    }
+    function Gacha() { if (!gachaReady) throw gacha; return h('group', { name: 'late-gacha' }) }
+    function Mole() { if (!moleReady) throw mole; return h('group', { name: 'late-mole' }) }
+    const tree = () => h(Suspense, { fallback: null }, h(Fragment, null,
+      h(Art),
+      h(EntranceFacility, { readiness, part: 'gacha', children: h(Gacha) }),
+      h(EntranceFacility, { readiness, part: 'mole', children: h(Mole) }),
+      h(EntrancePartReady, { readiness, part: 'ground' })))
+    await view.mount(tree())
+    const decoration = view.state.scene.getObjectByName('entrance-decoration')!
+    expect(decoration.visible).toBe(true)
+    expect(ground.current).toBe(false)
+    await act(async () => { gachaReady = true; releaseGacha() })
+    expect(view.state.scene.getObjectByName('late-gacha')).toBeDefined()
+    expect(ground.current).toBe(false)
+    await act(async () => { moleReady = true; releaseMole() })
+    expect(ground.current).toBe(true)
+    expect(view.state.scene.getObjectByName('entrance-decoration')).toBe(decoration)
+    expect({ builds, mounts, unmounts }).toEqual({ builds: 1, mounts: 1, unmounts: 0 })
+    gachaReady = false
+    gacha = new Promise<void>(resolve => { releaseGacha = resolve })
+    await view.mount(tree())
+    expect(ground.current).toBe(false)
+    expect(decoration.visible).toBe(true)
+    await act(async () => { gachaReady = true; releaseGacha() })
+    expect(ground.current).toBe(true)
+    expect({ builds, mounts, unmounts }).toEqual({ builds: 1, mounts: 1, unmounts: 0 })
+    await view.mount(null)
+    expect(ground.current).toBe(false)
+  })
+
   it('입구 GLB가 모두 준비되기 전에는 절차적 나무와 겨울 장식을 반복 생성하지 않는다', async () => {
     const { EntranceAssetsReady } = await import('../../park-renewal-preview/EntrancePavilion')
     const view = await renderer()
