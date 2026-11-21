@@ -25,6 +25,9 @@ public record GameStartCommand(UUID startAttemptId, String tableId, long tableVe
         }
         participants = List.copyOf(participants);
         com.ssafy.ontop.game.domain.GameAmounts.validate(betAmountPerPlayer, participants.size());
+        if ("QUORIDOR".equals(gameCode) && participants.size() != 2 && participants.size() != 4) {
+            throw new IllegalArgumentException("쿼리도는 2인 또는 4인 경기입니다.");
+        }
         int maximumPlayers = "STONE_RUMBLE".equals(gameCode) ? 8 : 4;
         if (tableId == null || tableId.isBlank() || tableVersion < 0 || gameCode == null || gameCode.isBlank()
                 || participants.size() < 2 || participants.size() > maximumPlayers

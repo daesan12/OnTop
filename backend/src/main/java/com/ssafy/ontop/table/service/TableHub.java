@@ -4607,9 +4607,10 @@ public class TableHub {
         if (push == null || ping && reconnect.get().canControlGame(member.accountId(), sessionId, gameId)) {
             fail(request, "GAME_SPECTATOR_ACCESS_DENIED", "관전이 승인된 경기에서만 보낼 수 있습니다.");
         }
-        if (ping && !(ledgerPing ? "DICE_LEDGER" : "OMOK").equals(push.gameCode)
+        if (ping && !(ledgerPing ? "DICE_LEDGER".equals(push.gameCode)
+                : Set.of("OMOK", "QUORIDOR").contains(push.gameCode))
                 || !Set.of("OMOK", "DICE", "ONE_CARD", "LIAR_BRIDGE", "DICE_LEDGER", "ALKKAGI",
-                        "HALLI_GALLI", "STONE_RUMBLE").contains(push.gameCode)) {
+                        "HALLI_GALLI", "QUORIDOR", "STONE_RUMBLE").contains(push.gameCode)) {
             fail(request, "GAME_SPECTATOR_UNSUPPORTED_GAME", "지원하는 경기 채팅 또는 오목·주사위 장부 추천을 이용해주세요.");
         }
         if (!"PLAYING".equals(push.status)) {
@@ -4621,6 +4622,9 @@ public class TableHub {
         long basedOnVersion = ping ? payload.get("basedOnVersion").longValue() : 0;
         int x = ping && !ledgerPing ? payload.get("x").intValue() : 0;
         int y = ping && !ledgerPing ? payload.get("y").intValue() : 0;
+        if (ping && "QUORIDOR".equals(push.gameCode) && (x < 0 || x > 8 || y < 0 || y > 8)) {
+            fail(request, "QUORIDOR_PING_INVALID_POSITION", "쿼리도 게임판 안의 위치를 선택해주세요.");
+        }
         String category = ledgerPing && payload.has("category") ? payload.get("category").textValue() : null;
         Integer dieId = ledgerPing && payload.has("dieId") ? payload.get("dieId").intValue() : null;
         String content = ledgerPing ? basedOnVersion + ":" + (category != null ? category : "die" + dieId)

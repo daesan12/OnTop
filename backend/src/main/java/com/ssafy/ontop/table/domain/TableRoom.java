@@ -100,6 +100,9 @@ public final class TableRoom {
 
     /** 새 태블릿만 명시적으로 수동 시작 계약을 선택한다. 기존 GAME_SELECT 자동 시작은 유지한다. */
     public boolean configure(TableGame selected, Integer target, long amount, int players) {
+        if (selected == TableGame.QUORIDOR && players != 2 && players != 4) {
+            throw new IllegalArgumentException("쿼리도 참가 인원은 2명 또는 4명입니다.");
+        }
         if (players < selected.minimumPlayers() || players > selected.maximumPlayers()
                 || arrivalOrder.size() > players) {
             throw new IllegalArgumentException("선택 정원과 현재 참가 인원을 확인해주세요.");
@@ -190,6 +193,7 @@ public final class TableRoom {
         }
         int minimum = game == null ? 2 : game.minimumPlayers();
         boolean allReady = game != null && betAmountPerPlayer != null && arrivalOrder.size() >= minimum
+                && (game != TableGame.QUORIDOR || arrivalOrder.size() == 2 || arrivalOrder.size() == 4)
                 && (selectedPlayers == null || arrivalOrder.size() == selectedPlayers)
                 && seats.stream().filter(seat -> seat.userId() != null).allMatch(Seat::ready);
         return new Snapshot(tableId, version, capacity(), minimum, List.copyOf(seats), allReady,

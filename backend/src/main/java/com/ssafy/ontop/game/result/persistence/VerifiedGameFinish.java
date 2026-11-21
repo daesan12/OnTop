@@ -27,6 +27,7 @@ final class VerifiedGameFinish {
                     "DISCONNECT_TIMEOUT", "LOGOUT", "MEMBER_DEACTIVATED", "SIMULATION_INVALID", "SIMULATION_LIMIT"),
             // CARD_COUNT·NO_CARDS_TO_FLIP은 카드 수 공동 1위를 모두 승자로 둔다. 기권 종료도 LAST_PLAYER_STANDING이다.
             "HALLI_GALLI", Set.of("CARD_COUNT", "LAST_PLAYER_STANDING", "NO_CARDS_TO_FLIP"),
+            "QUORIDOR", Set.of("GOAL_REACHED", "LAST_PLAYER_STANDING"),
             "STONE_RUMBLE", Set.of("LAST_PLAYER_STANDING", "ALL_FALLEN", "SIMULATION_LIMIT", "LOADING_TIMEOUT"));
 
     private VerifiedGameFinish() { }
@@ -41,6 +42,7 @@ final class VerifiedGameFinish {
                 || event.participants().size() < 2
                 || event.participants().size() > ("STONE_RUMBLE".equals(event.gameCode()) ? 8 : 4)
                 || "ALKKAGI".equals(event.gameCode()) && event.participants().size() != 2
+                || "QUORIDOR".equals(event.gameCode()) && !Set.of(2, 4).contains(event.participants().size())
                 || event.participants().stream().map(GameFinished.Participant::userId).distinct().count() != event.participants().size()) {
             throw new IllegalArgumentException("경기 종료 이벤트를 확인하세요.");
         }
@@ -86,7 +88,7 @@ final class VerifiedGameFinish {
         } else if (winners == 0 || "ALKKAGI".equals(event.gameCode()) && winners != 1
                 || event.participants().stream().anyMatch(p -> p.result() == GameFinished.Result.DRAW)
                 || Set.of("FIVE_IN_ROW", "TURN_TIMEOUT", "RECONNECT_EXPIRED", "LOGOUT", "MEMBER_DEACTIVATED",
-                        "EXPLICIT_LEAVE", "TARGET_REACHED", "EMPTY_HAND", "PLAYER_LEFT", "LAST_PLAYER_STANDING")
+                        "EXPLICIT_LEAVE", "GOAL_REACHED", "TARGET_REACHED", "EMPTY_HAND", "PLAYER_LEFT", "LAST_PLAYER_STANDING")
                     .contains(event.endReason()) && winners != 1) {
             throw new IllegalArgumentException("승자 판정을 확인하세요.");
         }
