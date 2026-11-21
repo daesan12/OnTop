@@ -6,6 +6,7 @@ import { ParkSoundscape } from '../audio/ParkSoundscape'
 import { lazy } from 'react'
 import { GENERATED_PARK_ENABLED, JUMPMAP_ENABLED, RENEWAL_GATE_STARTUP, RENEWAL_PARK_ENABLED } from '../park/mapSelection'
 import { loadRenewalParkWorld } from '../park/loadRenewalParkWorld'
+import { usePageVisible } from '../park/usePageVisible'
 import { LIVE_MAP_IDENTITY } from '../network/mapContract'
 import { ShaderPreparedGroup } from '../../park-renewal-preview/live/ShaderPreparedGroup'
 import { useJumpmap } from '../features/jumpmap/state'
@@ -201,7 +202,7 @@ export const WorldCanvas = memo(function WorldCanvas({
   const tileDetail = tileRole === 'PLAYER' && !!scope && scope !== lookScope || tileRole === 'SPECTATOR' && spectatorView === 'board'
   const preset = QUALITY[quality]
   const overlayTargets = useMemo<OverlayTargets>(() => new Map(), [])
-  const [visible, setVisible] = useState(() => !document.hidden)
+  const visible = usePageVisible()
   const gachaSurface = useGachaOverlay(s => s.surface)
   const fortuneOpen = useFortune(s => s.open)
   const [viewport, setViewport] = useState(() => ({
@@ -218,11 +219,6 @@ export const WorldCanvas = memo(function WorldCanvas({
       })
     window.addEventListener('resize', resize)
     return () => window.removeEventListener('resize', resize)
-  }, [])
-  useEffect(() => {
-    const changed = () => setVisible(!document.hidden)
-    document.addEventListener('visibilitychange', changed)
-    return () => document.removeEventListener('visibilitychange', changed)
   }, [])
   const dpr = effectiveDpr(
     quality,
