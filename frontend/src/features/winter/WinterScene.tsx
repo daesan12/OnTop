@@ -1,3 +1,4 @@
+import { SantaBell } from './SantaBell'
 import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { BufferAttribute, BufferGeometry, Float32BufferAttribute, Group, InstancedMesh, Object3D, ShaderMaterial, type Points } from 'three'
@@ -14,7 +15,7 @@ import { createChristmasTreeArt } from './christmasTreeArt'
 import { winterProtectedSurfaces } from './protectedSurfaces'
 import { snowballHands } from './SnowballHand'
 import { snowballPoint } from './trajectory'
-import { winterSceneryVisible } from './presentation'
+import { winterRoofSnowVisible, winterSceneryVisible } from './presentation'
 
 function decoration(kind: typeof WINTER_DECOR[number]['kind']) {
   return kind === 'tree' ? createChristmasTreeArt() : createHolidayArt(kind)
@@ -156,7 +157,8 @@ export function WinterScene({ low = false }: { low?: boolean }) {
   useFrame(() => { if (group.current) group.current.visible = winterSceneryVisible() })
   return <group ref={group} name="winter-park">
     <SleighScene />
-    <RoofSnow visible={winterSceneryVisible} protectedAreas={winterProtectedSurfaces} />
+    <SantaBell />
+    <RoofSnow visible={winterRoofSnowVisible} protectedAreas={winterProtectedSurfaces} />
     <Snowfall low={low} />
     <Snowballs />
     <SnowballAim />
