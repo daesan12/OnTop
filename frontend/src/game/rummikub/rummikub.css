@@ -92,4 +92,5 @@
 .rummi-picker-row>span {width:100%;font-size:11px;opacity:.8;}
 .rummikub-panel:has(.rummi-board-index) .rummi-tile-picker .rummi-tile {width:32px;height:43px;}
 .rummi-selection {margin:3px 10px 8px;padding:6px 9px;border-radius:6px;background:#fff0c81a;color:#ffde96;font-size:12px;}
+.rummikub-panel .rummi-drag-hint {margin:4px 10px 8px;color:#ffde96;font-size:12px;line-height:1.55;}
 @media(max-width:700px){.rummikub-panel:has(.rummi-board-index){width:auto;}}

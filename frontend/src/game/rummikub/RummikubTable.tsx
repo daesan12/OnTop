@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { useRummikubDraft, toggleRummikubTile, sortRummikubTiles } from './draft'
 import { COLOR_LABEL, COLORS, physical, validMeld, type Color, type Placed, type Rummikub, type Tile } from './protocol'
 import ontopLogo from '../../assets/entry/ontop-logo.webp'
+import { editTiles, type TileDestination } from './edit'
 
 function TileButton({ tile, selected, disabled, onClick }: {
   tile: Tile | Placed; selected: boolean; disabled: boolean; onClick(): void
@@ -20,7 +21,7 @@ export function RummikubTable({ state, tiles, own, editable, sending, error, not
   tabletop?: boolean; pingIndices?: number[]; onPlay(melds: Placed[][]): void; onDraw(): void; onPing?(meld: number): void
 }) {
   const ui = useRummikubDraft(), draft = ui.source===state ? ui.draft ?? state.melds : state.melds, {selected, sort, jokerColor, jokerNumber} = ui
-  useEffect(() => { useRummikubDraft.setState({source:state,draft:state.melds.map(m=>[...m]),selected:[]}) }, [state])
+  useEffect(() => { useRummikubDraft.setState({source:state,draft:state.melds.map(m=>[...m]),selected:[],hint:''}) }, [state])
   const setDraft = (draft: Placed[][]) => useRummikubDraft.setState({draft})
   const setSelected = (selected: string[]) => useRummikubDraft.setState({selected})
   const setSort = (sort: 'color' | 'number') => useRummikubDraft.setState({sort})
@@ -35,17 +36,10 @@ export function RummikubTable({ state, tiles, own, editable, sending, error, not
   const valid = added.length > 0 && draft.every(validMeld) && (registered || points >= 30)
   const selectedJoker = selected.some(id => physical(id)?.color === null)
   const toggle = toggleRummikubTile
-  function move(target: number | null) {
-    const picked: Placed[] = selected.map(id => {
-      const tile = draft.flat().find(t => t.id === id) ?? tiles.find(t => t.id === id)!
-      return physical(id)?.color === null ? { id, color: jokerColor, number: jokerNumber }
-        : { id, color: tile.color!, number: tile.number }
-    })
-    const next = draft.map(m => m.filter(t => !selected.includes(t.id)))
-    const ordered = [...(target === null ? [] : next[target]!), ...picked].sort((a, b) => a.number - b.number || COLORS.indexOf(a.color) - COLORS.indexOf(b.color))
-    if (target === null) next.push(ordered)
-    else next[target] = ordered
-    setDraft(next.filter(m => m.length)); setSelected([])
+  function move(target: number | null | 'rack') {
+    const destination: TileDestination = target === 'rack' ? {kind:'rack'} : target === null ? {kind:'new'} : {kind:'meld',index:target}
+    const result = editTiles(state, draft, tiles, own, selected, destination, {color:jokerColor,number:jokerNumber})
+    useRummikubDraft.setState({draft:result.melds,selected:[],hint:result.message})
   }
   return <>
     <div className={`rummi-board${tabletop ? ' rummi-board-index' : ''}`} aria-label="공개 타일 조합">
@@ -65,9 +59,7 @@ export function RummikubTable({ state, tiles, own, editable, sending, error, not
     </div>
     {editable && (!tabletop || selected.length>0) && <div className="rummi-edit-tools">
       <button disabled={!selected.length} onClick={() => move(null)}>새 조합 +</button>
-      <button disabled={!selected.length || selected.some(id => !ownIds.has(id))} onClick={() => {
-        setDraft(draft.map(m => m.filter(t => !selected.includes(t.id))).filter(m => m.length)); setSelected([])
-      }}>손패로 되돌리기</button>
+      <button disabled={!selected.length || selected.some(id => !ownIds.has(id))} onClick={() => move('rack')}>손패로 되돌리기</button>
       <span>{selected.length ? `${selected.length}개 선택` : '타일을 선택하세요'}</span>
       {selected.length>0 && <button onClick={()=>setSelected([])}>선택 해제</button>}
       {selectedJoker && <div className="rummi-joker-tools"><label>조커 색상 <select value={jokerColor} onChange={e => setJokerColor(e.target.value as Color)}>
@@ -79,6 +71,7 @@ export function RummikubTable({ state, tiles, own, editable, sending, error, not
       {error ? <p role="alert">{error}</p> : sending ? <p>서버의 처리 확인을 기다리고 있습니다.</p>
         : notice ? <p>{notice}</p> : editable ? <p>{registered ? '새 조합을 만들거나 공개된 조합을 재구성하세요.' : `첫 등록 ${points} / 30점 · 내 손패로만 조합을 만드세요.`}</p> : null}
     </div>
+    {tabletop && editable && <p className="rummi-drag-hint" aria-live="polite">{ui.hint || '타일을 끌어 빈 곳에 놓으면 새 조합, 조합 위에 놓으면 붙이기 · Esc 취소'}</p>}
     {tabletop && selected.length>0 && <p className="rummi-selection" aria-live="polite">{selected.map(id=>{const t=draft.flat().find(t=>t.id===id)??tiles.find(t=>t.id===id);return t ? physical(id)?.color===null ? '온탑 조커' : `${COLOR_LABEL[t.color!]} ${t.number}` : ''}).join(' · ')}</p>}
     {tabletop && <details className="rummi-tile-picker"><summary>타일 목록으로 선택{tiles.length>0 ? ` · 내 타일 ${rack.length}개` : ''}</summary>
       {draft.map((meld,index)=><div className="rummi-picker-row" key={index}><span>{index+1}번</span>{meld.map(tile=><TileButton key={tile.id} tile={tile} selected={selected.includes(tile.id)} disabled={!editable||!registered&&index<state.melds.length} onClick={()=>toggle(tile.id)}/>)}</div>)}
@@ -93,7 +86,7 @@ export function RummikubTable({ state, tiles, own, editable, sending, error, not
     <footer className="rummi-controls">
       {tiles.length > 0 && <><button aria-pressed={sort === 'color'} onClick={() => setSort('color')}>색상 정렬</button>
         <button aria-pressed={sort === 'number'} onClick={() => setSort('number')}>숫자 정렬</button></>}
-      {editable && <><button disabled={!dirty} onClick={() => { setDraft(state.melds.map(m => [...m])); setSelected([]) }}>되돌리기</button>
+      {editable && <><button disabled={!dirty} onClick={() => { setDraft(state.melds.map(m => [...m])); setSelected([]); useRummikubDraft.setState({hint:''}) }}>되돌리기</button>
         <button disabled={dirty || sending} onClick={onDraw}>{state.poolCount ? '타일 뽑기' : '패스'}</button>
         <button className="rummi-primary" disabled={!valid || sending} onClick={() => onPlay(draft)}>턴 확정</button></>}
     </footer>

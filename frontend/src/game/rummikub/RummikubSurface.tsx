@@ -1,5 +1,6 @@
-import { useLoader } from '@react-three/fiber'
-import { BoxGeometry, CanvasTexture, ExtrudeGeometry, LinearFilter, MeshBasicMaterial, MeshStandardMaterial, PlaneGeometry, Shape, SRGBColorSpace, TextureLoader, type Texture } from 'three'
+import { useRef } from 'react'
+import { useLoader, type ThreeEvent } from '@react-three/fiber'
+import { BoxGeometry, CanvasTexture, ExtrudeGeometry, Group, LinearFilter, MeshBasicMaterial, MeshStandardMaterial, PlaneGeometry, Shape, SRGBColorSpace, TextureLoader, type Texture } from 'three'
 import { useShallow } from 'zustand/react/shallow'
 import ontopLogo from '../../assets/entry/ontop-logo.webp'
 import type { TableAnchor } from '../../park/tablePlacement'
@@ -8,9 +9,10 @@ import { useSession } from '../../network/worldClient'
 import { useGame } from '../store'
 import { useTableGameCode } from '../../features/tableLobby/tableGamePresentation'
 import { canActRummikub } from './actions'
-import { useRummikubDraft, toggleRummikubTile, sortRummikubTiles } from './draft'
+import { useRummikubDraft, sortRummikubTiles } from './draft'
 import type { Tile, Placed } from './protocol'
-import { layoutMelds } from './layout'
+import { layoutMelds, rackLayout } from './layout'
+import { useTileDrag } from './dragInput'
 
 const ink = { BLACK: '#1d2522', BLUE: '#123e9b', RED: '#ae201a', YELLOW: '#965400' }
 function bevel(width: number, length: number, depth: number, radius: number) {
@@ -60,44 +62,50 @@ function logoMaterial(texture: Texture) {
   }
   return logos.get(texture)!
 }
-function Block({ tile, x, z, y = 0, selected, enabled, held = false, logo }: {
+const noRaycast = () => {}
+function Block({ tile, x, z, y = 0, selected, enabled, held = false, logo, begin, ghost = false }: {
   tile: Tile | Placed; x: number; z: number; y?: number; selected: boolean; enabled: boolean; held?: boolean; logo: Texture
+  begin?(event: ThreeEvent<PointerEvent>, tile: Tile | Placed): void; ghost?: boolean
 }) {
   const joker = tile.id.startsWith('JOKER')
-  return <group position={[x, y + (selected ? .09 : .01), z]} rotation={[held ? .42 : 0, 0, 0]} scale={held ? 1.17 : 1}
-    onClick={e => { e.stopPropagation(); if (enabled) toggleRummikubTile(tile.id) }}>
-    {selected && <mesh geometry={selectedBody} material={selection} dispose={null} position={[0, -.012, 0]} />}
-    <mesh geometry={tileBody} material={tileMaterials} dispose={null} />
+  return <group name={`${ghost ? 'supae-ghost' : 'supae-tile'}-${tile.id}`} position={[x, y + (selected ? .09 : .01), z]} rotation={[held ? .42 : 0, 0, 0]} scale={held ? 1.17 : 1}
+    onPointerDown={e => { if (enabled) begin?.(e,tile); else e.stopPropagation() }} onClick={e => e.stopPropagation()}>
+    {selected && <mesh geometry={selectedBody} material={selection} dispose={null} position={[0, -.012, 0]} raycast={ghost ? noRaycast : undefined} />}
+    <mesh geometry={tileBody} material={tileMaterials} dispose={null} raycast={ghost ? noRaycast : undefined} />
     <mesh geometry={joker ? logoPlane : labelPlane} material={joker ? logoMaterial(logo) : label(String(tile.number), ink[tile.color!])}
-      dispose={null} renderOrder={2} rotation={[-Math.PI / 2, 0, 0]} position={[0, .064, joker ? -.025 : 0]} />
+      dispose={null} raycast={ghost ? noRaycast : undefined} renderOrder={2} rotation={[-Math.PI / 2, 0, 0]} position={[0, .064, joker ? -.025 : 0]} />
     {joker && <mesh geometry={rolePlane} material={label(tile.number ? String(tile.number) : 'J', ink[tile.color ?? 'BLACK'])}
-      dispose={null} renderOrder={3} rotation={[-Math.PI / 2, 0, 0]} position={[.045, .066, .08]} />}
+      dispose={null} raycast={ghost ? noRaycast : undefined} renderOrder={3} rotation={[-Math.PI / 2, 0, 0]} position={[.045, .066, .08]} />}
   </group>
 }
 
 /** 기존 테이블 표시 영역만 사용하고 충돌체를 추가하지 않는다. */
 export function RummikubSurface({ anchor }: { anchor: TableAnchor }) {
+  const root = useRef<Group>(null)
   const s = useSession(useShallow(s => ({ bindings: s.bindings, roomId: s.roomId, tableId: s.tableId, watchedTableId: s.watchedTableId, seatIndex: s.seatIndex, status: s.status, sessionId: s.sessionId })))
   const g = useGame(v => v.game?.rummikub ? v.game : null), ui = useRummikubDraft()
   const selectedGame = useTableGameCode(anchor.id) === 'RUMMIKUB', logo = useLoader(TextureLoader, ontopLogo)
   const binding = s.bindings.find(b => b.channelId === s.roomId && b.anchorId === anchor.id)
   const relevant = !!g && !!binding && (g.role === 'PLAYER' ? s.tableId : s.watchedTableId) === binding.tableId
   const seat = relevant && g?.role === 'PLAYER' ? tableSeats(anchor)[s.seatIndex] : undefined
-  if (!selectedGame && !relevant) return null
   const melds = relevant ? (ui.source === g!.rummikub ? ui.draft ?? g!.rummikub.melds : g!.rummikub.melds) : []
   const publicIds = new Set(melds.flat().map(t => t.id))
   const hand = sortRummikubTiles(relevant && g?.role === 'PLAYER' ? (g.rummikubHand?.tiles ?? []).filter(t => !publicIds.has(t.id)) : [], ui.sort)
   const enabled = relevant && s.status === 'connected' && canActRummikub(s.sessionId, { kind: 'draw' })
+  const drag = useTileDrag(root, {enabled,gameId:g?.gameId??'',version:g?.version??-1,state:relevant ? g!.rummikub : null,melds,
+    hand:relevant && g?.role==='PLAYER' ? g.rummikubHand?.tiles??[] : []})
   const layout = layoutMelds(melds.map(m => m.length))
-  const rackCount = Math.ceil(hand.length / 14), rackScale = Math.min(1, 1.8 / Math.max(1.8, rackCount * .82))
-  return <group name={`supae-table-${anchor.id}`} scale={.6} position={[0, 1.1, 0]} rotation={[0, seat ? Math.atan2(seat.x, seat.z) : 0, 0]}>
+  const {racks:rackCount,scale:rackScale,z:rackZ} = rackLayout(hand.length)
+  if (!selectedGame && !relevant) return null
+  return <group ref={root} name={`supae-table-${anchor.id}`} scale={.6} position={[0, 1.1, 0]} rotation={[0, seat ? Math.atan2(seat.x, seat.z) : 0, 0]}>
     <mesh position={[0, -.018, -.15]}><boxGeometry args={[2.35, .025, 1.65]} /><meshStandardMaterial color="#244d40" roughness={.85} /></mesh>
+    <group ref={drag.marker} visible={false} raycast={noRaycast}><mesh raycast={noRaycast}><boxGeometry args={[1,.005,1]}/><meshBasicMaterial color="#ffdb83" transparent opacity={.35} depthWrite={false}/></mesh></group>
     <group scale={layout.scale} position={[0, 0, -.65]}>{melds.map((meld, row) => <group key={row} position={[layout.positions[row]!.x, 0, layout.positions[row]!.z]}>
       <mesh geometry={badgePlane} material={label(String(row + 1), '#ffe1a2', true)} dispose={null} rotation={[-Math.PI / 2, 0, 0]} position={[-(meld.length - 1) * .106 - .19, .065, 0]} />
       {meld.map((tile, i) => <Block key={tile.id} tile={tile} x={(i - (meld.length - 1) / 2) * .212} z={0} logo={logo}
-        selected={ui.selected.includes(tile.id)} enabled={enabled && (g!.rummikub.players.find(p => p.userId === s.sessionId)?.registered === true || !!g!.rummikubHand?.tiles.some(t => t.id === tile.id))} />)}
+        begin={drag.begin} selected={ui.selected.includes(tile.id)} enabled={enabled && (g!.rummikub.players.find(p => p.userId === s.sessionId)?.registered === true || !!g!.rummikubHand?.tiles.some(t => t.id === tile.id))} />)}
     </group>)}</group>
-    {hand.length > 0 && <group position={[0, .025, .6 - (rackCount - 1) * .41 * rackScale]} scale={rackScale}>
+    {relevant && !!g?.rummikubHand?.tiles.length && <group position={[0, .025, rackZ]} scale={rackScale}>
       {Array.from({ length: rackCount }, (_, rack) => <group key={rack} position={[0, 0, rack * .85]}>
         <mesh geometry={rackBody} material={wood} dispose={null} />
         <mesh geometry={rackStep} material={wood} dispose={null} position={[0, .075, -.2]} />
@@ -105,8 +113,9 @@ export function RummikubSurface({ anchor }: { anchor: TableAnchor }) {
         <mesh geometry={rail} material={gold} dispose={null} position={[0, .16, 0]} />
         {[-.96, .96].map(x => <mesh key={x} geometry={feet} material={gold} dispose={null} position={[x, -.012, 0]} />)}
         {hand.slice(rack * 14, rack * 14 + 14).map((tile, i) => <Block key={tile.id} tile={tile} x={(i % 7 - 3) * .275}
-          z={i < 7 ? -.2 : .19} y={i < 7 ? .17 : .08} logo={logo} held selected={ui.selected.includes(tile.id)} enabled={enabled} />)}
+          z={i < 7 ? -.2 : .19} y={i < 7 ? .17 : .08} logo={logo} begin={drag.begin} held selected={ui.selected.includes(tile.id)} enabled={enabled} />)}
       </group>)}
     </group>}
+    <group ref={drag.ghost} visible={false}>{drag.carried.map((tile,i)=><Block key={tile.id} tile={tile} x={(i%7)*.21} z={Math.floor(i/7)*.27} logo={logo} selected={false} enabled={false} ghost/>)}</group>
   </group>
 }
