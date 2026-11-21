@@ -100,8 +100,10 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady, gr
   useEntryStages({ stage, finalStage, firstFrameAt, onStage: setStage })
 
   useLayoutEffect(() => {
-    if (distantReady) onDistantReady(true)
-  }, [distantReady, onDistantReady])
+    // The jump-course scene is another large batch. Do not start it alongside
+    // the first scenery batch while entrance locomotion is becoming interactive.
+    if (entryPresented && stage === finalStage) onDistantReady(true)
+  }, [stage, entryPresented, onDistantReady])
 
   useLayoutEffect(() => () => interiorVisit.reset(), [])
 
@@ -239,7 +241,7 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady, gr
       {entryPresented && stage >= 3 && TABLES.map((anchor, index) => <Suspense key={anchor.id} fallback={null}>
         <StableTable index={index} boards={stage === finalStage || index < Math.max(0, stage - 3) * boardsPerStage} />
       </Suspense>)}
-      {stage === finalStage && <Suspense fallback={null}><ParkDetailGeometry jumpCourse={false} deferDistant /></Suspense>}
+      {entryPresented && stage === finalStage && <Suspense fallback={null}><ParkDetailGeometry jumpCourse={false} deferDistant /></Suspense>}
       </LakeProgress.Provider>
     </group>
     <group ref={interior} name="renewal-secret-corridor" visible={false}>
