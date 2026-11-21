@@ -92,6 +92,17 @@ afterEach(async () => {
 })
 
 describe('M14 authenticated REST and movement ownership boundary', () => {
+  it('loads public spot difference rooms with authentication and rejects unrelated room routes', async () => {
+    const path = '/api/v1/minigames/spot-difference/duels'
+    const rooms = [{ id: '11111111-1111-4111-8111-111111111111', title: '함께 찾아요', difficulty: 'NORMAL', players: 1, capacity: 2 }]
+    vi.mocked(fetch).mockResolvedValueOnce(json(rooms))
+    expect(await runtime.requestJSON(path)).toEqual(rooms)
+    expect(fetch).toHaveBeenLastCalledWith(path, expect.objectContaining({
+      credentials: 'omit', headers: { Authorization: 'Bearer fixture-access' },
+    }))
+    await expect(runtime.requestJSON(path + '/all')).rejects.toThrow('사용할 수 없는 요청')
+    await expect(runtime.requestJSON(path, { method: 'DELETE' })).rejects.toThrow('사용할 수 없는 요청')
+  })
   it.each(['pickup', 'throw', 'release'] as const)('keeps roaming controls during a pending carry %s while serializing requests', async kind => {
     const carryId = '11111111-1111-4111-8111-111111111111'
     const send = () => kind === 'pickup' ? runtime.pickupAvatar('102')

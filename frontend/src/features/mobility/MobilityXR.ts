@@ -109,7 +109,7 @@ export class MobilityXR {
       const ctx = entry.canvas.canvas.getContext('2d')!
       const vehicle = vehicles[kind as Vehicle]
       ctx.clearRect(0, 0, 800, 196)
-      paintGuideButton(ctx, 4, 4, 792, 182, `${vehicle.label} · ${vehicle.rate}냥/초`, hovered)
+      paintGuideButton(ctx, 4, 4, 792, 182, `${vehicle.label} · ${vehicle.billingSeconds}초에 ${vehicle.rate}냥`, hovered)
       ctx.fillStyle = TOUCH_GUIDE_COLORS.gold
       ctx.textAlign = 'center'
       ctx.font = '600 25px "Malgun Gothic", sans-serif'

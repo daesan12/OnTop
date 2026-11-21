@@ -3,13 +3,15 @@ import {heightAt,LAKE} from './plan'
 import {ParkCurbs} from './ParkCurbs'
 import {Water} from '../src/world/art/WaterGarden'
 import {ParkStoneMaterial} from './ParkStoneMaterial'
-import {PreservedFitness} from './PreservedFitness'
-import {PreservedFountain} from './PreservedFountain'
-import {ParkLamps} from '../src/world/art/ParkFurniture'
+import {lazy,Suspense} from 'react'
 import {NightLighting} from '../src/world/NightLighting'
 import type {QualityPreset} from '../src/config'
+import {GeometrySourceReady} from './geometrySourceReady'
 
 const lampposts=lamps.map(([x,z])=>[x,heightAt(x,z),z]as const)
+const PreservedFitness=lazy(()=>import('./PreservedFitness').then(m=>({default:m.PreservedFitness})))
+const PreservedFountain=lazy(()=>import('./PreservedFountain').then(m=>({default:m.PreservedFountain})))
+const ParkLamps=lazy(()=>import('../src/world/art/ParkFurniture').then(m=>({default:m.ParkLamps})))
 
 export function LakeSurface() {
  return <>
@@ -26,20 +28,22 @@ export function RetainingFace() {
  )
 }
 
-export function ParkPathLights({quality}: {quality?: QualityPreset}) {
+export function ParkPathLights({quality,geometryReady=true}: {quality?: QualityPreset;geometryReady?:boolean}) {
  return <>
-  <ParkLamps placements={lampposts}/>
+  {geometryReady&&<Suspense fallback={null}><GeometrySourceReady><ParkLamps placements={lampposts}/></GeometrySourceReady></Suspense>}
   {quality&&<NightLighting quality={quality} placements={lampposts}/>}
  </>
 }
 
-export function EntranceLandscape({quality, showFitnessStations}: {quality: QualityPreset; showFitnessStations: boolean}) {
+export function EntranceLandscape({quality, showFitnessStations, detailsReady=true}: {quality: QualityPreset; showFitnessStations: boolean;detailsReady?:boolean}) {
  return <>
   <RetainingFace />
   <ParkCurbs />
   <LakeSurface />
-  <PreservedFitness showStations={showFitnessStations} />
-  <PreservedFountain />
-  <ParkPathLights quality={quality} />
+  {detailsReady&&<Suspense fallback={null}><GeometrySourceReady revision={showFitnessStations}><PreservedFitness showStations={showFitnessStations} /></GeometrySourceReady></Suspense>}
+  {detailsReady&&<Suspense fallback={null}><GeometrySourceReady><PreservedFountain /></GeometrySourceReady></Suspense>}
+  {/* Keep the light pool from the first frame so streaming lamp geometry does
+      not change every exterior material's shader layout. */}
+  <ParkPathLights quality={quality} geometryReady={detailsReady}/>
  </>
 }
