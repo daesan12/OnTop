@@ -1,6 +1,7 @@
 import { Suspense } from 'react'
 import { tableScale, type TableAnchor } from '../../park/tablePlacement'
 import { ParkAlkkagiBoard } from '../../game/alkkagi/ParkAlkkagiBoard'
+import { ParkChessBoard } from '../../game/chess/ParkChessBoard'
 import { OmokBoard } from '../../game/OmokBoard'
 import { FarkleTable } from '../../game/farkle/FarkleTable'
 import { OneCardBoard } from '../../game/onecard/OneCardBoard'
@@ -15,6 +16,7 @@ export default function TableBoards({ anchor, nativeFurniture }: { anchor: Table
       <DebrisGameSurface anchorId={anchor.id}>
         <Suspense fallback={null}>
         <ParkAlkkagiBoard anchor={anchor} />
+        <ParkChessBoard anchor={anchor} />
         <OmokBoard anchor={anchor} />
         <FarkleTable anchor={anchor} />
         <OneCardBoard anchor={anchor} />

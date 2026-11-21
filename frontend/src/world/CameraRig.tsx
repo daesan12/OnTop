@@ -1,6 +1,8 @@
 import { sleighRider } from '../features/winter/sleigh/controller'
 import { SleighCamera } from '../features/winter/sleigh/camera'
 import { ALKKAGI_FOV, alkkagiCameraActive, alkkagiTopDownFrame } from '../game/alkkagi/camera'
+import { CHESS_BOARD_Y, CHESS_FOV, chessCamera, chessCameraActive, chessCameraFrame } from '../game/chess/camera'
+import { useChessUI } from '../game/chess/ui'
 import { gatheringCameraActive } from '../features/tableLobby/gathering'
 import { oneCardPlayerViewActive, oneCardCameraPose, oneCardSpectatorCameraPose, ONECARD_CAMERA } from '../game/onecard/camera'
 import { tabletLobbyActive } from '../features/tableLobby/tabletModel'
@@ -97,7 +99,7 @@ export function CameraRig() {
       seatScope: '',
       bungeoppangFov: null as number | null,
       rotation: new Quaternion(), targetRotation: new Quaternion(),
-      targetUp: new Vector3(0, 1, 0), lookMatrix: new Matrix4(), omokTransition: false, diceTransition: false, alkkagiTransition: false,
+      targetUp: new Vector3(0, 1, 0), lookMatrix: new Matrix4(), omokTransition: false, diceTransition: false, alkkagiTransition: false, chessTransition: false,
       center: new Vector3(), pan: new Vector3(), feet: new Vector3(),
       jumpOrbitRun: '', jumpOrbitDirection: new Vector3(),
       sleighCamera: new SleighCamera(),
@@ -127,6 +129,9 @@ export function CameraRig() {
       }
       omokCamera.ready = false
       omokCamera.anchorId = ''
+      chessCamera.ready = false
+      chessCamera.current = null
+      chessCamera.anchorId = ''
       boardFocusLighting.requested = false
       mountedCamera.layers.set(0)
       delete mountedCamera.userData.showConstellationLines
@@ -144,6 +149,7 @@ export function CameraRig() {
     camera.userData.showConstellationLines = false
     diceCamera.ready = false
     omokCamera.ready = false
+    chessCamera.ready = false
     boardFocusLighting.requested = false
     camera.layers.set(0)
     raycaster.layers.set(0)
@@ -356,8 +362,13 @@ export function CameraRig() {
     const ownAlkkagi = seated && !!avatar.tableId && (session.tableStates[session.tableId]?.gameCode === 'ALKKAGI'
       || game?.role === 'PLAYER' && !!game.alkkagi)
     const focusedAlkkagi = alkkagiCamera && (game?.role === 'PLAYER' ? !looking : spectatorBoard)
-    boardFocusLighting.requested = focusedOmok || focusedAlkkagi
-    if (focusedOmok || focusedAlkkagi) {
+    const chessAnchor = game?.role === 'PLAYER' ? TABLES.find(t => t.id === avatar.tableId) : closeAnchor ?? watchedAnchor
+    const activeChess = chessCameraActive(game?.chess?.status, !!gameSession.lastResult) && !!chessAnchor
+      && (game?.role === 'SPECTATOR' || seated && !!avatar.tableId)
+    const ownChess = seated && !!avatar.tableId && (session.tableStates[session.tableId]?.gameCode === 'CHESS' || game?.role === 'PLAYER' && !!game.chess)
+    const focusedChess = activeChess && (game?.role === 'PLAYER' ? !looking : spectatorBoard)
+    boardFocusLighting.requested = focusedOmok || focusedAlkkagi || focusedChess
+    if (focusedOmok || focusedAlkkagi || focusedChess) {
       camera.layers.set(OMOK_FOCUS_LAYER)
       raycaster.layers.set(OMOK_FOCUS_LAYER)
     }
@@ -408,6 +419,14 @@ export function CameraRig() {
         state.desired.set(anchor.position[0] + Math.sin(yaw) * radius,
           Math.min(anchor.position[1] + 2.8, spectatorClearHeight(anchor.pavilionId)), anchor.position[2] + Math.cos(yaw) * radius)
       }
+    } else if (focusedChess && chessAnchor && game?.chess) {
+      const ui = useChessUI.getState()
+      const blackView = (game.role === 'PLAYER' && session.sessionId === game.chess.blackUserId) !== ui.flip
+      const yaw = (blackView ? Math.PI : 0) + ui.angle
+      const frame = chessCameraFrame(gl.domElement.clientWidth, gl.domElement.clientHeight, tableScale(chessAnchor), yaw, ui.overhead)
+      state.look.set(chessAnchor.position[0], chessAnchor.position[1] + (chessAnchor.boardOffsetY ?? 0) + CHESS_BOARD_Y + .04, chessAnchor.position[2])
+      state.desired.set(state.look.x + frame.position[0], state.look.y + frame.position[1], state.look.z + frame.position[2])
+      state.targetUp.set(...frame.up)
     } else if (focusedAlkkagi) {
       const anchor = game?.role === 'PLAYER' ? TABLES.find(t => t.id === avatar.tableId)! : (closeAnchor ?? watchedAnchor)!
       if (anchor) {
@@ -620,13 +639,15 @@ export function CameraRig() {
       // Keep the requested upward angle when the ground prevents the orbit from lowering.
       if (orbitY < 0 && !wardrobeView.active) state.look.y += Math.max(0, state.desired.y - orbitHeight)
     }
-    const targetFov = debrisAnchor ? 55 : tablet ? 43 : focusedAlkkagi ? ALKKAGI_FOV : gathering ? ownOmok ? 60 : CAMERA.fov : seated && oneCardPlayerViewActive(game) ? ONECARD_CAMERA.fov : diceFocus ? DICE_CAMERA.fov : ledgerFocus ? LEDGER_CAMERA.fov : diceSpectator ? DICE_SPECTATOR_CAMERA.fov : boardFocus || spectatorBoard ? GOMOKU.topDownFov : seated ? GOMOKU.seatedFov : CAMERA.fov
+    const targetFov = debrisAnchor ? 55 : tablet ? 43 : focusedChess ? CHESS_FOV : focusedAlkkagi ? ALKKAGI_FOV : gathering ? ownOmok ? 60 : CAMERA.fov : seated && oneCardPlayerViewActive(game) ? ONECARD_CAMERA.fov : diceFocus ? DICE_CAMERA.fov : ledgerFocus ? LEDGER_CAMERA.fov : diceSpectator ? DICE_SPECTATOR_CAMERA.fov : boardFocus || spectatorBoard ? GOMOKU.topDownFov : seated ? GOMOKU.seatedFov : CAMERA.fov
     const smoothingOmok = focusedOmok || ownOmok || state.omokTransition
     const smoothingDice = ownDice || state.diceTransition
     // A defeat shot is an intermediate camera goal, not the end of the return transition.
     const holdAlkkagi = ownAlkkagi || alkkagiCamera || !!debrisAnchor && debris?.gameCode === 'ALKKAGI'
     const smoothingAlkkagi = holdAlkkagi || state.alkkagiTransition
-    const smoothingBoard = smoothingOmok || smoothingDice || smoothingAlkkagi || diceSpectator
+    const holdChess = ownChess || activeChess
+    const smoothingChess = holdChess || state.chessTransition
+    const smoothingBoard = smoothingOmok || smoothingDice || smoothingAlkkagi || smoothingChess || diceSpectator
     let omokSettled = false
     if (smoothingBoard) {
       // A stable up vector preserves each seat's orientation at exactly 90 degrees.
@@ -636,6 +657,7 @@ export function CameraRig() {
       if (smoothingOmok) state.omokTransition = focusedOmok || ownOmok || !omokSettled
       if (smoothingDice) state.diceTransition = ownDice || !omokSettled
       if (smoothingAlkkagi) state.alkkagiTransition = holdAlkkagi || !omokSettled
+      if (smoothingChess) state.chessTransition = holdChess || !omokSettled
     } else {
       if (firstPerson && performance.now() >= bungeoppangView.returningUntil) camera.position.copy(state.desired)
       else camera.position.lerp(state.desired, 1 - Math.exp(-(performance.now() < bungeoppangView.returningUntil ? 24 : 12) * Math.min(delta, 0.1)))
@@ -652,6 +674,9 @@ export function CameraRig() {
       } else camera.lookAt(state.look)
     }
     diceCamera.ready = diceFocus || diceSpectator ? omokSettled : !!(spectatorBoard && game?.dice) && camera.position.distanceTo(state.desired) < .005
+    chessCamera.ready = focusedChess && omokSettled
+    chessCamera.anchorId = focusedChess ? chessAnchor?.id ?? '' : ''
+    chessCamera.current = focusedChess ? camera : null
     state.sleighCamera.returnToPark(camera, state.desired, state.look, delta)
     camera.getWorldDirection(state.direction)
     setInteractionCamera(camera)

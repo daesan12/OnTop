@@ -5,6 +5,9 @@ import { exchangeCallbackCode } from '../../../auth/authFlow'
 import { parkRuntime } from '../../../park/runtime/runtime'
 import { authoritativePose, useSession } from '../../../network/worldClient'
 import { useGame } from '../../store'
+import { Vector3 } from 'three'
+import { TABLES, tableScale } from '../../../park/mapConfig'
+import { chessCamera, CHESS_BOARD_SCALE, CHESS_BOARD_Y } from '../camera'
 import '../../../styles.css'
 
 function LocalEntry() {
@@ -31,7 +34,20 @@ async function boot() {
     state: () => { const w = useSession.getState(), g = useGame.getState(); return { status: w.status, roomId: w.roomId,
       userId: w.sessionId, tableId: w.tableId, position: authoritativePose(w.sessionId), mapCompatible: w.mapCompatible,
       gameId: g.game?.gameId, chess: g.game?.chess, tables: w.tableStates, table: w.tableStates[w.tableId],
-      phase: g.start?.phase, recovery: g.recovery, error: g.error, sessionError: w.error, result: g.result } },
+      phase: g.start?.phase, recovery: g.recovery, error: g.error, sessionError: w.error, result: g.result,
+      cameraReady: chessCamera.ready, cameraAnchor: chessCamera.anchorId } },
+    projectSquare: (square: string) => {
+      const camera = chessCamera.current, anchor = TABLES.find(t => t.id === chessCamera.anchorId)
+      const rect = document.querySelector('canvas')?.getBoundingClientRect(), board = useGame.getState().game?.chess?.board
+      if (!camera || !anchor || !rect || !board || !/^[a-h][1-8]$/.test(square)) return null
+      const file = square.charCodeAt(0) - 97, rank = Number(square[1]) - 1, piece = board[rank * 8 + file]
+      const top = piece === '.' ? .09 : ({ P: .74, N: 1.02, B: 1.05, R: .86, Q: 1.15, K: 1.12 }[piece.toUpperCase()] ?? .09)
+      const scale = CHESS_BOARD_SCALE * tableScale(anchor)
+      const point = new Vector3(anchor.position[0] + (file - 3.5) * scale,
+        anchor.position[1] + (anchor.boardOffsetY ?? 0) + CHESS_BOARD_Y + (.051 + top) * CHESS_BOARD_SCALE,
+        anchor.position[2] + (3.5 - rank) * scale).project(camera)
+      return { x: rect.left + (point.x + 1) / 2 * rect.width, y: rect.top + (1 - point.y) / 2 * rect.height }
+    },
     runtime: parkRuntime,
   } })
   createRoot(document.getElementById('root')!).render(<>
