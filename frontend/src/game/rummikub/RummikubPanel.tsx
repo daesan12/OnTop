@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useGame } from '../store'
 import { useSession } from '../../network/worldClient'
 import { useParkRuntime } from '../../park/runtime/ParkRuntime'
@@ -9,6 +9,7 @@ import { canActRummikub } from './actions'
 import { COLOR_LABEL, type RummikubInput } from './protocol'
 import { useRummikubPings } from './pings'
 import { useOmokEvents } from '../omok/spectatorEvents'
+import { installRummikubShortcuts } from './controls'
 import './rummikub.css'
 
 export function RummikubPanel() {
@@ -17,6 +18,19 @@ export function RummikubPanel() {
   const pings = useRummikubPings(), chats = useOmokEvents(v => v.history)
   const [chat, setChat] = useState('')
   const [now, setNow] = useState(Date.now)
+  const dock = useRef<HTMLElement>(null)
+  const [collapsed, setCollapsed] = useState(false)
+  const gameId = s.game?.rummikub ? s.game.gameId : ''
+  const toggleDock = useCallback(() => {
+    const focused = dock.current?.contains(document.activeElement)
+    dock.current?.querySelectorAll<HTMLDetailsElement>('details[name="supae-dock"][open]').forEach(d => { d.open = false })
+    setCollapsed(value => !value)
+    if (focused) dock.current?.querySelector<HTMLButtonElement>('.rummi-dock-toggle')?.focus({preventScroll:true})
+  }, [])
+  useEffect(() => {
+    setCollapsed(false)
+    if (gameId) return installRummikubShortcuts(gameId, toggleDock)
+  }, [gameId, toggleDock])
   useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 500); return () => clearInterval(timer) }, [])
   useEffect(()=>{
     const focusChat=(event:FocusEvent)=>{
@@ -36,16 +50,18 @@ export function RummikubPanel() {
   const status = r.status === 'FINISHED' ? `${r.endReason === 'EMPTY_HAND' ? '수패마루! · ' : ''}${r.winnerUserIds.map(name).join(' · ')} 승리`
     : r.turnUserId === own && player ? `내 차례 · ${remaining}초` : `${name(r.turnUserId!)} 차례 · ${remaining}초`
   const me = r.players.find(p => p.userId === own)
-  return <section className="rummikub-panel rummikub-dock" aria-label="수패마루" onPointerDown={e => e.stopPropagation()} onKeyDown={e => {
+  return <section ref={dock} className="rummikub-panel rummikub-dock" data-collapsed={collapsed} aria-label="수패마루" onPointerDown={e => e.stopPropagation()} onKeyDown={e => {
     e.stopPropagation()
     if(e.key==='Escape') { const drawer=e.currentTarget.querySelector<HTMLDetailsElement>('details[name="supae-dock"][open]');if(drawer){e.preventDefault();drawer.open=false} }
   }}>
     <header className="rummi-header"><h2>수패마루</h2><strong role="status">{status}</strong>
-      <span>{me?.registered ? '등록 완료' : '첫 등록 30점'}</span><span>더미 {r.poolCount}개</span>
+      <span className="rummi-header-extra">{me?.registered ? '등록 완료' : '첫 등록 30점'}</span><span className="rummi-header-extra">더미 {r.poolCount}개</span>
       <div className="rummi-player-counts">{r.players.map(p=><span key={p.userId} data-turn={p.userId===r.turnUserId}>{name(p.userId)} {p.forfeited ? '기권' : `${p.tileCount}개`}</span>)}</div>
-      <button onClick={() => openManual('rummikub')}>게임 설명</button>
+      <div className="rummi-header-extra rummi-header-buttons"><button onClick={() => openManual('rummikub')}>게임 설명</button>
       {player ? <OmokSurrender context={{ userId: own, gameId: g.gameId, version: g.version }} disabled={s.pending}/>
-        : <button onClick={() => void runtime.unwatchGame()}>관전 종료</button>}
+        : <button onClick={() => void runtime.unwatchGame()}>관전 종료</button>}</div>
+      <button className="rummi-dock-toggle" onClick={toggleDock} aria-expanded={!collapsed} aria-keyshortcuts="H"
+        aria-label={`조작 바 ${collapsed ? '펼치기' : '접기'}`} title="H · 조작 바 접기/펼치기">{collapsed ? '펼치기' : '접기'} <kbd>H</kbd></button>
     </header>
     <details name="supae-dock" className="rummi-match-details"><summary>경기 정보</summary><div className="rummi-drawer">
     <button className="rummi-drawer-close" onClick={e=>{const details=e.currentTarget.closest('details');if(details)details.open=false}}>경기 정보 닫기</button>

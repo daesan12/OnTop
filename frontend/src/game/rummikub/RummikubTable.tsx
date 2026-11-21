@@ -3,6 +3,7 @@ import { useRummikubDraft, toggleRummikubTile, sortRummikubTiles } from './draft
 import { COLOR_LABEL, COLORS, physical, validMeld, type Color, type Placed, type Rummikub, type Tile } from './protocol'
 import ontopLogo from '../../assets/entry/ontop-logo.webp'
 import { editTiles, type TileDestination } from './edit'
+import { arrangeRummikubRack } from './controls'
 
 function TileButton({ tile, selected, disabled, onClick }: {
   tile: Tile | Placed; selected: boolean; disabled: boolean; onClick(): void
@@ -26,7 +27,7 @@ export function RummikubTable({ state, tiles, own, editable, sending, error, not
   useEffect(() => { useRummikubDraft.setState({source:state,draft:state.melds.map(m=>[...m]),selected:[],hint:''}) }, [state])
   const setDraft = (draft: Placed[][]) => useRummikubDraft.setState({draft})
   const setSelected = (selected: string[]) => useRummikubDraft.setState({selected})
-  const setSort = (sort: 'color' | 'number') => useRummikubDraft.setState({sort})
+  const setSort = arrangeRummikubRack
   const setJokerColor = (jokerColor: Color) => useRummikubDraft.setState({jokerColor})
   const setJokerNumber = (jokerNumber: number) => useRummikubDraft.setState({jokerNumber})
   const registered = state.players.find(p => p.userId === own)?.registered ?? false
@@ -83,16 +84,22 @@ export function RummikubTable({ state, tiles, own, editable, sending, error, not
   return <>
     {tabletop ? <details ref={options} name="supae-dock" className="rummi-options"><summary>{selectedJoker ? '조커 설정' : '조합·정밀 선택'}{selected.length>0 ? ` · ${selected.length}개 선택` : ''}</summary>
       <div className="rummi-drawer"><button className="rummi-drawer-close" onClick={()=>{if(options.current)options.current.open=false}}>조작창 닫기</button>{editor}</div></details> : editor}
-    <div className="rummi-announcement" aria-live="polite">
+    <div className="rummi-announcement" data-important={!!error || !!notice || sending} aria-live="polite">
       {error ? <p role="alert">{error}</p> : sending ? <p>서버의 처리 확인을 기다리고 있습니다.</p>
         : notice ? <p>{notice}</p> : editable ? <p>{!registered && `첫 등록 ${points} / 30점 · `}{tabletop
           ? ui.hint || '빈 곳으로 끌어 새 조합 · 조합 위에 놓아 붙이기 · Esc 취소'
           : registered ? '새 조합을 만들거나 공개된 조합을 재구성하세요.' : '내 손패로만 조합을 만드세요.'}</p> : <p>테이블 위 조합을 살펴보세요.</p>}
     </div>
     <footer className="rummi-controls">
-      {tiles.length > 0 && <><button aria-pressed={sort === 'color'} onClick={() => setSort('color')}>색상 정렬</button>
-        <button aria-pressed={sort === 'number'} onClick={() => setSort('number')}>숫자 정렬</button></>}
-      {editable && <><button disabled={!dirty} onClick={() => { setDraft(state.melds.map(m => [...m])); setSelected([]); useRummikubDraft.setState({hint:''}) }}>되돌리기</button>
+      {tiles.length > 0 && (tabletop ? <details name="supae-dock" className="rummi-sort rummi-secondary"><summary title="C · 색상순 / N · 숫자순">패 정리 <small>{sort === 'color' ? '색상순' : '숫자순'}</small></summary>
+        <div className="rummi-drawer"><button className="rummi-drawer-close" onClick={e=>{const d=e.currentTarget.closest('details');if(d)d.open=false}}>패 정리 닫기</button>
+          <p>받침대의 내 타일만 정리합니다.</p>
+          <button aria-pressed={sort === 'color'} aria-keyshortcuts="C" onClick={() => setSort('color')}>색상 정렬 <kbd>C</kbd></button>
+          <button aria-pressed={sort === 'number'} aria-keyshortcuts="N" onClick={() => setSort('number')}>숫자 정렬 <kbd>N</kbd></button>
+          <p>같은 색의 연번은 색상순으로, 같은 숫자의 그룹은 숫자순으로 확인하세요.</p>
+        </div></details> : <><button aria-pressed={sort === 'color'} onClick={() => setSort('color')}>색상 정렬</button>
+        <button aria-pressed={sort === 'number'} onClick={() => setSort('number')}>숫자 정렬</button></>)}
+      {editable && <><button className="rummi-secondary" disabled={!dirty} onClick={() => { setDraft(state.melds.map(m => [...m])); setSelected([]); useRummikubDraft.setState({hint:''}) }}>되돌리기</button>
         <button disabled={dirty || sending} onClick={onDraw}>{state.poolCount ? '타일 뽑기' : '패스'}</button>
         <button className="rummi-primary" disabled={!valid || sending} onClick={() => onPlay(draft)}>턴 확정</button></>}
     </footer>
