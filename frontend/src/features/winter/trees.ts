@@ -11,12 +11,16 @@ export function winterTreeIsHeavy(x: number, z: number) {
 
 /** Seasonal art only: keep the original geometry, instance transforms and trunk placements. */
 export function winterTreeParts(parts: ReturnType<typeof buildParkTreeParts>, plantings: readonly TreePlanting[]) {
+  const coverage = new Map<string, boolean>()
   const heavy = (x: number, z: number) => {
+    const key = `${x}:${z}`, cached = coverage.get(key)
+    if (cached !== undefined) return cached
     let nearest = Infinity, selected = false
     for (const tree of plantings) {
       const [tx, , tz] = tree.position, distance = (x - tx) ** 2 + (z - tz) ** 2
       if (distance < nearest) { nearest = distance; selected = winterTreeIsHeavy(tx, tz) }
     }
+    coverage.set(key, selected)
     return selected
   }
   return {
