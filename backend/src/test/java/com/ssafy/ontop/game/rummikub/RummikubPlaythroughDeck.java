@@ -19,7 +19,8 @@ public final class RummikubPlaythroughDeck implements Consumer<List<RummikubTile
         for (String id : ids) {
             ordered.add(deck.stream().filter(tile -> tile.id().equals(id)).findFirst().orElseThrow());
         }
-        deck.stream().filter(tile -> !ids.contains(tile.id())).forEach(ordered::add);
+        // 추첨 때의 재배열이 배분 후 더미 순서에 섞이지 않도록 매번 같은 원본에서 구성한다.
+        RummikubTile.deck().stream().filter(tile -> !ids.contains(tile.id())).forEach(ordered::add);
         deck.clear();
         deck.addAll(ordered);
     }
