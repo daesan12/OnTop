@@ -15,6 +15,8 @@ export function SpotDuelLobby({ page, navigate, rooms, loading, failed, busy, re
   const found = rooms.filter(room => (!term || room.title.toLocaleLowerCase('ko-KR').includes(term))
     && (filter === 'ALL' || room.difficulty === filter))
   const pages = Math.max(1, Math.ceil(found.length / pageSize)), current = Math.min(index, pages - 1)
+  // 목록이 다시 늘어도 사라졌던 페이지로 돌아가지 않도록 선택 상태도 낮춘다.
+  if (index !== current) setIndex(current)
   const visible = found.slice(current * pageSize, (current + 1) * pageSize)
   const go = (next: DuelLobbyPage) => { setIndex(0); navigate(next) }
 
@@ -28,10 +30,10 @@ export function SpotDuelLobby({ page, navigate, rooms, loading, failed, busy, re
         <button type="button" className="spot-guide-back" disabled={busy} onClick={() => go('rooms')}>참가하기 →</button>
       </div>
     </div> : page === 'create' ? <form className="spot-duel-create" onSubmit={event => {
-      event.preventDefault(); if (!busy && title.trim()) create(difficulty, title.trim())
+      event.preventDefault(); if (!busy) create(difficulty, title.trim())
     }}>
-      <label className="spot-room-title" htmlFor="spot-room-name">방 이름 <small>{title.length} / 40</small>
-        <input id="spot-room-name" value={title} maxLength={40} required autoComplete="off" disabled={busy}
+      <label className="spot-room-title" htmlFor="spot-room-name">방 이름 (선택) <small>{title.length} / 40</small>
+        <input id="spot-room-name" value={title} maxLength={40} autoComplete="off" disabled={busy}
           placeholder="함께 틀린 그림 찾아요" onChange={event => setTitle(event.target.value)} />
       </label>
       <fieldset disabled={busy}><legend>난이도</legend><div className="spot-duel-levels">
@@ -42,7 +44,7 @@ export function SpotDuelLobby({ page, navigate, rooms, loading, failed, busy, re
       </div></fieldset>
       <p>공개 방으로 만들어져 같은 공원의 다른 사람이 참가할 수 있어요.</p>
       <div className="spot-actions"><button type="button" className="spot-guide-back" disabled={busy} onClick={() => go('home')}>돌아가기</button>
-        <button type="submit" className="spot-primary" disabled={busy || !title.trim()}>{busy ? '방 만드는 중…' : '방 만들기'}</button></div>
+        <button type="submit" className="spot-primary" disabled={busy}>{busy ? '방 만드는 중…' : '방 만들기'}</button></div>
     </form> : <>
       <div className="spot-duel-tools"><button type="button" className="spot-guide-back" disabled={busy} onClick={() => go('home')}>← 처음으로</button>
         <button type="button" className="spot-guide-back" disabled={busy || loading} onClick={refresh}>새로고침</button>
