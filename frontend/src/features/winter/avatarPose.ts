@@ -4,7 +4,7 @@ import { useWinter, winterFrozen, winterMotion } from './state'
 
 const smooth = (v: number) => { v = Math.max(0, Math.min(1, v)); return v * v * (3 - 2 * v) }
 export function winterPoseActive(id: string, now: number) {
-  return !winterFrozen(id, now) && (!!winterMotion(id, now) || useWinter.getState().players[id]?.snowballs === 1)
+  return !winterFrozen(id, now) && (!!winterMotion(id, now) || (useWinter.getState().players[id]?.snowballs ?? 0) > 0)
 }
 
 /** Uses the existing hand IK, after locomotion and before rig smoothing. L is +X on these supplied rigs. */

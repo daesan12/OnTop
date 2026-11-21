@@ -3,7 +3,7 @@ import { useFrame } from '@react-three/fiber'
 import { Mesh, Vector3 } from 'three'
 import type { createCharacterRig } from '../../world/art/CharacterRig'
 import { avatars, estimatedServerTime } from '../../network/worldClient'
-import { useWinter, winterFrozen, winterMotion } from './state'
+import { heldSnowballVisible, winterFrozen, winterMotion } from './state'
 import { winterPoseActive } from './avatarPose'
 import { useFacilityState } from '../facilities/state'
 import { winterSceneryVisible } from './presentation'
@@ -30,7 +30,7 @@ export function SnowballHand({ id, model }: { id: string; model: ReturnType<type
     if (!allowed) { root.visible = false; snowballHands.delete(id); return }
     model.bones.hand_R.getWorldPosition(points.right)
     snowballHands.set(id, points.right)
-    root.visible = useWinter.getState().players[id]?.snowballs === 1 && winterPoseActive(id, now)
+    root.visible = heldSnowballVisible(id, now)
     if (!root.visible || !root.parent) return
     const motion = winterMotion(id, now)
     points.center.copy(points.right)
