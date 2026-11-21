@@ -9,6 +9,7 @@ import { useOmokEvents } from '../omok/spectatorEvents'
 import { ChessBoardScene } from './ChessBoard3D'
 import { CHESS_BOARD_SCALE, CHESS_BOARD_Y } from './camera'
 import { useChessControls } from './parkControls'
+import { checkedKingSquare } from './moveHints'
 
 const INITIAL_BOARD = 'RNBQKBNRPPPPPPPP................................pppppppprnbqkbnr'
 
@@ -36,7 +37,7 @@ function LiveBoard() {
       <planeGeometry args={[14, 14]} /><FocusWood />
     </mesh>
     <group position={[0, CHESS_BOARD_Y, 0]} scale={CHESS_BOARD_SCALE} name="chess-world-board">
-      <ChessBoardScene board={c.board} blackView={false} selected={ui.selected}
+      <ChessBoardScene board={c.board} blackView={false} selected={ui.selected} checkedSquare={checkedKingSquare(c)}
         destinations={c.legalMoves.filter(move => move.from === ui.selected).map(move => move.to)} lastMove={c.moves.at(-1)}
         pings={pings.filter(p => p.gameId === game.gameId).map(p => p.y * 8 + p.x)} disabled={disabled}
         onSquare={choose} layer={focused ? OMOK_FOCUS_LAYER : 0} />

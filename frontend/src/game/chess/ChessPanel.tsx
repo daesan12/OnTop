@@ -11,7 +11,7 @@ import { OmokSurrender, type ForfeitConfirmationControls } from '../OmokSurrende
 import { CHESS_END_REASON } from './protocol'
 import { ChessKeyboardBoard } from './ChessBoard3D'
 import { useChessControls, useChessUI } from './parkControls'
-import { chessSelectionLabel } from './moveHints'
+import { checkedKingSquare, chessSelectionLabel } from './moveHints'
 import pieces from './assets/pieces.png'
 import './chess.css'
 
@@ -46,14 +46,15 @@ export function ChessPanel() {
   const status = !playing ? c.winnerUserId ? `${name(c.winnerUserId)} 승리 · ${CHESS_END_REASON[c.endReason ?? '']}`
     : `무승부 · ${CHESS_END_REASON[c.endReason ?? '']}` : `${c.turnUserId === c.whiteUserId ? '백' : '흑'}의 차례${c.inCheck ? ' · 체크!' : ''}`
   const blackView = (own === c.blackUserId) !== ui.flip
-  const boardProps = { board: c.board, blackView, selected: ui.selected, destinations: c.legalMoves.filter(m => m.from === ui.selected).map(m => m.to),
+  const checkedSquare = checkedKingSquare(c)
+  const boardProps = { board: c.board, blackView, selected: ui.selected, checkedSquare, destinations: c.legalMoves.filter(m => m.from === ui.selected).map(m => m.to),
     pings: [], disabled, onSquare: (index: number) => choose(index, true) }
   const selectionLabel = chessSelectionLabel(c.board, ui.selected, boardProps.destinations, labels)
   return <section className="chess-hud" aria-label="체스 경기" data-role={game.role} data-status={c.status}>
     <header className="chess-match-header">
-      <div className="chess-title"><h2>체스</h2><span role="status" aria-live="polite">{status}</span></div>
-      {[c.whiteUserId, c.blackUserId].map((id, index) => <div key={id} className="chess-player" data-turn={c.turnUserId === id}>
-        <ChessPiece piece={index === 0 ? 'P' : 'p'} /><div><b>{index === 0 ? '백' : '흑'} · {name(id)}</b><small>{id === own ? '내 기물' : player ? '상대 기물' : '참가자'}</small></div>
+      <div className="chess-title" data-check={!!checkedSquare}><h2>체스</h2><span role="status" aria-live="polite">{status}</span></div>
+      {[c.whiteUserId, c.blackUserId].map((id, index) => <div key={id} className="chess-player" data-turn={c.turnUserId === id} data-check={!!checkedSquare && c.turnUserId === id}>
+        <ChessPiece piece={index === 0 ? 'P' : 'p'} /><div><b>{index === 0 ? '백' : '흑'} · {name(id)}</b><small>{checkedSquare && c.turnUserId === id ? '킹 위험 · 체크' : id === own ? '내 기물' : player ? '상대 기물' : '참가자'}</small></div>
         <ChessClock ms={c.remainingMs[index]} deadline={playing && c.turnUserId === id ? c.turnDeadline : null} label={`${index === 0 ? '백' : '흑'} 남은 시간`} />
       </div>)}
     </header>

@@ -1,3 +1,13 @@
+import type { Chess } from './protocol'
+
+/** inCheck describes the side to move; never infer attacks or danger from local move rules. */
+export function checkedKingSquare(chess: Pick<Chess, 'board' | 'status' | 'inCheck' | 'turnUserId' | 'whiteUserId' | 'blackUserId'>) {
+  if (chess.status !== 'PLAYING' || !chess.inCheck || chess.board.length !== 64) return ''
+  const king = chess.turnUserId === chess.whiteUserId ? 'K' : chess.turnUserId === chess.blackUserId ? 'k' : ''
+  const index = king ? chess.board.indexOf(king) : -1
+  return index < 0 ? '' : `${'abcdefgh'[index % 8]}${1 + Math.floor(index / 8)}`
+}
+
 export type BoardPoint = { x: number; z: number }
 export type MoveTarget = { square: string; index: number; capture: boolean }
 export type MovePath = { points: BoardPoint[]; target: MoveTarget; kind: 'ray' | 'jump' | 'castle' }
