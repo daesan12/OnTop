@@ -67,7 +67,7 @@ public final class QuoridorParkApplication {
                 for (long id : ids) {
                     if (Set.of(101L,202L,303L,404L,505L).contains(id)) {
                         result.put(id, new WorldProfileGateway.Profile(
-                                id==101 ? "쿼리도 하나" : id==202 ? "쿼리도 둘" : id==303 ? "쿼리도 셋" : id==404 ? "쿼리도 넷" : "관전 로컬", "MALE"));
+                                id==101 ? "길목 하나" : id==202 ? "길목 둘" : id==303 ? "길목 셋" : id==404 ? "길목 넷" : "관전 로컬", "MALE"));
                     }
                 }
                 return Map.copyOf(result);
@@ -106,7 +106,7 @@ public final class QuoridorParkApplication {
                         try {
                             String bearer=request.getHeader("Authorization");
                             var user=auth.authenticate(bearer != null && bearer.startsWith("Bearer ") ? bearer.substring(7) : "");
-                            body=Map.of("userId",user.userId(),"nickname",user.userId()==101 ? "쿼리도 하나" : user.userId()==202 ? "쿼리도 둘" : user.userId()==303 ? "쿼리도 셋" : user.userId()==404 ? "쿼리도 넷" : "관전 로컬","characterGender","MALE");
+                            body=Map.of("userId",user.userId(),"nickname",user.userId()==101 ? "길목 하나" : user.userId()==202 ? "길목 둘" : user.userId()==303 ? "길목 셋" : user.userId()==404 ? "길목 넷" : "관전 로컬","characterGender","MALE");
                         } catch(RestAuthenticationException denied) { response.setStatus(401); return; }
                     }
                     if (body == null) { chain.doFilter(request,response); return; }

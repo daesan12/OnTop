@@ -45,7 +45,7 @@ export function GamePanel() {
   if (npcResult) return <NpcResultPanel practice={npcResult}/>
   if (terminalPlayer && !seated) return null
   if (stone) return <Suspense fallback={<StoneLoadingTips ready={0} total={stonePlayers} ownReady={false} error="" retry={() => void runtime.checkRecovery()} />}><StoneRumblePanel /></Suspense>
-  if (quoridor && (quoridor === 'SPECTATOR' || seated)) return <Suspense fallback={<p role="status">쿼리도 게임판 준비 중…</p>}><QuoridorPanel /></Suspense>
+  if (quoridor && (quoridor === 'SPECTATOR' || seated)) return <Suspense fallback={<p role="status">길목 한 수 게임판 준비 중…</p>}><QuoridorPanel /></Suspense>
   if (alkkagi) return <AlkkagiPanel />
   if (spectatorResult) {
     if (spectatorResult.dice) return <FarklePanel />

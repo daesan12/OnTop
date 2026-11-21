@@ -26,7 +26,7 @@ interface Props {
 }
 export function QuoridorBoard({ state, ownId, canAct, wallMode, orientation, selected, onSelect, onMove, spectator, onPing, pings = [] }: Props) {
   const own = state.players.find(p => p.userId === ownId)
-  return <div className="qr-board-frame"><div className="qr-board" role="group" aria-label="쿼리도 9×9 게임판">
+  return <div className="qr-board-frame"><div className="qr-board" role="group" aria-label="길목 한 수 9×9 게임판">
     {Array.from({ length: 81 }, (_, index) => {
       const cell = { x: index % 9, y: Math.floor(index / 9) }, pawn = state.players.findIndex(p => p.active && same(p, cell))
       const legal = canAct && !wallMode && state.legalMoves.some(move => same(move, cell))

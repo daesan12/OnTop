@@ -29,7 +29,7 @@ public final class QuoridorMatch {
         if (users == null || !List.of(2, 4).contains(users.size()) || new HashSet<>(users).size() != users.size()
                 || users.stream().anyMatch(user -> user == null || user <= 0)
                 || firstPlayer < 0 || firstPlayer >= users.size()) {
-            throw new IllegalArgumentException("쿼리도는 서로 다른 2명 또는 4명이 참가합니다.");
+            throw new IllegalArgumentException("길목 한 수는 서로 다른 2명 또는 4명이 참가합니다.");
         }
         this.users = List.copyOf(users);
         positions.add(new Cell(4, 0));

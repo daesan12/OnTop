@@ -67,7 +67,7 @@ it('승인된 공통 기권 연출과 탁자·엽전 잔해를 읽는다', () =>
   expect(state.items[0].gameCode).toBe('QUORIDOR')
 })
 
-it('쿼리도 전적 때문에 전체 전적 응답을 거절하지 않는다', () => {
+it('길목 한 수 전적 때문에 전체 전적 응답을 거절하지 않는다', () => {
   const page = parseHistory({items:[{gameSessionId:'7',gameCode:'QUORIDOR',status:'FINISHED',myResult:'WIN',
     settlementStatus:'SETTLED',endedAt:'2026-11-21T00:00:00Z'}],nextCursor:null,hasNext:false},'QUORIDOR')
   expect(page.items[0].gameCode).toBe('QUORIDOR')

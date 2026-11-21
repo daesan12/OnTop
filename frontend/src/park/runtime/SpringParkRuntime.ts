@@ -1793,14 +1793,14 @@ export class ParkRuntime implements ParkRuntimePort {
     if (own.status !== 'connected' || !g?.quoridor || g.role !== 'PLAYER' || g.gameId !== s.permittedGameId
       || s.recovery !== 'RESTORED' || s.pending || s.uncertain || g.version < s.awaitingVersion
       || g.quoridor.status !== 'PLAYING' || g.quoridor.turnUserId !== own.sessionId)
-      throw new Error('본인 차례와 최신 쿼리도 상태를 확인해주세요.')
+      throw new Error('본인 차례와 최신 길목 한 수 상태를 확인해주세요.')
     const generation = this.generation
     useGame.setState({ pending: true, error: '' })
     try {
       await this.socket.request('GAME_ACTION_SEND', { gameId: g.gameId, actionId: crypto.randomUUID(), expectedVersion: g.version, input: { ...input } }, ['GAME_ACTION_RESULT'])
     } catch (error) {
       if (generation === this.generation && useGame.getState().permittedGameId === g.gameId)
-        useGame.setState({ uncertain: !(error instanceof ServerError), error: error instanceof Error ? error.message : '쿼리도 처리 결과를 확인해주세요.' })
+        useGame.setState({ uncertain: !(error instanceof ServerError), error: error instanceof Error ? error.message : '길목 한 수 처리 결과를 확인해주세요.' })
       throw error
     } finally { if (generation === this.generation) useGame.setState({ pending: false }) }
   })

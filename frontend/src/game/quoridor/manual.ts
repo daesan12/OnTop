@@ -1,8 +1,8 @@
 import type { GameManual } from '../../features/manual/types'
 
 export const quoridorManual: GameManual = {
-  id: 'quoridor', status: 'available', category: 'game', title: '쿼리도',
-  subtitle: '길을 만들고 장벽을 세워, 반대편 끝줄로 먼저!', keywords: '쿼리도 Quoridor 장벽 길 점프',
+  id: 'quoridor', status: 'available', category: 'game', title: '길목 한 수',
+  subtitle: '길을 만들고 장벽을 세워, 반대편 끝줄로 먼저!', keywords: '길목 한 수 길목한수 산책길 장벽 길 점프',
   players: '2명 또는 4명', goal: '자신의 말을 맞은편 끝줄의 아무 칸에 먼저 도착시키세요.',
   timing: '턴제 · 한 차례에 이동 또는 장벽 하나 · 차례 넘기기 없음',
   summary: '9×9 나무 보드에서 말을 움직이거나 장벽으로 길을 바꿔요. 모든 참가자의 목표까지 가는 길을 남겨야 해요.',
@@ -18,7 +18,12 @@ export const quoridorManual: GameManual = {
     '두 말을 연달아 뛰어넘을 수 없어요. 회피할 칸도 장벽이나 다른 말로 막혀 있으면 그 방향으로 이동할 수 없어요.',
     '장벽은 두 칸 길이예요. 겹침·교차·완전 봉쇄는 금지하며 설치 후 이동하거나 회수할 수 없어요.',
     '장벽은 자신을 포함해 남은 참가자 모두에게 목표까지의 경로를 최소 하나 남겨야 해요.'],
-  sections: [{ id: 'quoridor-departure', title: '기권과 연결 끊김', paragraphs: [
+  sections: [{ id: 'quoridor-table-entry', title: '공원 테이블에서 시작하기', steps: [
+    '같은 공원 채널에 입장하고 일반 게임 테이블의 빈자리에 앉아요.',
+    '방장이 게임 선택에서 ‘길목 한 수’를 고르고 2인 또는 4인 정원과 참가비를 정해 ‘선택하고 준비하기’를 눌러요.',
+    '참가자가 모두 ‘준비 완료’를 누르면 방장이 ‘게임 시작’을 눌러요.',
+    '경기가 끝나면 테이블의 공통 결과 화면에서 결과와 정산을 확인해요.',
+  ] }, { id: 'quoridor-departure', title: '기권과 연결 끊김', paragraphs: [
     '기권하면 말은 보드에서 빠지고 이미 놓은 장벽은 남아요. 한 명만 남으면 그 사람이 승리해요.',
     '일시적인 연결 끊김에는 기존 공통 재접속 유예를 적용해요. 유예가 만료되면 기권 처리해요. 별도의 턴 제한 시간은 없어요.',
     '재접속 시 서버가 보관 중인 판을 다시 받아요. 서버 프로세스 재시작 후 진행 중 판 복원은 지원하지 않아요.',

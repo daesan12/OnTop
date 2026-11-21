@@ -4623,7 +4623,7 @@ public class TableHub {
         int x = ping && !ledgerPing ? payload.get("x").intValue() : 0;
         int y = ping && !ledgerPing ? payload.get("y").intValue() : 0;
         if (ping && "QUORIDOR".equals(push.gameCode) && (x < 0 || x > 8 || y < 0 || y > 8)) {
-            fail(request, "QUORIDOR_PING_INVALID_POSITION", "쿼리도 게임판 안의 위치를 선택해주세요.");
+            fail(request, "QUORIDOR_PING_INVALID_POSITION", "길목 한 수 게임판 안의 위치를 선택해주세요.");
         }
         String category = ledgerPing && payload.has("category") ? payload.get("category").textValue() : null;
         Integer dieId = ledgerPing && payload.has("dieId") ? payload.get("dieId").intValue() : null;

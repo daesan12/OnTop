@@ -31,8 +31,8 @@ export function QuoridorPanel() {
   const canAct = ready && player && mine && !!me?.active && state.recovery === 'RESTORED' && state.permitted === game.gameId
   const name = (id: string) => session.profiles[id]?.nickname ?? `참가자 ${board.players.findIndex(p => p.userId === id) + 1}`
   const title = !playing ? `${board.winnerUserIds.map(name).join(' · ')} 승리` : mine ? '내 차례' : `${name(board.turnUserId!)} 차례`
-  return <section className="quoridor-panel" aria-label="쿼리도 경기" onKeyDown={event => event.stopPropagation()} onPointerDown={event => event.stopPropagation()}>
-    <header className="qr-header"><h2>쿼리도</h2><p role="status">{board.players.length}인전 · {title}</p><div>
+  return <section className="quoridor-panel" aria-label="길목 한 수 경기" onKeyDown={event => event.stopPropagation()} onPointerDown={event => event.stopPropagation()}>
+    <header className="qr-header"><h2>길목 한 수</h2><p role="status">{board.players.length}인전 · {title}</p><div>
       <button type="button" onClick={() => openManual('quoridor')}>규칙</button>
       {player ? <OmokSurrender context={{ userId: session.own, gameId: game.gameId, version: game.version }} disabled={!ready || !me?.active} />
         : <button type="button" disabled={!session.connected || session.pending} onClick={() => void runtime.unwatchGame()}>관전 종료</button>}
@@ -74,7 +74,7 @@ function QuoridorChat({ gameId, names, send, playing }: { gameId: string; names:
   return <div className="qr-chat"><h4>경기 채팅</h4><div className="qr-chat-log" role="log">{events.history.filter(message => message.gameId === gameId).slice(-8).map(message =>
     <p key={message.eventId}><b>{names[message.senderUserId]?.nickname ?? '관전자'}</b> {message.text}</p>)}</div>
     <form onSubmit={event => { event.preventDefault(); if (draft.trim()) void send(draft).then(sent => { if (sent) setDraft('') }) }}>
-      <input aria-label="쿼리도 경기 채팅" value={draft} maxLength={200} disabled={!playing} onFocus={() => setChatInputOpen(true)} onBlur={() => setChatInputOpen(false)} onChange={event => setDraft(event.target.value)} placeholder="경기 채팅을 입력하세요" />
+      <input aria-label="길목 한 수 경기 채팅" value={draft} maxLength={200} disabled={!playing} onFocus={() => setChatInputOpen(true)} onBlur={() => setChatInputOpen(false)} onChange={event => setDraft(event.target.value)} placeholder="경기 채팅을 입력하세요" />
       <button type="submit" disabled={!playing || !events.canSend || events.sending || !draft.trim()}>전송</button></form>
     {events.error || events.pingError ? <p role="status">{events.error || events.pingError}</p> : null}
   </div>

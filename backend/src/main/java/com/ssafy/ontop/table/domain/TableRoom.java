@@ -101,7 +101,7 @@ public final class TableRoom {
     /** 새 태블릿만 명시적으로 수동 시작 계약을 선택한다. 기존 GAME_SELECT 자동 시작은 유지한다. */
     public boolean configure(TableGame selected, Integer target, long amount, int players) {
         if (selected == TableGame.QUORIDOR && players != 2 && players != 4) {
-            throw new IllegalArgumentException("쿼리도 참가 인원은 2명 또는 4명입니다.");
+            throw new IllegalArgumentException("길목 한 수 참가 인원은 2명 또는 4명입니다.");
         }
         if (players < selected.minimumPlayers() || players > selected.maximumPlayers()
                 || arrivalOrder.size() > players) {

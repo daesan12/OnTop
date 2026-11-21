@@ -24,7 +24,7 @@ async function boot() {
     throw new Error('로컬 검수 전용 화면입니다.')
   const role = new URLSearchParams(location.search).get('role') ?? 'red'
   const response = await fetch('/api/v1/dev/quoridor/session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role }) })
-  if (!response.ok) throw new Error('쿼리도 로컬 검수 서버 연결을 확인해주세요.')
+  if (!response.ok) throw new Error('길목 한 수 로컬 검수 서버 연결을 확인해주세요.')
   const { exchangeCode } = await response.json()
   location.hash = new URLSearchParams({ exchange_code: exchangeCode }).toString()
   await exchangeCallbackCode()

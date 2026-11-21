@@ -35,6 +35,6 @@ export function parseQuoridor(value: unknown): Quoridor {
       : value.turnUserId !== null || !['GOAL_REACHED', 'LAST_PLAYER_STANDING'].includes(String(value.endReason))
         || typeof value.endedAt !== 'string' || !Number.isFinite(Date.parse(value.endedAt))
         || value.winnerUserIds.length !== 1 || !value.players.some(p => p.active && p.userId === (value.winnerUserIds as unknown[])[0])))
-    throw new Error('쿼리도 판·참가자·차례 상태를 확인해주세요.')
+    throw new Error('길목 한 수 판·참가자·차례 상태를 확인해주세요.')
   return value as unknown as Quoridor
 }

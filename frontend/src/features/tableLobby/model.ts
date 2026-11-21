@@ -15,7 +15,7 @@ const GAME_OPTIONS = [
   { code: 'ONE_CARD', name: '원카드', capacity: 4, playable: true },
   { code: 'LIAR_BRIDGE', name: '거짓말 다리 건너기', capacity: 4, playable: false },
   { code: 'DICE_LEDGER', name: '주사위 장부', capacity: 4, playable: true },
-  { code: 'QUORIDOR', name: '쿼리도', capacity: 4, playable: true },
+  { code: 'QUORIDOR', name: '길목 한 수', capacity: 4, playable: true },
   { code: 'HALLI_GALLI', name: '과일 땡', capacity: 4, playable: true },
 ] as const
 export const TABLE_GAMES = GAME_OPTIONS

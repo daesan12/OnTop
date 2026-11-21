@@ -278,7 +278,7 @@ export function parseGame(p: Record<string, unknown>, ownId = ''): Game {
   if (record(p.publicState) && p.publicState.gameCode === 'DICE_LEDGER') return { ...common, ledger: parseLedger(p.publicState) }
   if (record(p.publicState) && p.publicState.gameCode === 'QUORIDOR') {
     const quoridor = parseQuoridor(p.publicState)
-    if (quoridor.version !== common.version) throw new Error('쿼리도 버전이 일치하지 않습니다.')
+    if (quoridor.version !== common.version) throw new Error('길목 한 수 버전이 일치하지 않습니다.')
     return { ...common, quoridor }
   }
   if (record(p.publicState) && p.publicState.gameCode === 'HALLI_GALLI') return { ...common, halli: parseHalliGalli(p.publicState) }

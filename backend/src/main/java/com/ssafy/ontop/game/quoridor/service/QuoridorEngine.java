@@ -54,12 +54,12 @@ public final class QuoridorEngine implements GameEngine {
     public synchronized void create(String gameId, String tableId, List<Long> players) {
         if (gameId == null || gameId.isBlank() || gameId.length() > 120 || tableId == null || tableId.isBlank()
                 || tableId.length() > 120 || players == null || !List.of(2, 4).contains(players.size())) {
-            throw new IllegalArgumentException("쿼리도 경기·테이블·참가자를 확인해주세요.");
+            throw new IllegalArgumentException("길목 한 수 경기·테이블·참가자를 확인해주세요.");
         }
         Entry previous = games.get(gameId);
         if (previous != null) {
             if (!previous.tableId.equals(tableId) || !previous.match.users().equals(players)) {
-                throw new IllegalStateException("기존 쿼리도 경기와 다른 생성 요청입니다.");
+                throw new IllegalStateException("기존 길목 한 수 경기와 다른 생성 요청입니다.");
             }
             return;
         }
