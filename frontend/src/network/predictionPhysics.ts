@@ -24,6 +24,7 @@ import { useFacilityState } from '../features/facilities/state'
 import { estimatedServerTime } from './serverEventClock'
 import { horrorState } from '../../park-renewal-preview/horrorPlan'
 import { useWinterCommunity, type Snowman } from '../features/winter/community/state'
+import { snowmanLayout } from '../features/winter/community/snowmanLayout'
 
 /** How long Rapier may keep a grounded state the server does not support before falling. */
 const EDGE_GLIDE_SECONDS = .15
@@ -47,10 +48,9 @@ class PredictionPhysics implements PredictionSimulation {
     for (const body of this.snowmanBodies) this.world.removeCollider(body, true)
     this.snowmanBodies = []
     for (const man of next ?? []) {
-      let bottom = man.groundY
-      for (const radius of [man.baseRadius, man.middleRadius, man.headRadius]) {
-        this.snowmanBodies.push(this.world.createCollider(RAPIER.ColliderDesc.ball(radius).setTranslation(man.x, bottom + radius, man.z)))
-        bottom += radius * 2
+      const { baseY, middleY, headY } = snowmanLayout(man.baseRadius, man.middleRadius, man.headRadius)
+      for (const [radius, y] of [[man.baseRadius, baseY], [man.middleRadius, middleY], [man.headRadius, headY]] as const) {
+        this.snowmanBodies.push(this.world.createCollider(RAPIER.ColliderDesc.ball(radius).setTranslation(man.x, man.groundY + y, man.z)))
       }
     }
   }

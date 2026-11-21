@@ -5,13 +5,17 @@ import { PropBuilder } from '../../../world/art/propGeometry'
 import { groundSurfaceHeight } from '../../../../park-renewal-preview/groundSurface'
 import { useWinterCommunity, type Snowman } from './state'
 import { useWinterCommunityPanel } from './panelState'
+import { snowmanLayout } from './snowmanLayout'
 
 const colors = { RED: '#b73746', GREEN: '#28754a', BLUE: '#366caa', GOLD: '#cca641' }
 type Model = Pick<Snowman, 'baseRadius' | 'middleRadius' | 'headRadius' | 'hat' | 'scarf' | 'face'>
 function snowmanArt(man: Model) {
   const b = new PropBuilder(), { baseRadius: a, middleRadius: m, headRadius: h } = man
-  const middle = a * 2 + m, head = a * 2 + m * 2 + h, top = head + h
-  const sphere = (color: string, x: number, y: number, z: number, r: number) => b.add('paint', new SphereGeometry(r, 14, 10), color, [x, y, z])
+  const { middleY: middle, headY: head, height: top } = snowmanLayout(a, m, h)
+  const sphere = (color: string, x: number, y: number, z: number, r: number) => {
+    const body = r >= .25
+    b.add('paint', new SphereGeometry(r, body ? 20 : 10, body ? 14 : 6), color, [x, y, z], [1, 1, 1], [0, 0, 0], false, body)
+  }
   sphere('#f2f8ff', 0, a, 0, a); sphere('#f2f8ff', 0, middle, 0, m); sphere('#f2f8ff', 0, head, 0, h)
   sphere('#242d39', -h * .32, head + h * .18, h * .91, h * .065)
   if (man.face === 'SMILE') sphere('#242d39', h * .32, head + h * .18, h * .91, h * .065)
@@ -20,8 +24,8 @@ function snowmanArt(man: Model) {
   for (let i = 0; i < 5; i++) { const x = (i - 2) * h * .13; sphere('#35434b', x, head - h * (.38 - Math.abs(i - 2) * .055), Math.sqrt(h * h - x * x) * .93, h * .028) }
   for (let i = 0; i < 3; i++) sphere('#38404a', 0, middle + m * (.4 - i * .4), m * .96, m * .065)
   const scarf = colors[man.scarf]
-  b.add('paint', new TorusGeometry(h * .77, h * .16, 7, 22), scarf, [0, head - h * .78, 0], [1, 1, 1], [Math.PI / 2, 0, 0])
-  b.box('paint', scarf, [h * .3, head - h * 1.35, h * .65], [h * .28, h * .6, h * .08], [0, 0, -.12])
+  b.add('paint', new TorusGeometry(h * .85, h * .16, 7, 22), scarf, [0, head - h * .7, 0], [1, 1, 1], [Math.PI / 2, 0, 0])
+  b.box('paint', scarf, [h * .3, head - h * 1.35, m * .85], [h * .35, h * .9, h * .12], [0, 0, -.12])
   for (const sign of [-1, 1]) b.add('wood', new CylinderGeometry(.025, .035, m * 1.6, 6), '#694b38', [sign * m * 1.35, middle + m * .15, 0], [1, 1, 1], [0, 0, sign * -Math.PI / 2.7])
   if (man.hat === 'TOP_HAT') {
     b.add('paint', new CylinderGeometry(h * 1.05, h * 1.05, h * .12, 20), '#223947', [0, top - h * .05, 0])

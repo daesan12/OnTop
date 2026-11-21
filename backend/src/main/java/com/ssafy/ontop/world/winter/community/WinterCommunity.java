@@ -19,7 +19,7 @@ public final class WinterCommunity {
     public record Snowman(String id, String channelId, String name, double x, double groundY, double z, double yaw,
             double baseRadius, double middleRadius, double headRadius, String hat, String scarf, String face,
             String createdAt) {
-        public double height() { return 2 * (baseRadius + middleRadius + headRadius); }
+        public double height() { return SnowmanShape.stack(baseRadius, middleRadius, headRadius).height(); }
     }
     public record SnowBall(String id, double x, double groundY, double z, double radius, List<String> pushing,
             boolean reserved) { }

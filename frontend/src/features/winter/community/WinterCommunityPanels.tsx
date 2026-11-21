@@ -5,6 +5,7 @@ import { assembleSnowman, postTree, treePage, type Assembly } from './api'
 import { closeWinterCommunity, useWinterCommunityPanel } from './panelState'
 import { useWinterCommunity, type TreeMessage } from './state'
 import './community.css'
+import { snowmanLayout } from './snowmanLayout'
 
 const message = (error: unknown) => error instanceof Error ? error.message : '연결을 확인한 뒤 다시 시도해주세요.'
 const rejected = (error: unknown) => !!error && typeof error === 'object' && 'status' in error && typeof error.status === 'number' && error.status >= 400 && error.status < 500
@@ -95,7 +96,7 @@ function SnowmanWorkshop() {
       <label>목도리<select value={scarf} onChange={e => setScarf(e.target.value as Assembly['scarf'])}><option value="RED">빨강</option><option value="GREEN">초록</option><option value="BLUE">파랑</option><option value="GOLD">금빛</option></select></label>
       <label>표정<select value={face} onChange={e => setFace(e.target.value as Assembly['face'])}><option value="SMILE">활짝 웃음</option><option value="WINK">장난스러운 윙크</option></select></label>
       <label>놓을 자리<select value={point} onChange={e => setPoint(Number(e.target.value))}>{workshop.points.map((_, i) => <option key={i} value={i}>미리보기 자리 {i + 1}</option>)}</select></label>
-    </fieldset><p>높이 약 {(2 * (workshop.base + workshop.middle + workshop.head)).toFixed(1)}m · 이 채널에 오래 남아요.</p>
+    </fieldset><p>높이 약 {snowmanLayout(workshop.base, workshop.middle, workshop.head).height.toFixed(1)}m · 이 채널에 오래 남아요.</p>
       <button className="winter-community__primary" disabled={busy || !name.trim()}>{busy ? '눈사람을 세우는 중…' : locked ? '같은 눈사람 다시 확인하기' : '이 자리에서 완성하기'}</button>
     </form>{!!error && <p role="alert">{error}</p>}<small>다른 친구와 눈사람이 있는 자리는 피해서 놓아주세요. 한 채널에 최대 12개까지 함께 만들 수 있어요.</small>
   </div>

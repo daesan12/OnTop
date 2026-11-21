@@ -1657,14 +1657,17 @@ public final class WorldPhysics implements AutoCloseable {
         call(() -> {
             if (builtSnowmen.containsKey(id)) { return null; }
             var bodies = new java.util.ArrayList<PhysicsRigidBody>();
-            double top = 0;
+            var shape = com.ssafy.ontop.world.winter.community.SnowmanShape.stack(base, middle, head,
+                    scene.data.path("winterSnowman").path("jointInsetRatio")
+                            .asDouble(com.ssafy.ontop.world.winter.community.SnowmanShape.JOINT_INSET_RATIO));
+            double[] centers = {shape.baseY(), shape.middleY(), shape.headY()};
             int part = 0;
             for (double radius : new double[] {base, middle, head}) {
                 var body = new PhysicsRigidBody(new com.jme3.bullet.collision.shapes.SphereCollisionShape((float) radius), 0);
-                body.setUserObject("built-snowman:" + id + ":" + part++);
-                body.setPhysicsLocation(new Vector3f((float) x, (float) (groundY + top + radius), (float) z));
+                body.setUserObject("built-snowman:" + id + ":" + part);
+                body.setPhysicsLocation(new Vector3f((float) x, (float) (groundY + centers[part++]), (float) z));
                 body.setCollisionGroup(2); body.setCollideWithGroups(1);
-                space.addCollisionObject(body); bodies.add(body); top += radius * 2;
+                space.addCollisionObject(body); bodies.add(body);
             }
             builtSnowmen.put(id, bodies);
             for (var entry : actors.entrySet()) {

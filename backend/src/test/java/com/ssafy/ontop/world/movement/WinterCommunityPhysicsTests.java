@@ -14,6 +14,7 @@ class WinterCommunityPhysicsTests {
                 Set.of("channel-1")).createScene();
         try (var physics = new WorldPhysics(scene, false, () -> 0, true)) {
             assertThat(physics.winterTree().path("height").asDouble()).isEqualTo(14.04);
+            assertThat(scene.data.path("winterSnowman").path("jointInsetRatio").asDouble()).isEqualTo(.45);
             var ground = physics.winterSurface(16, 43, .8);
             assertThat(ground.buildingZone()).isTrue(); assertThat(ground.clear()).isTrue();
             assertThat(physics.winterSurface(0, 88, .8).buildingZone()).isFalse();
@@ -21,6 +22,9 @@ class WinterCommunityPhysicsTests {
             physics.installSnowman("one", 16, ground.groundY(), 43, .8, .6, .4);
             assertThat(physics.winterSurface(16, 43, .3).clear()).isFalse();
             assertThat(physics.winterSurface(18.5, 43, .3).clear()).isTrue();
+            // 포갠 머리 꼭대기는 3.15m이며, 이전 3.6m 높이에는 유령 지지면이 없어야 한다.
+            assertThat(physics.canStand(16, ground.groundY() + 3.15 + .76, 43)).isTrue();
+            assertThat(physics.canStand(16, ground.groundY() + 3.6 + .76, 43)).isFalse();
             assertThat(physics.winterSurface(Double.NaN, 43, .8).clear()).isFalse();
         }
     }
