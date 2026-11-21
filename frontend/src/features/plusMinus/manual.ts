@@ -5,7 +5,7 @@ export const plusMinusManual: GameManual = {
   id: 'plus-minus', status: 'available', category: 'minigame', title: '더하기 빼기 아케이드', subtitle: '숫자와 부호를 멈춰 계산해요',
   keywords: '더하기 빼기 아케이드 게임기 오락기 숫자 계산 정지 잭팟 JACKPOT 엽전 붕어빵',
   players: '1명', goal: '계산 결과만큼 엽전 받기',
-  timing: '버튼마다 5초 · 하루 10판',
+  timing: '버튼마다 5초 · 횟수 제한 없음',
   summary: '붕어빵 가게 옆 오락기에서 더하기 빼기를 골라 30냥을 넣고 숫자1 · 더하기/빼기 · 숫자2를 차례로 멈춰요. 결과가 1 이상이면 결과 × 10냥을 받아요.',
   flow: [
     { title: '30냥 넣고 START', body: 'START를 누르면 참가비 30냥과 오늘 판 수가 함께 빠지고 세 원판이 돌기 시작해요.' },
@@ -19,7 +19,7 @@ export const plusMinusManual: GameManual = {
     '버튼을 누르면 릴이 조금 미끄러지다 멈춰요. 5초 안에 누르지 않으면 저절로 멈춰요.',
     'JACKPOT은 숫자1이 7일 때만 500냥이에요. 다른 숫자와 함께 서면 꽝이에요.',
     '창을 닫거나 나가도 이미 정해진 결과는 그대로 지갑에 반영돼요.',
-    '배당은 보상이 아니라서 미니게임 하루 1000냥 한도와 따로예요. 대신 하루 10판까지 할 수 있어요.',
+    '배당은 보상이 아니라서 미니게임 하루 1000냥 한도와 따로예요. 플레이 횟수 제한은 없어요.',
   ],
   sections: [
     { id: 'plus-minus-machine', title: '게임기 살펴보기', figure: { caption: '불빛이 도는 칸에서 멈춘 값이 가운데 LED에 떠요.', render: PlusMinusMachineFigure },
