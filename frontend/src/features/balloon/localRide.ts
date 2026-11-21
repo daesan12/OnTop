@@ -5,7 +5,7 @@ import { BALLOON_RIDE_ENABLED } from '../../park/mapSelection'
 import { parkRuntime } from '../../park/runtime/runtime'
 import { clearRoamingInput, focusParkCanvas, inputState } from '../../world/inputOwnership'
 import { BalloonFareError, buyBalloonTicket, completeBalloonTicket } from './fare'
-import { createFlight, DOCK_REMOVE_SECONDS, returnToDock, stepFlight, stepSightseeingFlight, stepUncrewedFlight, takeOff } from './flight'
+import { balloonCollisionWarning, createFlight, DOCK_REMOVE_SECONDS, returnToDock, stepFlight, stepSightseeingFlight, stepUncrewedFlight, takeOff } from './flight'
 import type { BalloonBoarding, Flight, FlightMap, Input, Point } from './flight'
 import { clearRemoteBalloons, sampleRemoteBalloon, useRemoteBalloons, watchOwnBalloonEnd } from './remoteRide'
 import { cabinRider, cabinSeats, doorwayCabin, idleCabin, sightseeingCabin, SIGHTSEEING_STEP_HEIGHT, toggleCabinSeat, walkCabin, type BalloonRiderPose, type CabinPose } from './cabin'
@@ -279,6 +279,12 @@ export function tickLocalBalloon(input: Input, elapsed: number) {
       flight = stepFlight(flight.fallSpeed ? { ...flight, fallSpeed: undefined } : flight, flightInput, dt, ride.map, elapsed)
     }
   }
+  const warningInput = guest && elapsed > 0 ? {
+    x: Math.max(-1, Math.min(1, (flight.position.x - ride.flight.position.x) / (10 * elapsed))),
+    z: Math.max(-1, Math.min(1, (flight.position.z - ride.flight.position.z) / (10 * elapsed))),
+    lift: Math.max(-1, Math.min(1, (flight.position.y - ride.flight.position.y) / (4 * elapsed))),
+  } : flightInput
+  flight = { ...flight, collisionWarning: balloonCollisionWarning(flight, warningInput, ride.map) }
   const walking = flight.phase === 'flying' && walkingInside
   const stand = !role && ride.cabin.seatIndex >= 0 && occupiedBalloonSeats(ride).includes(ride.cabin.seatIndex)
   const pose = role && flight.phase !== 'boarding' ? cockpitPose(role) : stand ? toggleCabinSeat(ride.cabin) : ride.cabin
