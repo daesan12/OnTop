@@ -14,10 +14,11 @@ describe('체스 테이블 집중 카메라', () => {
       const frame = chessCameraFrame(w, h, scale, yaw, overhead)
       const camera = new PerspectiveCamera(CHESS_FOV, w / h, .01, 100)
       camera.position.set(...frame.position); camera.up.set(...frame.up); camera.lookAt(0, 0, 0); camera.updateMatrixWorld()
-      const half = 4.55 * CHESS_BOARD_SCALE * scale
-      const xLimit = Math.max(.3, (w - (w >= 1120 ? 528 : 40)) / w)
-      const yLimit = Math.max(.28, (h - (w >= 1120 ? 72 : h < 500 ? 192 : 344)) / h)
-      for (const x of [-half, half]) for (const z of [-half, half]) for (const y of [-.08, .25]) {
+      const xLimit = Math.max(.3, (w - (w >= 1120 ? 504 : 40)) / w)
+      const yLimit = Math.max(.28, (h - (w >= 1120 ? 144 : h < 500 ? 192 : h < 650 ? 364 : 344)) / h)
+      const bounds = [{ half: 4.55 * CHESS_BOARD_SCALE * scale, heights: [-.085, 0] },
+        { half: 4 * CHESS_BOARD_SCALE * scale, heights: [.205] }]
+      for (const { half, heights } of bounds) for (const x of [-half, half]) for (const z of [-half, half]) for (const y of heights) {
         const p = new Vector3(x, y, z).project(camera)
         expect(Math.abs(p.x)).toBeLessThanOrEqual(xLimit)
         expect(Math.abs(p.y)).toBeLessThanOrEqual(yLimit)
