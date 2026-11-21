@@ -9,6 +9,7 @@ import { canUseChess } from './actions'
 import { chessCamera } from './camera'
 import type { ChessMove } from './protocol'
 import { syncChessUI, useChessUI } from './ui'
+import { playSfx } from '../../audio/sfx'
 export { useChessUI } from './ui'
 
 export const chessCoordinate = (index: number) => `${'abcdefgh'[index % 8]}${1 + Math.floor(index / 8)}`
@@ -39,7 +40,9 @@ export function useChessControls() {
     const matches = c.legalMoves.filter(move => move.from === selected && move.to === square)
     if (matches.length > 1) { useChessUI.setState({ promotion: matches, keyboardOpen: false }); return }
     if (matches.length === 1) { send(matches[0]); return }
-    useChessUI.setState({ selected: c.legalMoves.some(move => move.from === square) ? square : '' })
+    const nextSelected = c.legalMoves.some(move => move.from === square) ? square : ''
+    useChessUI.setState({ selected: nextSelected })
+    if (nextSelected && nextSelected !== selected) playSfx('chess-select')
   }
   return { state, session, game, c, ui, player, looking, connected, canUse, myTurn, choose, send,
     disabled: !connected || state.uncertain || looking || c?.status !== 'PLAYING' || !!ui.promotion.length || (player && !myTurn) }

@@ -1,9 +1,9 @@
 import type { Game, Recovery } from '../protocol'
 import { chessMotion } from './motion'
 
-export type ChessSound = 'chess-move' | 'chess-capture' | 'chess-check' | 'chess-checkmate' | 'chess-checkmate-win' | 'chess-checkmate-lose' | 'chess-draw'
+export type ChessSound = 'chess-select' | 'chess-move' | 'chess-capture' | 'chess-check' | 'chess-checkmate' | 'chess-checkmate-win' | 'chess-checkmate-lose' | 'chess-draw'
 export const CHESS_SOUND_DURATION = { 'chess-move': .15, 'chess-capture': .23, 'chess-check': .42,
-  'chess-checkmate': .95, 'chess-checkmate-win': .95, 'chess-checkmate-lose': .88, 'chess-draw': .78 } as const
+  'chess-checkmate': .95, 'chess-checkmate-win': .95, 'chess-checkmate-lose': .88, 'chess-draw': .78, 'chess-select': .09 } as const
 export const isChessSound = (name: string): name is ChessSound => Object.hasOwn(CHESS_SOUND_DURATION, name)
 
 /** A live FINISHED notice may precede its final board; a recovery must break continuity. */
@@ -87,7 +87,7 @@ export function chessSoundSamples(kind: ChessSound, rate: number) {
       * (.48 * Math.sin(2 * Math.PI * frequency * age) * Math.exp(-age * 45)
         + .2 * Math.sin(2 * Math.PI * frequency * 2.61 * age) * Math.exp(-age * 80)
         + .32 * low * Math.exp(-age * 65))
-    samples[i] = (impact(t, capture ? 245 : 390) + (capture ? .5 * impact(t - .045, 540) : 0))
+    samples[i] = (impact(t, capture ? 245 : kind === 'chess-select' ? 620 : 390) + (capture ? .5 * impact(t - .045, 540) : 0))
       * Math.min(1, t / .001) * Math.min(1, (duration - t) / .015)
     peak = Math.max(peak, Math.abs(samples[i]))
   }
