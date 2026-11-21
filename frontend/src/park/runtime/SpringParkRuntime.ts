@@ -16,6 +16,7 @@ import { acceptRental, rentalNotice, rentalCapability, useMobility, type RentalT
 import { SharedSocket, ServerError } from '../../network/socketClient'
 import { StoneControlQueue } from '../../game/stone-rumble/controlQueue'
 import { routeCoopMessage, subscribeCoop } from '../../features/skewer/coop/contracts'
+import { requestYut } from '../../game/yutnori/state'
 import { OmokSpectatorEvents } from '../../game/omok/spectatorEvents'
 import { chatAuthorName } from '../../features/chat/author'
 import { OneCardPrankEvents, ONECARD_PRANKS_ENABLED, type PrankScope } from '../../game/onecard/prankEvents'
@@ -481,6 +482,8 @@ export class ParkRuntime implements ParkRuntimePort {
       || method === 'GET' && /^\/api\/v1\/minigames\/skewer\/coop\/result\?gameId=skewer-coop-[a-f0-9-]{36}$/.test(path)
       || method === 'GET' && /^\/api\/v1\/minigames\/skewer\/coop\/rankings(?:\?mode=(?:PC|VR|ALL))?$/.test(path)
       || method === 'POST' && ['/api/v1/minigames/skewer/coop/rooms', '/api/v1/minigames/skewer/coop/leave'].includes(path)
+    const yutRequest = method === 'GET' && /^\/api\/v1\/minigames\/yutnori\/rooms\?channelId=[^&#?]+$/.test(path)
+      || method === 'POST' && /^\/api\/v1\/minigames\/yutnori\/(?:rooms|lobby|start|leave|watch|feedback)$/.test(path)
     const rpsRouletteRequest = (method === 'GET' && path === '/api/v1/minigames/rps-roulette/status')
       || (method === 'POST' && /^\/api\/v1\/minigames\/rps-roulette\/rounds(?:\/[1-9]\d{0,18}\/(?:hands|challenge|stop))?$/.test(path))
     const plusMinusRequest = (method === 'GET' && path === '/api/v1/minigames/plus-minus/status')
@@ -515,7 +518,7 @@ export class ParkRuntime implements ParkRuntimePort {
         || (method === 'GET' && path === '/local/ai/companions/status')
         || (method === 'POST' && /^\/local\/ai\/companions\/(?:invite|action|talk)$/.test(path)))
     if (!this.active || (!serviceAiRequest && !localAiRequest && !notesRead && !notesWrite && !shopRequest && !profileRequest
-      && !historyRequest && !minigameRequest && !jumpmapRequest && !rankingRequest && !parkRankingRequest && !skewerCoop
+      && !historyRequest && !minigameRequest && !jumpmapRequest && !rankingRequest && !parkRankingRequest && !skewerCoop && !yutRequest
       && !rpsRouletteRequest && !plusMinusRequest && !moleRequest && !speedMoleRequest && !jumpRopeRequest
       && !spotDifferenceRequest && !raffleRequest && !gachaRequest && !fitnessRewardRequest && !balloonFareRequest
       && !/^\/api\/v1\/(?:wallets\/me|feedback)$/.test(path))
@@ -772,6 +775,17 @@ export class ParkRuntime implements ParkRuntimePort {
       if (typeof receipt === 'string') {
         refreshWalletAfterSettlement(useSession.getState().sessionId, 'mobility:' + receipt)
       }
+      return
+    }
+    if (message.type === 'GAME_CONNECTION_STATE' && String(message.payload.gameId ?? '').startsWith('yut-')) {
+      routeCoopMessage(message)
+      const state = message.payload.state as { publicState?: { phase?: string } } | undefined
+      if (state?.publicState?.phase === 'PLAYING') requestYut()
+      if (!useGame.getState().game) useGame.setState({ recovery: 'LOBBY' })
+      return
+    }
+    if (message.type === 'GAME_STATE' && (message.payload.publicState as { gameCode?: string } | undefined)?.gameCode === 'YUTNORI') {
+      routeCoopMessage(message)
       return
     }
     if (routeCoopMessage(message)) {

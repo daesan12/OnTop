@@ -56,6 +56,8 @@ import { StoneRumbleGuide } from '../game/stone-rumble/StoneRumbleGuide'
 import { useJumpmapController } from '../features/jumpmap/useJumpmapController'
 import { useStore } from 'zustand'
 import { ParkVrZone } from '../features/vrZone/ParkVrZone'
+import { ParkYut } from '../game/yutnori/park'
+import { useYut } from '../game/yutnori/state'
 import { parkVrZone } from '../features/vrZone/parkBridge'
 import { RankingBoardHost } from '../features/rankingBoard/RankingBoardHost'
 import { SpeedMoleHost } from '../features/speedMole/SpeedMoleHost'
@@ -163,6 +165,7 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked, welco
   const stoneFocus = stoneOverlay === 'game' || stoneOverlay === 'result' && seated
   const session = useSession(useShallow(s=>({ sessionId:s.sessionId,roomId:s.roomId })))
   // Everyone plays on the Low preset; the graphics choice is not offered.
+  const yutOpen = useYut(state => state.open)
   const quality: QualityPreset = 'low'
   const [hudScale, setHudScale] = useState(getHudScale)
   const [winningsOpen, setWinningsOpen] = useState(false)
@@ -190,7 +193,7 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked, welco
       '--park-ui-scale': hudScale,
       '--park-edge': `${20 * hudScale}px`,
     } as CSSProperties}>
-      <ParkScene quality={quality} active={!jumpRopeOpen && !stoneFocus} />
+      <ParkScene quality={quality} active={!jumpRopeOpen && !stoneFocus && !yutOpen} />
       <ParkBgm />
       <ParkSfx />
       <RewardCoinFlight />
@@ -270,6 +273,7 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked, welco
       </div>
       <ParkXRControls omokOnly={omokFocus} />
       <ParkVrZone />
+      <ParkYut />
       {(bungeoppang || breadRecovery) && <Suspense fallback={<p role="status">붕어빵 가게를 불러오는 중입니다.</p>}><BungeoppangHud /></Suspense>}
       <OmokFeedback />
       <RankingBoardHost />

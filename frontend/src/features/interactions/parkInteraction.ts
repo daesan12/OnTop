@@ -13,7 +13,7 @@ import { renewalAdSigns } from '../../../park-renewal-preview/live/advertisingPl
 import { BALLOON_RIDE_ENABLED } from '../../park/mapSelection'
 import { viewControls } from '../../world/cameraPerspective'
 import { tableBusy, useGame } from '../../game/store'
-import { panelOwnsKeys, roamingInput } from '../../world/inputOwnership'
+import { clearRoamingInput, inputState, panelOwnsKeys, roamingInput } from '../../world/inputOwnership'
 import { benchAnchors, canReachBench } from './benchAnchors'
 import { facilityAvailable, facilityInRange, facilityMovementBlocked, useFacilityState } from '../facilities/state'
 import { useBenchState } from './benchState'
@@ -67,6 +67,7 @@ import { useMobility } from '../mobility/state'
 import { useDisplayGame } from '../../game/displayGame'
 import { diamond, interiorVisit, visitScope } from '../../../park-renewal-preview/interiorEvents'
 import { accessAt, interiorAccess } from '../../../park-renewal-preview/interiorAccess'
+import { requestYut } from '../../game/yutnori/state'
 
 const interiorLabels: Record<keyof typeof interiorAccess, string> = {
   vestibule: '돌문 열기', surface: '공원으로 나가기', passage: '통로로 들어가기',
@@ -175,6 +176,11 @@ export function getParkInteraction(preferredGuide?: typeof STONE_RUMBLE_GUIDE_ID
     if (site.id === 'balloon' && BALLOON_RIDE_ENABLED) continue
     if(!canReachConstruction(p.current,site.id))continue
     const [x,y,z]=site.reachPosition,distance=Math.hypot(p.current.x-x,p.current.z-z)
+    if (site.id === 'folk') {
+      choices.push({ kind: 'construction', id: site.id, label: '전통놀이 고르기', occupied: false, available: true,
+        distance, score: interactionScore(distance, { x, y, z }) })
+      continue
+    }
     // The deployed 220m map still classifies this anchor as construction.
     if (renewalMap && site.id === 'shooting') {
       choices.push({ kind: 'spot-difference', id: site.id, label: '스피드 틀린 그림 찾기',
@@ -308,6 +314,11 @@ export function interactWithPark(expectedId?: string): boolean {
   else if (target.kind === 'spot-difference') openSpotDifference()
   else if (target.kind === 'sleigh') { if (!target.available) return false; void boardSleigh(target.id); return true }
   else if (target.kind === 'balloon') return openLocalBalloon()
+  else if (target.kind === 'construction' && target.id === 'folk') {
+    clearRoamingInput()
+    inputState.minigameOpen = true
+    requestYut()
+  }
   else if (target.kind === 'construction') openConstructionNotice(target.id)
   else if (target.kind === 'bungeoppang') openBungeoppang()
   else if (target.kind === 'rps-roulette') { if (canOpenRpsRoulette()) openArcade() }
