@@ -12,7 +12,7 @@ public final class YutMatch {
     public record Rules(boolean emptyBackEnters, boolean doubleCaptureBonus, boolean backHomeFinish) { }
     public record Roll(int id, String name, int steps, int mask, boolean bonus) { }
     public record ThrowResult(int id, String userId, int team, int mask, String name, int steps,
-            boolean bonus, boolean out, long at) { }
+            boolean bonus, boolean out, long at, boolean opening) { }
     public static final class Player {
         public final long userId;
         public final String nickname;
@@ -40,6 +40,9 @@ public final class YutMatch {
     public final YutChat chat = new YutChat();
     public final List<List<List<Integer>>> pieces = new ArrayList<>();
     public final List<Integer> opening = new ArrayList<>();
+    public final List<Integer> openingTeams = new ArrayList<>();
+    public final List<Integer> openingFinalists = new ArrayList<>();
+    public int openingRound;
     public String phase = "WAITING";
     public String reason = "";
     public String message = "팀을 고르고 준비해 주세요.";
@@ -120,7 +123,10 @@ public final class YutMatch {
         } else {
             require(phase.equals("PLAYING") && turnUser == user && !eliminatedTeams.contains(player.team),
                     "현재 차례를 확인해주세요.");
-            if (type.equals("THROW")) {
+            if (!openingTeams.isEmpty()) {
+                require(type.equals("THROW"), "각 팀이 윷을 던져 선공부터 정해주세요.");
+                throwOpening(user, random, now);
+            } else if (type.equals("THROW")) {
                 require(credits > 0 && rolls.size() < 32, "먼저 이동권을 사용해주세요.");
                 credits--;
                 int mask = random.nextInt(16);
@@ -128,7 +134,7 @@ public final class YutMatch {
                 boolean out = random.nextInt(100) < 2;
                 // 이동권이 사라지는 낙·빈 판 빽도도 동일한 확정 결과로 연출·복구한다.
                 lastThrow = new ThrowResult(rolled.id(), Long.toString(user), team, mask,
-                        out ? "낙" : rolled.name(), out ? 0 : rolled.steps(), !out && rolled.bonus(), out, now);
+                        out ? "낙" : rolled.name(), out ? 0 : rolled.steps(), !out && rolled.bonus(), out, now, false);
                 if (out) {
                     rolls.clear();
                     credits = 0;
@@ -150,6 +156,11 @@ public final class YutMatch {
             } else {
                 throw new IllegalArgumentException("지금 할 수 없는 행동이에요.");
             }
+            if (!openingTeams.isEmpty() || lastThrow != null && lastThrow.opening() && type.equals("THROW")) {
+                touched = now;
+                version++;
+                return;
+            }
             discardUnusableBack();
             if (pieces.get(team).stream().allMatch(history -> position(history) == YutBoard.FINISHED)) {
                 finish(team, "YUT_COMPLETED");
@@ -165,32 +176,69 @@ public final class YutMatch {
         require(phase.equals("WAITING") && players.size() >= 2 && players.values().stream().allMatch(player -> player.ready)
                 && players.values().stream().map(player -> player.team).distinct().count() == teamCount,
                 "선택한 모든 팀에 한 명 이상 참가하고 준비해야 시작할 수 있어요.");
-        // 두 개 모두 엎어짐(0) > 모두 젖혀짐(3) > 엇갈림. 동률은 재던지기한다.
-        int best;
-        int winners;
-        do {
-            opening.clear();
-            best = -1;
-            winners = 0;
+        phase = "PLAYING";
+        openingRound = 1;
+        for (int side = 0; side < teamCount; side++) {
+            opening.add(-1);
+            openingTeams.add(side);
+        }
+        team = 0;
+        turnUser = teamPlayers(team).getFirst();
+        credits = 1;
+        deadline = now + 90_000;
+        note("각 팀 대표가 윷 4개를 던져 선공을 정해요. 모 > 윷 > 걸 > 개 > 도 > 빽도 순이에요.");
+        touched = now;
+        version++;
+    }
+
+    private void throwOpening(long user, RandomGenerator random, long now) {
+        int mask = random.nextInt(16);
+        boolean out = random.nextInt(100) < 2;
+        Roll rolled = roll(++serial, mask);
+        lastThrow = new ThrowResult(rolled.id(), Long.toString(user), team, mask, out ? "낙" : rolled.name(),
+                out ? 0 : rolled.steps(), !out && rolled.bonus(), out, now, true);
+        opening.set(team, out ? -2 : mask);
+        note(label(team) + " 선공 결정 · " + lastThrow.name());
+        resolveOpening(now);
+    }
+
+    private void resolveOpening(long now) {
+        if (openingTeams.isEmpty()) {
             for (int side = 0; side < teamCount; side++) {
-                int mask = random.nextInt(4);
-                opening.add(mask);
-                if (rank(mask) > best) {
-                    best = rank(mask);
-                    team = side;
-                    winners = 1;
-                } else if (rank(mask) == best) {
-                    winners++;
+                if (!eliminatedTeams.contains(side)) {
+                    openingTeams.add(side);
+                    opening.set(side, -1);
                 }
             }
-        } while (winners != 1);
-        phase = "PLAYING";
+            openingRound++;
+        }
+        var pending = openingTeams.stream().filter(side -> opening.get(side) == -1).toList();
+        if (pending.isEmpty()) {
+            int best = openingTeams.stream().mapToInt(side -> openingScore(opening.get(side))).max().orElseThrow();
+            var highest = openingTeams.stream().filter(side -> openingScore(opening.get(side)) == best).toList();
+            if (highest.size() == 1) {
+                team = highest.getFirst();
+                openingFinalists.addAll(openingTeams);
+                openingTeams.clear();
+                note(label(team) + " 선공! 이제 말을 움직이는 윷을 던져주세요.");
+            } else {
+                openingTeams.clear();
+                openingTeams.addAll(highest);
+                highest.forEach(side -> opening.set(side, -1));
+                openingRound++;
+                team = highest.getFirst();
+                note("선공 최고 결과가 같아요. 동률인 팀만 다시 던져주세요.");
+            }
+        } else {
+            team = pending.getFirst();
+        }
         credits = 1;
         turnUser = teamPlayers(team).getFirst();
         deadline = now + 90_000;
-        note("대표 윷 2개 던지기 · " + label(team) + " 선공이에요.");
-        touched = now;
-        version++;
+    }
+
+    private static int openingScore(int mask) {
+        return mask == -2 ? -2 : roll(0, mask).steps();
     }
 
     private void move(int index, Roll rolled, boolean shortcut) {
@@ -251,7 +299,7 @@ public final class YutMatch {
 
     public List<LegalMove> legalMoves() {
         List<LegalMove> result = new ArrayList<>();
-        if (!phase.equals("PLAYING")) {
+        if (!phase.equals("PLAYING") || !openingTeams.isEmpty()) {
             return result;
         }
         for (int index = 0; index < pieceCount; index++) {
@@ -304,6 +352,7 @@ public final class YutMatch {
         winner = winningTeam;
         reason = endReason;
         phase = "FINISHED";
+        openingTeams.clear();
         credits = 0;
         rolls.clear();
         note(winningTeam < 0 ? "경기가 종료되었어요." : label(winningTeam) + " 승리!");
@@ -314,7 +363,9 @@ public final class YutMatch {
         if (!phase.equals("PLAYING") || eliminatedTeams.contains(side)) {
             return;
         }
+        boolean choosingFirst = !openingTeams.isEmpty();
         eliminatedTeams.add(side);
+        openingTeams.remove(Integer.valueOf(side));
         for (int token = 0; token < pieceCount; token++) {
             pieces.get(side).set(token, new ArrayList<>());
         }
@@ -326,6 +377,8 @@ public final class YutMatch {
                     break;
                 }
             }
+        } else if (choosingFirst) {
+            resolveOpening(now);
         } else if (team == side) {
             advance(now);
         }
@@ -377,9 +430,6 @@ public final class YutMatch {
         };
     }
 
-    private static int rank(int mask) {
-        return mask == 0 ? 2 : mask == 3 ? 1 : 0;
-    }
 
     private static void require(boolean condition, String message) {
         if (!condition) {

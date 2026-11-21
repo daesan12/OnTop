@@ -3,7 +3,7 @@ export interface YutChatMessage { id: number; scope: YutChatScope; team: number;
 export interface YutRules { emptyBackEnters: boolean; doubleCaptureBonus: boolean; backHomeFinish: boolean }
 export interface YutMove { piece: number; rollId: number; shortcut: boolean; to: number }
 export interface YutRoll { id: number; name: string; steps: number; mask: number; bonus: boolean }
-export interface YutThrow extends YutRoll { userId: string; team: number; out: boolean; at: number }
+export interface YutThrow extends YutRoll { userId: string; team: number; out: boolean; at: number; opening?: boolean }
 export interface YutPlayer { userId: string; nickname: string; team: number; ready: boolean; connected: boolean }
 export interface YutSnapshot {
   gameId: string; version: number; registered: boolean; role: 'PLAYER' | 'SPECTATOR'
@@ -14,6 +14,7 @@ export interface YutSnapshot {
     message: string; entryFee: 0; rules: YutRules; players: YutPlayer[]; rolls: YutRoll[]; pieces: number[][]
     chat: YutChatMessage[]; moves: YutMove[]; opening: number[]; log: string[]; teamCount: number; pieceCount: number; eliminatedTeams: number[]
     lastThrow?: YutThrow | null
+    openingTeams?: number[]; openingFinalists?: number[]; openingRound?: number
   }
 }
 export interface YutRoom { gameId: string; name: string; hostNickname: string; players: number; phase: string; teamCount: number; pieceCount: number }
@@ -26,12 +27,19 @@ export function parseYut(value: unknown): YutSnapshot | null {
     || !['PLAYER', 'SPECTATOR'].includes(String(value.role)) || !object(value.publicState)) return null
   const p = value.publicState
   const validTeam = (team: unknown) => Number.isInteger(team) && (team as number) >= 0 && (team as number) < (p.teamCount as number)
+  if (p.openingTeams !== undefined && (!Array.isArray(p.openingTeams) || !p.openingTeams.every(validTeam)
+    || new Set(p.openingTeams).size !== p.openingTeams.length || !Number.isInteger(p.openingRound) || (p.openingRound as number) < 0
+    || !Array.isArray(p.opening) || !p.opening.every(mask => Number.isInteger(mask) && mask >= -2 && mask <= 15)
+    || p.openingTeams.length > 0 && (p.phase !== 'PLAYING' || (p.openingRound as number) < 1 || p.opening.length !== p.teamCount))) return null
   const thrown = p.lastThrow
+  if (p.openingFinalists !== undefined && (!Array.isArray(p.openingFinalists) || !p.openingFinalists.every(validTeam)
+    || new Set(p.openingFinalists).size !== p.openingFinalists.length)) return null
   if (thrown !== undefined && thrown !== null) {
     if (!object(thrown) || !Number.isSafeInteger(thrown.id) || (thrown.id as number) < 1
       || typeof thrown.userId !== 'string' || !thrown.userId || !validTeam(thrown.team)
       || !Number.isInteger(thrown.mask) || (thrown.mask as number) < 0 || (thrown.mask as number) > 15
-      || typeof thrown.out !== 'boolean' || !Number.isSafeInteger(thrown.at) || (thrown.at as number) < 0) return null
+      || typeof thrown.out !== 'boolean' || !Number.isSafeInteger(thrown.at) || (thrown.at as number) < 0
+      || thrown.opening !== undefined && typeof thrown.opening !== 'boolean') return null
     const mask = thrown.mask as number, count = mask.toString(2).replaceAll('0', '').length
     const steps = thrown.out ? 0 : mask === 0 ? 5 : mask === 1 ? -1 : count
     const name = thrown.out ? '낙' : mask === 1 ? '빽도' : ['모', '도', '개', '걸', '윷'][count]
@@ -64,4 +72,10 @@ export function parseYut(value: unknown): YutSnapshot | null {
     || !validTeam(p.team) || !(p.winner === -1 || validTeam(p.winner))
     || !Number.isInteger(p.credits) || !Number.isSafeInteger(p.deadline) || p.entryFee !== 0) return null
   return value as unknown as YutSnapshot
+}
+
+export function openingLabel(mask: number) {
+  if (mask === -1) return '아직 던지지 않았어요'
+  if (mask === -2) return '낙'
+  return mask === 1 ? '빽도' : ['모', '도', '개', '걸', '윷'][mask.toString(2).replaceAll('0', '').length]
 }

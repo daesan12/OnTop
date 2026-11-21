@@ -19,11 +19,12 @@ async function account(role, host) {
   contexts.push(context)
   const page = await context.newPage()
   page.setDefaultTimeout(60000)
+  await page.addInitScript(() => performance.setResourceTimingBufferSize(4000))
   page.on('pageerror', error => errors.push(`${role}: ${error.message}`))
   await page.goto(`http://${host}:5244/yut-park.html?role=${role}`, { waitUntil: 'commit', timeout: 90000 })
   await expect(page.getByRole('status').filter({ hasText: '전통놀이존 입구' })).toBeVisible({ timeout: 180000 })
   await expect.poll(() => page.evaluate(async () => {
-    const world = await import('/src/network/worldClient.ts')
+    const world = await import(performance.getEntriesByType('resource').map(entry => entry.name).find(url => url.includes('/src/network/worldClient.ts')) ?? '/src/network/worldClient.ts')
     const state = world.useSession.getState()
     const avatar = world.avatars.get(state.sessionId)
     return !!avatar && state.mapCompatible && state.roomId === 'channel-1'
@@ -50,7 +51,7 @@ async function account(role, host) {
 }
 async function state(page) {
   return page.evaluate(async () => {
-    const { getAuthSession } = await import('/src/auth/authFlow.ts')
+    const { getAuthSession } = await import(performance.getEntriesByType('resource').map(entry => entry.name).find(url => url.includes('/src/auth/authFlow.ts')) ?? '/src/auth/authFlow.ts')
     const auth = getAuthSession()
     if (auth?.status !== 'AUTHENTICATED') throw new Error('검수 계정의 로그인이 필요합니다.')
     const response = await fetch('/api/v1/minigames/yutnori/rooms?channelId=channel-1', { headers: { Authorization: 'Bearer ' + auth.accessToken } })
@@ -92,6 +93,18 @@ try {
   await expect(host.locator('.yut-backdo-key')).toContainText('빽도 · 뒤로 1칸')
   await host.screenshot({path:path.join(output,'game-four.png')})
   const users=['101','202','505','606'], labels=['청팀','홍팀','녹팀','황팀']; let moved=0
+  await host.screenshot({path:path.join(output,'opening-four-start.png')})
+  for(let attempt=0;attempt<80;attempt++) {
+    const opening=(await state(host)).mine
+    if(!opening.publicState.openingTeams.length)break
+    const representative=pages[users.indexOf(opening.publicState.turnUser)]
+    await representative.getByRole('button',{name:/^선공 결정 윷 던지기/}).click()
+    await expect.poll(async()=>(await state(host)).mine.version).toBeGreaterThan(opening.version)
+    expect((await state(host)).mine.publicState.rolls).toEqual([])
+    await expect(representative.locator('.yut-throw-view')).toHaveAttribute('data-expanded','false')
+  }
+  expect((await state(host)).mine.publicState.openingTeams).toEqual([])
+  await host.screenshot({path:path.join(output,'opening-four-winner.png')})
   for (let attempt=0;attempt<16 && moved<4;attempt++) {
     let snap=(await state(host)).mine; if(snap.publicState.phase!=='PLAYING')throw Error('경기 조기 종료')
     const page=pages[users.indexOf(snap.publicState.turnUser)]
@@ -131,18 +144,18 @@ try {
   await pages[3].getByRole('button',{name:'공원으로 돌아가기',exact:true}).click()
   // 별도 DOM에 실제 결과 컴포넌트만 마운트하여 빽도 표식을 시각 검수한다. 서버 결과를 조작하지 않는다.
   await host.evaluate(async()=>{ const fixture=await import('/tests/fixtures/yutBackdo.tsx'); fixture.mountBackdoFixture() })
-  await expect(host.locator('#backdo-visual-fixture i[data-marked="true"]')).toHaveText('빽')
+  await expect(host.locator('#backdo-visual-fixture i[data-marked="true"]')).toHaveText('−')
   await host.locator('#backdo-visual-fixture').screenshot({path:path.join(output,'backdo-component-fixture.png')})
   await host.evaluate(async()=>{ const fixture=await import('/tests/fixtures/yutBackdo.tsx'); fixture.removeBackdoFixture() })
   for(const page of pages.slice(0,2)){
     await page.bringToFront()
-    await expect.poll(()=>page.evaluate(async()=>{const input=await import('/src/world/inputOwnership.ts');return document.visibilityState==='visible'&&input.roamingInput.ready&&!input.panelOwnsKeys()})).toBe(true)
-    const before=await page.evaluate(async()=>{const w=await import('/src/network/worldClient.ts');return {...w.avatars.get(w.useSession.getState().sessionId).current}})
+    await expect.poll(()=>page.evaluate(async()=>{const input=await import(performance.getEntriesByType('resource').map(entry => entry.name).find(url => url.includes('/src/world/inputOwnership.ts')) ?? '/src/world/inputOwnership.ts');return document.visibilityState==='visible'&&input.roamingInput.ready&&!input.panelOwnsKeys()})).toBe(true)
+    const before=await page.evaluate(async()=>{const w=await import(performance.getEntriesByType('resource').map(entry => entry.name).find(url => url.includes('/src/network/worldClient.ts')) ?? '/src/network/worldClient.ts');return {...w.avatars.get(w.useSession.getState().sessionId).current}})
     await page.locator('canvas').first().click({position:{x:200,y:200}})
     let distance=0
     for(const key of ['w','d','s','a']){
       await page.keyboard.down(key);await page.waitForTimeout(700);await page.keyboard.up(key)
-      distance=await page.evaluate(async before=>{const w=await import('/src/network/worldClient.ts');const now=w.avatars.get(w.useSession.getState().sessionId).current;return Math.hypot(now.x-before.x,now.z-before.z)},before)
+      distance=await page.evaluate(async before=>{const w=await import(performance.getEntriesByType('resource').map(entry => entry.name).find(url => url.includes('/src/network/worldClient.ts')) ?? '/src/network/worldClient.ts');const now=w.avatars.get(w.useSession.getState().sessionId).current;return Math.hypot(now.x-before.x,now.z-before.z)},before)
       if(distance>.05)break
     }
     expect(distance).toBeGreaterThan(.05)

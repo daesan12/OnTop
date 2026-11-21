@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { boardNodes, boardJunctions, boardPoint } from '../../src/game/yutnori/Board'
 import { stickFaces } from '../../src/game/yutnori/StickResult'
-import { parseYut } from '../../src/game/yutnori/contracts'
+import { openingLabel, parseYut } from '../../src/game/yutnori/contracts'
 import { YutClient } from '../../src/game/yutnori/client'
 import type { CoopTransport } from '../../src/features/skewer/coop/contracts'
 
@@ -129,5 +129,15 @@ it('마지막 던지기의 윷면과 이름이 일치하며 낙도 공개 결과
   } } }
   expect(parseYut(state)).not.toBeNull()
   state.publicState.lastThrow.mask = 16
+  expect(parseYut(state)).toBeNull()
+})
+
+
+it('선공 결정의 대기·낙·동률 후보 계약을 읽고 잘못된 후보를 거절한다', () => {
+  const base = snapshot()
+  const state = { ...base, publicState: { ...base.publicState, opening: [-1, -1], openingTeams: [0, 1], openingRound: 1 } }
+  expect(parseYut(state)).not.toBeNull()
+  expect([-2, 1, 2, 3, 7, 15, 0].map(openingLabel)).toEqual(['낙', '빽도', '도', '개', '걸', '윷', '모'])
+  state.publicState.openingTeams = [0, 0]
   expect(parseYut(state)).toBeNull()
 })

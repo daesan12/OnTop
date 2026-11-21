@@ -110,3 +110,9 @@
     box-shadow:none;
   }
 }
+
+.yut-shell .yut-opening { margin:12px 0; }
+.yut-shell .yut-opening>p { font-size:12px; line-height:1.5; margin:8px 0; }
+.yut-shell .yut-opening-row { display:flex; flex-wrap:wrap; gap:6px; justify-content:space-between; align-items:center; padding:8px 4px; border-bottom:1px solid #b89c6055; font-size:13px; }
+.yut-shell .yut-opening-row[data-turn=true] { background:#e7ce8e55; }
+.yut-shell .yut-opening-row .yut-stick-result { flex-basis:100%; justify-content:center; margin:4px 0; }

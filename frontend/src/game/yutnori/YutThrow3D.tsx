@@ -21,8 +21,8 @@ export function YutThrow3D({ result, animating, waiting, expanded = animating }:
     <div className="yut-throw-stage">
       <ThrowBoundary result={result}><ThrowCanvas result={result} animating={animating} waiting={waiting} /></ThrowBoundary>
       <div className="yut-throw-caption" role="status" aria-atomic="true" data-backdo={backdo && !animating} data-out={result?.out && !animating}>
-        <strong>{animating ? waiting ? '윷을 던지고 있어요…' : '윷가락이 굴러가고 있어요…' : result ? backdo ? '빽도 · 뒤로 1칸' : result.name : '윷가락을 던져보세요'}</strong>
-        <small>{animating ? '윷가락이 멈추면 말을 골라주세요.' : !result ? '붉은 빽 표식이 있는 윷을 확인하세요.' : result.out ? '멍석 밖 · 이동권 없이 차례를 넘겨요.' : backdo ? '붉은 빽 표식 윷만 평평한 면 위' : result.bonus ? '한 번 더 던져요!' : `앞으로 ${result.steps}칸`}</small>
+        <strong>{animating ? waiting ? '윷을 던지고 있어요…' : '윷가락이 굴러가고 있어요…' : result ? backdo && !result.opening ? '빽도 · 뒤로 1칸' : result.name : '윷가락을 던져보세요'}</strong>
+        <small>{animating ? '윷가락이 멈추면 말을 골라주세요.' : !result ? '붉은 − 표식이 있는 윷을 확인하세요.' : result.opening ? '선공 결정 결과 · 높은 결과의 팀이 먼저 시작해요.' : result.out ? '멍석 밖 · 이동권 없이 차례를 넘겨요.' : backdo ? '붉은 − 표식 윷만 평평한 면 위' : result.bonus ? '한 번 더 던져요!' : `앞으로 ${result.steps}칸`}</small>
       </div>
     </div>
   </section>
@@ -88,7 +88,7 @@ function useWood(marked: boolean, curved = false) {
         ctx.fillStyle = '#a22e25'; ctx.fillRect(14, 600, 228, 336)
         ctx.strokeStyle = '#fff2d8'; ctx.lineWidth = 6; ctx.strokeRect(23, 612, 210, 312)
         ctx.fillStyle = '#fff8e9'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-        ctx.font = '900 205px sans-serif'; ctx.fillText('빽', 128, 780)
+        ctx.font = '900 205px sans-serif'; ctx.fillText('−', 128, 780)
       } else {
         ctx.strokeStyle = '#654523'; ctx.lineWidth = 9; ctx.beginPath(); ctx.moveTo(128, 620); ctx.lineTo(128, 916); ctx.stroke()
       }

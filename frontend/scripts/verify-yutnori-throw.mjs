@@ -37,6 +37,6 @@ for(const[width,height]of[[390,844],[1024,500]]){await page.setViewportSize({wid
 expect(errors).toEqual([])
 await page.locator('canvas').evaluate(c=>c.getContext('webgl2').getExtension('WEBGL_lose_context').loseContext())
 await expect(page.locator('.yut-throw-fallback .yut-stick-result i')).toHaveCount(4)
-await expect(page.locator('.yut-throw-fallback [data-marked=true]')).toHaveText('빽')
+await expect(page.locator('.yut-throw-fallback [data-marked=true]')).toHaveText('−')
 console.log(JSON.stringify({success:true,checks:['tumble','final-backdo','all-16-masks','out','reduced-motion','input-during-animation','small-and-low-layout','webgl-fallback'],errors}))
 }catch(error){await page.screenshot({path:output+'/failure.png'}).catch(()=>{});console.log((await page.locator('body').innerText()).slice(0,1800));console.log(errors);throw error}finally{await context.close();await browser.close()}

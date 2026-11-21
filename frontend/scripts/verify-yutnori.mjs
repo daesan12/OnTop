@@ -19,11 +19,12 @@ async function account(role, host) {
   contexts.push(context)
   const page = await context.newPage()
   page.setDefaultTimeout(60000)
+  await page.addInitScript(() => performance.setResourceTimingBufferSize(4000))
   page.on('pageerror', error => errors.push(`${role}: ${error.message}`))
   await page.goto(`http://${host}:5244/yut-park.html?role=${role}`, { waitUntil: 'commit', timeout: 90000 })
   await expect(page.getByRole('status').filter({ hasText: '전통놀이존 입구' })).toBeVisible({ timeout: 180000 })
   await expect.poll(() => page.evaluate(async () => {
-    const world = await import('/src/network/worldClient.ts')
+    const world = await import(performance.getEntriesByType('resource').map(entry => entry.name).find(url => url.includes('/src/network/worldClient.ts')) ?? '/src/network/worldClient.ts')
     const state = world.useSession.getState()
     const avatar = world.avatars.get(state.sessionId)
     return !!avatar && state.mapCompatible && state.roomId === 'channel-1'
@@ -50,7 +51,7 @@ async function account(role, host) {
 }
 async function state(page) {
   return page.evaluate(async () => {
-    const { getAuthSession } = await import('/src/auth/authFlow.ts')
+    const { getAuthSession } = await import(performance.getEntriesByType('resource').map(entry => entry.name).find(url => url.includes('/src/auth/authFlow.ts')) ?? '/src/auth/authFlow.ts')
     const auth = getAuthSession()
     if (auth?.status !== 'AUTHENTICATED') throw new Error('검수 계정의 로그인이 필요합니다.')
     const response = await fetch('/api/v1/minigames/yutnori/rooms?channelId=channel-1', { headers: { Authorization: 'Bearer ' + auth.accessToken } })
@@ -79,6 +80,26 @@ try {
   await red.getByRole('button', { name: '윷놀이 시작', exact: true }).click()
   await expect(red.locator('.yut-board')).toBeVisible()
   await expect(blue.locator('.yut-board')).toBeVisible()
+  await expect(red.locator('.yut-opening')).toBeVisible()
+  await red.screenshot({ path: path.join(output, 'opening-start.png') })
+  for (let attempt = 0; attempt < 80; attempt++) {
+    const opening = (await state(red)).mine
+    if (!opening.publicState.openingTeams.length) break
+    const representative = opening.publicState.turnUser === '101' ? red : blue
+    await representative.getByRole('button', { name: /^선공 결정 윷 던지기/ }).click()
+    await expect.poll(async () => (await state(red)).mine.version).toBeGreaterThan(opening.version)
+    expect((await state(red)).mine.publicState.rolls).toEqual([])
+    if (attempt === 0) {
+      const beforeReload = (await state(red)).mine.publicState
+      await blue.reload()
+      await expect(blue.locator('.yut-opening')).toBeVisible({ timeout: 90000 })
+      expect((await state(blue)).mine.publicState.opening).toEqual(beforeReload.opening)
+      await expect(blue.locator('.yut-throw-view')).toHaveAttribute('data-expanded', 'false')
+    }
+    await expect(representative.locator('.yut-throw-view')).toHaveAttribute('data-expanded', 'false')
+  }
+  expect((await state(red)).mine.publicState.openingTeams).toEqual([])
+  await red.screenshot({ path: path.join(output, 'opening-winner.png') })
   await expect(red.locator('.yut-board-3d')).toHaveAttribute('data-ready', 'true')
   await expect(red.locator('.yut-3d-controls [data-node]')).toHaveCount(29)
   await red.setViewportSize({ width: 1487, height: 1058 })
@@ -151,15 +172,15 @@ try {
   for (const page of [red, blue]) {
     await page.bringToFront()
     await expect.poll(() => page.evaluate(async () => {
-      const input = await import('/src/world/inputOwnership.ts')
+      const input = await import(performance.getEntriesByType('resource').map(entry => entry.name).find(url => url.includes('/src/world/inputOwnership.ts')) ?? '/src/world/inputOwnership.ts')
       return document.visibilityState === 'visible' && input.roamingInput.ready && !input.panelOwnsKeys()
     })).toBe(true)
-    const before = await page.evaluate(async () => { const w = await import('/src/network/worldClient.ts'); return { ...w.avatars.get(w.useSession.getState().sessionId).current } })
+    const before = await page.evaluate(async () => { const w = await import(performance.getEntriesByType('resource').map(entry => entry.name).find(url => url.includes('/src/network/worldClient.ts')) ?? '/src/network/worldClient.ts'); return { ...w.avatars.get(w.useSession.getState().sessionId).current } })
     await page.locator('canvas').first().click({ position: { x: 200, y: 200 } })
     let distance = 0
     for (const key of ['w', 'd', 's', 'a']) {
       await page.keyboard.down(key); await page.waitForTimeout(700); await page.keyboard.up(key)
-      distance = await page.evaluate(async before => { const w = await import('/src/network/worldClient.ts'); const now = w.avatars.get(w.useSession.getState().sessionId).current; return Math.hypot(now.x - before.x, now.z - before.z) }, before)
+      distance = await page.evaluate(async before => { const w = await import(performance.getEntriesByType('resource').map(entry => entry.name).find(url => url.includes('/src/network/worldClient.ts')) ?? '/src/network/worldClient.ts'); const now = w.avatars.get(w.useSession.getState().sessionId).current; return Math.hypot(now.x - before.x, now.z - before.z) }, before)
       if (distance > .05) break
     }
     expect(distance).toBeGreaterThan(.05)

@@ -20,7 +20,7 @@ class YutThrowTests {
 
             var expected = YutMatch.roll(1, mask);
             assertThat(match.lastThrow).isEqualTo(new YutMatch.ThrowResult(1, "101", 0, mask,
-                    expected.name(), expected.steps(), expected.bonus(), false, 10));
+                    expected.name(), expected.steps(), expected.bonus(), false, 10, false));
             if (mask == 1) {
                 assertThat(match.rolls).isEmpty();
                 assertThat(match.team).isEqualTo(1);

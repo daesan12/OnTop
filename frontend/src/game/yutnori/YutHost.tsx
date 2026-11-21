@@ -56,7 +56,7 @@ export default function YutHost({ transport, onClose }: { transport: CoopTranspo
   useEffect(() => { setSelected(-1); setRollId(-1) }, [pub?.turnUser, piecePositions])
   const titleText = confirmExit ? '경기를 나갈까요?' : snapshot ? '윷놀이' : page === 'catalog' ? '전통놀이 고르기' : page === 'create' ? '윷놀이 방 만들기' : '함께할 윷판을 골라요'
   return <dialog ref={dialog} className={`yut-shell${inMatch ? ' yut-shell--match' : ''}`} aria-labelledby="yut-title" onCancel={event => { event.preventDefault(); close() }}>
-    {inMatch && pub ? <YutMatchHeader state={pub} status={finished ? pub.winner < 0 ? '경기 종료' : teamName(pub.winner) + ' 승리!' : eliminated ? '우리 팀 탈락 · 관전 중' : spectator ? '관전 중' : myTurn ? '내 차례예요' : (pub.players.find(player => player.userId === pub.turnUser)?.nickname ?? teamName(pub.team)) + ' 차례'} seconds={seconds} manual={manual} pending={pending} activeExit={!!playing && !spectator && !eliminated} onManual={() => setManual(value => !value)} onClose={close} /> : <header className="yut-header"><h1 ref={title} tabIndex={-1} id="yut-title">{titleText}</h1><div>
+    {inMatch && pub ? <YutMatchHeader state={pub} status={finished ? pub.winner < 0 ? '경기 종료' : teamName(pub.winner) + ' 승리!' : eliminated ? '우리 팀 탈락 · 관전 중' : pub.openingTeams?.length ? `선공 결정 · ${teamName(pub.team)} 차례` : pub.lastThrow?.opening ? `${teamName(pub.team)} 선공 · 윷을 던져주세요` : spectator ? '관전 중' : myTurn ? '내 차례예요' : (pub.players.find(player => player.userId === pub.turnUser)?.nickname ?? teamName(pub.team)) + ' 차례'} seconds={seconds} manual={manual} pending={pending} activeExit={!!playing && !spectator && !eliminated} onManual={() => setManual(value => !value)} onClose={close} /> : <header className="yut-header"><h1 ref={title} tabIndex={-1} id="yut-title">{titleText}</h1><div>
       <button type="button" onClick={() => setManual(value => !value)} aria-expanded={manual}>설명서</button>
       <button type="button" onClick={close} disabled={pending}>{playing && !spectator && !eliminated ? '기권·나가기' : '공원으로'}</button>
     </div></header>}
@@ -67,7 +67,7 @@ export default function YutHost({ transport, onClose }: { transport: CoopTranspo
       <p>평평한 면이 위인 개수대로 도 1칸 · 개 2칸 · 걸 3칸 · 윷 4칸 · 모 5칸. 표시된 윷 하나만 위면 빽도예요. 윷·모는 한 번 더 던져요.</p>
       <p>이동권 → 말 → 빛나는 도착 칸을 순서대로 골라요. 모서리·중앙에 정확히 멈춘 뒤에만 지름길을 선택할 수 있어요. 같은 팀 말은 자동으로 업고, 잡히면 함께 대기석으로 돌아와요.</p>
       <p>상대를 잡으면 추가 던지기! 참먹이에 딱 멈추면 아직 완주가 아니에요. 한 칸 이상 더 나가야 해요. 낙은 남은 이동권과 던지기를 잃고 차례를 넘겨요. 한 차례는 90초예요.</p>
-      <p>2~4명이 참가하고, 방장이 2~4팀과 팀마다 말 1~4개를 정해요. 선택한 모든 팀에 한 명 이상 필요해요. 팀 안에서도 번갈아 조작해요. 선공은 대표가 윷 두 개씩 던져 정하며 동률은 재던져요. 판·스택의 숫자는 말 번호 또는 업힌 말 개수예요.</p>
+      <p>2~4명이 참가하고, 방장이 2~4팀과 팀마다 말 1~4개를 정해요. 선택한 모든 팀에 한 명 이상 필요해요. 팀 안에서도 번갈아 조작해요. 각 팀 대표가 윷 4개를 던져 모·윷·걸·개·도·빽도 순으로 선공을 정하고, 최고 동률 팀만 다시 던져요. 판·스택의 숫자는 말 번호 또는 업힌 말 개수예요.</p>
       <p>판 위 칸을 누르면 같은 경기 참가자·관전자에게 위치 핑을 보내요. 전체 채팅은 같은 경기의 참가자·관전자에게, 팀 채팅은 같은 팀에게만 보여요. 빽도와 추가 기회 중복은 아래 방 규칙을 따라요.</p>
       <button onClick={() => setManual(false)}>설명서 닫기</button></section>}
     {confirmExit ? <section className="yut-exit"><h2>나가면 우리 팀이 탈락해요.</h2><p>같은 팀원도 함께 탈락하고, 남은 팀은 계속 경기해요. 마지막 한 팀이 승리해요.</p><div className="yut-actions"><button onClick={() => setConfirmExit(false)}>계속하기</button><button className="yut-primary" disabled={pending} onClick={() => void leave(true)}>기권하고 공원으로</button></div></section>

@@ -54,7 +54,7 @@ class YutEngineTests {
                 mapper.createObjectNode().put("type", "THROW"));
         var first = router.apply(command);
         var thrown = engine.member(101, id).path("publicState").path("lastThrow");
-        assertThat(thrown.path("id").asInt()).isEqualTo(1);
+        assertThat(thrown.path("id").asInt()).isEqualTo(state.path("publicState").path("lastThrow").path("id").asInt() + 1);
         assertThat(thrown.path("userId").asText()).isEqualTo(Long.toString(turn));
         var spectator = engine.watch(505, "channel-1", id);
         assertThat(spectator.path("publicState").path("lastThrow")).isEqualTo(thrown);
@@ -97,6 +97,15 @@ class YutEngineTests {
             engine.lobby(user, id, mapper.createObjectNode().put("type", "READY").put("ready", true));
         }
         engine.start(101, id);
+        for (int attempt = 0; attempt < 100; attempt++) {
+            var state = engine.member(101, id);
+            if (state.path("publicState").path("openingTeams").isEmpty()) {
+                break;
+            }
+            router.apply(new GameActionCommand(state.path("publicState").path("turnUser").asLong(), id,
+                    "opening-" + attempt, state.path("version").asLong(), mapper.createObjectNode().put("type", "THROW")));
+        }
+        assertThat(engine.member(101, id).path("publicState").path("openingTeams").isEmpty()).isTrue();
         return id;
     }
 
