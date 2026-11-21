@@ -46,8 +46,10 @@ describe('주민의 첫 화면 이후 로딩', () => {
     const tree = (ready: boolean) => h(ResidentLoading.Provider, { value: ready }, resident())
     await view.mount(tree(false)); await view.tick(.01)
     expect(assets.acquire).not.toHaveBeenCalled()
-    await view.mount(tree(true)); await view.tick(.02)
+    await view.mount(tree(true))
     expect(view.state.scene.getObjectByName('resident-placeholder')).toBeDefined()
+    expect(assets.acquire).not.toHaveBeenCalled()
+    await view.tick(.02)
     await vi.waitFor(() => expect(assets.acquire).toHaveBeenCalledOnce())
     await act(async () => { finish({} as never) })
     expect(instantiateResident).toHaveBeenCalledOnce()
@@ -56,17 +58,24 @@ describe('주민의 첫 화면 이후 로딩', () => {
     expect(release).toHaveBeenCalledOnce(); expect(dispose).toHaveBeenCalledOnce()
   })
 
-  it('멀리 있는 주민은 요청하지 않고 접근 후 시작한 요청도 해제되면 복제하지 않는다', async () => {
+  it('90m 밖과 경계 이동에서도 대체 주민을 유지하고 해제된 상세 모델은 복제하지 않는다', async () => {
     const view = await renderer()
     let finish!: (source: never) => void
     const release = vi.fn()
     assets.acquire.mockReturnValue({ ready: new Promise(resolve => { finish = resolve as typeof finish }), release })
     await view.mount(h('group', { position: [200, 0, 0] }, resident()))
+    const placeholder = view.state.scene.getObjectByName('resident-placeholder')
+    expect(placeholder).toBeDefined()
     await view.tick(.01)
+    expect(view.state.scene.getObjectByName('resident-placeholder')).toBe(placeholder)
     expect(assets.acquire).not.toHaveBeenCalled()
-    view.state.camera.position.x = 200
+    view.state.camera.position.x = 111 // 89m: only the detailed request becomes eligible.
     await view.tick(.02)
     await vi.waitFor(() => expect(assets.acquire).toHaveBeenCalledOnce())
+    view.state.camera.position.x = 109 // 91m: keep the same lightweight actor.
+    await view.tick(.03)
+    expect(view.state.scene.getObjectByName('resident-placeholder')).toBe(placeholder)
+    expect(assets.acquire).toHaveBeenCalledOnce()
     await view.mount(null)
     await act(async () => { finish({} as never) })
     expect(release).toHaveBeenCalledOnce()

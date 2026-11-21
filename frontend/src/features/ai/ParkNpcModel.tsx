@@ -68,5 +68,6 @@ export function ResidentModel({kind,speed,seated=false,airborne=false,talking=fa
   resident.update(Math.min(.1,state.elapsed),speed.current,seated,airborne,talking)
   state.elapsed=0
  },.75)
- return <group ref={host} name={'detailed-npc-'+kind}>{enabled&&wanted&&!loaded&&<group scale={RESIDENT_LOOKS[kind].height/2.1}><CharacterModel role={kind==='POLICE'?'POLICE':kind==='ELDER'?'GUIDE':'VISITOR'} moving={speed.current>.1} talking={talking} motionSpeed={speed} airborne={airborne}/></group>}</group>
+ // Distance only gates detailed GLB work; keep the cheap actor visible as soon as enabled.
+ return <group ref={host} name={'detailed-npc-'+kind}>{enabled&&!loaded&&<group scale={RESIDENT_LOOKS[kind].height/2.1}><CharacterModel role={kind==='POLICE'?'POLICE':kind==='ELDER'?'GUIDE':'VISITOR'} moving={speed.current>.1} talking={talking} motionSpeed={speed} airborne={airborne}/></group>}</group>
 }
