@@ -31,6 +31,24 @@ class DavinciEngineTests {
     private List<Long> players = List.of(101L, 202L);
 
     @Test
+    void 무작위_뽑기는_공급_패_하나만_개인에게_전달하고_중복_요청은_다시_뽑지_않는다() {
+        engine.create("game", "table", players);
+        readyAll();
+        JsonNode before = state().path("supply").deepCopy();
+        var request = new GameActionCommand(101, "game", "random-draw", state().path("version").asLong(),
+                mapper.valueToTree(Map.of("kind", "draw_random")));
+        var result = engine.apply(request);
+        String selected = view(101).privateState().path("pendingTile").path("id").asText();
+        assertThat(before.findValuesAsText("id")).contains(selected);
+        assertThat(state().path("supply").size()).isEqualTo(before.size() - 1);
+        assertThat(state().path("stage").asText()).isEqualTo("PLACE_TILE");
+        assertThat(view(999).privateState().size()).isZero();
+        assertThat(engine.apply(request)).isEqualTo(result);
+        assertThat(view(101).privateState().path("pendingTile").path("id").asText()).isEqualTo(selected);
+        assertThatThrownBy(() -> act(101, Map.of("kind", "draw_random"))).isInstanceOf(Rejected.class);
+    }
+
+    @Test
     void 공원_투영은_준비중_순서와_개인_숫자를_보내지_않고_섞기_시각을_유지한다() {
         engine.create("game", "table", players);
         var initial = engine.tablePresentations().get("table");

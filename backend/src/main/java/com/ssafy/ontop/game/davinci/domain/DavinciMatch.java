@@ -5,6 +5,7 @@ import com.ssafy.ontop.game.action.GameActionCommand;
 import com.ssafy.ontop.game.action.GameActionGateway.Rejected;
 import com.ssafy.ontop.game.action.GameActionGateway.Rejection;
 import com.ssafy.ontop.game.action.GameActionResult;
+import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -19,6 +20,7 @@ import java.util.Set;
 public final class DavinciMatch {
     public static final String GAME_CODE = "DAVINCI_CODE";
     public static final Duration TURN_LIMIT = Duration.ofSeconds(120);
+    private static final SecureRandom DRAW_RANDOM = new SecureRandom();
     public enum Stage { SETUP, DRAW, PLACE_TILE, GUESS, CONTINUE, REVEAL, FINISHED }
     public record Event(String kind, long actor, Long target, String tileId, Integer value, Boolean correct) { }
     private record Receipt(JsonNode input, long expectedVersion, GameActionResult result) { }
@@ -91,6 +93,10 @@ public final class DavinciMatch {
             if (players.get(turn) != command.userId()) { throw new Rejected(Rejection.NOT_YOUR_TURN); }
             switch (kind) {
                 case "draw" -> draw(input.path("tileId").asText());
+                case "draw_random" -> {
+                    require(stage == Stage.DRAW && !pool.isEmpty());
+                    draw(pool.get(DRAW_RANDOM.nextInt(pool.size())).id());
+                }
                 case "place" -> place(input);
                 case "guess" -> guess(command.userId(), input, now);
                 case "stop" -> {
