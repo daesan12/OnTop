@@ -92,3 +92,39 @@
   .davinci-actions { order:1; }.davinci-accessible-tiles { order:2; max-height:260px; }.davinci-log { order:3; }.davinci-chat { order:4; }
 }
 @media(prefers-reduced-motion:reduce) { .davinci-screen * { scroll-behavior:auto; transition:none; } }
+
+/* 실제 공원 Canvas 위에는 조작 가장자리만 얹는다. 가운데는 타일을 직접 클릭한다. */
+.davinci-screen[data-tabletop=true] { display:block; background:transparent; pointer-events:none; overflow:visible; }
+.davinci-screen[data-tabletop=true] .davinci-layout { position:absolute; inset:0; display:block; padding:0; min-height:0; background:none; pointer-events:none; }
+.davinci-screen[data-tabletop=true] .davinci-header { position:absolute; top:82px; left:16px; width:250px; padding:8px 12px; flex-wrap:wrap; gap:6px; border-radius:12px; pointer-events:auto; z-index:3; }
+.davinci-screen[data-tabletop=true] .davinci-header h1 { font-size:24px; }.davinci-screen[data-tabletop=true] .davinci-header p { display:none; }
+.davinci-screen[data-tabletop=true] .davinci-header button { min-height:34px; padding:4px 10px; font-size:13px; }
+.davinci-screen[data-tabletop=true] .davinci-players { position:absolute; top:185px; left:16px; width:250px; pointer-events:auto; }
+.davinci-screen[data-tabletop=true] .davinci-players>div { padding:6px 4px; }
+.davinci-screen[data-tabletop=true] .davinci-actions { position:absolute; inset:82px 16px auto auto; width:285px; max-height:calc(100dvh - 100px); pointer-events:auto; padding:14px; }
+.davinci-screen[data-tabletop=true] .davinci-accessible-tiles { position:absolute; inset:auto 320px 20px 280px; max-height:106px; pointer-events:auto; }
+.davinci-screen[data-tabletop=true] .davinci-log { position:absolute; inset:auto auto 85px 16px; width:250px; pointer-events:auto; }
+.davinci-screen[data-tabletop=true] .davinci-chat { position:absolute; inset:auto auto 20px 16px; width:250px; max-height:220px; overflow:auto; pointer-events:auto; }
+.davinci-screen .davinci-chat summary { cursor:pointer; font-weight:700; }
+@media(max-width:900px),(max-height:620px) {
+  .davinci-screen[data-tabletop=true] .davinci-header { top:65px; left:8px; width:215px; }
+  .davinci-screen[data-tabletop=true] .davinci-players { top:165px; left:8px; width:190px; display:block; }
+  .davinci-screen[data-tabletop=true] .davinci-players>div { display:flex; font-size:12px; }
+  .davinci-screen[data-tabletop=true] .davinci-actions { top:65px; right:8px; width:250px; max-height:calc(100dvh - 80px); }
+  .davinci-screen[data-tabletop=true] .davinci-accessible-tiles { left:210px; right:275px; bottom:12px; max-height:95px; }
+  .davinci-screen[data-tabletop=true] .davinci-log { display:none; }
+  .davinci-screen[data-tabletop=true] .davinci-chat { left:8px; bottom:12px; width:190px; }
+}
+@media(max-width:600px) {
+  .davinci-screen[data-tabletop=true] .davinci-header { top:65px; width:calc(100% - 16px); flex-wrap:nowrap; }
+  .davinci-screen[data-tabletop=true] .davinci-header h1 { font-size:21px; }.davinci-screen[data-tabletop=true] .davinci-header nav { margin-left:auto; }
+  .davinci-screen[data-tabletop=true] .davinci-players { top:125px; left:8px; width:calc(100% - 16px); padding:4px 8px; display:flex; flex-wrap:nowrap; overflow:auto; gap:12px; }
+  .davinci-screen[data-tabletop=true] .davinci-players>div { flex:0 0 auto; display:block; }.davinci-screen[data-tabletop=true] .davinci-players span { display:block; font-size:11px; }
+  .davinci-screen[data-tabletop=true] .davinci-players p { display:none; }
+  .davinci-screen[data-tabletop=true] .davinci-actions { inset:auto 8px 8px 8px; width:auto; max-height:31dvh; padding:10px; gap:8px; }
+  .davinci-screen[data-tabletop=true] .davinci-turn { padding-bottom:5px; }.davinci-screen[data-tabletop=true] .davinci-turn strong { font-size:20px; }
+  .davinci-screen[data-tabletop=true] .davinci-instruction { font-size:13px; }
+  .davinci-screen[data-tabletop=true] .davinci-accessible-tiles { inset:auto 8px calc(31dvh + 18px) 8px; max-height:68px; padding:4px 8px; }
+  .davinci-screen[data-tabletop=true] .davinci-accessible-tiles>div { display:flex; margin:2px 0; }.davinci-screen[data-tabletop=true] .davinci-accessible-tiles>div>div { margin:0; }
+  .davinci-screen[data-tabletop=true] .davinci-chat { inset:190px 8px auto auto; width:180px; max-height:200px; }
+}

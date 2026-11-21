@@ -3,8 +3,10 @@ import { DavinciBoard } from './DavinciBoard'
 import { CODE_VALUES, tileText, type CodeTile, type DavinciHand, type DavinciInput, type DavinciState } from './protocol'
 import { estimatedServerTime } from '../../network/serverEventClock'
 import './davinci.css'
+import { openingActive, useSecretTileUI } from './presentation'
 
 export interface DavinciScreenProps {
+  tabletop?: boolean; gameId?: string
   state: DavinciState; hand: DavinciHand | null; viewerId: string; names: Record<string, string>
   enabled: boolean; busy: boolean; error: string; act(input: DavinciInput): void
   topActions: ReactNode; resultActions?: ReactNode; rewardStatus?: string; recover(): void
@@ -35,7 +37,7 @@ function RulesDialog({ close }: { close(): void }) {
     return () => { element.close(); if (prior instanceof HTMLElement && prior.isConnected) prior.focus() }
   }, [])
   return <dialog ref={dialog} className="davinci-rules" onCancel={event => { event.preventDefault(); close() }} aria-labelledby="davinci-rules-title">
-    <header><h2 id="davinci-rules-title">다빈치 코드 · 게임 방법</h2><button onClick={close} autoFocus aria-label="게임 방법 닫기">닫기</button></header>
+    <header><h2 id="davinci-rules-title">비밀패 · 게임 방법</h2><button onClick={close} autoFocus aria-label="게임 방법 닫기">닫기</button></header>
     <div><p>2~4명이 검정·흰색 타일 26개로 즐기는 숫자 추리 게임이에요. 상대의 타일을 모두 공개하고 마지막까지 살아남으세요.</p>
       <h3>준비와 정렬</h3><p>2~3인은 4개, 4인은 3개를 받아요. 숫자는 왼쪽에서 오른쪽으로 커지고, 같은 숫자는 검정이 먼저예요. 조커(−)의 위치는 직접 고르며, 한 번 놓인 타일들의 순서는 바꿀 수 없어요.</p>
       <h3>내 차례</h3><ol><li>중앙에서 타일을 하나 뽑고, 표시된 합법 위치에 놓아요. 중앙에 타일이 없으면 바로 추리해요.</li><li>상대의 비공개 타일을 선택하고 0~11 또는 조커를 말해요.</li><li>맞히면 상대 타일이 눕혀 공개돼요. 계속 추리하거나 차례를 마칠 수 있어요.</li></ol>
@@ -46,20 +48,22 @@ function RulesDialog({ close }: { close(): void }) {
   </dialog>
 }
 
-export function DavinciScreen({ state, hand, viewerId, names, enabled, busy, error, act, topActions, resultActions, rewardStatus, recover, chat, ping }: DavinciScreenProps) {
-  const [selection, setSelection] = useState<{ userId: string; tileId: string; version: number } | null>(null)
+export function DavinciScreen({ state, hand, viewerId, names, enabled, busy, error, act, topActions, resultActions, rewardStatus, recover, chat, ping, tabletop = false, gameId = 'preview' }: DavinciScreenProps) {
+  const selection = useSecretTileUI(s => s.selection)
   const [guess, setGuess] = useState<number | null>(null), [rules, setRules] = useState(false)
   const [draft, setDraft] = useState(''), [chatBusy, setChatBusy] = useState(false), [chatError, setChatError] = useState('')
   const [now, setNow] = useState(estimatedServerTime)
   const me = state.players.find(p => p.userId === viewerId), ownTurn = state.turnUserId === viewerId
-  const mayAct = enabled && !busy && !!me?.active && state.status === 'PLAYING' && !rules
-  const selected = selection?.version === state.version ? selection : null
+  const shuffling = tabletop && openingActive(state, now)
+  const mayAct = enabled && !busy && !!me?.active && state.status === 'PLAYING' && !rules && !shuffling
+  const selected = selection?.gameId === gameId && selection.version === state.version ? selection : null
   const name = (id: string) => names[id] ?? (id === viewerId ? '나' : '참가자')
   const target = selected && state.players.find(p => p.userId === selected.userId)
   const chosen = selected && (selected.userId === viewerId ? hand?.tiles : target?.tiles)?.find(t => t.id === selected.tileId)
   useEffect(() => { const timer = setInterval(() => setNow(estimatedServerTime()), 250); return () => clearInterval(timer) }, [])
   const seconds = state.turnDeadline ? Math.max(0, Math.ceil((Date.parse(state.turnDeadline) - now) / 1000)) : null
-  const pick = (userId: string, tileId: string) => { setSelection({ userId, tileId, version: state.version }); setGuess(null) }
+  const pick = (userId: string, tileId: string) => { useSecretTileUI.getState().pick(gameId, state.version, userId, tileId); setGuess(null) }
+  useEffect(() => setGuess(null), [selected?.tileId, selected?.version])
   const jokerId = hand?.unplacedJokerIds[0]
   const positionOptions = state.stage === 'SETUP' && jokerId ? Array.from({ length: hand?.tiles.length ?? 0 }, (_, i) => i) : hand?.validPositions ?? []
   const event = state.lastEvent
@@ -67,24 +71,24 @@ export function DavinciScreen({ state, hand, viewerId, names, enabled, busy, err
     : event?.kind === 'DRAW' ? `${name(event.actorUserId)}님이 타일을 뽑았어요.`
       : event?.kind === 'TIMEOUT' ? `${name(event.actorUserId)}님의 시간이 끝나 타일이 공개됐어요.`
         : event?.kind === 'FORFEIT' ? `${name(event.actorUserId)}님이 기권했어요.` : '비밀을 지키고, 숫자의 실마리를 찾아보세요.'
-  return <section className="davinci-screen" aria-label="다빈치 코드 경기">
-    <header className="davinci-header"><div><h1>다빈치 코드</h1><p>숨겨진 숫자를 추리하세요</p></div>
+  return <section className="davinci-screen" data-tabletop={tabletop || undefined} data-opening={shuffling || undefined} aria-label="비밀패 경기">
+    <header className="davinci-header"><div><h1>비밀패</h1><p>숨겨진 숫자를 추리하세요</p></div>
       <nav aria-label="경기 메뉴"><button onClick={() => setRules(true)}>게임 방법</button>{topActions}</nav></header>
     <div className="davinci-layout">
       <aside className="davinci-players" aria-label="참가자 현황">{state.players.map(p => <div key={p.userId} data-turn={p.userId === state.turnUserId} data-out={!p.active}>
         <strong>{name(p.userId)}{p.userId === viewerId && <small> 나</small>}</strong>
         <span>{!p.active ? p.forfeited ? '기권' : '탈락' : state.stage === 'SETUP' ? p.ready ? '준비 완료' : '배치 중' : `비공개 ${p.tiles.filter(t => !t.revealed).length}개`}</span>
       </div>)}<p>{state.supply.length ? `중앙 타일 ${state.supply.length}개` : '중앙 타일 소진'}{seconds !== null && <span> · {seconds}초</span>}</p></aside>
-      <div className="davinci-board"><DavinciBoard state={state} hand={hand} viewerId={viewerId} selected={selected}
+      {!tabletop && <div className="davinci-board"><DavinciBoard state={state} hand={hand} viewerId={viewerId} selected={selected}
         enabled={mayAct && ownTurn} canPing={ping?.canSend} pingTileId={ping?.tileId}
         select={(userId, tileId) => { if (ping?.canSend) void ping.send(userId, tileId); else pick(userId, tileId) }}
-        draw={tileId => act({ kind: 'draw', tileId })} reveal={tileId => pick(viewerId, tileId)} /></div>
+        draw={tileId => act({ kind: 'draw', tileId })} reveal={tileId => pick(viewerId, tileId)} /></div>}
       <div className="davinci-log" role="status"><strong>게임 기록</strong><p>{eventText}</p></div>
       <section className="davinci-actions" aria-label="게임 조작">
         <div className="davinci-turn"><strong>{state.status === 'FINISHED' ? '경기 종료' : state.stage === 'SETUP' ? '타일 준비' : !me ? '관전 중' : !me.active ? '탈락 · 관전 중' : ownTurn ? '내 차례' : `${name(state.turnUserId ?? '')}님의 차례`}</strong></div>
-        <p className="davinci-instruction">{state.status === 'FINISHED' ? `${state.winnerUserIds.map(name).join(' · ')} 승리!` : descriptions[state.stage]}</p>
+        <p className="davinci-instruction">{shuffling ? '패를 섞고 있어요. 섞인 패가 각 자리로 나뉘면 숫자를 확인하세요.' : state.status === 'FINISHED' ? `${state.winnerUserIds.map(name).join(' · ')} 승리!` : descriptions[state.stage]}</p>
         {state.status === 'FINISHED' ? <><p>{rewardStatus ?? '공개 경기 결과예요.'}</p>{resultActions}</>
-          : state.stage === 'SETUP' && hand && !me?.ready ? <>
+          : shuffling ? <p role="status">패 섞는 중 · 잠시만 기다려주세요</p> : state.stage === 'SETUP' && hand && !me?.ready ? <>
             <p>{jokerId ? '조커를 놓을 위치를 선택하세요.' : '내 타일을 확인하고 준비를 마쳐주세요.'}</p>
             {jokerId && <div className="davinci-positions">{positionOptions.map(position => <button key={position} disabled={!mayAct} onClick={() => act({ kind: 'place_joker', tileId: jokerId, position })}>{position === 0 ? '맨 왼쪽' : `${position + 1}번째`}</button>)}</div>}
             <button className="davinci-primary" disabled={!mayAct || !!jokerId} onClick={() => act({ kind: 'ready' })}>준비 완료</button></>
@@ -111,16 +115,16 @@ export function DavinciScreen({ state, hand, viewerId, names, enabled, busy, err
         {state.players.map(p => <div key={p.userId}><strong>{name(p.userId)}</strong><div>{(p.userId === viewerId && hand ? hand.tiles : p.tiles).map((tile, index) => {
           const own = p.userId === viewerId
           const selectable = mayAct && ownTurn && (own ? state.stage === 'REVEAL' && !tile.revealed : ['GUESS', 'CONTINUE'].includes(state.stage) && !tile.revealed)
-          return <TileButton key={tile.id} tile={tile} selected={selected?.tileId === tile.id} disabled={!selectable && !ping?.canSend}
-            label={`${name(p.userId)} ${index + 1}번째 ${tile.color === 'BLACK' ? '검정' : '흰색'} ${tileText(tile.value)}${tile.revealed ? ' 공개됨' : ''}`}
+          return <TileButton key={tile.id} tile={shuffling ? { ...tile, value: null } : tile} selected={selected?.tileId === tile.id} disabled={!selectable && !ping?.canSend}
+            label={`${name(p.userId)} ${index + 1}번째 ${tile.color === 'BLACK' ? '검정' : '흰색'} ${tileText(shuffling ? null : tile.value)}${tile.revealed ? ' 공개됨' : ''}`}
             onClick={() => { if (ping?.canSend && !selectable) void ping.send(p.userId, tile.id); else pick(p.userId, tile.id) }} />
         })}</div></div>)}
       </section>
-      {chat && <section className="davinci-chat" aria-label="경기 채팅"><strong>경기 채팅{!me && ' · 타일을 눌러 추천 핑'}</strong>
+      {chat && <details className="davinci-chat" aria-label="경기 채팅" open={tabletop ? undefined : true}><summary>경기 채팅{!me && ' · 타일을 눌러 추천 핑'}</summary>
         <div className="davinci-chat-log" role="log">{chat.messages.slice(-20).map(m => <p key={m.id}><b>{name(m.userId)}</b> {m.text}</p>)}</div>
         <form onSubmit={async event => { event.preventDefault(); if (!draft.trim() || chatBusy) return; setChatBusy(true); setChatError(''); try { if (await chat.send(draft.trim())) setDraft(''); else setChatError('채팅을 보내지 못했어요.') } finally { setChatBusy(false) } }}>
           <label><span className="davinci-sr-only">채팅 메시지</span><input value={draft} maxLength={200} disabled={!chat.canSend || chatBusy} onChange={e => setDraft(e.target.value)} placeholder="한마디 남겨보세요" /></label>
-          <button disabled={!chat.canSend || chatBusy || !draft.trim()}>전송</button></form>{chatError && <p role="alert">{chatError}</p>}</section>}
+          <button disabled={!chat.canSend || chatBusy || !draft.trim()}>전송</button></form>{chatError && <p role="alert">{chatError}</p>}</details>}
     </div>
     {rules && <RulesDialog close={() => setRules(false)} />}
   </section>

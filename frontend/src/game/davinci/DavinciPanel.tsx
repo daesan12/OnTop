@@ -34,7 +34,7 @@ export function DavinciPanel() {
   const spectator = game.role === 'SPECTATOR'
   const names = Object.fromEntries(game.davinci.players.map((p, i) => [p.userId, profiles[p.userId]?.nickname ?? `참가자 ${i + 1}`]))
   const enabled = connected && !worldPending && !uncertain && recovery === 'RESTORED' && !forfeitBlocksInput(game.gameId) && game.version >= awaiting
-  return createPortal(<DavinciScreen state={game.davinci} hand={game.davinciHand} viewerId={spectator ? '' : own} names={names}
+  return createPortal(<DavinciScreen tabletop gameId={game.gameId} state={game.davinci} hand={game.davinciHand} viewerId={spectator ? '' : own} names={names}
     enabled={enabled} busy={pending || worldPending} error={!connected ? '연결이 끊겼어요. 다시 연결한 뒤 경기 상태를 확인해주세요.' : error}
     act={input => { void runtime.actDavinci?.(input) }} recover={() => { if (!connected) runtime.reconnect(); else void runtime.checkRecovery() }}
     topActions={spectator ? <button onClick={() => void runtime.unwatchGame()}>관전 종료</button>

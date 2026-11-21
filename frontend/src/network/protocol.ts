@@ -1,4 +1,5 @@
 import { validPublicEquipment, type PublicEquipment } from './equipment'
+import { parseDavinci } from '../game/davinci/protocol'
 import { isAvatarActivity, type AvatarActivity } from './avatarActivity'
 import type { MotionSnapshot } from './localMovementPrediction'
 
@@ -38,6 +39,7 @@ export interface PublicTableSeat {
 export type ChairCount = 2 | 3 | 4 | 5 | 6 | 7 | 8
 /** Public, full-channel chair projection; never grants a seat or a game subscription. */
 export interface PublicTable {
+  secretTiles?: { gameId: string; state: import('../game/davinci/protocol').DavinciState } | null
   tableId: string
   anchorId: string | null
   chairCount: ChairCount
@@ -251,6 +253,13 @@ export function worldState(value: Record<string, unknown>): WorldState {
       throw new Error('중복 공개 테이블 상태입니다.')
   }
   const publicTables = value.tables as PublicTable[] | undefined
+  for (const table of publicTables ?? []) {
+    if (table.secretTiles == null) continue
+    const view = table.secretTiles
+    if (table.gameCode !== 'DAVINCI_CODE' || !record(view) || !text(view.gameId) || !view.gameId.trim()
+      || Object.keys(view).some(key => !['gameId', 'state'].includes(key))) throw new Error('공개 비밀패 상태가 올바르지 않습니다.')
+    table.secretTiles = { gameId: view.gameId, state: parseDavinci(view.state) }
+  }
   if (value.avatars.some(a => a.tableSeat && a.tableSeat.seatNumber > 4
     && !publicTables?.some(table => table.tableId === a.tableSeat.tableId && table.gameCode === 'STONE_RUMBLE'
       && table.chairCount >= a.tableSeat.seatNumber))) throw new Error('돌탑 좌석 공개 상태가 일치하지 않습니다.')

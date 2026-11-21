@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { parseGame, gamePlayers, gameState } from '../../src/game/protocol'
 import { parseDavinci, parseDavinciHand, tileText, type DavinciState } from '../../src/game/davinci/protocol'
 import { acceptDavinciPing, useDavinciPing } from '../../src/game/davinci/social'
+import { openingActive, openingPose } from '../../src/game/davinci/presentation'
+import { worldState } from '../../src/network/protocol'
 
 const tile = (id: string) => ({ id, color: 'BLACK' as const, value: null, revealed: false })
 function state(): DavinciState {
@@ -12,7 +14,24 @@ function state(): DavinciState {
 }
 function hand() { return { userId: '101', tiles: [{ ...tile('tile-101'), value: 6 }], validPositions: [], unplacedJokerIds: [], pendingTile: null } }
 
-describe('다빈치 코드 공개·개인 계약', () => {
+describe('비밀패 공개·개인 계약', () => {
+  it('서버 시각에 맞춰 섞기를 시작하고 재접속 시 완료된 연출을 반복하지 않는다', () => {
+    const s = { ...state(), stage: 'SETUP' as const, openingStartedAt: '2026-11-21T12:00:00Z' }
+    expect(openingActive(s, Date.parse(s.openingStartedAt) + 1200)).toBe(true)
+    expect(openingActive(s, Date.parse(s.openingStartedAt) + 4200)).toBe(false)
+    expect(openingPose(3, 800)).not.toEqual(openingPose(3, 1600))
+    expect(() => parseDavinci({ ...state(), openingStartedAt: 'invalid' })).toThrow()
+  })
+  it('주변 공원 투영에서도 비공개 숫자와 개인 상태를 거절한다', () => {
+    const publicState = { channelId: 'one', version: 1, avatars: [], mapVersion: 'map', tables: [{
+      tableId: 'table', anchorId: 'anchor', chairCount: 4, gameCode: 'DAVINCI_CODE', secretTiles: { gameId: 'game', state: state() },
+    }] }
+    expect(worldState(publicState).tables?.[0]?.secretTiles?.state.players).toHaveLength(2)
+    publicState.tables[0]!.secretTiles.state.players[1]!.tiles[0]!.value = 7
+    expect(() => worldState(publicState)).toThrow()
+    const unsafe = { ...publicState, tables: [{ ...publicState.tables[0], secretTiles: { gameId: 'game', state: state(), privateState: hand() } }] }
+    expect(() => worldState(unsafe)).toThrow()
+  })
   it('공통 경기 파서와 참가자·현재 상태 조회에 연결한다', () => {
     const game = parseGame({ gameId: 'game', version: 3, role: 'PLAYER', publicState: state(), privateState: hand() }, '101')
     expect(gamePlayers(game)).toEqual(['101', '202'])

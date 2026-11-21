@@ -1866,7 +1866,7 @@ export class ParkRuntime implements ParkRuntimePort {
       || game.version < state.awaitingVersion || forfeitBlocksInput(game.gameId) || game.davinci.status !== 'PLAYING'
       || !game.davinci.players.some(p => p.userId === own.sessionId && p.active)
       || game.davinci.stage !== 'SETUP' && game.davinci.turnUserId !== own.sessionId)
-      throw new Error('본인 차례와 최신 다빈치 코드 상태를 확인해주세요.')
+      throw new Error('본인 차례와 최신 비밀패 상태를 확인해주세요.')
     const generation = this.generation
     useGame.setState({ pending: true, error: '' })
     try {

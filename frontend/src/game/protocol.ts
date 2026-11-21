@@ -278,7 +278,7 @@ export function parseGame(p: Record<string, unknown>, ownId = ''): Game {
   }
   if (record(p.publicState) && p.publicState.gameCode === 'DAVINCI_CODE') {
     const davinci = parseDavinci(p.publicState)
-    if (davinci.version !== common.version) throw new Error('다빈치 코드 버전을 확인해주세요.')
+    if (davinci.version !== common.version) throw new Error('비밀패 버전을 확인해주세요.')
     return { ...common, davinci, davinciHand: parseDavinciHand(p.privateState, davinci, ownId, common.role) }
   }
   if (record(p.publicState) && p.publicState.gameCode === 'STONE_RUMBLE') return { ...common, stone: parseStoneState(p.publicState) }

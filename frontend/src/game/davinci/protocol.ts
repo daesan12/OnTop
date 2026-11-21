@@ -8,6 +8,7 @@ export interface CodePlayer { userId: string; seat: number; active: boolean; for
 export type CodeStage = 'SETUP' | 'DRAW' | 'PLACE_TILE' | 'GUESS' | 'CONTINUE' | 'REVEAL' | 'FINISHED'
 export interface CodeEvent { kind: 'DRAW' | 'GUESS' | 'TIMEOUT' | 'FORFEIT'; actorUserId: string; targetUserId: string | null; tileId: string | null; value: number | null; correct: boolean | null }
 export interface DavinciState {
+  openingStartedAt?: string
   gameCode: 'DAVINCI_CODE'; status: 'PLAYING' | 'FINISHED'; stage: CodeStage; version: number
   turnUserId: string | null; turnDeadline: string | null; endedAt: string | null; endReason: string | null
   players: CodePlayer[]; supply: Pick<CodeTile, 'id' | 'color'>[]; winnerUserIds: string[]; lastEvent: CodeEvent | null
@@ -23,7 +24,7 @@ const id = (v: unknown): v is string => typeof v === 'string' && !!v.trim() && v
 const color = (v: unknown): v is TileColor => v === 'BLACK' || v === 'WHITE'
 const value = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v) && v >= -1 && v <= 11
 const date = (v: unknown): v is string => typeof v === 'string' && /Z$/.test(v) && Number.isFinite(Date.parse(v))
-const invalid = (): never => { throw new Error('다빈치 코드 상태를 확인해주세요.') }
+const invalid = (): never => { throw new Error('비밀패 상태를 확인해주세요.') }
 
 function tile(v: unknown, secret = false): CodeTile {
   if (!record(v) || !id(v.id) || !color(v.color) || typeof v.revealed !== 'boolean'
@@ -32,6 +33,7 @@ function tile(v: unknown, secret = false): CodeTile {
 }
 
 export function parseDavinci(v: unknown): DavinciState {
+  if (record(v) && v.openingStartedAt !== undefined && !date(v.openingStartedAt)) return invalid()
   if (!record(v) || v.gameCode !== 'DAVINCI_CODE' || !['PLAYING', 'FINISHED'].includes(String(v.status))
     || !['SETUP', 'DRAW', 'PLACE_TILE', 'GUESS', 'CONTINUE', 'REVEAL', 'FINISHED'].includes(String(v.stage))
     || !integer(v.version) || !Array.isArray(v.players) || v.players.length < 2 || v.players.length > 4
@@ -65,7 +67,7 @@ export function parseDavinci(v: unknown): DavinciState {
       || !(e.correct === null || typeof e.correct === 'boolean')) return invalid()
     lastEvent = e as unknown as CodeEvent
   }
-  return { gameCode: 'DAVINCI_CODE', status: v.status as DavinciState['status'], stage: v.stage as CodeStage, version: v.version,
+  return { ...(v.openingStartedAt ? { openingStartedAt: v.openingStartedAt as string } : {}), gameCode: 'DAVINCI_CODE', status: v.status as DavinciState['status'], stage: v.stage as CodeStage, version: v.version,
     turnUserId: v.turnUserId as string | null, turnDeadline: v.turnDeadline as string | null,
     endedAt: v.endedAt as string | null, endReason: v.endReason as string | null,
     players, supply, winnerUserIds: v.winnerUserIds as string[], lastEvent }

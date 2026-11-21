@@ -54,7 +54,7 @@ function surfaceTexture(kind: 'wood' | 'felt' | 'stone') {
   return texture
 }
 
-const Tile = memo(function Tile({ tile, hidden, faceUp, selected, scale = 1, onClick, clickable, flat = false }: {
+export const Tile = memo(function Tile({ tile, hidden, faceUp, selected, scale = 1, onClick, clickable, flat = false }: {
   tile: CodeTile; hidden: boolean; faceUp: boolean; selected: boolean; scale?: number; onClick(): void; clickable: boolean; flat?: boolean
 }) {
   const pivot = useRef<Group>(null)
@@ -147,7 +147,7 @@ function Scene({ state, hand, viewerId, selected, enabled, canPing, pingTileId, 
 
 export function DavinciBoard(props: BoardProps) {
   return <Canvas shadows dpr={[1, 1.5]} camera={{ position: [0, 9.5, 9], fov: 46, near: .1, far: 80 }}
-    gl={{ antialias: true, alpha: false }} aria-label="다빈치 코드 3D 게임판">
+    gl={{ antialias: true, alpha: false }} aria-label="비밀패 3D 게임판">
     <Scene {...props} />
   </Canvas>
 }

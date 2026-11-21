@@ -8,6 +8,7 @@ import { BridgeBoard } from '../../game/bridge/BridgeBoard'
 import { LedgerTable } from '../../game/ledger/LedgerTable'
 import { HalliBoard } from '../../game/halligalli/HalliBoard'
 import {DebrisGameSurface} from '../parkDebris/presentation'
+import { ParkSecretTiles } from '../../game/davinci/ParkSecretTiles'
 
 export default function TableBoards({ anchor, nativeFurniture }: { anchor: TableAnchor; nativeFurniture: boolean }) {
   return (
@@ -21,6 +22,7 @@ export default function TableBoards({ anchor, nativeFurniture }: { anchor: Table
         <BridgeBoard anchor={anchor} />
         <LedgerTable anchor={anchor} />
         <HalliBoard anchor={anchor} />
+        <ParkSecretTiles anchor={anchor} />
         </Suspense>
       </DebrisGameSurface>
       </group>

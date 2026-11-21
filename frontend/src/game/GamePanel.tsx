@@ -44,7 +44,7 @@ export function GamePanel() {
   const davinci = useGame(s => !!s.game?.davinci)
   if (npcResult) return <NpcResultPanel practice={npcResult}/>
   if (terminalPlayer && !seated) return null
-  if (davinci) return <Suspense fallback={<p role="status">다빈치 코드 게임판을 준비하고 있어요.</p>}><DavinciPanel /></Suspense>
+  if (davinci) return <Suspense fallback={<p role="status">비밀패 게임판을 준비하고 있어요.</p>}><DavinciPanel /></Suspense>
   if (stone) return <Suspense fallback={<StoneLoadingTips ready={0} total={stonePlayers} ownReady={false} error="" retry={() => void runtime.checkRecovery()} />}><StoneRumblePanel /></Suspense>
   if (alkkagi) return <AlkkagiPanel />
   if (spectatorResult) {

@@ -1,8 +1,8 @@
 import type { GameManual } from '../../features/manual/types'
 
 export const davinciManual: GameManual = {
-  id: 'davinci', status: 'available', category: 'game', title: '다빈치 코드', subtitle: '숨겨진 숫자를 추리하세요',
-  keywords: '추리 숫자 타일 조커 검정 흰색 다빈치 코드', players: '2~4명', goal: '마지막까지 비공개 타일을 지켜요',
+  id: 'davinci', status: 'available', category: 'game', title: '비밀패', subtitle: '숨겨진 숫자를 추리하세요',
+  keywords: '추리 숫자 타일 조커 검정 흰색 비밀패', players: '2~4명', goal: '마지막까지 비공개 타일을 지켜요',
   timing: '준비·한 차례 120초', summary: '오름차순 타일의 순서와 공개된 숫자로 상대의 비밀을 알아내요.',
   flow: [
     { title: '준비', body: '2~3인은 4개, 4인은 3개를 받아요. 조커 위치를 정하고 준비 완료를 눌러요.' },
