@@ -59,29 +59,32 @@
 .davinci-players span { display:block; font-size:11px; }
 .davinci-players p { padding:0; font-size:11px; white-space:nowrap; }
 .davinci-dock { position:absolute; left:50%; bottom:20px; transform:translateX(-50%); width:min(760px,calc(100% - 640px)); pointer-events:auto; }
-.davinci-dock .davinci-actions { position:relative; inset:auto; width:100%; padding:14px 16px 10px; max-height:none; overflow:visible; gap:10px; background:#26362bf2; border-radius:16px; box-shadow:0 8px 24px #14201644; }
+.davinci-dock .davinci-actions { position:relative; inset:auto; width:100%; padding:8px 12px; min-height:40px; max-height:none; overflow:visible; gap:0; background:#26362bf2; border-radius:12px; box-shadow:0 8px 24px #14201644; }
 .davinci-dock[data-my-turn=true] .davinci-actions { border-color:#d4b76f; }
-.davinci-brief { display:grid; grid-template-columns:1fr auto; gap:4px 12px; align-items:center; }
-.davinci-dock .davinci-turn { border:0; padding:0; }
-.davinci-dock .davinci-turn strong { font-size:16px; }
-.davinci-dock .davinci-instruction { grid-column:1/-1; color:var(--dc-muted); font-size:12px; }
-.davinci-screen .davinci-fold { min-height:28px; padding:2px 8px; border:0; color:var(--dc-muted); font-size:11px; }
-.davinci-command-body { display:flex; flex-direction:column; gap:10px; }
+.davinci-brief { position:absolute; right:8px; bottom:6px; z-index:1; }
+.davinci-dock :is(.davinci-turn,.davinci-instruction) { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
+.davinci-screen .davinci-fold { min-height:28px; padding:2px 6px; border:0; color:var(--dc-muted); font-size:11px; }
+.davinci-dock[data-compact=true] { width:120px; }
+.davinci-dock[data-compact=true] .davinci-brief { inset:5px 8px; }
+.davinci-dock[data-compact=true] .davinci-fold { width:100%; }
+.davinci-command-body { display:flex; flex-direction:column; gap:4px; }
 .davinci-command-body[hidden] { display:none; }
-.davinci-commands { display:flex; align-items:center; flex-wrap:wrap; gap:8px; min-width:0; max-height:34dvh; overflow:auto; scrollbar-width:none; }
+.davinci-number-select,.davinci-position-select,.davinci-draw-short { display:none; }
+.davinci-commands { display:flex; align-items:center; flex-wrap:wrap; gap:6px; min-width:0; max-height:34dvh; overflow:auto; scrollbar-width:none; font-size:12px; }
+.davinci-dock .davinci-commands button { min-height:34px; padding:5px 8px; font-size:13px; }
 .davinci-dock .davinci-positions { max-height:100px; overflow:auto; scrollbar-width:none; }
 .davinci-dock .davinci-positions button { flex:0 0 auto; }
-.davinci-guess-controls { display:grid; width:100%; gap:8px; }
-.davinci-guess-controls[data-target-selected=false] .davinci-numbers,.davinci-guess-controls[data-target-selected=false] .davinci-confirm-actions>.davinci-primary { display:none; }
+.davinci-guess-controls { display:grid; grid-template-columns:minmax(0,1fr) auto; width:100%; gap:4px 8px; align-items:end; }
+.davinci-guess-controls[data-target-selected=false] .davinci-numbers,.davinci-guess-controls[data-target-selected=false] .davinci-number-select,.davinci-guess-controls[data-target-selected=false] .davinci-confirm-actions>.davinci-primary { display:none; }
 .davinci-guess-controls[data-target-selected=false] .davinci-confirm-actions:not(:has(button:not(.davinci-primary))) { display:none; }
-.davinci-guess-target { font-size:12px; color:var(--dc-muted); }
+.davinci-guess-target { grid-column:1/-1; font-size:12px; color:var(--dc-muted); }
 .davinci-dock .davinci-numbers { grid-template-columns:repeat(12,minmax(0,1fr)) 44px; gap:4px; }
-.davinci-dock .davinci-numbers button { min-height:36px; padding:3px 0; font-size:17px; }
+.davinci-dock .davinci-numbers button { min-height:34px; padding:3px 0; font-size:16px; }
 .davinci-dock .davinci-numbers button:last-child { grid-column:auto; font-size:12px; }
-.davinci-confirm-actions { display:flex; justify-content:flex-end; gap:8px; }
-.davinci-confirm-actions>button { min-width:110px; }
+.davinci-confirm-actions { display:flex; justify-content:flex-end; gap:4px; }
+.davinci-confirm-actions>button { min-width:70px; }
 .davinci-dock .davinci-draw-options { flex-direction:row; flex-wrap:wrap; align-items:center; gap:8px 14px; }
-.davinci-dock-options { position:relative; display:flex; align-items:center; flex-wrap:wrap; gap:4px 18px; padding-top:8px; border-top:1px solid #ddc99833; }
+.davinci-dock-options { position:relative; display:flex; align-items:center; flex-wrap:wrap; gap:2px 14px; padding-right:42px; }
 .davinci-dock summary { min-height:24px; font-size:11px; }
 .davinci-dock :is(.davinci-accessible-tiles,.davinci-record,.davinci-pool-picker) { position:static; padding:0; border:0; max-height:none; overflow:visible; }
 .davinci-dock :is(.davinci-tile-sheet,.davinci-record>.davinci-log,.davinci-pool-picker>div) { position:absolute; inset:auto auto calc(100% + 12px) 0; z-index:40; width:min(620px,calc(100vw - 32px)); max-height:min(340px,calc(100dvh - var(--secret-tiles-dock-height,220px) - 48px)); overflow:auto; scrollbar-width:none; padding:14px; border:1px solid var(--dc-line); border-radius:10px; background:#26362bf7; box-shadow:0 -8px 28px #0004; }
@@ -99,7 +102,7 @@
 @media(max-width:999px) and (min-width:601px) {
  .davinci-dock { right:16px; bottom:16px; width:calc(100% - 480px); }
  .davinci-screen .davinci-players { top:150px; left:16px; transform:none; width:430px; max-width:calc(100% - 32px); padding:8px 12px; }
- .davinci-dock .davinci-actions { padding:10px; }
+ .davinci-dock .davinci-actions { padding:8px 10px; }
  .davinci-dock .davinci-numbers { grid-template-columns:repeat(7,minmax(0,1fr)); gap:3px; }
  .davinci-dock :is(.davinci-tile-sheet,.davinci-record>.davinci-log,.davinci-pool-picker>div) { left:auto; right:0; }
 }
@@ -108,10 +111,12 @@
  .davinci-screen .davinci-players { top:154px; width:calc(100% - 32px); padding:8px 10px; gap:8px; }
  .davinci-players strong { font-size:11px; }.davinci-players span,.davinci-players p { font-size:10px; }
  .davinci-dock { bottom:calc(var(--secret-common-chat-gap,310px) + 12px); width:calc(100% - 32px); }
- .davinci-dock .davinci-actions { padding:10px 12px; gap:8px; }
+ .davinci-dock .davinci-actions { padding:8px 10px; }
  .davinci-dock .davinci-numbers { grid-template-columns:repeat(7,minmax(0,1fr)); }
  .davinci-dock .davinci-numbers button:last-child { grid-column:span 2; }
  .davinci-dock .davinci-numbers button { min-height:32px; }
+ .davinci-confirm-actions { flex-direction:column; }
+ .davinci-confirm-actions>button { min-width:64px; }
  .davinci-dock .davinci-turn strong { font-size:14px; }
  .davinci-commands { max-height:min(26dvh,max(56px,calc(100dvh - var(--secret-common-chat-gap,310px) - 340px))); }
  .davinci-dock-options { gap:2px 12px; }
@@ -123,6 +128,27 @@
  .davinci-dock .davinci-instruction,.davinci-guess-target { font-size:11px; }
  .davinci-dock .davinci-numbers button { min-height:30px; }
  .davinci-commands { max-height:32dvh; }
+}
+/* 낮은 세로 화면은 한 줄 선택 도구로 바꿔 손패 위의 공간을 비운다. */
+@media(max-width:600px) and (max-height:700px) {
+ .davinci-dock .davinci-actions { padding:6px 8px; }
+ .davinci-command-body { flex-direction:row; align-items:center; gap:6px; }
+ .davinci-commands { flex:1; min-width:0; max-height:96px; gap:4px; }
+ .davinci-dock-options { position:static; flex-shrink:0; flex-wrap:nowrap; gap:6px; padding-right:32px; }
+ .davinci-dock summary { font-size:10px; }
+ .davinci-screen .davinci-fold { font-size:10px; padding:2px 4px; }
+ .davinci-guess-controls { display:flex; align-items:center; gap:4px; }
+ .davinci-guess-target { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
+ .davinci-guess-controls[data-target-selected=false] .davinci-guess-target { position:static; width:auto; height:auto; overflow:visible; clip-path:none; white-space:normal; font-size:11px; }
+ .davinci-dock .davinci-numbers,.davinci-dock .davinci-positions,.davinci-draw-label,.davinci-draw-options p,
+ .davinci-screen[data-stage=PLACE_TILE] .davinci-commands>p,.davinci-screen[data-stage=SETUP] .davinci-commands>p { display:none; }
+ .davinci-draw-short { display:inline; }
+ .davinci-number-select,.davinci-position-select { display:block; min-width:0; min-height:32px; max-width:100%; padding:3px 2px; border:1px solid var(--dc-line); border-radius:6px; background:#26362b; color:var(--dc-ink); font:inherit; font-size:12px; }
+ .davinci-number-select { width:56px; flex:1; }
+ .davinci-confirm-actions { flex-direction:row; flex-shrink:0; gap:3px; }
+ .davinci-dock .davinci-commands button { min-height:32px; min-width:0; padding:4px; font-size:12px; }
+ .davinci-commands kbd { margin-left:4px; padding:1px 3px; }
+ .davinci-screen select:focus-visible { outline:2px solid var(--dc-gold); outline-offset:2px; }
 }
 @media(prefers-reduced-motion:reduce) { .davinci-screen * { scroll-behavior:auto; transition:none; } }
 
