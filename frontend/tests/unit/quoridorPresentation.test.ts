@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest'
 import { PerspectiveCamera, Vector3 } from 'three'
-import { QUORIDOR_FOV, quoridorCameraActive, quoridorCameraPose, quoridorYaw } from '../../src/game/quoridor/camera'
+import { QUORIDOR_FOV, largerQuoridorViewport, quoridorCameraActive, quoridorCameraPose, quoridorYaw } from '../../src/game/quoridor/camera'
 import { BOARD_SPAN, CELL_PITCH, cellPoint, coordinate, wallDimensions, wallPoint } from '../../src/game/quoridor/presentation'
 
 it('3D 칸과 두 칸 장벽의 중심이 서버 0~8·0~7 좌표와 일치한다', () => {
@@ -40,4 +40,31 @@ it('참가자의 종료·정산 뒤에는 카메라를 반환하고 관전 최�
   expect(quoridorCameraActive('PLAYING',true)).toBe(false)
   expect(quoridorCameraActive('FINISHED',false)).toBe(false)
   expect(quoridorCameraActive('FINISHED',false,true)).toBe(true)
+})
+
+it('넓은 화면은 채팅·상태판 옆 공간을 활용해 확대하고 좁은 중앙 영역은 기존 구도를 보존한다', () => {
+  const standard = { top: 202, bottom: 172, left: 16, right: 16 }
+  const center = { top: 90, bottom: 134, left: 332, right: 272 }
+  const distance = (frame: ReturnType<typeof quoridorCameraPose>) =>
+    Math.hypot(...frame.position.map((value, i) => value - frame.target[i]))
+  const selected = largerQuoridorViewport(1536, 1024, [standard, center])
+  const before = quoridorCameraPose(1536, 1024, 1, 0, standard)
+  const after = quoridorCameraPose(1536, 1024, 1, 0, selected)
+  expect(distance(before) / distance(after)).toBeGreaterThan(1.1)
+  expect(selected).toEqual(center)
+  const narrow = { ...center, left: 620, right: 620 }
+  expect(largerQuoridorViewport(1280, 1024, [standard, narrow])).toEqual(standard)
+  for (const yaw of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) {
+    const frame = quoridorCameraPose(1536, 1024, 1, yaw, selected)
+    const camera = new PerspectiveCamera(QUORIDOR_FOV, 1536 / 1024, .01, 100)
+    camera.position.set(...frame.position); camera.lookAt(...frame.target); camera.updateMatrixWorld()
+    for (const x of [-BOARD_SPAN / 2, BOARD_SPAN / 2]) for (const z of [-BOARD_SPAN / 2, BOARD_SPAN / 2])
+      for (const y of [-.12, .16]) {
+        const p = new Vector3(x, y, z).project(camera)
+        expect((p.x + 1) * 768).toBeGreaterThanOrEqual(selected.left)
+        expect((p.x + 1) * 768).toBeLessThanOrEqual(1536 - selected.right)
+        expect((1 - p.y) * 512).toBeGreaterThanOrEqual(selected.top)
+        expect((1 - p.y) * 512).toBeLessThanOrEqual(1024 - selected.bottom)
+      }
+  }
 })

@@ -7,6 +7,18 @@ export const quoridorViewport = { gameId: '', top: 140, bottom: 150, left: 16, r
 export const quoridorCamera = { gameId: '', ready: false }
 export const quoridorCameraActive = (status: string | undefined, hasResult: boolean, spectator = false) =>
   !!status && (spectator || status === 'PLAYING' && !hasResult)
+export interface QuoridorInsets { top: number; bottom: number; left: number; right: number }
+
+/** 위아래 빈 띠와 양옆 UI 사이 중 판을 더 크게 담을 수 있는 안전 영역을 고른다. */
+export function largerQuoridorViewport(width: number, height: number, candidates: QuoridorInsets[]) {
+  let best = candidates[0], nearest = Infinity
+  for (const candidate of candidates) {
+    const frame = quoridorCameraPose(width, height, 1, 0, candidate)
+    const distance = Math.hypot(...frame.position.map((value, i) => value - frame.target[i]))
+    if (distance < nearest) { best = candidate; nearest = distance }
+  }
+  return best
+}
 /** 자신의 출발선 뒤에서 본다. 서버의 칸 좌표는 회전하지 않는다. */
 export function quoridorYaw(goal?: Quoridor['players'][number]['goal']) {
   return goal === 'SOUTH' ? Math.PI : goal === 'WEST' ? Math.PI / 2 : goal === 'EAST' ? -Math.PI / 2 : 0

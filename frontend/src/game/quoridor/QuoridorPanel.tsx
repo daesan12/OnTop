@@ -11,7 +11,7 @@ import { OmokSurrender } from '../OmokSurrender'
 import { useOmokEvents } from '../omok/spectatorEvents'
 import { useQuoridorControls, useQuoridorUI } from './controls'
 import { coordinate, GOAL_LABELS, PLAYER_COLORS, sameWall } from './presentation'
-import { quoridorViewport } from './camera'
+import { largerQuoridorViewport, quoridorViewport } from './camera'
 import './quoridor.css'
 import { TurnTime } from './TurnTime'
 
@@ -35,8 +35,16 @@ export function QuoridorHud({ runtime }: { runtime: Runtime }) {
       const chat = page?.querySelector('.park-chat')?.getBoundingClientRect()
       const chatBottom = chat && chat.height > 0 ? h - chat.top + 12 : 0
       const bottom = Math.max(h - bar.top + 12, chatBottom)
-      Object.assign(quoridorViewport, { gameId: c.game!.gameId, top, bottom: lowWide ? 32 : bottom,
-        left: lowWide ? 252 : 16, right: lowWide ? 212 : 16 })
+      const standard = { top, bottom: lowWide ? 32 : bottom, left: lowWide ? 252 : 16, right: lowWide ? 212 : 16 }
+      const status = root.current.querySelector('.qr-status')!.getBoundingClientRect()
+      const menu = page?.querySelector('.game-hud-menu')?.getBoundingClientRect()
+      // 훈수 패널(240px + 오른쪽 여백 20px)은 표시 전부터 예약해 핑 도착 시 구도가 흔들리지 않게 한다.
+      const center = { top: root.current.querySelector('.qr-roster')!.getBoundingClientRect().bottom + 12,
+        bottom: h - bar.top + 12, left: Math.max(status.right, chat?.right ?? 0) + 12,
+        right: Math.max(272, window.innerWidth - (menu?.left ?? window.innerWidth) + 12) }
+      const insets = window.innerWidth >= 1200 && !lowWide
+        ? largerQuoridorViewport(window.innerWidth, h, [standard, center]) : standard
+      Object.assign(quoridorViewport, { gameId: c.game!.gameId, ...insets })
       page?.style.setProperty('--qr-toolbar-height', `${Math.ceil(bar.height)}px`)
       page?.style.setProperty('--qr-chat-height', `${Math.ceil(chat?.height ?? 0)}px`)
       const headerBottom = `${Math.max(116,Math.ceil(statusBottom+12))}px`
