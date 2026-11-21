@@ -1,4 +1,4 @@
--- 사용자 지정 V187. 기존 게임 인원 계약과 participant 좌석 1~8 범위를 보존한다.
+-- 사용자 지정 V188. 기존 게임 인원 계약과 participant 좌석 1~8 범위를 보존한다.
 ALTER TABLE game_sessions
     DROP CHECK ck_game_sessions_players,
     ADD CONSTRAINT ck_game_sessions_players CHECK (

@@ -10,7 +10,16 @@
 - 종료 사유: LAW_WINS, OUTLAWS_WIN, RENEGADE_WINS. 승리 자격을 가진 팀원이 전부 기권했다면 NO_ELIGIBLE_WINNERS로 무효 처리한다.
 - 서버 상태는 메모리다. 재접속 복구와 서버 프로세스 재시작 복원은 다르며 후자는 보장하지 않는다.
 
-## V187 사전 공유
+## 현재 마이그레이션: V188 (2026-11-22)
+
+- 사용자 지시로 미병합 신규 SQL의 번호를 V187에서 **V188**로 변경했다. 현재 파일은 `backend/src/main/resources/db/migration/V188__allow_bang_game_sessions.sql`이며 실행 DDL은 그대로다. `BANG` 4~7인 CHECK 허용 목적과 FE/BE 계약은 변경하지 않았다.
+- 작업 브랜치는 `feat/bang-table`. 승인받은 최신 `origin/dev` `f3980669e3d6a5c02d2472188a69d149932fbf94`를 `bd23f3fe`로 충돌 없이 병합했다. dev의 공원 렌더/겨울 장식/주민 로딩 변경을 포함하며 인프라 파일은 변경하지 않았다.
+- 최초 검색에서 체스의 V188을 확인하여 변경을 보류하고 사용자에게 알렸다. 사용자가 체스는 V189로 변경 중이라고 확인했고, 실제 체스 worktree에서 `V189__allow_chess_game_sessions.sql`을 확인했다. 생성 직전 등록된 로컬 worktree DB 경로 246곳에서 V188 파일이 없었다. 최종 확인에서 원격 `origin/feat/chess`도 V188 없이 V189로 변경되어 번호 충돌이 해소됐다. 다른 원격 이력에서는 체스 외 V188 파일을 찾지 못했다. 열린 MR/별도 팀 예약은 조회 불가이며 MR 직전에 점유 상태를 다시 확인한다.
+- 기본 Flyway location은 `db/migration`; `dev & db & !prod & !production`에서는 `db/migration,db/minigame`이다. 실제 운영 환경변수 값과 공용 DB의 적용 이력은 조회하지 못했다. 이 작업의 기존 검수는 `!db` 메모리 fixture였고 Flyway/공용 DB 적용은 수행하지 않았다. 이미 적용된 DB에 대한 rename/repair/초기화는 수행하지 않는다.
+- 통합 검증: FE 타입 검사 통과, 관련 FE 테스트 53개는 최초 실행에서 52개 통과/1개 5초 timeout 후 해당 파일 6개가 코드 변경 없이 단독 재실행에서 통과했다. BE 게임 규칙/시작/종료/공통 테이블 39개는 통과했다. 전체 db location의 SQL 74개 버전 중복 없음과 주석 제외 DDL 동일성을 확인했다. `processResources` 통과 후 빌드 리소스에도 V187 없이 V188만 포함된다. 맵 전수 탐색/자전거·킥보드 FE 주행 테스트는 실행하지 않았다. 이 번호 변경에서 실제 MySQL 8.4 신규/순차 적용과 최신 dev 공원에서의 브라우저 경기 흐름은 미검증이며 기존 DB 검증 제약은 유지한다.
+- 직접 테스트 준비 요청이 없어 게임 브라우저/사용자 검수 세션을 새로 열지 않았다. MR/머지는 요청 전까지 보류하고 브랜치는 유지한다. Jenkins 조회 정보/권한은 확인하지 못했다.
+
+## 최초 V187 사전 공유 기록 (현재 V188로 변경)
 
 사용자가 V187을 지정했다. 신규 파일은 1개, `backend/src/main/resources/db/migration/V187__allow_bang_game_sessions.sql`이다. 기존 game_sessions 인원 CHECK를 보존하면서 BANG 4~7인을 추가한다. 기존 migration은 수정하지 않는다.
 
