@@ -78,7 +78,7 @@ public final class StoneRumbleParkApplication {
 
     @TestConfiguration(proxyBeanMethods = false)
     @Profile("local & stone-rumble-park & !db & !dev & !prod & !production")
-    @Import({ArcadeParkQa.class, com.ssafy.ontop.game.spotdifference.SpotDifferenceParkFixture.class,
+    @Import({ArcadeParkQa.class, WinterCommunityParkQa.class, com.ssafy.ontop.game.spotdifference.SpotDifferenceParkFixture.class,
             com.ssafy.ontop.world.balloon.BalloonParkFixture.class})
     public static class Fixture {
         @Bean ActiveMemberLookup stoneRumbleMembers() {

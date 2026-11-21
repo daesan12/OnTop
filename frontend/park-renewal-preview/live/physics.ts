@@ -1,4 +1,4 @@
-import { SNOW_PILES } from '../../src/features/winter/plan'
+import { CHRISTMAS_TREE, SNOW_BUILD_ZONES, SNOW_PILES } from '../../src/features/winter/plan'
 import { mainPagodaCollision } from '../pagodaCollision'
 import { ShapeUtils, Vector2, type BufferGeometry } from 'three'
 import { createTowerDeck, createTowerRamp, MOVEMENT, OBSERVATION_TOWER, TOWER_DECK_RAIL_SEGMENTS, towerPoint } from '../../src/config'
@@ -425,7 +425,10 @@ export function buildRenewalPhysics(tables: readonly TableAnchor[]) {
   const spawnY = groundSurfaceHeight(...RENEWAL_SPAWN) + MOVEMENT.halfHeight + MOVEMENT.radius + MOVEMENT.offset + groundClearance
   // The enlarged benches need more clearance under the tuned jump's stronger gravity.
   const physics = { ...basePhysics,
-    winterSnowPiles: SNOW_PILES.map(p => ({ ...p, y: groundSurfaceHeight(p.x, p.z) })), boxes, hulls, meshes, fountainPolicy, steppingStones: [], pavilionTunedJumpSpeed: 9.8,
+    winterSnowPiles: SNOW_PILES.map(p => ({ ...p, y: groundSurfaceHeight(p.x, p.z) })),
+    winterBuildZones: SNOW_BUILD_ZONES.map(p => ({ ...p, y: groundSurfaceHeight(p.x, p.z) })),
+    winterTree: { ...CHRISTMAS_TREE, y: groundSurfaceHeight(CHRISTMAS_TREE.x, CHRISTMAS_TREE.z) },
+    boxes, hulls, meshes, fountainPolicy, steppingStones: [], pavilionTunedJumpSpeed: 9.8,
     secretCorridor: { x0: HORROR.x0, x1: HORROR.x1, z0: HORROR.z0, z1: HORROR.z1, floor: HORROR.floor, ceiling: HORROR.ceiling },
     secretTerrainCuts, duckBoat: BOAT_ROUTE,
     interiorAccess: { routes: interiorAccess, annex, upperArrival, entrancesOpen: SECRET_ENTRANCES_OPEN,

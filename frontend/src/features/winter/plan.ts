@@ -4,16 +4,18 @@ import { FOREST_TRAILS } from '../../../park-renewal-preview/landscapePlan'
 
 /** 통행로·게임 진입점 바깥의 고정 겨울 장식. 충돌과 렌더링이 같은 배치를 사용한다. */
 export const WINTER_DECOR = [
-  { id: 'plaza-tree', kind: 'tree', x: 0, z: 38, radius: 2.5, height: 7.8 },
+  { id: 'plaza-tree', kind: 'tree', x: 0, z: 38, radius: 4.5, height: 14.04, scale: 1.8 },
   { id: 'santa', kind: 'santa', x: 4, z: 42, radius: 1, height: 2.8 },
   { id: 'entry-snowman', kind: 'snowman', x: -5, z: 98, radius: .85, height: 3.1 },
   { id: 'plaza-snowman', kind: 'snowman', x: 0, z: 48, radius: .85, height: 3.1 },
   { id: 'lake-snowman', kind: 'snowman', x: 47, z: 33, radius: .85, height: 3.1 },
-  { id: 'tree-gifts', kind: 'gifts', x: -3.7, z: 38, radius: 1.25, height: 1.3 },
-  { id: 'plaza-gifts', kind: 'gifts', x: 3.7, z: 36, radius: 1.25, height: 1.3 },
+  { id: 'tree-gifts', kind: 'gifts', x: -6.8, z: 38, radius: 1.25, height: 1.3 },
+  { id: 'plaza-gifts', kind: 'gifts', x: 6.8, z: 36, radius: 1.25, height: 1.3 },
 ] as const
 interface SnowPile { id: string; x: number; z: number; radius: number }
 const snowPiles: SnowPile[] = [
+  { id: 'snow-building-west', x: -16, z: 43, radius: 5 },
+  { id: 'snow-building-east', x: 16, z: 43, radius: 5 },
   { id: 'snow-entry', x: 0, z: 88, radius: 2.4 },
   { id: 'snow-entry-arrival', x: 0, z: 96, radius: 3.2 },
   { id: 'snow-plaza-west', x: -5, z: 44, radius: 2.4 },
@@ -66,3 +68,9 @@ for (let x = -91; x <= 91; x += 14) for (let z = -91; z <= 91; z += 14) {
 }
 export const SNOW_PILES: readonly SnowPile[] = snowPiles
 export const SANTA = WINTER_DECOR[1]!
+/** 완성품은 통행로·출입구 밖의 눈밭에만 설치한다. FE/BE가 같은 영역을 사용한다. */
+export const SNOW_BUILD_ZONES = [
+  { id: 'snow-building-west', x: -16, z: 43, radius: 5 },
+  { id: 'snow-building-east', x: 16, z: 43, radius: 5 },
+] as const
+export const CHRISTMAS_TREE = WINTER_DECOR[0]!
