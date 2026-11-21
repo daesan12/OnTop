@@ -34,6 +34,7 @@ import { site } from '../plan'
 import { WinterScene } from '../../src/features/winter/WinterScene'
 import { ParkGachaKiosk } from '../ParkGachaKiosk'
 import { ParkMoleShop } from '../ParkMoleShop'
+import { EntranceDirectionSigns } from '../DirectionSigns'
 
 const HorrorZone = lazy(() => import('../HorrorZone').then(module => ({ default: module.HorrorZone })))
 const AnnexDetails = lazy(() => import('../InteriorDetails').then(module => ({ default: module.AnnexDetails })))
@@ -227,6 +228,7 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady, gr
           <StableRentalPairs area="gate" />
           <StableRentalPairs area="nearby" />
           <StableEntranceLandscape quality={quality} showFitnessStations />
+          <EntranceDirectionSigns />
           <EntrancePartReady readiness={entranceReadiness} part="ground" />
         </EntranceAssetsReady>
       </Suspense>

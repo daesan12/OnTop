@@ -9,6 +9,8 @@ import { loadRenewalParkWorld } from '../park/loadRenewalParkWorld'
 import { usePageVisible } from '../park/usePageVisible'
 import { LIVE_MAP_IDENTITY } from '../network/mapContract'
 import { ShaderPreparedGroup } from '../../park-renewal-preview/live/ShaderPreparedGroup'
+import { FacilityOnApproach } from '../../park-renewal-preview/live/FacilityOnApproach'
+import { START as jumpStart } from '../features/jumpmap/activeCourse'
 import { useJumpmap } from '../features/jumpmap/state'
 const GeneratedParkWorld=lazy(()=>import('../layout-preview/PreviewWorld').then(m=>({default:m.PreviewWorld})))
 const RenewalParkWorld=RENEWAL_PARK_ENABLED ? lazy(loadRenewalParkWorld) : null
@@ -50,6 +52,7 @@ import {ParkDebrisScene} from '../features/parkDebris/ParkDebrisScene'
 import { BALLOON_RIDE_ENABLED } from '../park/mapSelection'
 import { getParkInteraction, interactWithPark } from '../features/interactions/parkInteraction'
 import { prepareScene, prepareVisibleScenePrograms } from './prepareScene'
+import { createEntryProgramProbes } from './entryProgramProbes'
 import { warmParkGeometry } from '../park/loadParkGeometry'
 import { jumpmapPreparationViews } from '../features/jumpmap/preparation'
 import { useGachaOverlay } from '../features/gacha/view'
@@ -102,6 +105,7 @@ function SceneReady({ mounted, groundMounted, onReady }: {
     () => ({
       phase: 'cold' as 'cold' | 'compiling' | 'ready' | 'presented',
       disposed: false,
+      probes: undefined as ReturnType<typeof createEntryProgramProbes> | undefined,
     }),
     [],
   )
@@ -110,6 +114,7 @@ function SceneReady({ mounted, groundMounted, onReady }: {
     startup.disposed = false
     return () => {
       startup.disposed = true
+      startup.probes?.dispose()
     }
   }, [startup])
   useFrame(({ gl, scene, camera }, _delta, frame) => {
@@ -129,7 +134,8 @@ function SceneReady({ mounted, groundMounted, onReady }: {
         const ready = () => { if (!startup.disposed) startup.phase = 'ready' }
         // Keep the gate image up while the visible programs link together.
         // A preparation failure falls back to the same first render.
-        void prepareVisibleScenePrograms(gl, scene, camera, () => !startup.disposed).then(ready, ready)
+        startup.probes = createEntryProgramProbes(scene)
+        void prepareVisibleScenePrograms(gl, scene, camera, () => !startup.disposed, startup.probes.objects).then(ready, ready)
         return
       }
       startup.phase = 'ready'
@@ -283,7 +289,9 @@ export const WorldCanvas = memo(function WorldCanvas({
           <BoardFocusLighting exposure={RENEWAL_PARK_ENABLED ? PARK_SERVICE_DAY_EXPOSURE : 1} />
           <SceneReady mounted={sceneMounted} groundMounted={groundMounted} onReady={reportFirstFrame} />
           {RENEWAL_PARK_ENABLED && (distantReady || jumpRunActive) &&
-            <Suspense fallback={null}><ShaderPreparedGroup priority={.75}><ServiceJumpCourse /></ShaderPreparedGroup></Suspense>}
+            <FacilityOnApproach site={{ id: 'jump-course', x: jumpStart.x, z: jumpStart.z, radius: 12 }} active={jumpRunActive}>
+              <Suspense fallback={null}><ShaderPreparedGroup batched priority={.75}><ServiceJumpCourse /></ShaderPreparedGroup></Suspense>
+            </FacilityOnApproach>}
           <Suspense fallback={null}>
             <Avatars overlayTargets={overlayTargets} firstGateFrameAt={RENEWAL_GATE_STARTUP ? firstFrameAt : undefined} />
           </Suspense>

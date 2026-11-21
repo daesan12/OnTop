@@ -25,7 +25,7 @@ export async function prepareObjectTextures(renderer: WebGLRenderer, root: Objec
   }
 }
 
-export async function prepareVisibleScenePrograms(renderer: WebGLRenderer, scene: Scene, camera: Camera, live: () => boolean) {
+export async function prepareVisibleScenePrograms(renderer: WebGLRenderer, scene: Scene, camera: Camera, live: () => boolean, extra: readonly Object3D[] = []) {
   scene.updateMatrixWorld()
   camera.updateWorldMatrix(true, false)
   const view = new Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse)
@@ -37,6 +37,7 @@ export async function prepareVisibleScenePrograms(renderer: WebGLRenderer, scene
       !(object instanceof Sprite ? frustum.intersectsSprite(object) : frustum.intersectsObject(object))) return
     visible.push(object)
   })
+  visible.push(...extra)
   // Three's compile traverses every child even if hidden or outside the camera.
   // Include the first camera's objects and the few off-screen meshes that can
   // enter that view on the first move. Keep their live hierarchy intact.
