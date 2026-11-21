@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
-import { CanvasTexture, MeshStandardMaterial, SRGBColorSpace, type Group } from 'three'
-import { ChessPiece3D, createChessPieceGeometry } from './ChessPiece3D'
+import { CanvasTexture, SRGBColorSpace, type Group } from 'three'
+import { ChessPiece3D, createChessPieceGeometry, disposeChessPieceGeometry } from './ChessPiece3D'
+import { createChessMaterials } from './materials'
 
 const labels: Record<string, string> = { K: '킹', Q: '퀸', R: '룩', B: '비숍', N: '나이트', P: '폰' }
 const coord = (index: number) => `${'abcdefgh'[index % 8]}${1 + Math.floor(index / 8)}`
@@ -38,15 +39,9 @@ function BoardLetters() {
 export function ChessBoardScene({ board, blackView, selected, destinations, lastMove, pings, disabled, onSquare, angle = 0, layer = 0 }: ChessBoardProps & { angle?: number; layer?: number }) {
   const root = useRef<Group>(null)
   useLayoutEffect(() => { root.current?.traverse(object => { object.layers.set(0); if (layer) object.layers.enable(layer) }) })
-  const resources = useMemo(() => ({ geometry: createChessPieceGeometry(),
-    white: new MeshStandardMaterial({ color: '#f0dfbb', roughness: .29, metalness: .12 }),
-    black: new MeshStandardMaterial({ color: '#51301f', roughness: .31, metalness: .14 }),
-    gold: new MeshStandardMaterial({ color: '#af8847', roughness: .38, metalness: .55 }),
-  }), [])
+  const resources = useMemo(() => ({ geometry: createChessPieceGeometry(), materials: createChessMaterials() }), [])
   useEffect(() => () => {
-    Object.values(resources.geometry.bodies).forEach(geometry => geometry.dispose())
-    resources.geometry.horse.dispose(); resources.geometry.mitre.dispose()
-    resources.white.dispose(); resources.black.dispose(); resources.gold.dispose()
+    disposeChessPieceGeometry(resources.geometry); resources.materials.dispose()
   }, [resources])
   return <group ref={root} rotation-y={(blackView ? Math.PI : 0) + angle}>
     <mesh position={[0, -.24, 0]} receiveShadow><boxGeometry args={[8.9, .12, 8.9]} /><meshStandardMaterial color="#b69251" roughness={.5} /></mesh>
@@ -61,7 +56,9 @@ export function ChessBoardScene({ board, blackView, selected, destinations, last
         <mesh receiveShadow><boxGeometry args={[.998, .05, .998]} /><meshStandardMaterial roughness={.56}
           color={chosen ? '#639265' : recent ? light ? '#dbc784' : '#a59852' : light ? '#ead2a8' : '#a3744c'} /></mesh>
         {piece !== '.' && <group position={[0, .026, 0]}><ChessPiece3D piece={piece} geometry={resources.geometry}
-          material={piece === piece.toUpperCase() ? resources.white : resources.black} detail={resources.gold} /></group>}
+          material={piece === piece.toUpperCase() ? resources.materials.white : resources.materials.black}
+          detail={resources.materials.gold} eye={resources.materials.eye}
+          mane={piece === piece.toUpperCase() ? resources.materials.whiteMane : resources.materials.blackMane} /></group>}
         {(target || ping || chosen) && <mesh position={[0, .059, 0]} rotation-x={-Math.PI / 2}>
           <ringGeometry args={[target && piece === '.' ? .08 : .38, target && piece === '.' ? .145 : .45, 40]} />
           <meshBasicMaterial color={ping ? '#238fae' : '#164c32'} />
