@@ -3,7 +3,7 @@ import { gameState, type Game } from '../game/protocol'
 import { eventKey, FLIGHT } from '../game/halligalli/flights'
 import type { AlkkagiFeedbackEvent } from '../game/alkkagi/feedback'
 import type { SfxName } from './sfx'
-import { chessMoveSound } from '../game/chess/sound'
+import { chessMoveSound, chessPositionSound } from '../game/chess/sound'
 
 /** Who must act now: the bridge responder answers a declaration, otherwise the turn holder. */
 export function turnOwner(g: Game): string | null {
@@ -43,6 +43,8 @@ export function gameSfx(prev: Game | null, next: Game | null, ownId: string, ser
   if (omokPlaced) out.push('omok-place')
   const chess = chessMoveSound(before, next, serverNow)
   if (chess) out.push(chess)
+  const position = chess && chessPositionSound(before, next, serverNow)
+  if (position) out.push(position)
   // 경기를 끝낸 마지막 종도 울린다. 참가자·관전자 모두 같은 공개 상태로 판정한다.
   const bell = halliBellRung(before, next, serverNow)
   if (bell) out.push('halli-bell')

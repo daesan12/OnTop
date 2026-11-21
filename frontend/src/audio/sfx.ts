@@ -1,10 +1,10 @@
 import { effectsOutput, loadSound, useSfxSettings } from './bgm'
-import { chessSoundBuffer } from '../game/chess/sound'
+import { chessSoundBuffer, isChessSound } from '../game/chess/sound'
 
 /** File names under public/audio/bgm, plus generated chess percussion. */
 export type SfxName = 'ui-click' | 'ui-manual' | 'ui-equip' | 'coin-gain'
   | 'game-ready' | 'game-start' | 'game-turn' | 'omok-place' | 'dice-roll' | 'card-draw' | 'card-one' | 'halli-bell'
-  | 'chess-move' | 'chess-capture'
+  | 'chess-move' | 'chess-capture' | 'chess-check' | 'chess-checkmate'
   | 'bungeo-pour' | 'bungeo-flip' | 'bungeo-burn'
   | 'emote-clap' | 'emote-tsk' | 'emote-fart' | 'emote-wave-male' | 'emote-wave-female'
   | 'move-jump' | 'move-land' | 'move-splash' | 'move-step-stone' | 'move-step-grass' | 'amb-pigeon-takeoff'
@@ -19,6 +19,7 @@ const LEVEL: Record<SfxName | SfxLoop, number> = {
   'ui-click': 0.25, 'ui-manual': 0.5, 'ui-equip': 0.45, 'coin-gain': 0.5,
   'omok-place': .6,
   'chess-move': .6, 'chess-capture': .7,
+  'chess-check': .55, 'chess-checkmate': .6,
   'game-ready': 0.5, 'game-start': 0.55, 'game-turn': 0.5, 'dice-roll': 0.6, 'card-draw': 0.5, 'card-one': 0.55,
   'halli-bell': 0.55,
   'bungeo-pour': 0.5, 'bungeo-flip': 0.5, 'bungeo-burn': 0.45,
@@ -65,7 +66,7 @@ function panner(context: AudioContext, at: SoundPoint, [near, far]: readonly [nu
 
 /** Decodes a cue ahead of its first play into the shared cache; does nothing until audio is unlocked. */
 function effectBuffer(context: AudioContext, name: string) {
-  return name === 'chess-move' || name === 'chess-capture' ? Promise.resolve(chessSoundBuffer(context, name)) : loadSound(context, name)
+  return isChessSound(name) ? Promise.resolve(chessSoundBuffer(context, name)) : loadSound(context, name)
 }
 export function preloadSfx(name: SfxName) {
   const out = effectsOutput()
@@ -74,7 +75,7 @@ export function preloadSfx(name: SfxName) {
 
 /** Plays once; `at` places it in the park so it pans and fades with distance from the camera. */
 export function playSfx(name: SfxName, at?: SoundPoint, level = 1) {
-  if (name === 'chess-move' || name === 'chess-capture') {
+  if (isChessSound(name)) {
     const settings = useSfxSettings.getState()
     if (settings.muted || settings.volume === 0 || typeof document !== 'undefined' && document.hidden) return
   }
@@ -96,7 +97,8 @@ export function playSfx(name: SfxName, at?: SoundPoint, level = 1) {
     if (space) gain.connect(space).connect(bus)
     else gain.connect(bus)
     source.onended = () => { voices--; source.disconnect(); gain.disconnect(); space?.disconnect() }
-    source.start()
+    // Let the wooden move/capture impact speak before the position alert.
+    source.start(context.currentTime + (name === 'chess-check' || name === 'chess-checkmate' ? .18 : 0))
   })
 }
 
