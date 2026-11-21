@@ -4,7 +4,7 @@ export type DefeatKind = 'head-clutch' | 'table-flip'
 export const DEFEAT_DURATION = { 'head-clutch': 3600, 'table-flip': 2800 } as const
 export interface GameReactionEvent {
   eventId: string; gameId: string; tableId: string; channelId: string
-  gameCode: 'OMOK' | 'DICE' | 'ONE_CARD' | 'LIAR_BRIDGE' | 'DICE_LEDGER' | 'ALKKAGI' | 'HALLI_GALLI' | 'STONE_RUMBLE'; version: number
+  gameCode: 'OMOK' | 'DICE' | 'ONE_CARD' | 'LIAR_BRIDGE' | 'DICE_LEDGER' | 'ALKKAGI' | 'HALLI_GALLI' | 'DAVINCI_CODE' | 'STONE_RUMBLE'; version: number
   userId: string; kind: 'FORFEIT' | 'DEFEAT'; remainingBefore: number
   motion: DefeatKind; durationMs: number; occurredAt: string; participantCount?: number
 }
@@ -16,7 +16,7 @@ export interface DefeatReaction {
 export function parseGameReaction(p: unknown): GameReactionEvent {
   const id = (v: unknown) => typeof v === 'string' && !!v.trim() && v.length <= 128
   if (!record(p) || !['eventId', 'gameId', 'tableId', 'channelId', 'userId'].every(k => id(p[k]))
-    || !['OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE', 'DICE_LEDGER', 'ALKKAGI', 'HALLI_GALLI', 'STONE_RUMBLE'].includes(String(p.gameCode))
+    || !['OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE', 'DICE_LEDGER', 'ALKKAGI', 'HALLI_GALLI', 'DAVINCI_CODE', 'STONE_RUMBLE'].includes(String(p.gameCode))
     || !integer(p.version) || !['FORFEIT', 'DEFEAT'].includes(String(p.kind))
     || !integer(p.remainingBefore) || p.remainingBefore < 1 || p.remainingBefore > (p.gameCode === 'STONE_RUMBLE' ? 8 : 4)
     || p.participantCount !== undefined && (!integer(p.participantCount) || p.participantCount < p.remainingBefore || p.participantCount > (p.gameCode === 'STONE_RUMBLE' ? 8 : 4))

@@ -5,6 +5,7 @@ import { parseOneCard, parseHand, type OneCard, type Hand } from './onecard/prot
 import { parseBridge, parseSecret, type Bridge, type SecretDie } from './bridge/protocol'
 import { parseLedger, type DiceLedger } from './ledger/protocol'
 import { parseHalliGalli, type HalliGalli } from './halligalli/protocol'
+import { parseDavinci, parseDavinciHand, type DavinciState, type DavinciHand } from './davinci/protocol'
 
 export type Recovery =
   | 'UNKNOWN'
@@ -51,6 +52,8 @@ export interface Omok {
   endedAt: string | null
 }
 interface GameHeader {
+  davinci?: never
+  davinciHand?: never
   gameId: string
   version: number
   role: 'PLAYER' | 'SPECTATOR'
@@ -63,7 +66,12 @@ export interface AlkkagiGame extends GameHeader { stone?: never; ledger?: never;
 export interface LedgerGame extends GameHeader { stone?: never; alkkagi?: never; alkkagiHand?: never; ledger: DiceLedger; omok?: never; dice?: never; onecard?: never; hand?: never; bridge?: never; secret?: never; halli?: never }
 export interface HalliGame extends GameHeader { stone?: never; ledger?: never; alkkagi?: never; alkkagiHand?: never; halli: HalliGalli; omok?: never; dice?: never; onecard?: never; hand?: never; bridge?: never; secret?: never }
 export interface StoneGame extends GameHeader { stone: StoneState; ledger?: never; alkkagi?: never; alkkagiHand?: never; omok?: never; dice?: never; onecard?: never; hand?: never; bridge?: never; secret?: never; halli?: never }
-export type Game = StoneGame | OmokGame | DiceGame | OneCardGame | BridgeGame | AlkkagiGame | LedgerGame | HalliGame
+export interface DavinciGame extends Omit<GameHeader, 'davinci' | 'davinciHand'> {
+  davinci: DavinciState; davinciHand: DavinciHand | null
+  stone?: never; ledger?: never; alkkagi?: never; alkkagiHand?: never; omok?: never; dice?: never
+  onecard?: never; hand?: never; bridge?: never; secret?: never; halli?: never
+}
+export type Game = DavinciGame | StoneGame | OmokGame | DiceGame | OneCardGame | BridgeGame | AlkkagiGame | LedgerGame | HalliGame
 export interface Farkle {
   gameCode: 'DICE'; status: 'PLAYING' | 'FINISHED'; players: string[]; scores: number[]
   targetScore: number; turnTimeLimitMs: 30000; turnUserId: string | null; turnDeadline: string | null
@@ -74,8 +82,8 @@ export interface Farkle {
   winnerUserId: string | null; endReason: string | null; endedAt: string | null
   lastRoll?: { rollId: number; actorUserId: string; dice: Farkle['dice'] } | null
 }
-export const gameState = (g: Game) => g.omok ?? g.dice ?? g.onecard ?? g.bridge ?? g.ledger ?? g.alkkagi ?? g.halli ?? g.stone
-export const gamePlayers = (g: Game) => g.omok ? [g.omok.blackUserId, g.omok.whiteUserId] : g.dice ? g.dice.players : g.alkkagi ? g.alkkagi.players : (g.onecard ?? g.bridge ?? g.ledger ?? g.halli ?? g.stone).players.map(p => p.userId)
+export const gameState = (g: Game) => g.davinci ?? g.omok ?? g.dice ?? g.onecard ?? g.bridge ?? g.ledger ?? g.alkkagi ?? g.halli ?? g.stone
+export const gamePlayers = (g: Game) => g.omok ? [g.omok.blackUserId, g.omok.whiteUserId] : g.dice ? g.dice.players : g.alkkagi ? g.alkkagi.players : (g.davinci ?? g.onecard ?? g.bridge ?? g.ledger ?? g.halli ?? g.stone).players.map(p => p.userId)
 export interface Result {
   version: number
   gameSessionId: string
@@ -260,13 +268,18 @@ export function parseGame(p: Record<string, unknown>, ownId = ''): Game {
     !integer(p.version) ||
     !['PLAYER', 'SPECTATOR'].includes(String(p.role)) ||
     !record(p.privateState) ||
-    (!(record(p.publicState) && ['OMOK', 'ONE_CARD', 'LIAR_BRIDGE', 'ALKKAGI'].includes(String(p.publicState.gameCode)) && p.role === 'PLAYER') && Object.keys(p.privateState).length !== 0)
+    (!(record(p.publicState) && ['OMOK', 'ONE_CARD', 'LIAR_BRIDGE', 'ALKKAGI', 'DAVINCI_CODE'].includes(String(p.publicState.gameCode)) && p.role === 'PLAYER') && Object.keys(p.privateState).length !== 0)
   )
     throw new Error('경기 공개 상태 또는 관전 권한을 확인해주세요.')
   const common = {
     gameId: p.gameId,
     version: p.version,
     role: p.role as Game['role'],
+  }
+  if (record(p.publicState) && p.publicState.gameCode === 'DAVINCI_CODE') {
+    const davinci = parseDavinci(p.publicState)
+    if (davinci.version !== common.version) throw new Error('다빈치 코드 버전을 확인해주세요.')
+    return { ...common, davinci, davinciHand: parseDavinciHand(p.privateState, davinci, ownId, common.role) }
   }
   if (record(p.publicState) && p.publicState.gameCode === 'STONE_RUMBLE') return { ...common, stone: parseStoneState(p.publicState) }
   if (record(p.publicState) && p.publicState.gameCode === 'ALKKAGI') {
@@ -292,7 +305,7 @@ export function parseResult(p: Record<string, unknown>, ownId: string): Result {
   if (
     !id(p.gameSessionId) ||
     !integer(p.version) ||
-    !['OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE', 'DICE_LEDGER', 'ALKKAGI', 'HALLI_GALLI', 'STONE_RUMBLE'].includes(String(p.gameCode)) ||
+    !['OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE', 'DICE_LEDGER', 'ALKKAGI', 'HALLI_GALLI', 'DAVINCI_CODE', 'STONE_RUMBLE'].includes(String(p.gameCode)) ||
     !['FINISHED', 'INVALID'].includes(String(p.status)) ||
     typeof p.endReason !== 'string' || !/^[A-Z][A-Z0-9_]{0,31}$/.test(p.endReason) ||
     !['PENDING', 'SETTLED'].includes(String(p.settlementStatus)) ||

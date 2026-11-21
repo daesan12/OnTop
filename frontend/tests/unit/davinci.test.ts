@@ -1,0 +1,60 @@
+import { describe, expect, it } from 'vitest'
+import { parseGame, gamePlayers, gameState } from '../../src/game/protocol'
+import { parseDavinci, parseDavinciHand, tileText, type DavinciState } from '../../src/game/davinci/protocol'
+import { acceptDavinciPing, useDavinciPing } from '../../src/game/davinci/social'
+
+const tile = (id: string) => ({ id, color: 'BLACK' as const, value: null, revealed: false })
+function state(): DavinciState {
+  return { gameCode: 'DAVINCI_CODE', status: 'PLAYING', stage: 'GUESS', version: 3, turnUserId: '101',
+    turnDeadline: '2026-11-21T12:00:00Z', endedAt: null, endReason: null, winnerUserIds: [], lastEvent: null,
+    players: ['101', '202'].map((userId, seat) => ({ userId, seat, active: true, forfeited: false, ready: true, tileCount: 1, tiles: [tile('tile-' + userId)] })),
+    supply: [{ id: 'supply-1', color: 'WHITE' }] }
+}
+function hand() { return { userId: '101', tiles: [{ ...tile('tile-101'), value: 6 }], validPositions: [], unplacedJokerIds: [], pendingTile: null } }
+
+describe('다빈치 코드 공개·개인 계약', () => {
+  it('공통 경기 파서와 참가자·현재 상태 조회에 연결한다', () => {
+    const game = parseGame({ gameId: 'game', version: 3, role: 'PLAYER', publicState: state(), privateState: hand() }, '101')
+    expect(gamePlayers(game)).toEqual(['101', '202'])
+    expect(gameState(game).gameCode).toBe('DAVINCI_CODE')
+    expect(game.davinciHand?.tiles[0]?.value).toBe(6)
+  })
+  it('비공개 타일에 숫자가 실리면 거절한다', () => {
+    const s = state(); s.players[1]!.tiles[0]!.value = 8
+    expect(() => parseDavinci(s)).toThrow()
+  })
+  it('관전자의 개인 상태는 빈 객체만 허용한다', () => {
+    expect(parseDavinciHand({}, state(), '999', 'SPECTATOR')).toBeNull()
+    expect(() => parseDavinciHand(hand(), state(), '999', 'SPECTATOR')).toThrow()
+    expect(() => parseGame({ gameId: 'game', version: 3, role: 'SPECTATOR', publicState: state(), privateState: hand() }, '999')).toThrow()
+  })
+  it('다른 사용자의 손패와 공개 배열에 없는 타일을 거절한다', () => {
+    expect(() => parseDavinciHand(hand(), state(), '202', 'PLAYER')).toThrow()
+    const h = hand(); h.tiles[0]!.id = 'unlisted'
+    expect(() => parseDavinciHand(h, state(), '101', 'PLAYER')).toThrow()
+  })
+  it('공급 더미에는 숫자와 중복 식별자가 없어야 한다', () => {
+    expect(() => parseDavinci({ ...state(), supply: [{ id: 'pool', color: 'WHITE', value: 4 }] })).toThrow()
+    expect(() => parseDavinci({ ...state(), supply: [{ id: 'tile-101', color: 'WHITE' }] })).toThrow()
+  })
+  it('공개된 타일의 숫자는 본인의 개인 상태와 같아야 한다', () => {
+    const s = state(); s.players[0]!.tiles[0] = { ...tile('tile-101'), value: 7, revealed: true }
+    const h = hand(); h.tiles[0]!.revealed = true
+    expect(() => parseDavinciHand(h, s, '101', 'PLAYER')).toThrow()
+  })
+  it('조커와 비공개 상태를 구분해 표시한다', () => {
+    expect(tileText(-1)).toBe('조커'); expect(tileText(null)).toBe('비공개'); expect(tileText(0)).toBe('0')
+  })
+  it('옛 판이나 다른 경기의 추천 핑은 화면에 남기지 않는다', () => {
+    useDavinciPing.setState({ ping: null })
+    const message = { type: 'DAVINCI_SPECTATOR_PING', requestId: null, payload: { gameId: 'game', eventId: 'ping',
+      targetUserId: '202', tileId: 'tile-202', senderUserId: '999', basedOnVersion: 3, sentAt: 100, serverNow: 100, expiresAt: 2100 } }
+    acceptDavinciPing(message, 'other-game', state())
+    expect(useDavinciPing.getState().ping).toBeNull()
+    acceptDavinciPing(message, 'game', state())
+    expect(useDavinciPing.getState().ping?.tileId).toBe('tile-202')
+    useDavinciPing.setState({ ping: null })
+    acceptDavinciPing(message, 'game', { ...state(), version: 4 })
+    expect(useDavinciPing.getState().ping).toBeNull()
+  })
+})

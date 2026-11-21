@@ -1,0 +1,94 @@
+.davinci-screen {
+  --dc-ink:#163d29; --dc-gold:#a8864e; --dc-paper:#f5ebd3;
+  position:fixed; inset:0; z-index:70; display:flex; flex-direction:column; color:var(--dc-ink);
+  background:#576554; font:500 16px/1.5 'Malgun Gothic',system-ui,sans-serif;
+  overflow:auto; overscroll-behavior:contain; scrollbar-width:none;
+}
+.davinci-screen *, .davinci-rules * { box-sizing:border-box; }
+.davinci-screen ::-webkit-scrollbar,.davinci-screen::-webkit-scrollbar,.davinci-rules::-webkit-scrollbar,.davinci-rules ::-webkit-scrollbar { display:none; }
+.davinci-screen button,.davinci-rules button { min-height:42px; border:1px solid var(--dc-gold,#a8864e); border-radius:8px; padding:8px 14px; background:#fff8e7; color:#163d29; font:inherit; cursor:pointer; }
+.davinci-screen button:hover:not(:disabled),.davinci-rules button:hover { background:#e9ddbe; }
+.davinci-screen button:focus-visible,.davinci-screen input:focus-visible,.davinci-rules button:focus-visible { outline:3px solid #9d6826; outline-offset:3px; }
+.davinci-screen button:disabled { opacity:.5; cursor:default; }
+.davinci-screen button[aria-pressed=true] { background:#2b5035; color:#fff8e5; border-color:#d3ab62; }
+.davinci-screen .davinci-primary,.davinci-rules .davinci-primary { background:linear-gradient(#2b5035,#173e29); color:#fff7df; border:3px double #c8a15d; font-weight:700; }
+.davinci-screen p,.davinci-screen h1 { margin:0; }
+.davinci-header { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:12px 24px; background:#f5ebd3 url('/art/tablet/hanji.webp') center/cover; border:5px double #ad8b4b; flex-shrink:0; }
+.davinci-header>div { display:flex; align-items:center; gap:24px; }
+.davinci-header h1 { font-family:'BusanDandiMyeongjo',serif; font-size:30px; line-height:1.2; }
+.davinci-header p { border-left:1px solid #b39a70; padding-left:24px; }
+.davinci-header nav { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.davinci-layout { position:relative; flex:1; min-height:620px; }
+.davinci-board { position:absolute; inset:0; }
+.davinci-players,.davinci-actions,.davinci-log,.davinci-chat {
+  position:absolute; z-index:2; background-color:#f5ebd3;
+  background-image:linear-gradient(#f5ebd3cf,#f5ebd3e8),url('/art/tablet/hanji.webp'); background-position:center; background-size:cover;
+  border:4px double var(--dc-gold); border-radius:12px; box-shadow:0 4px 20px #18271a28;
+}
+.davinci-players { top:20px; left:20px; width:210px; padding:8px 12px; }
+.davinci-players>div { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:10px 4px; border-bottom:1px solid #b49b7050; }
+.davinci-players>div[data-turn=true] { background:#31543c18; border-left:3px solid #31543c; padding-left:8px; }
+.davinci-players>div[data-out=true] { opacity:.6; }
+.davinci-players span,.davinci-players p { font-size:13px; }
+.davinci-players p { padding:10px 0 2px; }
+.davinci-players small { font-weight:500; }
+.davinci-actions { right:20px; bottom:20px; width:310px; max-height:calc(100% - 35px); padding:18px; display:flex; flex-direction:column; gap:12px; overflow-y:auto; scrollbar-width:none; }
+.davinci-turn { text-align:center; border-bottom:1px solid #ad8b4b77; padding-bottom:10px; }
+.davinci-turn strong { font-family:'BusanDandiMyeongjo',serif; font-size:24px; }
+.davinci-instruction { font-size:16px; text-align:center; word-break:keep-all; }
+.davinci-numbers { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:6px; }
+.davinci-numbers button { min-height:40px; padding:4px; font-size:20px; font-variant-numeric:tabular-nums; }
+.davinci-numbers button:last-child { grid-column:1/-1; font-size:16px; }
+.davinci-positions,.davinci-draw-options { display:flex; gap:8px; flex-wrap:wrap; }
+.davinci-positions button { flex:1 0 75px; }
+.davinci-log { left:20px; bottom:205px; max-width:280px; padding:12px 16px; font-size:14px; }
+.davinci-log strong { display:block; border-bottom:1px solid #ad8b4b77; margin-bottom:8px; font-size:16px; }
+.davinci-accessible-tiles { position:absolute; z-index:2; left:320px; right:350px; bottom:6px; max-height:140px; padding:8px 12px; overflow:auto; background:#f5ebd3ef; border:3px double #a8864e; border-radius:10px; scrollbar-width:none; }
+.davinci-accessible-tiles>div { display:flex; align-items:center; gap:10px; margin:5px 0; }
+.davinci-accessible-tiles>div>strong { font-size:12px; min-width:50px; max-width:80px; overflow-wrap:anywhere; }
+.davinci-accessible-tiles>div>div { display:flex; gap:5px; flex-wrap:wrap; }
+.davinci-screen .davinci-tile-button { position:relative; width:34px; min-height:43px; padding:4px 1px; border:2px double #ae8d50; border-radius:5px; font:700 20px Georgia,serif; }
+.davinci-tile-button[data-color=BLACK] { background:#262a24; color:#fff7df; }
+.davinci-screen .davinci-tile-button:disabled { opacity:1; }
+.davinci-tile-button[data-revealed=true] { transform:rotate(-6deg); }
+.davinci-tile-button small { display:block; font:10px/1.3 'Malgun Gothic',sans-serif; }
+.davinci-chat { bottom:20px; left:20px; width:280px; padding:10px 12px; font-size:13px; }
+.davinci-chat-log { height:72px; overflow:auto; scrollbar-width:none; margin:7px 0; overflow-wrap:anywhere; }
+.davinci-chat form { display:flex; gap:5px; }
+.davinci-chat label { flex:1; min-width:0; }
+.davinci-chat input { width:100%; min-width:0; height:38px; background:#fff8e9; border:1px solid #af986e; border-radius:5px; color:#163d29; padding:5px; font:inherit; }
+.davinci-chat form button { min-height:38px; padding:5px 8px; }
+.davinci-error { color:#943b2e; font-size:14px; }
+.davinci-rules { --dc-gold:#a8864e; color:#163d29; width:min(620px,calc(100% - 24px)); max-height:calc(100dvh - 24px); padding:24px; border:6px double #a8864e; border-radius:16px; background:#f5ebd3 url('/art/tablet/hanji.webp') center/cover; font:500 16px/1.7 'Malgun Gothic',sans-serif; overflow:auto; scrollbar-width:none; }
+.davinci-rules::backdrop { background:#14291bc0; }
+.davinci-rules header { display:flex; align-items:center; gap:16px; justify-content:space-between; }
+.davinci-rules h2 { font:700 26px/1.4 'BusanDandiMyeongjo',serif; margin:0; }
+.davinci-rules h3 { font-size:18px; margin:20px 0 8px; }
+.davinci-rules>.davinci-primary { width:100%; margin-top:16px; }
+.davinci-sr-only { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
+@media(max-width:1150px) {
+  .davinci-header { padding:10px 14px; }.davinci-header p { display:none; }
+  .davinci-players { width:175px; left:12px; top:12px; }
+  .davinci-actions { width:270px; right:12px; bottom:12px; padding:14px; }
+  .davinci-chat { left:12px; bottom:12px; width:220px; }
+  .davinci-log { left:12px; max-width:220px; bottom:192px; }
+  .davinci-accessible-tiles { left:245px; right:295px; }
+}
+@media(max-width:800px),(max-height:620px) {
+  .davinci-screen { display:block; }
+  .davinci-header { position:relative; gap:8px; }.davinci-header h1 { font-size:24px; }
+  .davinci-layout { display:grid; grid-template-columns:minmax(0,1fr) minmax(240px,.65fr); gap:12px; padding:12px; min-height:0; background:#d7d5bc; }
+  .davinci-board { position:relative; grid-column:1/-1; height:min(65vw,420px); min-height:260px; border-radius:12px; overflow:hidden; }
+  .davinci-players,.davinci-log,.davinci-actions,.davinci-chat,.davinci-accessible-tiles { position:relative; inset:auto; width:auto; max-width:none; max-height:none; }
+  .davinci-players { grid-column:1/-1; display:flex; flex-wrap:wrap; gap:8px; order:-1; }.davinci-players>div { flex:1 0 120px; padding:4px; }.davinci-players p { width:100%; padding:0; }
+  .davinci-actions { grid-column:2; grid-row:3/span 3; }
+  .davinci-accessible-tiles { grid-column:1; grid-row:3; max-height:280px; padding:8px; }
+  .davinci-accessible-tiles>div { display:block; }.davinci-accessible-tiles>div>div { margin-top:4px; }
+  .davinci-log { grid-column:1; grid-row:4; }.davinci-chat { grid-column:1; grid-row:5; }
+}
+@media(max-width:520px) {
+  .davinci-header { flex-wrap:wrap; }.davinci-header nav { margin-left:auto; }.davinci-header button { padding:6px 10px; font-size:14px; }
+  .davinci-layout { display:flex; flex-direction:column; padding:8px; gap:8px; }.davinci-board { height:340px; min-height:340px; order:0; }
+  .davinci-actions { order:1; }.davinci-accessible-tiles { order:2; max-height:260px; }.davinci-log { order:3; }.davinci-chat { order:4; }
+}
+@media(prefers-reduced-motion:reduce) { .davinci-screen * { scroll-behavior:auto; transition:none; } }

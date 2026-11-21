@@ -161,6 +161,7 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked, welco
     && !!s.tableStates[s.tableId]?.seats.some(seat => seat.userId === s.sessionId))
   // GamePanel의 돌탑 전체 화면/결과가 덮는 동안만 공원 렌더를 멈춘다. 퇴장 후 잔여 결과는 공원을 가리지 않는다.
   const stoneFocus = stoneOverlay === 'game' || stoneOverlay === 'result' && seated
+  const davinciFocus = useGame(s => !!s.game?.davinci)
   const session = useSession(useShallow(s=>({ sessionId:s.sessionId,roomId:s.roomId })))
   // Everyone plays on the Low preset; the graphics choice is not offered.
   const quality: QualityPreset = 'low'
@@ -190,7 +191,7 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked, welco
       '--park-ui-scale': hudScale,
       '--park-edge': `${20 * hudScale}px`,
     } as CSSProperties}>
-      <ParkScene quality={quality} active={!jumpRopeOpen && !stoneFocus} />
+      <ParkScene quality={quality} active={!jumpRopeOpen && !stoneFocus && !davinciFocus} />
       <ParkBgm />
       <ParkSfx />
       <RewardCoinFlight />
