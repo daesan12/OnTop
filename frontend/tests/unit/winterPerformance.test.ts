@@ -7,7 +7,23 @@ import { snowRoofGeometry } from '../../src/features/winter/roofSnow'
 const origin = { x: 0, y: 1, z: 0 }
 const aim = localSnowballAim('park', 'self', origin, 0, 16, [])
 
+import { winterFirFoliage, winterFirLightSnow, winterFirHeavySnow,
+  winterFirDistantFoliage, winterFirDistantLightSnow, winterFirDistantHeavySnow } from '../../src/features/winter/winterFirGeometry'
+
 describe('겨울 미리보기 비용과 수명', () => {
+  it('원거리 침엽수는 가까운 원본과 적설 높이를 유지하면서 삼각형을 줄인다', () => {
+    const triangles = (g: typeof winterFirFoliage) => g.getAttribute('position').count / 3
+    expect(triangles(winterFirFoliage) + triangles(winterFirLightSnow)).toBe(264)
+    expect(triangles(winterFirDistantFoliage) + triangles(winterFirDistantLightSnow)).toBe(60)
+    for (const [near, far] of [[winterFirFoliage, winterFirDistantFoliage],
+      [winterFirLightSnow, winterFirDistantLightSnow], [winterFirHeavySnow, winterFirDistantHeavySnow]]) {
+      near!.computeBoundingBox(); far!.computeBoundingBox()
+      expect(far!.boundingBox!.max.y).toBeCloseTo(near!.boundingBox!.max.y, 5)
+      expect(far!.boundingBox!.min.y).toBeCloseTo(near!.boundingBox!.min.y, 5)
+      expect([...far!.getAttribute('normal').array].every(Number.isFinite)).toBe(true)
+    }
+  })
+
   it('소지·대기 중에는 서버 조회가 없고 준비 동작 하나에 한 번만 요청한다', async () => {
     const prepared = new PreparedSnowballAim(), request = vi.fn(async () => aim)
     prepared.reset('self/park')
