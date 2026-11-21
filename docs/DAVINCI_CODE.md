@@ -1,4 +1,4 @@
-# 다빈치 코드 개발·연결 기록
+# 비밀패 개발·연결 기록
 
 ## 범위와 기준
 
@@ -7,7 +7,9 @@
 - 기존 미커밋 작업은 보존하고 별도 `OnTop/davinci-code-20261121` worktree에서 구현했다.
 - 사용자가 기존 테이블 연결을 명시적으로 승인했다. 지형·시설 좌표·맵 생성물·맵 버전은 변경하지 않는다.
 - FE: `frontend/src/game/davinci/`, BE: `backend/src/main/java/com/ssafy/ontop/game/davinci/`.
-- 3D 타일·받침·게임판·배경은 Three.js/React Three Fiber의 코드 모델이다. 한지 원본, 먹색, 녹색 주 버튼과 금색 이중 테두리를 기존 UI에 맞췄다.
+- 표시명은 **비밀패**다. 화면·설명서·전적·오류·테스트 계정 표시를 변경했다. 기존 `DAVINCI_CODE` 저장/통신 식별자와 소스 경로는 호환을 위해 유지한다. 새 migration은 추가하지 않는다.
+- `ParkSecretTiles.tsx`가 기존 공원 Canvas의 실제 테이블 위에 타일을 렌더링한다. `TableBoards` 확장점을 재사용하며 별도 게임 Canvas나 가상 공원 배경으로 전환하지 않는다. 조작 HUD만 투명한 가장자리 레이어로 표시한다.
+- 시작 시 서버의 `openingStartedAt` 기준으로 중앙에서 3초간 섞고 1.2초간 각 자리로 나눈다. 연출 중 숫자 표시/조작을 잠그고, 늦은 접속이나 재마운트 때 이미 끝난 연출을 재생하지 않는다. 모션 감소 설정을 읽는다.
 
 ## 규칙과 온라인 동작
 
@@ -32,6 +34,7 @@
 - 공개 결과 종료 사유: `LAST_PLAYER_STANDING`. 기존 `GameLifecycle` 및 공통 결과·예약·정산 경로를 재사용하고 엔진에서 잔액을 변경하지 않는다.
 - 기존 관전 경기 채팅을 재사용한다. `DAVINCI_SPECTATOR_PING_SEND`는 공개 타일 ID/사용자 ID/기준 버전만 전송한다. 기존 관전 승인·빈도 제한·만료·경기 구분 정책을 사용한다.
 - 진행 상태는 메모리다. 네트워크 재접속 조회는 지원하지만 서버 재시작 후 경기 전체 복원을 보장하지 않는다.
+- `WORLD_STATE.tables[].secretTiles`는 선택적 `{gameId,state}` 공개 투영이다. 엔진이 개인 숫자와 준비 중 순서를 제거한 복사본만 250ms 간격으로 월드에 반영한다. 종료 시 제거하며 좌석·좌표·충돌 데이터는 수정하지 않는다. 보행자도 관전 구독 없이 같은 타일 배치를 보고, 공식 관전 채팅/핑은 기존 승인 경로를 따른다.
 
 ## DB와 활성화
 
@@ -68,31 +71,33 @@ pnpm exec vite --mode park-renewal-integration --host 127.0.0.1 --port 5523 --st
 ```
 
 - BE: `127.0.0.1:19203`, FE: `127.0.0.1:5523`.
-- 계정 1: `/davinci-park.html?role=1`, 계정 2: `?role=2`. 별도 탭에서 각자 교환 로그인하며 토큰은 URL에 남기지 않는다. 페이지의 인증 상태는 메모리에만 있다.
+- 계정 1: `/secret-tiles-park.html?role=1`, 계정 2: `?role=2`. 별도 탭에서 각자 교환 로그인하며 토큰은 URL에 남기지 않는다. 페이지의 인증 상태는 메모리에만 있다. 이전 로컬 URL도 호환된다.
 - 추가 참가자: `?role=3`, `?role=4`, 관전자: `?role=viewer`.
-- 최신 공원 입구에서 중앙광장 돌테이블로 이동 → 착석 → 다빈치 코드 선택 → 인원·판돈 설정 → 전원 준비·시작.
+- 최신 공원 입구에서 중앙광장 돌테이블로 이동 → E 착석 → 비밀패 선택 → 인원·판돈 설정 → 전원 준비·시작. 섞기·분배 후 조커 배치를 마치고 준비한다. 테이블 타일을 직접 클릭하거나 가장자리의 타일 버튼을 이용한다.
 - 이 검수 서버는 기존 맵의 생성물만 읽는다. 기존 다른 서버·포트·worktree를 변경하지 않는다.
 - 허용된 FE 검증만 수행하며 맵 전수 탐색 및 자전거·킥보드 주행 테스트는 실행하지 않는다.
 
 ### 독립 화면 프리뷰
 
-`http://127.0.0.1:5523/davinci-preview.html`에서 2·3·4인 배치를 전환할 수 있다. 서버 미연결 화면 fixture이며 실제 규칙 판정과 다인 통신을 대신하지 않는다.
+`http://127.0.0.1:5523/secret-tiles-preview.html`에서 2·3·4인 배치를 전환할 수 있다. 서버 미연결 배치 fixture다. 실제 제품 플레이는 공원 테이블을 사용한다.
 
 ## 검증 결과 (2026-11-21)
 
-- BE 관련 테스트 146개 통과: 다빈치 규칙·4인 순차 탈락·공개/개인 상태·중복/낡은 요청·재접속·관전·기권·타임아웃, 예약 후 생성, 공통 종료/대기실 전이, 기존 시작/프로토콜/결과 저장/전적 요청 회귀.
-- FE 관련 테스트 142개 통과: 다빈치 parser·비밀값 차단·관전 핑과 기존 gameFlow/gameHistory/gameReactions/tableGamePresentation/tableLobby/forfeit.
-- TypeScript 검사와 Vite 통합 모드 빌드 통과(1,760모듈, 1분 38초). 기존 대형 청크/Three.js CJS 경고가 남는다. 빌드는 저장소 밖 검수 산출물로 생성했으며 맵 생성 명령은 실행하지 않았다.
+- 최신 BE 관련 테스트 113개 통과: 비밀패 규칙·4인 순차 탈락·공개/개인 상태·공원 공개 투영·중복/낡은 요청·재접속·관전·기권·타임아웃, 예약 후 생성, 공통 종료/대기실 전이와 기존 시작/프로토콜/월드 채널 회귀.
+- FE 관련 테스트 144개 통과: 공개 월드 정보의 비밀값/개인 상태 차단, 섞기 시각, parser·관전 핑과 기존 gameFlow/gameHistory/gameReactions/tableGamePresentation/tableLobby/forfeit.
+- TypeScript 검사와 Vite 통합 모드 빌드 통과(1,763모듈, 47.66초). 첫 빌드는 기존 공원 소품 SSR 읽기 응답 시간 초과 후 설정 변경 없이 재시도해 성공했다. 기존 대형 청크/Three.js CJS 경고가 남는다. 빌드는 저장소 밖 검수 산출물로 생성했으며 맵 생성 명령은 실행하지 않았다.
 - 실제 브라우저: 계정 101/202가 같은 최신 공원 채널에서 이동·기존 테이블 착석·선택·준비·시작·조커 배치, 뽑기/배치/정답/추가 실패/첫 실패/승리·정산을 확인했다.
 - 관전자 999의 숨은 숫자 미공개, 실제 채팅과 타일 핑 전달을 확인했다. 결과 후 다음 판 준비·자리에서 일어나기·공원 이동 복구를 두 계정에서 확인했다.
 - 1440×900, 390×844, 800×420 화면과 설명서 스크롤/Escape를 확인했다. 별도 2·3·4인 배치 화면 및 4인 모바일 프리뷰에서 가로 잘림과 브라우저 예외가 없었다.
-- 3·4인 실제 브라우저 다인 경기는 아직 검수하지 않았다. 4인 규칙은 BE 테스트, 2~4인 외관은 화면 프리뷰로 검증했다. 실제 MySQL migration·운영 인증/지갑·배포·헤드셋 검수와 서버 재시작 복원은 검증 범위에 포함하지 않는다.
+- 추가 실제 브라우저 검수: 공원 안 4인 시작·각 3개 분배·네 명의 차례 진행·승리/정산·공원 복귀. 공원의 물리 타일 클릭으로 뽑기와 상대 패 선택이 동작했다. 비착석/비관전 보행자 999도 같은 테이블의 실시간 타일을 봤으며 숨은 숫자는 전달되지 않았다. 게임 전용 Canvas가 없고 공원 Canvas를 계속 사용함을 확인했다.
+- 390×844 및 800×420 조작/설명서 스크롤·Escape와 가로 잘림을 확인했다. 3인 실제 다인 경기, 실제 MySQL migration·운영 인증/지갑·배포·헤드셋과 서버 재시작 복원은 검증 범위에 포함하지 않는다.
+- 실제 시작 연출을 브라우저 안에서 측정했다. 26개 타일을 50회 관측했고 좌표 배치 28개가 서로 달랐으며, 관측 구간 약 3.86초 후 분배가 완료됐다. 새 검수 URL 두 계정의 로그인·이동·착석·시작도 확인했다.
 
 실행한 관련 테스트:
 
 ```powershell
 # backend
-.\gradlew.bat test --tests '*Davinci*Tests' --tests '*GameStartFlowTests' --tests '*TableProtocolTests' --tests '*GameFinishPersistenceServiceTests' --tests '*GameHistoryRequestTests' --offline --console=plain
+.\gradlew.bat test --tests '*Davinci*Tests' --tests '*GameStartFlowTests' --tests '*TableProtocolTests' --tests '*WorldChannelRegistryTests' --offline --console=plain
 # frontend
 pnpm exec vitest run tests/unit/davinci.test.ts tests/unit/gameFlow.test.ts tests/unit/gameHistory.test.ts tests/unit/gameReactions.test.ts tests/unit/tableGamePresentation.test.ts tests/unit/tableLobby.test.ts tests/unit/forfeit.test.ts
 pnpm exec tsc --noEmit
@@ -101,6 +106,8 @@ pnpm exec tsc --noEmit
 ## 공통 파일 변경 범위
 
 게임 코드·테이블 선택/아트/설명서, 공통 경기 parser/store·명령 포트, 게임 패널, 결과/정산 허용 코드, 기존 시작 서비스의 선택 분기, 전적 표시/필터, 공통 기권·연출의 신규 코드 인식과 기존 관전 이벤트 경로에 연결한다. 공용 WS·지갑·정산을 게임별로 복제하지 않는다.
+
+공원 내 플레이 변경에서는 `TableBoards`, `CameraRig`, `ParkPage`, 월드 parser/store와 `WorldChannelRegistry.PublicTable`의 선택적 공개 투영만 확장했다. 게임 규칙은 게임 폴더에 유지하고 시설 위치·공통 충돌·생성 맵 파일은 변경하지 않았다.
 
 ## 원격 반영
 
