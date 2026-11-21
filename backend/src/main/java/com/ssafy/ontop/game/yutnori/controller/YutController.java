@@ -61,15 +61,18 @@ public class YutController {
             require(body.path("gameId").isTextual(), "방을 선택해주세요.");
             return response(engine.join(account, channel, body.path("gameId").asText(), nickname));
         }
-        fields(body, Set.of("channelId", "requestKey", "roomName", "rules"));
+        fields(body, Set.of("channelId", "requestKey", "roomName", "rules", "teamCount", "pieceCount"));
         JsonNode rules = body.path("rules");
         fields(rules, Set.of("emptyBackEnters", "doubleCaptureBonus", "backHomeFinish"));
         require(rules.size() == 3 && rules.path("emptyBackEnters").isBoolean()
                 && rules.path("doubleCaptureBonus").isBoolean() && rules.path("backHomeFinish").isBoolean()
                 && body.path("requestKey").isTextual() && body.path("roomName").isTextual(), "방 규칙을 확인해주세요.");
+        require((!body.has("teamCount") || (body.path("teamCount").isIntegralNumber() && body.path("teamCount").canConvertToInt()))
+                && (!body.has("pieceCount") || (body.path("pieceCount").isIntegralNumber() && body.path("pieceCount").canConvertToInt())), "팀과 말 수를 확인해주세요.");
         return response(engine.create(account, channel, body.path("requestKey").asText(), body.path("roomName").asText(),
                 nickname, new YutMatch.Rules(rules.path("emptyBackEnters").asBoolean(),
-                        rules.path("doubleCaptureBonus").asBoolean(), rules.path("backHomeFinish").asBoolean())));
+                        rules.path("doubleCaptureBonus").asBoolean(), rules.path("backHomeFinish").asBoolean()),
+                body.path("teamCount").asInt(2), body.path("pieceCount").asInt(4)));
     }
 
     @PostMapping("/lobby")

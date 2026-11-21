@@ -7,6 +7,6 @@ CREATE TABLE yutnori_results (
     result_json JSON NOT NULL,
     ended_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     PRIMARY KEY (game_id),
-    CONSTRAINT ck_yutnori_winner_team CHECK (winner_team IN (-1, 0, 1)),
+    CONSTRAINT ck_yutnori_winner_team CHECK (winner_team IN (-1, 0, 1, 2, 3)),
     INDEX ix_yutnori_ended (ended_at)
 );

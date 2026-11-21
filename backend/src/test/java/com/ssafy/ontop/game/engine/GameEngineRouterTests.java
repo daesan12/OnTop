@@ -220,4 +220,17 @@ class GameEngineRouterTests {
             return new OmokEngine(new ObjectMapper(), Clock.systemUTC(), notice -> { }, router);
         }
     }
+    @Test
+    void 참가자_탈락은_소유엔진만_해제하고_다른참가자와_새경기를_보존한다() {
+        first.create("old", "table", 101, 202);
+        assertThatThrownBy(() -> router.releasePlayer(second, "old", 101)).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> router.releasePlayer(first, "old", 303)).isInstanceOf(IllegalStateException.class);
+        router.releasePlayer(first, "old", 101);
+        second.create("new", "new-table", 101, 303);
+        router.releasePlayer(first, "old", 101);
+        assertThat(router.load(101).orElseThrow().gameId()).isEqualTo("new");
+        assertThatThrownBy(() -> first.create("blocked", "other", 202, 404)).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> first.create("blocked-new", "other", 101, 404)).isInstanceOf(IllegalStateException.class);
+    }
+
 }

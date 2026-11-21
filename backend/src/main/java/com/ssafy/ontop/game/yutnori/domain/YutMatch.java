@@ -2,7 +2,6 @@ package com.ssafy.ontop.game.yutnori.domain;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -30,6 +29,9 @@ public final class YutMatch {
     public final String name;
     public final long host;
     public final Rules rules;
+    public final int teamCount;
+    public final int pieceCount;
+    public final List<Integer> eliminatedTeams = new ArrayList<>();
     public final Map<Long, Player> players = new LinkedHashMap<>();
     public final List<Roll> rolls = new ArrayList<>();
     public final List<String> log = new ArrayList<>();
@@ -47,18 +49,28 @@ public final class YutMatch {
     public int winner = -1;
     public boolean registered;
     private int serial;
-    private final int[] teamTurn = new int[2];
+    private final int[] teamTurn;
 
     public YutMatch(String id, String channel, String name, long host, String nickname, Rules rules, long now) {
+        this(id, channel, name, host, nickname, rules, 2, 4, now);
+    }
+
+    public YutMatch(String id, String channel, String name, long host, String nickname, Rules rules,
+            int teamCount, int pieceCount, long now) {
+        require(teamCount >= 2 && teamCount <= 4 && pieceCount >= 1 && pieceCount <= 4,
+                "팀은 2~4팀, 팀별 말은 1~4개로 선택해주세요.");
         this.id = id;
         this.channel = channel;
         this.name = name;
         this.host = host;
         this.rules = rules;
+        this.teamCount = teamCount;
+        this.pieceCount = pieceCount;
+        teamTurn = new int[teamCount];
         players.put(host, new Player(host, nickname, 0));
-        for (int side = 0; side < 2; side++) {
+        for (int side = 0; side < teamCount; side++) {
             List<List<Integer>> tokens = new ArrayList<>();
-            for (int index = 0; index < 4; index++) {
+            for (int index = 0; index < pieceCount; index++) {
                 tokens.add(new ArrayList<>());
             }
             pieces.add(tokens);
@@ -71,8 +83,13 @@ public final class YutMatch {
             return;
         }
         require(phase.equals("WAITING") && players.size() < 4, "참가할 수 없는 방이에요.");
-        long blue = players.values().stream().filter(player -> player.team == 0).count();
-        players.put(user, new Player(user, nickname, blue > players.size() - blue ? 1 : 0));
+        int smallest = 0;
+        for (int side = 1; side < teamCount; side++) {
+            if (teamPlayers(side).size() < teamPlayers(smallest).size()) {
+                smallest = side;
+            }
+        }
+        players.put(user, new Player(user, nickname, smallest));
         players.values().forEach(player -> player.ready = false);
         version++;
     }
@@ -86,7 +103,7 @@ public final class YutMatch {
                 case "TEAM" -> {
                     require(input.path("team").isIntegralNumber(), "팀을 선택해주세요.");
                     int selected = input.path("team").asInt(-1);
-                    require(selected >= 0 && selected <= 1, "팀을 선택해주세요.");
+                    require(selected >= 0 && selected < teamCount, "팀을 선택해주세요.");
                     player.team = selected;
                     players.values().forEach(member -> member.ready = false);
                 }
@@ -97,7 +114,8 @@ public final class YutMatch {
                 default -> throw new IllegalArgumentException("대기 중에는 팀과 준비를 선택해주세요.");
             }
         } else {
-            require(phase.equals("PLAYING") && turnUser == user, "현재 차례를 확인해주세요.");
+            require(phase.equals("PLAYING") && turnUser == user && !eliminatedTeams.contains(player.team),
+                    "현재 차례를 확인해주세요.");
             if (type.equals("THROW")) {
                 require(credits > 0 && rolls.size() < 32, "먼저 이동권을 사용해주세요.");
                 credits--;
@@ -137,17 +155,27 @@ public final class YutMatch {
 
     public void start(RandomGenerator random, long now) {
         require(phase.equals("WAITING") && players.size() >= 2 && players.values().stream().allMatch(player -> player.ready)
-                && players.values().stream().anyMatch(player -> player.team == 0)
-                && players.values().stream().anyMatch(player -> player.team == 1), "양 팀 모두 준비해야 시작할 수 있어요.");
+                && players.values().stream().map(player -> player.team).distinct().count() == teamCount,
+                "선택한 모든 팀에 한 명 이상 참가하고 준비해야 시작할 수 있어요.");
         // 두 개 모두 엎어짐(0) > 모두 젖혀짐(3) > 엇갈림. 동률은 재던지기한다.
-        int left;
-        int right;
+        int best;
+        int winners;
         do {
-            left = random.nextInt(4);
-            right = random.nextInt(4);
-        } while (rank(left) == rank(right));
-        opening.addAll(Arrays.asList(left, right));
-        team = rank(left) > rank(right) ? 0 : 1;
+            opening.clear();
+            best = -1;
+            winners = 0;
+            for (int side = 0; side < teamCount; side++) {
+                int mask = random.nextInt(4);
+                opening.add(mask);
+                if (rank(mask) > best) {
+                    best = rank(mask);
+                    team = side;
+                    winners = 1;
+                } else if (rank(mask) == best) {
+                    winners++;
+                }
+            }
+        } while (winners != 1);
         phase = "PLAYING";
         credits = 1;
         turnUser = teamPlayers(team).getFirst();
@@ -158,25 +186,32 @@ public final class YutMatch {
     }
 
     private void move(int index, Roll rolled, boolean shortcut) {
-        require(index >= 0 && index < 4, "말을 선택해주세요.");
+        require(index >= 0 && index < pieceCount, "말을 선택해주세요.");
         List<Integer> history = pieces.get(team).get(index);
         int from = position(history);
         require(from != YutBoard.FINISHED, "이미 완주한 말이에요.");
         List<Integer> target = target(history, rolled, shortcut);
         int to = position(target);
         // 대기석의 말은 한 개씩 출발하며 판 위에 업힌 말은 같은 이동 이력을 공유한다.
-        for (int token = 0; token < 4; token++) {
+        for (int token = 0; token < pieceCount; token++) {
             if (token == index || from > 0 && position(pieces.get(team).get(token)) == from) {
                 pieces.get(team).set(token, new ArrayList<>(target));
             }
         }
         boolean caught = false;
         if (to != YutBoard.FINISHED) {
-            for (int token = 0; token < 4; token++) {
-                if (position(pieces.get(1 - team).get(token)) == to) {
-                    pieces.get(1 - team).set(token, new ArrayList<>());
-                    caught = true;
+            for (int side = 0; side < teamCount; side++) {
+                if (side == team || eliminatedTeams.contains(side)) {
+                    continue;
                 }
+                for (int token = 0; token < pieceCount; token++) {
+                    if (position(pieces.get(side).get(token)) == to) {
+                        pieces.get(side).set(token, new ArrayList<>());
+                        caught = true;
+                    }
+                }
+            }
+            for (int token = 0; token < pieceCount; token++) {
                 if (position(pieces.get(team).get(token)) == to) {
                     pieces.get(team).set(token, new ArrayList<>(target));
                 }
@@ -211,7 +246,7 @@ public final class YutMatch {
         if (!phase.equals("PLAYING")) {
             return result;
         }
-        for (int index = 0; index < 4; index++) {
+        for (int index = 0; index < pieceCount; index++) {
             var history = pieces.get(team).get(index);
             if (position(history) == YutBoard.FINISHED) {
                 continue;
@@ -245,7 +280,9 @@ public final class YutMatch {
     public void advance(long now) {
         rolls.clear();
         teamTurn[team]++;
-        team = 1 - team;
+        do {
+            team = (team + 1) % teamCount;
+        } while (eliminatedTeams.contains(team));
         List<Long> members = teamPlayers(team);
         turnUser = members.get(teamTurn[team] % members.size());
         credits = 1;
@@ -262,6 +299,30 @@ public final class YutMatch {
         credits = 0;
         rolls.clear();
         note(winningTeam < 0 ? "경기가 종료되었어요." : label(winningTeam) + " 승리!");
+    }
+
+    /** 기권·접속 만료·차례 만료는 해당 팀만 탈락시키고 남은 팀은 계속 진행한다. */
+    public void eliminate(int side, String endReason, long now) {
+        if (!phase.equals("PLAYING") || eliminatedTeams.contains(side)) {
+            return;
+        }
+        eliminatedTeams.add(side);
+        for (int token = 0; token < pieceCount; token++) {
+            pieces.get(side).set(token, new ArrayList<>());
+        }
+        note(label(side) + " 탈락 · " + (endReason.equals("YUT_FORFEIT") ? "기권" : "시간 초과"));
+        if (eliminatedTeams.size() == teamCount - 1) {
+            for (int remaining = 0; remaining < teamCount; remaining++) {
+                if (!eliminatedTeams.contains(remaining)) {
+                    finish(remaining, endReason);
+                    break;
+                }
+            }
+        } else if (team == side) {
+            advance(now);
+        }
+        touched = now;
+        version++;
     }
 
     public void note(String value) {
@@ -299,7 +360,13 @@ public final class YutMatch {
     }
 
     public static String label(int side) {
-        return side == 0 ? "청팀" : "홍팀";
+        return switch (side) {
+            case 0 -> "청팀";
+            case 1 -> "홍팀";
+            case 2 -> "녹팀";
+            case 3 -> "황팀";
+            default -> throw new IllegalArgumentException("팀을 확인해주세요.");
+        };
     }
 
     private static int rank(int mask) {

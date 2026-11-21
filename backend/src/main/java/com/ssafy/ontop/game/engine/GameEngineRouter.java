@@ -70,6 +70,15 @@ public final class GameEngineRouter implements GameEngine {
         }
     }
 
+    /** 탈락이 확정된 참가자의 점유만 해제한다. 종료 기록·다른 참가자·새 경기의 점유는 보존한다. */
+    public synchronized void releasePlayer(GameEngine engine, String gameId, long userId) {
+        Registration registration = games.get(gameId);
+        if (registration == null || registration.engine() != engine || !registration.players().contains(userId)) {
+            throw new IllegalStateException("소유 엔진과 경기 참가자를 확인해주세요.");
+        }
+        activeUsers.remove(userId, gameId);
+    }
+
     /** 소유 엔진의 보존 기간이 끝난 종료 기록만 제거한다. 진행 중인 다른 경기 점유는 보존한다. */
     public synchronized boolean forgetFinished(GameEngine engine, String gameId) {
         Registration registration = games.get(gameId);

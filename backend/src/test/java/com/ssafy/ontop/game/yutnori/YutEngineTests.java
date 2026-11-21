@@ -115,4 +115,77 @@ class YutEngineTests {
         isolated.dispatch();
         assertThat(eventTypes).contains("YutFinished");
     }
+    @Test
+    void 다팀_탈락자는_복구후_새경기에_들어가고_기존경기는_남은팀이_계속한다() {
+        String id = engine.create(101, "channel-1", "four-teams", "방", "청", rules, 4, 1).path("gameId").asText();
+        for (long user : List.of(202L, 303L, 404L)) engine.join(user, "channel-1", id, "참가");
+        for (long user : List.of(101L, 202L, 303L, 404L)) {
+            engine.lobby(user, id, mapper.createObjectNode().put("type", "READY").put("ready", true));
+        }
+        engine.start(101, id);
+        router.forfeit(new GameForfeitCommand(101, id, "out"));
+        assertThat(router.load(101).orElseThrow().phase().name()).isEqualTo("ELIMINATED");
+        assertThat(engine.member(202, id).path("publicState").path("phase").asText()).isEqualTo("PLAYING");
+        assertThat(engine.member(202, id).path("publicState").path("eliminatedTeams").get(0).asInt()).isZero();
+        assertThatThrownBy(() -> router.apply(new GameActionCommand(101, id, "eliminated", engine.member(101, id).path("version").asLong(),
+                mapper.createObjectNode().put("type", "THROW")))).isInstanceOf(GameActionGateway.Rejected.class);
+        engine.leave(101, id);
+        String next = engine.create(101, "channel-1", "next", "새방", "청", rules, 2, 2).path("gameId").asText();
+        engine.join(505, "channel-1", next, "친구");
+        for (long user : List.of(101L, 505L)) engine.lobby(user, next, mapper.createObjectNode().put("type", "READY").put("ready", true));
+        engine.start(101, next);
+        router.forfeit(new GameForfeitCommand(202, id, "second-out"));
+        assertThat(engine.member(303, id).path("publicState").path("phase").asText()).isEqualTo("PLAYING");
+        router.forfeit(new GameForfeitCommand(303, id, "third-out"));
+        assertThat(engine.member(404, id).path("publicState").path("winner").asInt()).isEqualTo(3);
+        assertThat(router.load(101).orElseThrow().gameId()).isEqualTo(next);
+        engine.dispatch();
+        assertThat(notices.stream().filter(event -> event instanceof com.ssafy.ontop.game.yutnori.service.YutFinished).count()).isEqualTo(1);
+    }
+
+    @Test
+    void 팀과_말수는_범위를_검사하고_같은생성키의_설정변경을_거절한다() {
+        engine.create(101, "channel-1", "config", "방", "청", rules, 3, 2);
+        assertThatThrownBy(() -> engine.create(101, "channel-1", "config", "방", "청", rules, 4, 2)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> engine.create(202, "channel-1", "bad", "방", "홍", rules, 5, 2)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> engine.create(202, "channel-1", "bad", "방", "홍", rules, 2, 0)).isInstanceOf(IllegalArgumentException.class);
+        String id = engine.member(101, engine.rooms(101, "channel-1").path("mine").path("gameId").asText()).path("gameId").asText();
+        engine.join(202, "channel-1", id, "홍");
+        for (long user : List.of(101L, 202L)) engine.lobby(user, id, mapper.createObjectNode().put("type", "READY").put("ready", true));
+        assertThatThrownBy(() -> engine.start(101, id)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void 차례시간과_연결유예가_만료되어도_남은_다팀경기는_진행한다() {
+        var time = new java.util.concurrent.atomic.AtomicLong(10_000);
+        Clock advancing = new Clock() {
+            @Override public java.time.ZoneId getZone() { return ZoneOffset.UTC; }
+            @Override public Clock withZone(java.time.ZoneId zone) { return this; }
+            @Override public Instant instant() { return Instant.ofEpochMilli(time.get()); }
+        };
+        var timed = new YutEngine(mapper, advancing, new Random(2), router, notices::add, user -> { }, (user, channel) -> true);
+        String id = timed.create(101, "channel-1", "timer", "방", "청", rules, 3, 1).path("gameId").asText();
+        for (long user : List.of(202L, 303L)) timed.join(user, "channel-1", id, "참가");
+        for (long user : List.of(101L, 202L, 303L)) timed.lobby(user, id, mapper.createObjectNode().put("type", "READY").put("ready", true));
+        timed.start(101, id);
+        var before = timed.member(101, id).path("publicState");
+        long expired = before.path("turnUser").asLong();
+        time.set(before.path("deadline").asLong());
+        assertThat(timed.tick()).isEmpty();
+        assertThat(router.load(expired).orElseThrow().phase().name()).isEqualTo("ELIMINATED");
+        var after = timed.member(101, id).path("publicState");
+        assertThat(after.path("phase").asText()).isEqualTo("PLAYING");
+        assertThat(after.path("deadline").asLong()).isEqualTo(time.get() + 90_000);
+        long disconnected = after.path("turnUser").asLong();
+        var expiration = new com.ssafy.ontop.game.reconnect.GameRecoveryGateway.GraceExpiration(
+                java.util.UUID.randomUUID(), disconnected, id, advancing.instant().minusSeconds(30), advancing.instant(),
+                com.ssafy.ontop.game.reconnect.GameRecoveryGateway.Action.FORFEIT);
+        router.graceExpired(expiration);
+        long version = timed.member(101, id).path("version").asLong();
+        router.graceExpired(expiration);
+        assertThat(timed.member(101, id).path("version").asLong()).isEqualTo(version);
+        assertThat(timed.member(101, id).path("publicState").path("phase").asText()).isEqualTo("FINISHED");
+        timed.dispatch();
+    }
+
 }

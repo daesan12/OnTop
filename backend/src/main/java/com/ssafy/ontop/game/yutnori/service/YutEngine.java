@@ -60,6 +60,13 @@ public final class YutEngine implements GameEngine {
 
     public synchronized ObjectNode create(long user, String channel, String key, String name, String nickname,
             YutMatch.Rules rules) {
+        return create(user, channel, key, name, nickname, rules, 2, 4);
+    }
+
+    public synchronized ObjectNode create(long user, String channel, String key, String name, String nickname,
+            YutMatch.Rules rules, int teamCount, int pieceCount) {
+        require(teamCount >= 2 && teamCount <= 4 && pieceCount >= 1 && pieceCount <= 4,
+                "팀은 2~4팀, 팀별 말은 1~4개로 선택해주세요.");
         require(user > 0 && channel != null && channel.matches("[A-Za-z0-9_-]{1,64}")
                 && key != null && key.matches("[A-Za-z0-9_-]{1,64}") && name != null
                 && !name.isBlank() && name.length() <= 24, "방 정보를 확인해주세요.");
@@ -67,17 +74,18 @@ public final class YutEngine implements GameEngine {
         Creation previous = creations.get(identity);
         if (previous != null) {
             require(previous.channel().equals(channel) && previous.name().equals(name)
-                    && previous.rules().equals(rules), "같은 방 생성 요청의 내용이 달라졌어요.");
+                    && previous.rules().equals(rules) && previous.teamCount() == teamCount
+                    && previous.pieceCount() == pieceCount, "같은 방 생성 요청의 내용이 달라졌어요.");
             return member(user, previous.gameId());
         }
         require(current(user) == null && connected.test(user, channel) && games.size() < 256,
                 "기존 방을 나가거나 공원 연결을 확인해주세요.");
         YutMatch match = new YutMatch("yut-" + UUID.randomUUID(), channel, name.trim(), user, nickname, rules,
-                clock.millis());
+                teamCount, pieceCount, clock.millis());
         games.put(match.id, match);
         latest.put(user, match.id);
         watching.remove(user);
-        creations.put(identity, new Creation(match.id, channel, name, rules));
+        creations.put(identity, new Creation(match.id, channel, name, rules, teamCount, pieceCount));
         return snapshot(match, user);
     }
 
@@ -101,7 +109,8 @@ public final class YutEngine implements GameEngine {
             if (match.channel.equals(channel) && !match.phase.equals("FINISHED")) {
                 list.addObject().put("gameId", match.id).put("name", match.name)
                         .put("hostNickname", match.players.get(match.host).nickname)
-                        .put("players", match.players.size()).put("phase", match.phase);
+                        .put("players", match.players.size()).put("phase", match.phase)
+                        .put("teamCount", match.teamCount).put("pieceCount", match.pieceCount);
             }
         }
         YutMatch mine = current(user);
@@ -146,9 +155,9 @@ public final class YutEngine implements GameEngine {
             require(match.host == user && match.phase.equals("WAITING"), "방장만 시작할 수 있어요.");
             members = List.copyOf(match.players.keySet());
             require(members.size() >= 2 && match.players.values().stream().allMatch(player -> player.ready)
-                    && match.players.values().stream().map(player -> player.team).distinct().count() == 2
+                    && match.players.values().stream().map(player -> player.team).distinct().count() == match.teamCount
                     && members.stream().allMatch(player -> connected.test(player, match.channel)),
-                    "양 팀 모두 연결하고 준비해주세요.");
+                    "선택한 모든 팀이 연결하고 준비해주세요.");
             // 무료 경기이므로 판돈 예약을 만들지 않으며 공유 라우터의 점유 검사는 그대로 사용한다.
             router.register(this, id, "folk:" + id, members);
             match.registered = true;
@@ -167,7 +176,8 @@ public final class YutEngine implements GameEngine {
             return;
         }
         YutMatch match = requireMember(user, id);
-        require(!match.phase.equals("PLAYING"), "진행 중인 경기는 기권 후 나가주세요.");
+        require(!match.phase.equals("PLAYING") || match.eliminatedTeams.contains(match.players.get(user).team),
+                "진행 중인 경기는 기권 후 나가주세요.");
         latest.remove(user, id);
         if (match.phase.equals("WAITING")) {
             if (match.host == user) {
@@ -248,10 +258,7 @@ public final class YutEngine implements GameEngine {
         }
         require(match.registered, "시작하지 않은 방은 나가기를 선택해주세요.");
         if (!match.phase.equals("FINISHED")) {
-            match.finish(1 - match.players.get(command.userId()).team, "YUT_FORFEIT");
-            match.version++;
-            complete(match);
-            changed(match);
+            eliminate(match, match.players.get(command.userId()).team, "YUT_FORFEIT");
         }
         var result = new GameForfeitResult(command.userId(), match.id, command.actionId(), match.version, false);
         forfeits.put(key, result);
@@ -277,7 +284,9 @@ public final class YutEngine implements GameEngine {
         }
         ObjectNode state = snapshot(match, user);
         return Optional.of(new GameRecoverySnapshot(user, match.id, match.players.size(), match.version,
-                match.phase.equals("FINISHED") ? GameRecoverySnapshot.Phase.FINISHED : GameRecoverySnapshot.Phase.PLAYING,
+                match.phase.equals("FINISHED") ? GameRecoverySnapshot.Phase.FINISHED
+                        : match.eliminatedTeams.contains(match.players.get(user).team)
+                                ? GameRecoverySnapshot.Phase.ELIMINATED : GameRecoverySnapshot.Phase.PLAYING,
                 state));
     }
 
@@ -291,10 +300,7 @@ public final class YutEngine implements GameEngine {
     public synchronized void graceExpired(GraceExpiration command) {
         YutMatch match = games.get(command.gameId());
         if (match != null && match.phase.equals("PLAYING") && match.players.containsKey(command.userId())) {
-            match.finish(1 - match.players.get(command.userId()).team, "YUT_DISCONNECT_TIMEOUT");
-            match.version++;
-            complete(match);
-            changed(match);
+            eliminate(match, match.players.get(command.userId()).team, "YUT_DISCONNECT_TIMEOUT");
         }
     }
 
@@ -303,10 +309,7 @@ public final class YutEngine implements GameEngine {
         List<ObjectNode> finishedSnapshots = new ArrayList<>();
         for (YutMatch match : List.copyOf(games.values())) {
             if (match.phase.equals("PLAYING") && now >= match.deadline) {
-                match.finish(1 - match.team, "YUT_TURN_TIMEOUT");
-                match.version++;
-                complete(match);
-                changed(match);
+                eliminate(match, match.team, "YUT_TURN_TIMEOUT");
             }
             if (match.phase.equals("WAITING") && now - match.touched > 600_000) {
                 match.finish(-1, "YUT_CANCELLED");
@@ -328,6 +331,21 @@ public final class YutEngine implements GameEngine {
             }
         }
         return finishedSnapshots;
+    }
+
+    private void eliminate(YutMatch match, int team, String reason) {
+        if (match.eliminatedTeams.contains(team)) {
+            return;
+        }
+        match.eliminate(team, reason, clock.millis());
+        for (long member : match.teamPlayers(team)) {
+            router.releasePlayer(this, match.id, member);
+            recoveryOutbox.add(member);
+        }
+        if (match.phase.equals("FINISHED")) {
+            complete(match);
+        }
+        changed(match);
     }
 
     private void complete(YutMatch match) {
@@ -355,7 +373,9 @@ public final class YutEngine implements GameEngine {
                 .put("channelId", match.channel).put("roomName", match.name).put("host", Long.toString(match.host))
                 .put("turnUser", Long.toString(match.turnUser)).put("team", match.team).put("credits", match.credits)
                 .put("deadline", match.deadline).put("winner", match.winner).put("reason", match.reason)
-                .put("message", match.message).put("entryFee", 0);
+                .put("message", match.message).put("entryFee", 0)
+                .put("teamCount", match.teamCount).put("pieceCount", match.pieceCount);
+        state.set("eliminatedTeams", mapper.valueToTree(match.eliminatedTeams));
         state.set("rules", mapper.valueToTree(match.rules));
         state.set("rolls", mapper.valueToTree(match.rolls));
         state.set("moves", mapper.valueToTree(match.legalMoves()));
@@ -412,6 +432,7 @@ public final class YutEngine implements GameEngine {
         }
     }
 
-    private record Creation(String gameId, String channel, String name, YutMatch.Rules rules) { }
+    private record Creation(String gameId, String channel, String name, YutMatch.Rules rules,
+            int teamCount, int pieceCount) { }
     private record Receipt(GameActionCommand command, GameActionResult result) { }
 }

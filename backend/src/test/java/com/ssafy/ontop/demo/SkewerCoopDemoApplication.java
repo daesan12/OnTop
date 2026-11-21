@@ -47,9 +47,9 @@ public final class SkewerCoopDemoApplication {
         @Primary
         UserProfileService skewerLocalProfiles() {
             var profiles = mock(UserProfileService.class);
-            for (long id : new long[] {101, 202, 505}) {
+            for (long id : new long[] {101, 202, 505, 606}) {
                 when(profiles.findProfile(id)).thenReturn(new UserProfileResponse(
-                        id, id == 101 ? "홍팀 로컬" : id == 202 ? "청팀 로컬" : "관전 로컬",
+                        id, id == 101 ? "홍팀 로컬" : id == 202 ? "청팀 로컬" : id == 606 ? "황팀 로컬" : "관전 로컬",
                         CharacterGender.MALE));
             }
             return profiles;

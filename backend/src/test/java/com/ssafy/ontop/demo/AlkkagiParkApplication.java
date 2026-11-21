@@ -54,7 +54,7 @@ public final class AlkkagiParkApplication {
     @Profile("local & alkkagi-park & !db & !dev & !prod & !production")
     public static class Fixture {
         @Bean ActiveMemberLookup alkkagiMembers() {
-            return (id, sid) -> Set.of(101L,202L,505L).contains(id) && TestLoginSessions.ID.equals(sid)
+            return (id, sid) -> Set.of(101L,202L,505L,606L).contains(id) && TestLoginSessions.ID.equals(sid)
                 ? Optional.of(new AuthenticatedUser(id, LoginProvider.NAVER, sid)) : Optional.empty();
         }
         @Bean @Primary WebSocketAccountLookup alkkagiAccounts(ActiveMemberLookup members) {
@@ -63,9 +63,9 @@ public final class AlkkagiParkApplication {
         @Bean WorldProfileGateway alkkagiProfiles() {
             return ids -> {
                 var result = new HashMap<Long, WorldProfileGateway.Profile>();
-                for (long id : ids) if (Set.of(101L,202L,505L).contains(id))
+                for (long id : ids) if (Set.of(101L,202L,505L,606L).contains(id))
                     result.put(id, new WorldProfileGateway.Profile(
-                        id==101 ? "홍팀 로컬" : id==202 ? "청팀 로컬" : "관전 로컬", "MALE"));
+                        id==101 ? "홍팀 로컬" : id==202 ? "청팀 로컬" : id==606 ? "황팀 로컬" : "관전 로컬", "MALE"));
                 return Map.copyOf(result);
             };
         }
@@ -85,7 +85,7 @@ public final class AlkkagiParkApplication {
                             && request.getMethod().equals("POST")) {
                         String origin=request.getHeader("Origin");
                         if (origin != null && (properties.allowedOrigins() == null || !properties.allowedOrigins().contains(origin))) { response.setStatus(403); return; }
-                        long id = switch(mapper.readTree(request.getInputStream()).path("role").asText()) { case "red" -> 101; case "green" -> 202; case "viewer" -> 505; default -> 0; };
+                        long id = switch(mapper.readTree(request.getInputStream()).path("role").asText()) { case "red" -> 101; case "green" -> 202; case "viewer" -> 505; case "yellow" -> 606; default -> 0; };
                         if (id == 0 || codes.size() >= 64) { response.setStatus(400); return; }
                         String code = UUID.randomUUID().toString().replace("-", "") + UUID.randomUUID().toString().replace("-", "").substring(0,11);
                         codes.put(code,id); body=Map.of("exchangeCode",code);
@@ -103,7 +103,7 @@ public final class AlkkagiParkApplication {
                         try {
                             String bearer=request.getHeader("Authorization");
                             var user=auth.authenticate(bearer != null && bearer.startsWith("Bearer ") ? bearer.substring(7) : "");
-                            body=Map.of("userId",user.userId(),"nickname",user.userId()==101 ? "홍팀 로컬" : user.userId()==202 ? "청팀 로컬" : "관전 로컬","characterGender","MALE");
+                            body=Map.of("userId",user.userId(),"nickname",user.userId()==101 ? "홍팀 로컬" : user.userId()==202 ? "청팀 로컬" : user.userId()==606 ? "황팀 로컬" : "관전 로컬","characterGender","MALE");
                         } catch(RuntimeException denied) { response.setStatus(401); return; }
                     }
                     if (body == null) { chain.doFilter(request,response); return; }

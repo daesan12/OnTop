@@ -152,4 +152,83 @@ class YutRulesTests {
         assertThat(match.team).isEqualTo(1);
         assertThat(match.credits).isEqualTo(1);
     }
+    @Test
+    void 모든_팀수와_말수_설정에서_선공과_순환_차례를_지킨다() {
+        for (int teams = 2; teams <= 4; teams++) {
+            for (int tokens = 1; tokens <= 4; tokens++) {
+                var match = new YutMatch("yut-options", "channel-1", "설정", 101, "청",
+                        new YutMatch.Rules(false, false, false), teams, tokens, 0);
+                for (int side = 1; side < teams; side++) {
+                    match.join(101L + side, "참가" + side);
+                }
+                match.players.values().forEach(player -> player.ready = true);
+                match.start(new Random(2), 0);
+                assertThat(match.pieces).hasSize(teams);
+                for (var side : match.pieces) assertThat(side).hasSize(tokens);
+                assertThat(match.opening).hasSize(teams);
+                int first = match.team;
+                for (int turn = 1; turn <= teams; turn++) {
+                    match.advance(turn);
+                    assertThat(match.team).isEqualTo((first + turn) % teams);
+                    assertThat(match.players.get(match.turnUser).team).isEqualTo(match.team);
+                }
+            }
+        }
+    }
+
+    @Test
+    void 네팀의_업힌_말을_잡고_선택한_말수만큼_완주하면_황팀도_승리한다() {
+        var match = new YutMatch("yut-four", "channel-1", "설정", 101, "청",
+                new YutMatch.Rules(false, false, false), 4, 2, 0);
+        for (int side = 1; side < 4; side++) match.join(101L + side, "참가" + side);
+        match.phase = "PLAYING"; match.team = 3; match.turnUser = 104;
+        for (int side = 0; side < 3; side++) for (int token = 0; token < 2; token++) {
+            match.pieces.get(side).set(token, new ArrayList<>(List.of(2)));
+        }
+        match.pieces.get(3).set(0, new ArrayList<>(List.of(1)));
+        match.pieces.get(3).set(1, new ArrayList<>(List.of(1)));
+        match.rolls.add(YutMatch.roll(1, 2));
+        match.act(104, mapper.createObjectNode().put("type", "MOVE").put("piece", 1)
+                .put("rollId", 1).put("shortcut", false), new Random(2), 1);
+        for (int side = 0; side < 3; side++) assertThat(match.pieces.get(side)).allSatisfy(history -> assertThat(history).isEmpty());
+        assertThat(match.pieces.get(3)).allSatisfy(history -> assertThat(history).endsWith(2));
+        assertThat(match.credits).isEqualTo(1);
+        for (int token = 0; token < 2; token++) match.pieces.get(3).set(token, new ArrayList<>(List.of(19, 20)));
+        match.rolls.add(YutMatch.roll(2, 2));
+        match.act(104, mapper.createObjectNode().put("type", "MOVE").put("piece", 0)
+                .put("rollId", 2).put("shortcut", false), new Random(2), 2);
+        assertThat(match.phase).isEqualTo("FINISHED");
+        assertThat(match.winner).isEqualTo(3);
+    }
+
+    @Test
+    void 탈락팀은_말을_치우고_차례를_건너뛰며_마지막_생존팀이_승리한다() {
+        var match = new YutMatch("yut-four", "channel-1", "설정", 101, "청",
+                new YutMatch.Rules(false, false, false), 4, 1, 0);
+        for (int side = 1; side < 4; side++) match.join(101L + side, "참가" + side);
+        match.phase = "PLAYING"; match.team = 0; match.turnUser = 101;
+        match.pieces.get(2).set(0, new ArrayList<>(List.of(4)));
+        match.eliminate(2, "YUT_FORFEIT", 1);
+        assertThat(match.team).isZero();
+        assertThat(match.pieces.get(2).getFirst()).isEmpty();
+        match.advance(2); assertThat(match.team).isEqualTo(1);
+        match.advance(3); assertThat(match.team).isEqualTo(3);
+        match.eliminate(3, "YUT_TURN_TIMEOUT", 4);
+        assertThat(match.team).isZero();
+        match.eliminate(0, "YUT_FORFEIT", 5);
+        assertThat(match.phase).isEqualTo("FINISHED");
+        assertThat(match.winner).isEqualTo(1);
+    }
+
+    @Test
+    void 대기석에서_첫도는_한칸이며_바깥길_스무칸과_출구를_구분한다() {
+        assertThat(YutBoard.move(List.of(), 1, false, false)).containsExactly(1);
+        var path = YutBoard.move(List.of(), 5, false, false);
+        for (int turn = 0; turn < 3; turn++) path = YutBoard.move(path, 5, false, false);
+        assertThat(path).hasSize(20).endsWith(20);
+        assertThat(YutBoard.move(path, 1, false, false)).hasSize(21).endsWith(30);
+        assertThat(YutBoard.move(List.of(10), 4, true, false)).endsWith(26, 27, 23, 28);
+        assertThat(YutBoard.move(List.of(5), 5, true, false)).endsWith(21, 22, 23, 24, 25);
+    }
+
 }
