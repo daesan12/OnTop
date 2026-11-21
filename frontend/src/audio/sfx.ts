@@ -1,8 +1,10 @@
-import { effectsOutput, loadSound } from './bgm'
+import { effectsOutput, loadSound, useSfxSettings } from './bgm'
+import { chessSoundBuffer } from '../game/chess/sound'
 
-/** File names under public/audio/bgm (shared with the music), without .ogg or the variant suffix. */
+/** File names under public/audio/bgm, plus generated chess percussion. */
 export type SfxName = 'ui-click' | 'ui-manual' | 'ui-equip' | 'coin-gain'
   | 'game-ready' | 'game-start' | 'game-turn' | 'omok-place' | 'dice-roll' | 'card-draw' | 'card-one' | 'halli-bell'
+  | 'chess-move' | 'chess-capture'
   | 'bungeo-pour' | 'bungeo-flip' | 'bungeo-burn'
   | 'emote-clap' | 'emote-tsk' | 'emote-fart' | 'emote-wave-male' | 'emote-wave-female'
   | 'move-jump' | 'move-land' | 'move-splash' | 'move-step-stone' | 'move-step-grass' | 'amb-pigeon-takeoff'
@@ -16,6 +18,7 @@ export interface SoundPoint { x: number; y: number; z: number }
 const LEVEL: Record<SfxName | SfxLoop, number> = {
   'ui-click': 0.25, 'ui-manual': 0.5, 'ui-equip': 0.45, 'coin-gain': 0.5,
   'omok-place': .6,
+  'chess-move': .6, 'chess-capture': .7,
   'game-ready': 0.5, 'game-start': 0.55, 'game-turn': 0.5, 'dice-roll': 0.6, 'card-draw': 0.5, 'card-one': 0.55,
   'halli-bell': 0.55,
   'bungeo-pour': 0.5, 'bungeo-flip': 0.5, 'bungeo-burn': 0.45,
@@ -61,20 +64,27 @@ function panner(context: AudioContext, at: SoundPoint, [near, far]: readonly [nu
 }
 
 /** Decodes a cue ahead of its first play into the shared cache; does nothing until audio is unlocked. */
+function effectBuffer(context: AudioContext, name: string) {
+  return name === 'chess-move' || name === 'chess-capture' ? Promise.resolve(chessSoundBuffer(context, name)) : loadSound(context, name)
+}
 export function preloadSfx(name: SfxName) {
   const out = effectsOutput()
-  if (out && !VARIANTS[name]) void loadSound(out.context, name)
+  if (out && !VARIANTS[name]) void effectBuffer(out.context, name)
 }
 
 /** Plays once; `at` places it in the park so it pans and fades with distance from the camera. */
 export function playSfx(name: SfxName, at?: SoundPoint, level = 1) {
+  if (name === 'chess-move' || name === 'chess-capture') {
+    const settings = useSfxSettings.getState()
+    if (settings.muted || settings.volume === 0 || typeof document !== 'undefined' && document.hidden) return
+  }
   const out = effectsOutput()
   if (!out || voices >= MAX_VOICES) return
   // Out-of-range sounds are skipped instead of decoded and mixed at silence.
   if (at && distanceTo(at) >= rangeOf(name)[1]) return
   const count = VARIANTS[name]
   voices++
-  void loadSound(out.context, count ? `${name}-${1 + Math.floor(Math.random() * count)}` : name).then(buffer => {
+  void effectBuffer(out.context, count ? `${name}-${1 + Math.floor(Math.random() * count)}` : name).then(buffer => {
     if (!buffer) { voices--; return }
     const { context, bus } = out
     const source = context.createBufferSource(), gain = context.createGain(), space = at && panner(context, at, rangeOf(name))

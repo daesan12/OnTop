@@ -3,6 +3,7 @@ import { gameState, type Game } from '../game/protocol'
 import { eventKey, FLIGHT } from '../game/halligalli/flights'
 import type { AlkkagiFeedbackEvent } from '../game/alkkagi/feedback'
 import type { SfxName } from './sfx'
+import { chessMoveSound } from '../game/chess/sound'
 
 /** Who must act now: the bridge responder answers a declaration, otherwise the turn holder. */
 export function turnOwner(g: Game): string | null {
@@ -40,6 +41,8 @@ export function gameSfx(prev: Game | null, next: Game | null, ownId: string, ser
     && next.omok.moveCount === before.omok.moveCount + 1
     && before.omok.board[move.y]?.[move.x] === 0 && next.omok.board[move.y]?.[move.x] !== 0
   if (omokPlaced) out.push('omok-place')
+  const chess = chessMoveSound(before, next, serverNow)
+  if (chess) out.push(chess)
   // 경기를 끝낸 마지막 종도 울린다. 참가자·관전자 모두 같은 공개 상태로 판정한다.
   const bell = halliBellRung(before, next, serverNow)
   if (bell) out.push('halli-bell')
@@ -48,7 +51,7 @@ export function gameSfx(prev: Game | null, next: Game | null, ownId: string, ser
   if (!before && next.role === 'PLAYER') out.push('game-start')
   // 승인 착수에는 '탁'만, 인정된 종에는 종소리만 재생한다. 차례 알림의 전자음이 동시에 겹치지 않게 한다.
   // 알까기는 누구 차례로 넘어가든 차례 전환음(alkkagiCues)을 내므로 내 차례 알림을 겹치지 않는다.
-  if (!omokPlaced && !bell && !next.alkkagi && next.role === 'PLAYER' && turnOwner(next) === ownId && (!before || turnOwner(before) !== ownId)) out.push('game-turn')
+  if (!omokPlaced && !bell && !next.alkkagi && (!next.chess || !before) && next.role === 'PLAYER' && turnOwner(next) === ownId && (!before || turnOwner(before) !== ownId)) out.push('game-turn')
   if (!before) return out
   // 비책 선택이 끝나 손에 새 카드가 들어온 순간. 처음 받은 손패·재접속 손패는 비교할 이전 손이 없어 제외된다.
   const hand = before.alkkagiHand

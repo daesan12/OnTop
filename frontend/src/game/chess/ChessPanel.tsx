@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { estimatedServerTime } from '../../network/worldClient'
+import { BgmVolumeControl } from '../../audio/BgmVolumeControl'
 import { useParkRuntime } from '../../park/runtime/ParkRuntime'
 import { openManual } from '../../features/manual/manualState'
 import { PaperPopup } from '../../features/tableLobby/PaperPopup'
@@ -60,6 +61,7 @@ export function ChessPanel() {
     </header>
     <div className="chess-menu-slot"><GameHudMenu embedded>
       <button onClick={() => openManual('chess')}>게임 설명</button>
+      <details className="chess-audio-controls"><summary>효과음 설정</summary><BgmVolumeControl kind="effects" /></details>
       {player ? <SeatedLookButton /> : <div className="chess-pair"><button onClick={() => useTableLobby.setState({ spectatorView: 'board' })}>체스판 보기</button><button onClick={() => useTableLobby.setState({ spectatorView: 'table' })}>참가자 보기</button></div>}
       <div className="chess-view-tools" aria-label="체스판 시점">
         <button aria-label="시점 왼쪽으로 회전" onClick={() => useChessUI.setState({ angle: ui.angle - Math.PI / 12 })}>↶</button>

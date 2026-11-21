@@ -31,7 +31,13 @@ export function ParkSfx() {
         if (next.game === prev.game) return
         // 할리갈리 상태에 들어오면 종소리를 미리 디코드한다. 캐시된 뒤에는 조회만 하고, 잠금 해제 전이면 다음 갱신에서 다시 시도한다.
         if (next.game?.halli) preloadSfx('halli-bell')
-        for (const cue of gameSfx(prev.game, next.game, useSession.getState().sessionId, estimatedServerTime())) playSfx(cue)
+        const session = useSession.getState()
+        for (const cue of gameSfx(prev.game, next.game, session.sessionId, estimatedServerTime())) {
+          // A recovery snapshot is current position, not a new move to replay.
+          if (cue.startsWith('chess-') && (prev.recovery !== 'RESTORED' || next.recovery !== 'RESTORED'
+            || prev.uncertain || next.uncertain || session.status !== 'connected' || !session.mapCompatible)) continue
+          playSfx(cue)
+        }
         // 경기를 떠났다가 같은 경기를 다시 보더라도 그 사이 변화를 한꺼번에 재생하지 않는다.
         if (next.game?.alkkagi) for (const [cue, level] of alkkagiCues(alkkagi.update(next.game.alkkagi))) playSfx(cue, undefined, level)
         else alkkagi.reset()
