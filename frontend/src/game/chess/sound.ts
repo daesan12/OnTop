@@ -1,10 +1,23 @@
 import type { Game, Recovery } from '../protocol'
 import { chessMotion } from './motion'
+import type { Chess } from './protocol'
 
-export type ChessSound = 'chess-select' | 'chess-move' | 'chess-capture' | 'chess-check' | 'chess-checkmate' | 'chess-checkmate-win' | 'chess-checkmate-lose' | 'chess-draw'
+export type ChessSound = 'chess-invalid' | 'chess-select' | 'chess-move' | 'chess-capture' | 'chess-check' | 'chess-checkmate' | 'chess-checkmate-win' | 'chess-checkmate-lose' | 'chess-draw'
 export const CHESS_SOUND_DURATION = { 'chess-move': .15, 'chess-capture': .23, 'chess-check': .42,
-  'chess-checkmate': .95, 'chess-checkmate-win': .95, 'chess-checkmate-lose': .88, 'chess-draw': .78, 'chess-select': .09 } as const
+  'chess-checkmate': .95, 'chess-checkmate-win': .95, 'chess-checkmate-lose': .88, 'chess-draw': .78, 'chess-select': .09, 'chess-invalid': .16 } as const
 export const isChessSound = (name: string): name is ChessSound => Object.hasOwn(CHESS_SOUND_DURATION, name)
+
+/** Input feedback uses server destinations; choosing another own piece is not a failed move. */
+export function chessSelectionSound(chess: Pick<Chess, 'board' | 'legalMoves' | 'whiteUserId' | 'blackUserId'>,
+  ownId: string, selected: string, square: string): 'chess-select' | 'chess-invalid' | null {
+  if (!/^[a-h][1-8]$/.test(square) || ![chess.whiteUserId, chess.blackUserId].includes(ownId) || selected === square) return null
+  if (chess.legalMoves.some(move => move.from === selected && move.to === square)) return null
+  if (chess.legalMoves.some(move => move.from === square)) return 'chess-select'
+  if (!selected || !chess.legalMoves.some(move => move.from === selected)) return null
+  const piece = chess.board[square.charCodeAt(0) - 97 + (Number(square[1]) - 1) * 8]
+  if (!piece || piece === '.') return 'chess-invalid'
+  return (piece === piece.toUpperCase()) === (ownId === chess.whiteUserId) ? null : 'chess-invalid'
+}
 
 /** A live FINISHED notice may precede its final board; a recovery must break continuity. */
 export function chessSoundGame(previous: string, state: { game: Game | null; recovery: Recovery; uncertain: boolean; start?: { phase: string } | null }, connected: boolean) {
@@ -58,9 +71,10 @@ export function chessPositionSound(previous: Game | null, next: Game, serverNow:
 /** Original percussion/chimes; deterministic, with no downloads or extra AudioContext. */
 export function chessSoundSamples(kind: ChessSound, rate: number) {
   const duration = CHESS_SOUND_DURATION[kind], samples = new Float32Array(Math.ceil(duration * rate))
-  if (kind === 'chess-check' || kind.startsWith('chess-checkmate') || kind === 'chess-draw') {
+  if (kind === 'chess-check' || kind.startsWith('chess-checkmate') || kind === 'chess-draw' || kind === 'chess-invalid') {
     // Rounded attacks and a soft final fade keep the warning distinct without a harsh alarm.
     const notes = kind === 'chess-check' ? [[0, 740], [.15, 622.25]]
+      : kind === 'chess-invalid' ? [[0, 330], [.065, 277.18]]
       : kind === 'chess-draw' ? [[0, 440], [.18, 523.25], [.36, 440]]
       : kind === 'chess-checkmate-lose' ? [[0, 392], [.14, 329.63], [.28, 261.63], [.42, 196]]
       : [[0, 523.25], [.12, 659.25], [.24, 783.99], [.36, 1046.5]]
@@ -69,7 +83,7 @@ export function chessSoundSamples(kind: ChessSound, rate: number) {
       for (const [start, frequency] of notes) {
         const age = t - start
         if (age < 0) continue
-        samples[i] += (1 - Math.exp(-age * 350)) * Math.exp(-age * (kind === 'chess-check' ? 13 : 8))
+        samples[i] += (1 - Math.exp(-age * 350)) * Math.exp(-age * (kind === 'chess-invalid' ? 18 : kind === 'chess-check' ? 13 : 8))
           * (Math.sin(2 * Math.PI * frequency * age) + .18 * Math.sin(2 * Math.PI * frequency * 2 * age)) * .5
       }
       samples[i] *= Math.min(1, (duration - t) / .04)

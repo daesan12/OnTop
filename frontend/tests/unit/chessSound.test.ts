@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ChessGame } from '../../src/game/protocol'
 import { gameSfx } from '../../src/audio/sfxEvents'
-import { CHESS_SOUND_DURATION, chessMoveSound, chessPositionSound, chessSoundGame, chessSoundBuffer, chessSoundSamples } from '../../src/game/chess/sound'
+import { CHESS_SOUND_DURATION, chessMoveSound, chessPositionSound, chessSelectionSound, chessSoundGame, chessSoundBuffer, chessSoundSamples } from '../../src/game/chess/sound'
 
 const NOW = Date.parse('2026-11-21T00:00:00Z')
 function game(pieces: Record<string, string>, moves: string[], version: number, patch: Partial<ChessGame['chess']> = {}, role: ChessGame['role'] = 'PLAYER'): ChessGame {
@@ -11,6 +11,30 @@ function game(pieces: Record<string, string>, moves: string[], version: number, 
     whiteUserId: '101', blackUserId: '202', turnUserId: '202', turnStartedAt: new Date(NOW).toISOString(), endedAt: null, ...patch } as ChessGame['chess'] }
 }
 describe('체스 승인 이동 효과음', () => {
+  it('선택 후 서버 목적지 밖의 빈칸·상대 기물만 잘못된 이동으로 안내한다', () => {
+    const c = game({ e2: 'P', e7: 'p', d2: 'P', e1: 'K' }, [], 0,
+      { legalMoves: [{ from: 'e2', to: 'e4', promotion: null }, { from: 'd2', to: 'd4', promotion: null }] }).chess
+    expect(chessSelectionSound(c, '101', 'e2', 'e5')).toBe('chess-invalid')
+    expect(chessSelectionSound(c, '101', 'e2', 'e7')).toBe('chess-invalid')
+    expect(chessSelectionSound(c, '101', '', 'e5')).toBeNull()
+    expect(chessSelectionSound(c, '101', 'e2', 'e2')).toBeNull()
+    expect(chessSelectionSound(c, '101', 'e2', 'e1')).toBeNull()
+    expect(chessSelectionSound(c, '101', 'e2', 'd2')).toBe('chess-select')
+    expect(chessSelectionSound(c, '101', 'e2', 'e4')).toBeNull()
+    expect(chessSelectionSound(c, '101', 'a1', 'e5')).toBeNull()
+    expect(chessSelectionSound(c, 'outsider', 'e2', 'e5')).toBeNull()
+    expect(chessSelectionSound(c, '101', 'e2', 'z9')).toBeNull()
+  })
+  it('흑의 선택과 승격·캐슬링 목적지도 같은 서버 허용 목록을 따른다', () => {
+    const c = game({ e7: 'p', e2: 'P', d7: 'p', e8: 'k' }, [], 0,
+      { legalMoves: [{ from: 'e7', to: 'e5', promotion: null }, { from: 'd7', to: 'd5', promotion: null }] }).chess
+    expect(chessSelectionSound(c, '202', 'e7', 'e4')).toBe('chess-invalid')
+    expect(chessSelectionSound(c, '202', 'e7', 'e2')).toBe('chess-invalid')
+    expect(chessSelectionSound(c, '202', 'e7', 'e8')).toBeNull()
+    expect(chessSelectionSound(c, '202', 'e7', 'd7')).toBe('chess-select')
+    for (const [from, to, promotion] of [['e1', 'g1', null], ['a7', 'a8', 'q']] as const)
+      expect(chessSelectionSound({ ...c, legalMoves: [{ from, to, promotion }] }, '101', from, to)).toBeNull()
+  })
   it('정상 대국의 종료 알림 선행은 허용하고 복구·불확실·연결 해제는 연속성을 끊는다', () => {
     const state = { game: game({ e2: 'P' }, [], 0), recovery: 'RESTORED' as const, uncertain: false }
     const live = chessSoundGame('', state, true)
