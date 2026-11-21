@@ -30,6 +30,7 @@ export type Round = {
   duel?: DuelScore
 }
 type DuelResponse = { board: Round; duel: DuelScore }
+export type DuelRoom = { id: string; title: string; difficulty: Difficulty; players: number; capacity: number }
 
 const root = '/api/v1/minigames/spot-difference'
 export const width = 1448
@@ -57,7 +58,8 @@ export const spotDifference = {
   start: (difficulty: Difficulty, requestId: string) => post<Round>(root + '/runs', { difficulty, requestId }),
   act: (round: Pick<Round, 'id' | 'round'>, type: 'READY' | 'TAP' | 'SYNC' | 'NEXT', point?: Position) =>
     post<Round>(`${root}/runs/${round.id}/actions`, { type, round: round.round, ...point }),
-  createDuel: (difficulty: Difficulty) => post<DuelResponse>(root + '/duels', { difficulty }).then(duelRound),
+  rooms: (signal: AbortSignal) => parkRuntime.requestJSON(root + '/duels', { signal }) as Promise<DuelRoom[]>,
+  createDuel: (difficulty: Difficulty, title?: string) => post<DuelResponse>(root + '/duels', { difficulty, title }).then(duelRound),
   joinDuel: (code: string) => post<DuelResponse>(`${root}/duels/${code.toLowerCase()}/join`, {}).then(duelRound),
   currentDuel: async (signal: AbortSignal) => {
     const { match } = await parkRuntime.requestJSON(root + '/duels/current', { signal }) as {
