@@ -57,8 +57,12 @@
 | `CHANNEL_LEFT` | `TableHub.leaveChannel` 성공, `disconnect` 정리 | `byDisconnect` | 1 | 구현 |
 | `CHAT_SENT` | `TableHub.sendChat` 성공 | `length`(코드포인트), `recipients` | 1 | 구현 |
 | `EMOTE_SENT` | `TableHub.sendEmote` 성공 | `emoteCode` | 1 | 구현 |
-| `FACILITY_USED` | `TableHub` `WORLD_FACILITY_USE`로 실제 점유가 생긴 뒤. 탈것은 `WORLD_MOBILITY_START`의 첫 1초 요금이 커밋돼 실제로 탄 뒤. 열기구는 탑승권이 실제로 쓰여 이륙한 탑승자마다(혼자는 첫 비행 갱신, 여럿은 출발) | `leaseId`, `facilityId`(탈것은 대여소 `mobility-*`), `kind`(`BENCH`/`FITNESS`/`TELESCOPE`, 탈것은 `BICYCLE`/`SCOOTER`, 열기구는 `BALLOON`), `seatIndex`(0부터, 탈것·열기구는 없음), 열기구만 `role`(`PILOT`/`PASSENGER`)·`riders`(이륙 때 함께 탄 인원)·`mode`(`single`·`party`·`solo`·`split`). 열기구 `leaseId`는 탑승권 | 1 | 구현 |
-| `FACILITY_RELEASED` | 직접 하차(`WORLD_FACILITY_RELEASE`) 성공, 채널 퇴장, 연결 종료로 점유가 풀린 뒤. 탈것은 실제로 탄 탈것이 끝난 뒤. 열기구는 이륙한 사람이 내린 뒤(조종사가 끝내면 남은 동승자도) | 위 값 + `endReason`(`RELEASED`/`CHANNEL_LEFT`/`DISCONNECTED`, 탈것은 `AUTO_ENDED`(물·점프맵 등 탈 수 없는 상태)·`INSUFFICIENT`(잔액 부족)·`FAILED`(결제 실패)도), `durationMs`(탈것은 요금을 낸 초 × 1000, 열기구는 이륙부터), `fee`(탈것은 대여료 합계, 열기구는 탑승료). 열기구 `endReason`: `ENDED`·`PILOT_ENDED`·`EXPIRED`·`DISCONNECTED`·`CHANNEL_LEFT` | 1 | 구현 |
+| `FACILITY_USED` | `TableHub` `WORLD_FACILITY_USE`로 실제 점유가 생긴 뒤. 탈것은 `WORLD_MOBILITY_START`의 첫 구간 요금이 커밋돼 실제로 탄 뒤. 열기구는 탑승권이 실제로 쓰여 이륙한 탑승자마다(혼자는 첫 비행 갱신, 여럿은 출발) | `leaseId`, `facilityId`(탈것은 대여소 `mobility-*`), `kind`(`BENCH`/`FITNESS`/`TELESCOPE`, 탈것은 `BICYCLE`/`SCOOTER`, 열기구는 `BALLOON`), `seatIndex`(0부터, 탈것·열기구는 없음), 열기구만 `role`(`PILOT`/`PASSENGER`)·`riders`(이륙 때 함께 탄 인원)·`mode`(`single`·`party`·`solo`·`split`). 열기구 `leaseId`는 탑승권 | 1 | 구현 |
+| `FACILITY_RELEASED` | 직접 하차(`WORLD_FACILITY_RELEASE`) 성공, 채널 퇴장, 연결 종료로 점유가 풀린 뒤. 탈것은 실제로 탄 탈것이 끝난 뒤. 열기구는 이륙한 사람이 내린 뒤(조종사가 끝내면 남은 동승자도) | 위 값 + `endReason`(`RELEASED`/`CHANNEL_LEFT`/`DISCONNECTED`, 탈것은 `AUTO_ENDED`(물·점프맵 등 탈 수 없는 상태)·`INSUFFICIENT`(잔액 부족)·`FAILED`(결제 실패)도), `durationMs`(탈것은 결제된 구간 수 × 구간 초 × 1000, 열기구는 이륙부터), `fee`(탈것은 대여료 합계, 열기구는 탑승료). 열기구 `endReason`: `ENDED`·`PILOT_ENDED`·`EXPIRED`·`DISCONNECTED`·`CHANNEL_LEFT` | 1 | 구현 |
+
+탈것의 `durationMs`는 실제 탑승 시작·종료 시각의 차이가 아니라 **결제가 확정된 구간의 합계**다. 자전거는 20초/1냥, 킥보드는 10초/1냥이므로 첫 구간을 결제한 뒤 바로 하차해도 각각 20,000ms·10,000ms를 기록한다. 내부 `billingCount`는 결제가 확정된 구간 수이며 기존 지갑 결제 순번과 영수증 키에 같은 값을 사용한다.
+
+`analytics/queries/16_facility_usage.sql`도 탈것 시간을 요금을 낸 시간으로 명시하고 이 필드를 평균 낸다. 따라서 탈것의 `avg_minutes`는 과금 구간 시간의 평균이며, 실제 체류 시간으로 해석하지 않는다. 실제 체류 시간 지표가 필요하면 별도 필드와 소비자 계약을 먼저 정하고 기존 `durationMs`의 의미를 바꾸지 않는다. 이 문서는 저장소에 포함된 소비자 기준이며 외부 대시보드의 해석을 확인한 기록은 아니다.
 
 시설 이용(S15P31B105-206)은 시설 담당과 협의해 다음을 지킨다.
 - 같은 요청 재전송은 점유 버전이 바뀌지 않으므로 새 이용으로 기록하지 않는다.

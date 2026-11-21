@@ -1,4 +1,3 @@
-import { WinterScene } from '../../src/features/winter/WinterScene'
 import { BALLOON_RIDE_ENABLED, RENEWAL_DISTANCE_LOD } from '../../src/park/mapSelection'
 import { BalloonWayfindingLights } from '../../src/features/balloon/BalloonWayfinding'
 import { EntranceBuilding } from '../EntrancePavilion'
@@ -34,6 +33,7 @@ import { useJumpmap } from '../../src/features/jumpmap/state'
 import { site } from '../plan'
 
 const HorrorZone = lazy(() => import('../HorrorZone').then(module => ({ default: module.HorrorZone })))
+const WinterScene = lazy(() => import('../../src/features/winter/WinterScene').then(module => ({ default: module.WinterScene })))
 const AnnexDetails = lazy(() => import('../InteriorDetails').then(module => ({ default: module.AnnexDetails })))
 const TableBoards = lazy(() => import('../../src/features/tables/TableBoards'))
 const StoneRumbleEntranceStele = lazy(() => import('../../src/game/stone-rumble/StoneRumbleEntranceStele'))
@@ -250,7 +250,8 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady, gr
       <LakeStreaming progress={lakeProgress} />
       <StableCityBackdrop distanceLod={RENEWAL_DISTANCE_LOD} />
       <StableScenicGround />
-      {entryPresented && <WinterScene low={quality === 'low'} />}
+      {entryPresented && <Suspense fallback={null}><WinterScene low={quality === 'low'}
+        groundReady={stage >= 1} decorationsReady={stage >= 2} sleighReady={stage >= 3} /></Suspense>}
       <Suspense fallback={null}>
         <StableParkBoundary />
         <OriginalPlaza />
@@ -259,7 +260,8 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady, gr
         {/* Include the facilities flanking the spawn in the entrance shader pass. */}
         <StableEntranceBuilding id="fortune" />
         <StableRentalPairs area="gate" />
-        <StableEntranceLandscape quality={quality} showFitnessStations={entryPresented && stage >= 1} />
+        <StableEntranceLandscape quality={quality} showFitnessStations={entryPresented && stage >= 1}
+          detailsReady={entryPresented && stage >= 1} />
         <GroundMounted ready={groundMounted} />
       </Suspense>
       {entryPresented && stage >= 1 && (
