@@ -50,6 +50,10 @@ class SpotDifferenceDuelService {
     }
 
     synchronized DuelView create(long userId, Difficulty difficulty) {
+        return create(userId, difficulty, null);
+    }
+
+    synchronized DuelView create(long userId, Difficulty difficulty, String title) {
         if (difficulty == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "난이도를 다시 선택해 주세요.");
         }
@@ -61,10 +65,26 @@ class SpotDifferenceDuelService {
                 return observe(previous, userId, now);
             }
         }
-        var duel = new Duel(difficulty, games.selectScenes(difficulty), now);
+        String roomTitle = title == null || title.isBlank() ? "함께 틀린 그림 찾아요" : title.strip();
+        if (roomTitle.length() > 40 || roomTitle.codePoints().anyMatch(Character::isISOControl)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "방 이름은 40자 이내로 입력해 주세요.");
+        }
+        var duel = new Duel(difficulty, games.selectScenes(difficulty), now, roomTitle);
         addPlayer(duel, userId, now);
         duels.put(duel.id, duel);
         return view(duel, userId, now, null);
+    }
+
+    synchronized List<Room> rooms() {
+        var now = clock.instant();
+        return duels.values().stream().filter(duel -> isOpen(duel, now))
+                .sorted((left, right) -> right.expires.compareTo(left.expires)).limit(50)
+                .map(duel -> new Room(duel.id, duel.title, duel.difficulty, duel.players.size(), 2)).toList();
+    }
+
+    private static boolean isOpen(Duel duel, Instant now) {
+        return duel.end == null && duel.players.size() == 1 && now.isBefore(duel.expires)
+                && now.isBefore(duel.players.values().iterator().next().lastSeen.plus(DISCONNECT_TIME));
     }
 
     synchronized DuelView join(long userId, UUID code) {
@@ -74,7 +94,7 @@ class SpotDifferenceDuelService {
         if (duel.players.containsKey(userId)) {
             return observe(duel, userId, now);
         }
-        if (duel.end != null || duel.players.size() == 2) {
+        if (!isOpen(duel, now)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 시작했거나 종료된 방이에요.");
         }
         var previous = active.get(userId);
@@ -278,6 +298,7 @@ class SpotDifferenceDuelService {
 
     record DuelAction(Command type, int round, Integer x, Integer y, UUID actionId) { }
     record Current(DuelView match) { }
+    record Room(UUID id, String title, Difficulty difficulty, int players, int capacity) { }
     record DuelView(View board, Score duel) { }
     record Score(boolean joined, boolean ready, Long startInMs, int opponentTotal, List<Difference> opponentMatches,
                  Outcome outcome, End end) { }
@@ -285,6 +306,7 @@ class SpotDifferenceDuelService {
     private static final class Duel {
         final UUID id = UUID.randomUUID();
         final Difficulty difficulty;
+        final String title;
         final List<Puzzle> scenes;
         final Instant expires;
         final Map<Long, Player> players = new LinkedHashMap<>();
@@ -297,8 +319,9 @@ class SpotDifferenceDuelService {
         End end;
         Long winner;
 
-        Duel(Difficulty difficulty, List<Puzzle> scenes, Instant now) {
+        Duel(Difficulty difficulty, List<Puzzle> scenes, Instant now, String title) {
             this.difficulty = difficulty;
+            this.title = title;
             this.scenes = scenes;
             this.expires = now.plus(SpotDifferenceService.RUN_LIFETIME);
         }

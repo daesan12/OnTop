@@ -493,7 +493,7 @@ export class ParkRuntime implements ParkRuntimePort {
     const jumpRopeRequest = (method === 'GET' && path === '/api/v1/minigames/jump-rope/rankings')
       || (method === 'POST' && /^\/api\/v1\/minigames\/jump-rope\/rounds(?:\/[1-9]\d{0,18}\/complete)?$/.test(path))
     const spotDifferenceRequest = (method === 'GET'
-      && /^\/api\/v1\/minigames\/spot-difference\/(?:status|duels\/current)$/.test(path))
+      && /^\/api\/v1\/minigames\/spot-difference\/(?:status|duels(?:\/current)?)$/.test(path))
       || (method === 'POST' && (
         /^\/api\/v1\/minigames\/spot-difference\/runs(?:\/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\/actions)?$/.test(path)
         || /^\/api\/v1\/minigames\/spot-difference\/duels(?:\/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\/(?:actions|join))?$/.test(path)))
