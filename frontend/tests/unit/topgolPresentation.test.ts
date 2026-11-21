@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { BangCard } from '../../src/game/bang/BangCard'
 import { PlayerInfo } from '../../src/game/bang/PlayerInfo'
+import { PlayerSummary } from '../../src/game/bang/PlayerSummary'
 import { CARD_NAME, CARD_RULE, GAME_NAME, cardCategory } from '../../src/game/bang/presentation'
 import { CARD_KINDS, type BangPlayer, type BangCard as Card } from '../../src/game/bang/protocol'
 
@@ -42,5 +43,13 @@ describe('탑골 총잡이 정보와 한국어 카드 안내', () => {
     expect(html).toContain('aria-disabled="true"')
     expect(html).not.toContain('disabled=""')
     expect(html.replace(/<[^>]*>/g, '')).not.toMatch(/BEER|DUEL|BANG|뱅/)
+  })
+  it('요약 화면에도 비공개 상대 역할을 노출하지 않는다', () => {
+    const html = renderToStaticMarkup(createElement(PlayerSummary, { player, name: '상대', ownRole: 'RENEGADE', turn: false, pinged: false, onDetails: () => {} }))
+    expect(html).toContain('비공개')
+    expect(html).not.toContain('배신자')
+    expect(html).toContain('생명력 2 / 4')
+    expect(html).toContain('기본 권총')
+    expect(html).not.toContain('손패가 비면')
   })
 })

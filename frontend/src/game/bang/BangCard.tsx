@@ -14,7 +14,7 @@ export function BangCard({ card, selected = false, disabled = false, onSelect, c
   const content = <><strong>{CARD_NAME[card.kind]}</strong><span className="bang-card-illustration" aria-hidden="true" style={artStyle(ART_INDEX[card.kind])} />
     <span className="bang-card-rank" data-red={card.suit === 'HEARTS' || card.suit === 'DIAMONDS'}>{cardRank(card)}</span>
     <span className="bang-card-category">{cardCategory(card.kind)} 카드</span>
-    {!compact && <small>{CARD_DESCRIPTION[card.kind]}</small>}</>
+    </>
   return <CardHelp card={card} focusable={!onSelect} onInspect={onInspect}>{onSelect
     ? <button type="button" className="bang-card" data-compact={compact} data-kind={card.kind} aria-label={description} aria-pressed={selected}
       aria-disabled={disabled} onClick={() => { onInspect?.(card); if (!disabled) onSelect() }}>{content}</button>

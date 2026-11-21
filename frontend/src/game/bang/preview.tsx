@@ -26,7 +26,22 @@ function Preview() {
     actions: [{ kind: 'end_turn' }, ...cards.filter(card => !['MISSED'].includes(card.kind)).map(card => card.kind === 'BANG' || card.kind === 'DUEL'
       ? { kind: 'play', cardId: card.id, targetUserId: '2' } : { kind: 'play', cardId: card.id })],
     distances: Object.fromEntries(state.players.map((p, i) => [p.userId, Math.min(i, count - i)])) }
-  return <BangView state={state} hand={hand} ownId="1" scope="preview" now={now} names={Object.fromEntries(state.players.map((p, i) => [p.userId, i ? `총잡이 ${i + 1}` : '나']))}
+  const scenario = new URLSearchParams(location.search).get('scenario')
+  if (scenario === 'response') {
+    state.phase = 'RESPONSE'; state.response = { kind: 'BANG', sourceUserId: '2', targetUserId: '1', remaining: 1 }
+    hand.actions = [{ kind: 'respond', cardId: cards.find(card => card.kind === 'MISSED')!.id }, { kind: 'barrel' }, { kind: 'take_hit' }]
+  } else if (scenario === 'draw') {
+    state.phase = 'DRAW'
+    hand.actions = [{ kind: 'draw' }, { kind: 'draw', fromDiscard: true }, ...state.players.slice(1).map(player => ({ kind: 'draw', targetUserId: player.userId }))]
+  } else if (scenario === 'store') {
+    state.phase = 'STORE'; state.store = cards.slice(0, count)
+    hand.actions = state.store.map(card => ({ kind: 'choose', cardId: card.id }))
+  } else if (scenario === 'sid') {
+    state.players[0]!.character = 'SID_KETCHUM'; hand.actions.push({ kind: 'sid_heal' })
+  } else if (scenario === 'waiting') {
+    state.actorUserId = '2'; state.turnUserId = '2'; hand.actions = []
+  }
+  return <BangView state={state} hand={scenario === 'spectator' ? null : hand} ownId={scenario === 'spectator' ? '808' : '1'} scope="preview" now={now} names={Object.fromEntries(state.players.map((p, i) => [p.userId, i ? `총잡이 ${i + 1}` : '나']))}
     busy={false} connected error={notice} onAction={() => setNotice('선택 동작을 확인했어요. 이 화면은 서버에 행동을 보내지 않습니다.')}
     menu={<button onClick={() => location.assign('/topgol-park.html?account=101')}>실제 로컬 공원 검수</button>} />
 }

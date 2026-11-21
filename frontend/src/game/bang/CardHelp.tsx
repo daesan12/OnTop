@@ -45,6 +45,6 @@ export function CardHelp({ card, children, focusable = false, onInspect }: {
       style={{ left: position.left, top: position.top, transform: position.above ? 'translateY(-100%)' : undefined }}>
       <span>{cardCategory(card.kind)} 카드 · {cardRank(card)}</span><strong>{CARD_NAME[card.kind]}</strong>
       <p>{CARD_DESCRIPTION[card.kind]}</p><p>{CARD_RULE[card.kind]}</p><small>마우스를 옮기거나 Esc를 누르면 닫혀요</small>
-    </aside>, document.body)}
+    </aside>, anchor.current?.closest('dialog') ?? document.body)}
   </span>
 }

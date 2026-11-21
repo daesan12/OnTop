@@ -5,7 +5,7 @@ import { CHARACTER, CARD_NAME, ROLE_GOAL, ROLE_NAME, WEAPON_RANGE } from './pres
 import { artStyle, ART_INDEX } from './BangCard'
 import { CardHelp } from './CardHelp'
 
-function Portrait({ character }: { character: BangCharacter }) {
+export function Portrait({ character }: { character: BangCharacter }) {
   const index = CHARACTERS.indexOf(character)
   return <span className="bang-portrait" aria-hidden="true" style={{ backgroundImage: 'url(/art/bang/portraits-v1.webp)',
     backgroundSize: '400% 400%', backgroundPosition: `${index % 4 / 3 * 100}% ${Math.floor(index / 4) / 3 * 100}%` } as CSSProperties} />
