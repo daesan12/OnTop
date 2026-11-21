@@ -27,6 +27,7 @@ final class VerifiedGameFinish {
                     "DISCONNECT_TIMEOUT", "LOGOUT", "MEMBER_DEACTIVATED", "SIMULATION_INVALID", "SIMULATION_LIMIT"),
             // CARD_COUNT·NO_CARDS_TO_FLIP은 카드 수 공동 1위를 모두 승자로 둔다. 기권 종료도 LAST_PLAYER_STANDING이다.
             "HALLI_GALLI", Set.of("CARD_COUNT", "LAST_PLAYER_STANDING", "NO_CARDS_TO_FLIP"),
+            "DAVINCI_CODE", Set.of("LAST_PLAYER_STANDING"),
             "STONE_RUMBLE", Set.of("LAST_PLAYER_STANDING", "ALL_FALLEN", "SIMULATION_LIMIT", "LOADING_TIMEOUT"));
 
     private VerifiedGameFinish() { }
