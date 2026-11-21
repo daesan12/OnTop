@@ -1,7 +1,8 @@
-import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { CanvasTexture, Group, MathUtils, PerspectiveCamera, RepeatWrapping, SRGBColorSpace } from 'three'
+import { memo, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Canvas, useFrame, useLoader, useThree } from '@react-three/fiber'
+import { CanvasTexture, Group, MathUtils, PerspectiveCamera, RepeatWrapping, SRGBColorSpace, TextureLoader } from 'three'
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
+import ontopLogo from '../../assets/entry/ontop-logo.webp'
 import type { CodeTile, DavinciHand, DavinciState, TileColor } from './protocol'
 
 const TILE = new RoundedBoxGeometry(.57, .87, .24, 3, .06)
@@ -35,9 +36,6 @@ function faceTexture(color: TileColor, value: number | null, back: boolean) {
     c.fillStyle = color === 'BLACK' ? '#fff7e2' : '#18281e'
     c.textAlign = 'center'; c.textBaseline = 'middle'
     if (value === -1) {
-      c.save(); c.translate(128, 135)
-      for (let petal = 0; petal < 5; petal++) { c.save(); c.rotate(petal * Math.PI * 2 / 5); c.fillStyle = color === 'BLACK' ? '#d3b570' : '#a55e4c'; c.beginPath(); c.ellipse(0, -21, 12, 20, 0, 0, Math.PI * 2); c.fill(); c.restore() }
-      c.fillStyle = color === 'BLACK' ? '#a46c4f' : '#d4ae65'; c.beginPath(); c.arc(0, 0, 8, 0, Math.PI * 2); c.fill(); c.restore()
       c.fillStyle = color === 'BLACK' ? '#fff7e2' : '#18281e'; c.font = '500 148px Georgia, serif'; c.fillText('−', 128, 224)
       c.font = '600 25px "Malgun Gothic", sans-serif'; c.fillText('조커', 128, 291)
     } else { c.font = `500 ${value >= 10 ? 176 : 218}px Georgia, serif`; c.fillText(String(value), 128, 194) }
@@ -73,6 +71,16 @@ function surfaceTexture(kind: 'wood' | 'felt' | 'stone') {
   return texture
 }
 
+/** 원본 로고의 비율·투명도를 유지하며 본인 또는 공개된 조커 앞면에만 붙인다. */
+function JokerLogo() {
+  const map = useLoader(TextureLoader, ontopLogo)
+  useLayoutEffect(() => { map.colorSpace = SRGBColorSpace; map.needsUpdate = true }, [map])
+  return <mesh name="secret-joker-logo" position={[0, .56, .126]}>
+    <planeGeometry args={[.4, .4 * map.image.height / map.image.width]} />
+    <meshStandardMaterial map={map} transparent depthWrite={false} roughness={.82} />
+  </mesh>
+}
+
 export const Tile = memo(function Tile({ tile, hidden, faceUp, selected, scale = 1, onClick, clickable, flat = false }: {
   tile: CodeTile; hidden: boolean; faceUp: boolean; selected: boolean; scale?: number; onClick(): void; clickable: boolean; flat?: boolean
 }) {
@@ -97,6 +105,7 @@ export const Tile = memo(function Tile({ tile, hidden, faceUp, selected, scale =
           emissive={selected || hovered && clickable ? '#aa742b' : '#000000'} emissiveIntensity={selected ? .4 : hovered && clickable ? .22 : 0} />
       </mesh>
       <mesh position={[0, .445, .123]}><planeGeometry args={[.51, .78]} /><meshStandardMaterial map={textures.front} roughness={.82} /></mesh>
+      {!hidden && tile.value === -1 && <Suspense fallback={null}><JokerLogo /></Suspense>}
       <mesh position={[0, .445, -.123]} rotation={[0, Math.PI, 0]}><planeGeometry args={[.51, .78]} /><meshStandardMaterial map={textures.back} roughness={.82} /></mesh>
       {[.045, .845].map(y => <mesh key={y} geometry={railGeometry} dispose={null} position={[0, y, 0]} scale={[.59, .055, .26]} castShadow>
         <meshStandardMaterial color="#85603e" roughness={.72} />
