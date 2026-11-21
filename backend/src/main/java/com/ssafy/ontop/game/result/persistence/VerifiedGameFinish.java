@@ -16,6 +16,9 @@ import java.util.Set;
 /** 서버 엔진 이벤트만 수신한다. JSON/공개 정산 요청 DTO가 아니다. */
 final class VerifiedGameFinish {
     private static final Map<String, Set<String>> REASONS = Map.of(
+            "CHESS", Set.of("CHECKMATE", "STALEMATE", "INSUFFICIENT_MATERIAL", "THREEFOLD_REPETITION",
+                    "FIVEFOLD_REPETITION", "FIFTY_MOVES", "SEVENTY_FIVE_MOVES", "TIMEOUT", "TIMEOUT_DRAW",
+                    "AGREED_DRAW", "RECONNECT_EXPIRED", "LOGOUT", "MEMBER_DEACTIVATED", "EXPLICIT_LEAVE"),
             "OMOK", Set.of("FIVE_IN_ROW", "BOARD_FULL", "AGREED_DRAW", "TURN_TIMEOUT", "RECONNECT_EXPIRED", "LOGOUT", "MEMBER_DEACTIVATED", "EXPLICIT_LEAVE"),
             "DICE", Set.of("TARGET_REACHED", "LAST_PLAYER_STANDING", "RECONNECT_EXPIRED", "LOGOUT",
                     "MEMBER_DEACTIVATED", "EXPLICIT_LEAVE"),
@@ -41,6 +44,7 @@ final class VerifiedGameFinish {
                 || event.participants().size() < 2
                 || event.participants().size() > ("STONE_RUMBLE".equals(event.gameCode()) ? 8 : 4)
                 || "ALKKAGI".equals(event.gameCode()) && event.participants().size() != 2
+                || "CHESS".equals(event.gameCode()) && event.participants().size() != 2
                 || event.participants().stream().map(GameFinished.Participant::userId).distinct().count() != event.participants().size()) {
             throw new IllegalArgumentException("경기 종료 이벤트를 확인하세요.");
         }
@@ -78,12 +82,15 @@ final class VerifiedGameFinish {
             if (event.participants().stream().anyMatch(p -> p.result() != expected)) {
                 throw new IllegalArgumentException("무효 경기 판정을 확인하세요.");
             }
-        } else if (Set.of("BOARD_FULL", "AGREED_DRAW").contains(event.endReason()) || "ALKKAGI".equals(event.gameCode()) && winners == 0
+        } else if (Set.of("BOARD_FULL", "AGREED_DRAW").contains(event.endReason())
+                || "CHESS".equals(event.gameCode()) && Set.of("STALEMATE", "INSUFFICIENT_MATERIAL",
+                        "THREEFOLD_REPETITION", "FIVEFOLD_REPETITION", "FIFTY_MOVES", "SEVENTY_FIVE_MOVES",
+                        "TIMEOUT_DRAW").contains(event.endReason()) || "ALKKAGI".equals(event.gameCode()) && winners == 0
                 && Set.of("PIECES_OUT", "MATCH_TIME_LIMIT").contains(event.endReason())) {
             if (event.participants().stream().anyMatch(p -> p.result() != GameFinished.Result.DRAW)) {
                 throw new IllegalArgumentException("무승부 판정을 확인하세요.");
             }
-        } else if (winners == 0 || "ALKKAGI".equals(event.gameCode()) && winners != 1
+        } else if (winners == 0 || Set.of("ALKKAGI", "CHESS").contains(event.gameCode()) && winners != 1
                 || event.participants().stream().anyMatch(p -> p.result() == GameFinished.Result.DRAW)
                 || Set.of("FIVE_IN_ROW", "TURN_TIMEOUT", "RECONNECT_EXPIRED", "LOGOUT", "MEMBER_DEACTIVATED",
                         "EXPLICIT_LEAVE", "TARGET_REACHED", "EMPTY_HAND", "PLAYER_LEFT", "LAST_PLAYER_STANDING")

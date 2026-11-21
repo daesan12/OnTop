@@ -3,6 +3,7 @@ package com.ssafy.ontop.game.start;
 import com.ssafy.ontop.game.alkkagi.service.AlkkagiEngine;
 import com.ssafy.ontop.config.RuntimeProfiles;
 import com.ssafy.ontop.game.bridge.service.BridgeEngine;
+import com.ssafy.ontop.game.chess.service.ChessEngine;
 import com.ssafy.ontop.game.farkle.service.FarkleEngine;
 import com.ssafy.ontop.game.halligalli.service.HalliGalliEngine;
 import com.ssafy.ontop.game.ledger.service.DiceLedgerEngine;
@@ -37,6 +38,7 @@ public class CommittedGameStartService {
     private final Optional<GameActivationPersistenceService> activations;
     private final AlkkagiEngine alkkagi;
     private StoneRumbleEngine stoneRumble;
+    private ChessEngine chess;
     private ServiceOperationService operations = ServiceOperationService.alwaysOpen();
 
     public CommittedGameStartService(GameStartGateway gateway, Optional<OmokEngine> omok,
@@ -107,6 +109,11 @@ public class CommittedGameStartService {
         this.stoneRumble = engine;
     }
 
+    @Autowired(required = false)
+    public void configureChess(ChessEngine engine) {
+        this.chess = engine;
+    }
+
     public GameStartResult start(GameStartCommand command) {
         ServiceOperationState operation;
         try {
@@ -135,6 +142,7 @@ public class CommittedGameStartService {
             return switch (command.gameCode()) {
                 case "ALKKAGI" -> alkkagi != null && players.size() == 2;
                 case "OMOK" -> omok.isPresent() && players.size() == 2;
+                case "CHESS" -> chess != null && players.size() == 2;
                 case "ONE_CARD" -> onecard.isPresent();
                 case "LIAR_BRIDGE" -> bridge.isPresent();
                 case "DICE" -> dice.isPresent() && players.size() >= 2 && players.size() <= 4
@@ -157,6 +165,7 @@ public class CommittedGameStartService {
             List<Long> players = players(command);
             // 엔진 create의 tick/종료 콜백은 별도 DB 트랜잭션을 사용할 수 있어 경기 행 잠금을 보유하지 않는다.
             switch (command.gameCode()) {
+                case "CHESS" -> chess.create(result.gameSessionId(), command.tableId(), players);
                 case "STONE_RUMBLE" -> stoneRumble.create(result.gameSessionId(), command.tableId(), players);
                 case "ALKKAGI" -> alkkagi.startCommitted(command, result);
                 case "OMOK" -> omok.orElseThrow().createWithCoinToss(result.gameSessionId(), command.tableId(),

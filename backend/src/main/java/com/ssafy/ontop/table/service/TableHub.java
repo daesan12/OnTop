@@ -4159,7 +4159,8 @@ public class TableHub {
 
     @EventListener
     public synchronized void gameDefeatConfirmed(GameDefeatConfirmed event) {
-        if (stopped) { return; }
+        // 체스는 별도 화면만 사용한다. 공원 잔해/탁자 뒤집기 계약으로 자동 확장하지 않는다.
+        if (stopped || "CHESS".equals(event.gameCode())) { return; }
         String channelId = tableChannels.get(event.tableId());
         TableStartAttempt attempt = starts.get(event.tableId());
         if (channelId == null || attempt == null
@@ -4607,8 +4608,8 @@ public class TableHub {
         if (push == null || ping && reconnect.get().canControlGame(member.accountId(), sessionId, gameId)) {
             fail(request, "GAME_SPECTATOR_ACCESS_DENIED", "관전이 승인된 경기에서만 보낼 수 있습니다.");
         }
-        if (ping && !(ledgerPing ? "DICE_LEDGER" : "OMOK").equals(push.gameCode)
-                || !Set.of("OMOK", "DICE", "ONE_CARD", "LIAR_BRIDGE", "DICE_LEDGER", "ALKKAGI",
+        if (ping && !(ledgerPing ? Set.of("DICE_LEDGER") : Set.of("OMOK", "CHESS")).contains(push.gameCode)
+                || !Set.of("CHESS", "OMOK", "DICE", "ONE_CARD", "LIAR_BRIDGE", "DICE_LEDGER", "ALKKAGI",
                         "HALLI_GALLI", "STONE_RUMBLE").contains(push.gameCode)) {
             fail(request, "GAME_SPECTATOR_UNSUPPORTED_GAME", "지원하는 경기 채팅 또는 오목·주사위 장부 추천을 이용해주세요.");
         }
@@ -4621,6 +4622,9 @@ public class TableHub {
         long basedOnVersion = ping ? payload.get("basedOnVersion").longValue() : 0;
         int x = ping && !ledgerPing ? payload.get("x").intValue() : 0;
         int y = ping && !ledgerPing ? payload.get("y").intValue() : 0;
+        if (ping && "CHESS".equals(push.gameCode) && (x < 0 || x > 7 || y < 0 || y > 7)) {
+            fail(request, "GAME_SPECTATOR_INVALID_TARGET", "체스판 안의 칸을 선택해주세요.");
+        }
         String category = ledgerPing && payload.has("category") ? payload.get("category").textValue() : null;
         Integer dieId = ledgerPing && payload.has("dieId") ? payload.get("dieId").intValue() : null;
         String content = ledgerPing ? basedOnVersion + ":" + (category != null ? category : "die" + dieId)
