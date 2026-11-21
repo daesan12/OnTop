@@ -1,8 +1,9 @@
-import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
-import type { BangAction, BangHand, BangState } from './protocol'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import type { BangAction, BangCard as Card, BangHand, BangState } from './protocol'
 import { BangScene } from './BangScene'
-import { BangCard, artStyle } from './BangCard'
-import { actionLabel, CARD_NAME, CHARACTER, END_REASON, PHASE_LABEL, ROLE_GOAL, ROLE_NAME } from './presentation'
+import { BangCard } from './BangCard'
+import { PlayerInfo } from './PlayerInfo'
+import { actionLabel, CARD_NAME, CARD_DESCRIPTION, CARD_RULE, END_REASON, GAME_NAME, PHASE_LABEL, ROLE_NAME, cardCategory } from './presentation'
 import './bang.css'
 
 export interface BangViewProps {
@@ -14,7 +15,9 @@ export interface BangViewProps {
 export function BangView({ state, hand, ownId, scope, now, busy, connected, error, names, onAction, menu, settlement, chat, onPing, pingedUserIds = [] }: BangViewProps) {
   const [selection, setSelection] = useState<string[]>([]), [target, setTarget] = useState(''), [actionIndex, setActionIndex] = useState(0)
   const [showLog, setShowLog] = useState(false)
-  useEffect(() => { setSelection([]); setTarget(''); setActionIndex(0) }, [scope])
+  const [inspected, setInspected] = useState<Card | null>(null)
+  const handSection = useRef<HTMLElement>(null)
+  useEffect(() => { setSelection([]); setTarget(''); setActionIndex(0); setInspected(null) }, [scope])
   const name = (id: string) => names[id] ?? '참가자'
   const me = state.players.find(player => player.userId === ownId)
   const playing = state.status === 'PLAYING'
@@ -45,42 +48,50 @@ export function BangView({ state, hand, ownId, scope, now, busy, connected, erro
     })
     setTarget(''); setActionIndex(0)
   }
-  return <section className="bang-panel" aria-label="뱅! 게임" data-status={state.status} data-phase={state.phase}>
+  const detail = inspected ?? shown.find(card => selection.includes(card.id))
+  return <section className="bang-panel" aria-label={`${GAME_NAME} 게임`} data-status={state.status} data-phase={state.phase}
+    onKeyDown={event => { if (event.key === 'Escape' && showLog) setShowLog(false) }}>
     <BangScene state={state} ownId={ownId} />
-    <header className="bang-header"><h1>뱅!</h1><div><strong>{playing ? `${activeName}의 ${state.phase === 'RESPONSE' || state.phase === 'RESCUE' ? '응답' : '차례'}` : '경기 결과'}</strong>
-      <span>{playing ? `남은 시간 ${remaining}초` : END_REASON[state.endReason ?? '']}</span></div><nav aria-label="뱅 게임 메뉴">{menu}<button onClick={() => setShowLog(value => !value)} aria-expanded={showLog}>기록·채팅</button></nav></header>
-    <div className="bang-opponents" data-count={sortedOthers.length}>
-      {sortedOthers.map((player, index) => <article key={player.userId} className="bang-opponent" data-active={player.active} data-turn={state.actorUserId === player.userId}
-        data-ping={pingedUserIds.includes(player.userId)} style={{ '--seat': index } as CSSProperties}>
-        <div className="bang-person"><span className="bang-role-seal" style={artStyle(player.role === 'SHERIFF' ? 22 : 23)} aria-hidden="true" />
-          <div><strong title={name(player.userId)}>{name(player.userId)}</strong><span>{player.role ? ROLE_NAME[player.role] : '정체 비공개'}{!player.active && ' · 탈락'}</span></div>
-          {onPing && <button className="bang-ping-button" onClick={() => onPing(player.userId)} aria-label={`${name(player.userId)} 위치 표시`}>◎</button>}</div>
-        <p className="bang-life" aria-label={`생명력 ${player.hp} / ${player.maxHp}`}><span aria-hidden="true">{Array.from({ length: player.maxHp }, (_, i) => <i key={i} data-empty={i >= player.hp} />)}</span><b>{Math.max(0, player.hp)}/{player.maxHp}</b><small>손패 {player.cardCount}장</small></p>
-        <p className="bang-character" title={CHARACTER[player.character][1]}>{CHARACTER[player.character][0]} · 사거리 {player.range}{hand && player.active ? ` · 거리 ${hand.distances[player.userId]}` : ''}</p>
-        <div className="bang-equipment">{player.equipment.map(card => <span key={card.id} title={CARD_NAME[card.kind]}>{CARD_NAME[card.kind]}</span>)}</div>
-      </article>)}
+    <header className="bang-header"><h1>{GAME_NAME}</h1><div><strong>{playing ? `${activeName}의 ${state.phase === 'RESPONSE' || state.phase === 'RESCUE' ? '응답' : '차례'}` : '경기 결과'}</strong>
+      <span>{playing ? `${remaining}초` : END_REASON[state.endReason ?? '']}</span><small>{state.turnNumber}번째 턴 · 생존 {state.players.filter(player => player.active).length}명</small></div>
+      <nav aria-label="게임 메뉴">{menu}<button className="bang-hand-jump" onClick={() => handSection.current?.scrollIntoView({ block: 'start' })}>내 손패</button><button onClick={() => setShowLog(value => !value)} aria-expanded={showLog}>기록·채팅</button></nav></header>
+    <div className="bang-workspace">
+      <aside className="bang-sidebar">
+        {me && hand ? <PlayerInfo player={me} name="나" own ownRole={hand.role} turn={state.actorUserId === ownId} pinged={pingedUserIds.includes(ownId)} />
+          : <section className="bang-spectator-info"><h2>관전 중</h2><p>참가자의 생명력·능력·무기를 확인할 수 있어요. 비공개 역할과 손패는 표시하지 않아요.</p></section>}
+        <aside className="bang-log" data-open={showLog}><div className="bang-log-heading"><h2>기록 · 채팅</h2><button onClick={() => setShowLog(false)}>닫기</button></div>
+          <ol>{state.history.map((line, index) => <li key={`${index}/${line}`}>{line.replace(/\b\d+\b/, id => names[id] ?? id).replace(/\b[A-Z][A-Z_]+\b/g, word => CARD_NAME[word as keyof typeof CARD_NAME] ?? ROLE_NAME[word as keyof typeof ROLE_NAME] ?? '게임 진행')}</li>)}</ol>{chat}</aside>
+      </aside>
+      <div className="bang-table-region"><div className="bang-roster-heading"><h2>참가자 정보</h2><span>상대 역할은 보안관과 탈락자만 공개돼요</span></div>
+        <div className="bang-opponents" data-count={sortedOthers.length}>
+          {sortedOthers.map(player => <PlayerInfo key={player.userId} player={player} name={name(player.userId)}
+            distance={hand?.distances[player.userId]} turn={state.actorUserId === player.userId} pinged={pingedUserIds.includes(player.userId)}
+            onPing={onPing ? () => onPing(player.userId) : undefined} />)}
+        </div>
+        <div className="bang-table-center"><div className="bang-deck-labels"><span>뽑는 더미 <b>{state.deckCount}장</b></span><span>버리는 더미 <b>{state.topDiscard ? CARD_NAME[state.topDiscard.kind] : '없음'}</b></span></div>
+          {state.lastJudgement && <aside className="bang-judgement"><span>{state.judgementReason === 'DYNAMITE' ? '다이너마이트' : state.judgementReason === 'JAIL' ? '감옥' : state.judgementReason === 'BLACK_JACK' ? '블랙 잭' : '술통'} 판정</span><BangCard card={state.lastJudgement} compact onInspect={setInspected} /></aside>}
+        </div>
+      </div>
     </div>
-    <aside className="bang-log" data-open={showLog}><h2>행동 기록</h2><ol>{state.history.map((line, index) => <li key={`${index}/${line}`}>{line.replace(/\b\d+\b/, id => names[id] ?? id).replace(/\b[A-Z][A-Z_]+\b/g, word => CARD_NAME[word as keyof typeof CARD_NAME] ?? ROLE_NAME[word as keyof typeof ROLE_NAME] ?? word)}</li>)}</ol>{chat}</aside>
-    <div className="bang-deck-labels"><span>뽑는 더미 ({state.deckCount}장)</span><span>버리는 더미{state.topDiscard ? ` · ${CARD_NAME[state.topDiscard.kind]}` : ''}</span></div>
-    {state.lastJudgement && <aside className="bang-judgement"><span>{state.judgementReason === 'DYNAMITE' ? '다이너마이트' : state.judgementReason === 'JAIL' ? '감옥' : state.judgementReason === 'BLACK_JACK' ? '블랙 잭' : '술통'} 판정</span><BangCard card={state.lastJudgement} compact /></aside>}
     <footer className="bang-bottom">
       <p className="bang-notice" role="status">{!connected ? '연결이 끊겼어요. 경기 복구를 확인해주세요.' : busy ? '서버에서 행동을 확인하고 있어요.' : !hand ? `관전 중 · ${text}` : !me?.active && playing ? '탈락했어요. 팀의 승리는 경기 종료까지 결정되지 않아요.' : text}</p>
       {error && <p className="bang-error" role="alert">{error}</p>}
-      <div className="bang-hand-actions">
+      <div className="bang-hand-actions"><section ref={handSection} className="bang-hand-section"><h2>{choiceCards.length ? PHASE_LABEL[state.phase] : `내 손패 · ${hand?.hand.length ?? 0}장`}<small>마우스를 올리거나 카드를 눌러 설명을 확인하세요</small></h2>
         <div className="bang-hand" role="group" aria-label={choiceCards.length ? '공개 또는 개인 선택 카드' : '내 손패'}>
-          {shown.map(card => <BangCard key={card.id} card={card} selected={selection.includes(card.id)} disabled={!!lock} onSelect={hand ? () => choose(card.id) : undefined} />)}
+          {shown.map(card => <BangCard key={card.id} card={card} selected={selection.includes(card.id)} disabled={!!lock} onSelect={hand ? () => choose(card.id) : undefined} onInspect={setInspected} />)}
           {!shown.length && <p>{hand ? '손패가 없어요.' : '상대 역할과 손패는 볼 수 없어요.'}</p>}
-        </div>
-        <div className="bang-actions" aria-label="뱅 게임 행동">
-          {targets.length > 0 && <label>대상<select value={target || targets[0]} disabled={!!lock} onChange={event => { setTarget(event.target.value); setActionIndex(0) }}>{targets.map(id => <option key={id} value={id}>{name(id)}</option>)}</select></label>}
+        </div></section>
+        <section className="bang-action-panel"><div className="bang-card-inspector" aria-label="카드 설명">
+          {detail ? <><h2>{CARD_NAME[detail.kind]} <small>{cardCategory(detail.kind)} 카드</small></h2><p>{CARD_DESCRIPTION[detail.kind]}</p><details><summary>자세한 사용 규칙</summary><p>{CARD_RULE[detail.kind]}</p></details></>
+            : <><h2>카드 설명</h2><p>카드에 마우스를 올리거나 선택하면 효과와 사용 규칙을 확인할 수 있어요.</p></>}
+        </div><div className="bang-actions" aria-label="게임 행동">
+          {targets.length > 0 && <label><span>대상</span><select value={target || targets[0]} disabled={!!lock} onChange={event => { setTarget(event.target.value); setActionIndex(0) }}>{targets.map(id => <option key={id} value={id}>{name(id)}</option>)}</select></label>}
           {compatible.length > 1 && <label>행동<select value={Math.min(actionIndex, compatible.length - 1)} disabled={!!lock} onChange={event => setActionIndex(Number(event.target.value))}>{compatible.map((action, i) => <option key={i} value={i}>{actionLabel(action, name)}{action.targetCardId ? ` · ${CARD_NAME[state.players.flatMap(player => player.equipment).find(card => card.id === action.targetCardId)!.kind]}` : ''}</option>)}</select></label>}
           <button className="bang-primary" disabled={!!lock || !chosen} onClick={() => chosen && onAction(chosen)}>{chosen ? actionLabel(chosen, name) : choiceCards.length ? '카드 선택' : '카드 사용'}</button>
           {global.map((action, i) => <button key={i} data-danger={action.kind === 'take_hit' || action.kind === 'give_up'} disabled={!!lock} onClick={() => onAction(action)}>{actionLabel(action, name)}</button>)}
-        </div>
+        </div></section>
       </div>
-      <div className="bang-own" data-ping={pingedUserIds.includes(ownId)}><strong>{hand ? `나 · ${ROLE_NAME[hand.role]}` : '관전 중'}</strong>{me && <span>생명력 {Math.max(0, me.hp)}/{me.maxHp} · {CHARACTER[me.character][0]} · 사거리 {me.range}</span>}
-        {pingedUserIds.includes(ownId) && <span role="status">관전자가 나를 가리켰어요</span>}
-        <small>{hand ? ROLE_GOAL[hand.role] : '공개 정보만 표시합니다.'}</small>{me && <small>{CHARACTER[me.character][1]}</small>}{settlement}</div>
+      {settlement && <div className="bang-settlement">{settlement}</div>}
     </footer>
   </section>
 }
