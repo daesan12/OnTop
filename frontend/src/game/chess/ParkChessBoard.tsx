@@ -27,7 +27,7 @@ export function ParkChessBoard({ anchor }: { anchor: TableAnchor }) {
 }
 
 function LiveBoard() {
-  const { game, c, state, ui, looking, disabled, choose } = useChessControls()
+  const { game, c, state, ui, looking, connected, disabled, choose } = useChessControls()
   const pings = useOmokEvents(s => s.pings)
   if (!game || !c) return null
   const focused = c.status === 'PLAYING' && !state.lastResult && !looking
@@ -37,7 +37,8 @@ function LiveBoard() {
       <planeGeometry args={[14, 14]} /><FocusWood />
     </mesh>
     <group position={[0, CHESS_BOARD_Y, 0]} scale={CHESS_BOARD_SCALE} name="chess-world-board">
-      <ChessBoardScene board={c.board} blackView={false} selected={ui.selected} checkedSquare={checkedKingSquare(c)}
+      <ChessBoardScene board={c.board} blackView={false} selected={ui.selected} checkedSquare={checkedKingSquare(c)} gameId={game.gameId} moves={c.moves}
+        animateMoves={connected && !looking && !state.uncertain && state.recovery === 'RESTORED' && c.status === 'PLAYING'}
         destinations={c.legalMoves.filter(move => move.from === ui.selected).map(move => move.to)} lastMove={c.moves.at(-1)}
         pings={pings.filter(p => p.gameId === game.gameId).map(p => p.y * 8 + p.x)} disabled={disabled}
         onSquare={choose} layer={focused ? OMOK_FOCUS_LAYER : 0} />

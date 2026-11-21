@@ -4,12 +4,14 @@ import { ChessPiece3D, createChessPieceGeometry, disposeChessPieceGeometry } fro
 import { createChessMaterials } from './materials'
 import { ChessMoveHints } from './ChessMoveHints'
 import { chessMoveHints } from './moveHints'
+import { CapturedChessPiece, MovingChessPiece, useChessPieceMotion } from './ChessPieceMotion'
 
 const labels: Record<string, string> = { K: '킹', Q: '퀸', R: '룩', B: '비숍', N: '나이트', P: '폰' }
 const coord = (index: number) => `${'abcdefgh'[index % 8]}${1 + Math.floor(index / 8)}`
 export type ChessBoardProps = {
   board: string; blackView: boolean; selected: string; destinations: string[]; lastMove?: string; checkedSquare?: string
   pings: number[]; disabled: boolean; onSquare?(index: number): void
+  gameId?: string; moves?: readonly string[]; animateMoves?: boolean
 }
 
 function BoardLetters() {
@@ -38,10 +40,11 @@ function BoardLetters() {
   </group>)}</>
 }
 
-export function ChessBoardScene({ board, blackView, selected, destinations, lastMove, checkedSquare, pings, disabled, onSquare, angle = 0, layer = 0 }: ChessBoardProps & { angle?: number; layer?: number }) {
+export function ChessBoardScene({ board, blackView, selected, destinations, lastMove, checkedSquare, pings, disabled, onSquare, gameId = '', moves = [], animateMoves = false, angle = 0, layer = 0 }: ChessBoardProps & { angle?: number; layer?: number }) {
   const root = useRef<Group>(null)
   useLayoutEffect(() => { root.current?.traverse(object => { object.layers.set(0); if (layer) object.layers.enable(layer) }) })
   const resources = useMemo(() => ({ geometry: createChessPieceGeometry(), materials: createChessMaterials() }), [])
+  const motion = useChessPieceMotion(board, gameId, moves, animateMoves)
   useEffect(() => () => {
     disposeChessPieceGeometry(resources.geometry); resources.materials.dispose()
   }, [resources])
@@ -54,20 +57,24 @@ export function ChessBoardScene({ board, blackView, selected, destinations, last
       const square = coord(index), chosen = selected === square, danger = checkedSquare === square && piece.toUpperCase() === 'K'
       const recent = lastMove?.slice(0, 2) === square || lastMove?.slice(2, 4) === square
       const ping = pings.includes(index), light = (index % 8 + Math.floor(index / 8)) % 2 === 1
+      const travel = motion?.travel.find(travel => travel.to === index)
+      const pieceProps = { piece, geometry: resources.geometry,
+        material: piece === piece.toUpperCase() ? danger ? resources.materials.whiteCheck : resources.materials.white : danger ? resources.materials.blackCheck : resources.materials.black,
+        detail: resources.materials.gold, eye: resources.materials.eye,
+        mane: piece === piece.toUpperCase() ? resources.materials.whiteMane : resources.materials.blackMane }
       return <group key={square} name={`square-${square}`} position={[index % 8 - 3.5, .025, 3.5 - Math.floor(index / 8)]}
         onClick={onSquare ? event => { event.stopPropagation(); if (event.button === 0 && event.delta < 8 && !disabled) onSquare(index) } : undefined}>
         <mesh receiveShadow><boxGeometry args={[.998, .05, .998]} /><meshStandardMaterial roughness={.56}
           color={danger ? '#a33e32' : chosen ? '#baa75a' : recent ? light ? '#dbc784' : '#a59852' : light ? '#ead2a8' : '#a3744c'} /></mesh>
-        {piece !== '.' && <group position={[0, .026, 0]}><ChessPiece3D piece={piece} geometry={resources.geometry}
-          material={piece === piece.toUpperCase() ? danger ? resources.materials.whiteCheck : resources.materials.white : danger ? resources.materials.blackCheck : resources.materials.black}
-          detail={resources.materials.gold} eye={resources.materials.eye}
-          mane={piece === piece.toUpperCase() ? resources.materials.whiteMane : resources.materials.blackMane} /></group>}
+        {piece !== '.' && (travel && motion ? <MovingChessPiece {...pieceProps} travel={travel} motion={motion} />
+          : <group position={[0, .026, 0]}><ChessPiece3D {...pieceProps} /></group>)}
         {(ping || chosen || danger) && <mesh position={[0, .085, 0]} rotation-x={-Math.PI / 2} raycast={() => {}}>
           <ringGeometry args={[.575, .66, 4, 1, Math.PI / 4]} />
           <meshBasicMaterial color={danger ? '#ff7161' : ping ? '#238fae' : '#f4cf6d'} />
         </mesh>}
       </group>
     })}
+    {motion?.captured && <CapturedChessPiece key={motion.startedAt} motion={motion} geometry={resources.geometry} materials={resources.materials} layer={layer} />}
   </group>
 }
 
