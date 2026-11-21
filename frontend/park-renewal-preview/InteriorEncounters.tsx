@@ -482,7 +482,8 @@ export function InteriorEncounters() {
   return <group ref={stage}>
     <pointLight ref={accent} intensity={0} distance={5} decay={2} />
     <Shape at={[x,y-.62,z]} size={[.64,1.04,.64]} color="#5a5750" />
-    <HeartDiamond at={[x,y,z]} reference={gem} />
+    {/* Lift only the gem: its lowest halo stone clears the fixed pedestal by about 5cm. */}
+    <HeartDiamond at={[x,y+.32,z]} reference={gem} />
     {types.map(id => <group name={'interior-event-' + id} key={id} ref={node => {objects.current[id]=node}} visible={false}>
       <group>{encounterModels[id]}</group>
     </group>)}

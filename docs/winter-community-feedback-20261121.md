@@ -28,7 +28,7 @@ REST는 `/api/v1/world/winter/tree/status`, `/tree`, `/tree/messages`, `/snow`, 
 
 ### 하트 보석
 
-공포맵에 실제 존재하는 다이아 도형을 첨부 레퍼런스의 푸른 하트 보석과 은색 보석 테두리로 교체했다. 새 `HeartDiamond.tsx`의 도형만 교체하며 기존 위치·회전·E 집기·방문별 획득 판정은 유지한다. 외부 유료 생성 서비스나 새 의존성은 사용하지 않는다.
+공포맵에 실제 존재하는 다이아 도형을 첨부 레퍼런스의 푸른 하트 보석과 은색 보석 테두리로 교체했다. 기존 X/Z 배치·회전·E 집기·방문별 획득 판정은 유지한다. 외부 유료 생성 서비스나 새 의존성은 사용하지 않는다.
 
 ## Flyway V190
 
@@ -60,3 +60,10 @@ REST는 `/api/v1/world/winter/tree/status`, `/tree`, `/tree/messages`, `/snow`, 
 ## 공통 변경
 
 TableHub/WorldChannelRegistry/WorldPhysics/PreparedParkMap의 겨울 확장, FE worldClient/runtime HTTP 허용 경로, ParkPage의 브리지/팝업 연결, E 대상 선택, 예측 물리, 기존 WinterHud·장식/안내 및 생성 맵을 갱신했다. PaperPopup의 키보드 포커스 순회에 textarea/select를 포함한다. 공통 통신·게임 엔진·지갑·인프라를 복제하지 않는다.
+
+## 보석 높이 후속 수정 — 2026-11-21
+
+- 사용자가 실제 인게임 이미지의 가려짐을 확인하고 맵 변경을 승인했다. 같은 최신 dev 기준 커밋이 작업 이력에 포함되어 있음을 재확인했다.
+- `InteriorEncounters.tsx`에서 보석 렌더 높이만 0.32m 올려 중심 Y=8.27로 수정했다. 받침대와 기존 집기 기준점은 유지한다. 생성 맵·서버 계약·DB·인프라 변경 없음.
+- 실제 공포맵 입장 후 1인칭 장면에서 회전 중인 보석의 하단까지 드러남을 확인했다. 최하단 Y=7.90147, 받침대 상단 Y=7.85, 간격 약 5.15cm. E ‘다이아 집기’ 안내도 유지된다.
+- 기존 공포맵 단위 테스트 7개, 타입 검사, renewal 모드 빌드, diff 공백 검사 통과. 별도 도형 렌더가 아닌 실제 인증된 공원 게임 화면을 `sapphire-heart-ingame-raised.png`로 보관했다.
