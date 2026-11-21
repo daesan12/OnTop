@@ -483,3 +483,16 @@
   .spot-difference .spot-shot { animation: none; width: 34px; height: 34px; }
   .spot-difference .spot-miss-frame { animation: none; }
 }
+.spot-difference .spot-rooms { width: 100%; text-align: left; }
+.spot-difference .spot-room-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.spot-difference .spot-room-heading h4 { margin: 0; font-size: 18px; }
+.spot-difference .spot-room { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px; margin: 8px 0; border: 1px solid #92723f66; border-radius: 10px; }
+.spot-difference .spot-room > div { min-width: 0; display: grid; gap: 4px; overflow-wrap: anywhere; }
+.spot-difference .spot-room span { font-size: 14px; }
+.spot-difference .spot-room > button { flex-shrink: 0; }
+.spot-difference .spot-room-title { display: grid; gap: 8px; margin-top: 20px; font-size: 16px; }
+.spot-difference .spot-room-title input { box-sizing: border-box; min-width: 0; width: 100%; padding: 10px 12px; font: inherit; color: inherit; border: 1px solid #92723f88; border-radius: 8px; background: #fff9eb; }
+@media (max-width: 520px) {
+  .spot-difference .spot-heading h2 { display: block; margin: 0 12px 8px; padding-top: 18px; font-size: 22px; overflow-wrap: anywhere; }
+  .spot-difference .spot-emblem { margin-right: .3em; vertical-align: -.1em; }
+}

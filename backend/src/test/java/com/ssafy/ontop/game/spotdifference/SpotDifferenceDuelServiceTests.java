@@ -46,6 +46,43 @@ class SpotDifferenceDuelServiceTests {
                     mock(SpotDifferenceRewards.class), clock), clock);
 
     @Test
+    void 공개_방_목록에서_코드_입력_없이_참가하고_가득_찬_방은_사라진다() {
+        var created = duels.create(HOST, Difficulty.NORMAL, "공원에서 함께 해요");
+        var room = duels.rooms().getFirst();
+
+        assertThat(room.id()).isEqualTo(created.board().id());
+        assertThat(room.title()).isEqualTo("공원에서 함께 해요");
+        assertThat(room.players()).isEqualTo(1);
+        assertThat(duels.join(GUEST, room.id()).duel().joined()).isTrue();
+        assertThat(duels.rooms()).isEmpty();
+        assertThatThrownBy(() -> duels.join(OTHER, room.id())).isInstanceOf(ResponseStatusException.class);
+    }
+
+    @Test
+    void 나간_방과_방장_연결이_끊긴_방은_목록과_신규_참가에서_제외한다() {
+        var first = duels.create(HOST, Difficulty.NORMAL).board().id();
+        act(HOST, first, Command.LEAVE, 1);
+        assertThat(duels.rooms()).isEmpty();
+        var second = duels.create(HOST, Difficulty.NORMAL).board().id();
+        clock.advance(45);
+
+        assertThat(duels.rooms()).isEmpty();
+        assertThatThrownBy(() -> duels.join(GUEST, second)).isInstanceOf(ResponseStatusException.class);
+        act(HOST, second, Command.SYNC, 1);
+        assertThat(duels.rooms()).hasSize(1);
+    }
+
+    @Test
+    void 공개_방_이름은_길이와_제어문자를_검증한다() {
+        assertThatThrownBy(() -> duels.create(HOST, Difficulty.NORMAL, "가".repeat(41)))
+                .isInstanceOf(ResponseStatusException.class);
+        assertThatThrownBy(() -> duels.create(HOST, Difficulty.NORMAL, "방\n이름"))
+                .isInstanceOf(ResponseStatusException.class);
+        duels.create(HOST, Difficulty.HARD, "   ");
+        assertThat(duels.rooms().getFirst().title()).isEqualTo("함께 틀린 그림 찾아요");
+    }
+
+    @Test
     void 두_사람만_같은_그림에_들어가고_두_사람이_준비되면_시작한다() {
         var created = duels.create(HOST, Difficulty.HARD);
         var id = created.board().id();
