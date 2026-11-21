@@ -41,6 +41,19 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 /** 테스트 classpath + loopback 전용. 실제 회원·DB·지갑·재화는 사용하지 않는다. */
 public final class RummikubParkApplication {
+    private static final Set<Long> LOCAL_MEMBERS = Set.of(101L, 202L, 303L, 404L, 505L);
+    private static final Set<String> LOCAL_PLAYERS = Set.of("101", "202", "303", "404");
+
+    private static String nickname(long id) {
+        return switch ((int) id) {
+            case 101 -> "수패마루 A";
+            case 202 -> "수패마루 B";
+            case 303 -> "수패마루 C";
+            case 404 -> "수패마루 D";
+            default -> "관전 로컬";
+        };
+    }
+
     public static void main(String[] args) {
         new SpringApplication(OntopApplication.class, Fixture.class).run(
             "--spring.profiles.active=local,frontend-test,rummikub-park", "--server.address=127.0.0.1", "--server.port=" + System.getProperty("rummikub.port", "19464"),
@@ -71,7 +84,7 @@ public final class RummikubParkApplication {
             };
         }
         @Bean ActiveMemberLookup rummikubMembers() {
-            return (id, sid) -> Set.of(101L,202L,505L).contains(id) && TestLoginSessions.ID.equals(sid)
+            return (id, sid) -> LOCAL_MEMBERS.contains(id) && TestLoginSessions.ID.equals(sid)
                 ? Optional.of(new AuthenticatedUser(id, LoginProvider.NAVER, sid)) : Optional.empty();
         }
         @Bean @Primary WebSocketAccountLookup rummikubAccounts(ActiveMemberLookup members) {
@@ -80,9 +93,9 @@ public final class RummikubParkApplication {
         @Bean WorldProfileGateway rummikubProfiles() {
             return ids -> {
                 var result = new HashMap<Long, WorldProfileGateway.Profile>();
-                for (long id : ids) if (Set.of(101L,202L,505L).contains(id))
+                for (long id : ids) if (LOCAL_MEMBERS.contains(id))
                     result.put(id, new WorldProfileGateway.Profile(
-                        id==101 ? "수패마루 A" : id==202 ? "수패마루 B" : "관전 로컬", "MALE"));
+                        nickname(id), "MALE"));
                 return Map.copyOf(result);
             };
         }
@@ -103,7 +116,14 @@ public final class RummikubParkApplication {
                     if (path.equals("/api/v1/local/rummikub/session") && request.getMethod().equals("POST")) {
                         String origin=request.getHeader("Origin");
                         if (origin != null && (properties.allowedOrigins() == null || !properties.allowedOrigins().contains(origin))) { response.setStatus(403); return; }
-                        long id = switch(mapper.readTree(request.getInputStream()).path("role").asText()) { case "red" -> 101; case "green" -> 202; case "viewer" -> 505; default -> 0; };
+                        long id = switch(mapper.readTree(request.getInputStream()).path("role").asText()) {
+                            case "red" -> 101;
+                            case "green" -> 202;
+                            case "blue" -> 303;
+                            case "yellow" -> 404;
+                            case "viewer" -> 505;
+                            default -> 0;
+                        };
                         if (id == 0 || codes.size() >= 64) { response.setStatus(400); return; }
                         String code = UUID.randomUUID().toString().replace("-", "") + UUID.randomUUID().toString().replace("-", "").substring(0,11);
                         codes.put(code,id); body=Map.of("exchangeCode",code);
@@ -116,7 +136,13 @@ public final class RummikubParkApplication {
                         com.fasterxml.jackson.databind.JsonNode anchor = null;
                         for (var table : tables) { if (table.path("id").asText().equals("table-1")) { anchor = table; break; } }
                         if (anchor == null) { response.setStatus(409); return; }
-                        var point = anchor.path("interactionPoints").get(user.userId() == 202 ? 1 : 0);
+                        int pointIndex = switch ((int) user.userId()) {
+                            case 202 -> 1;
+                            case 303 -> 2;
+                            case 404 -> 3;
+                            default -> 0;
+                        };
+                        var point = anchor.path("interactionPoints").get(pointIndex);
                         channels.releaseFacility(identity, new com.ssafy.ontop.world.service.WorldFacilityService.Pose(
                                 point.get(0).asDouble(), point.get(1).asDouble() + 0.8, point.get(2).asDouble(), 0));
                         body = Map.of("placed", true);
@@ -134,7 +160,7 @@ public final class RummikubParkApplication {
                         try {
                             String bearer=request.getHeader("Authorization");
                             var user=auth.authenticate(bearer != null && bearer.startsWith("Bearer ") ? bearer.substring(7) : "");
-                            body=Map.of("userId",user.userId(),"nickname",user.userId()==101 ? "홍팀 로컬" : user.userId()==202 ? "청팀 로컬" : "관전 로컬","characterGender","MALE");
+                            body=Map.of("userId",user.userId(),"nickname",nickname(user.userId()),"characterGender","MALE");
                         } catch(RuntimeException denied) { response.setStatus(401); return; }
                     }
                     if (body == null) { chain.doFilter(request,response); return; }
@@ -155,7 +181,7 @@ public final class RummikubParkApplication {
         final ApplicationEventPublisher events;
         LocalLedger(ApplicationEventPublisher events) { this.events=events; }
         @Override public synchronized GameStartResult startGame(GameStartCommand command) {
-            if (!command.gameCode().equals("RUMMIKUB") || command.participants().stream().anyMatch(p -> !Set.of("101","202").contains(p.userId())))
+            if (!command.gameCode().equals("RUMMIKUB") || command.participants().stream().anyMatch(p -> !LOCAL_PLAYERS.contains(p.userId())))
                 return GameStartResult.rejected(command.startAttemptId(),"LOCAL_RUMMIKUB_ONLY");
             var previous=commands.putIfAbsent(command.startAttemptId(),command);
             if (previous != null && !previous.equals(command)) return GameStartResult.conflict(command.startAttemptId());
