@@ -2611,6 +2611,29 @@ public class TableHub {
         }
     }
 
+    /** 전통놀이 입장은 생성 맵에 이미 존재하는 전통놀이존 접근점에서 확인한다. */
+    public synchronized void requireYutEntry(long userId, String channelId, boolean existingRoom) {
+        requireSkewerAccess(userId, channelId, !existingRoom, false);
+        if (existingRoom) {
+            return;
+        }
+        var position = channels.positionOf(Long.toString(userId));
+        boolean reachable = false;
+        if (preparedPark != null && position != null) {
+            for (var site : preparedPark.constructionSites()) {
+                if (site.path("id").asText().equals("folk")) {
+                    var at = site.path("reachPosition");
+                    reachable = Math.hypot(position.x() - at.path(0).asDouble(),
+                            position.z() - at.path(2).asDouble()) <= site.path("radius").asDouble()
+                            && Math.abs(position.y() - at.path(1).asDouble()) <= site.path("heightTolerance").asDouble();
+                }
+            }
+        }
+        if (!reachable) {
+            throw new IllegalStateException("같은 공원의 전통놀이존 입구에서 만나주세요.");
+        }
+    }
+
     /** 무료 협동 경기 입장은 최신 맵의 VR 입구·현재 인증 소켓에서만 허용한다. */
     public synchronized void requireSkewerEntry(long userId, String channelId, boolean existingRoom) {
         requireSkewerAccess(userId, channelId, !existingRoom, !existingRoom);

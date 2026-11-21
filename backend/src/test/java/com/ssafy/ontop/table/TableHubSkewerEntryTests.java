@@ -332,6 +332,36 @@ class TableHubSkewerEntryTests {
                 mapper.valueToTree(Map.of("channelId", "park", key, value))).getBody();
     }
 
+    @Test
+    void 윷놀이는_전통놀이존의_서버_접근점과_높이를_확인한다() throws Exception {
+        peer(101);
+        var position = channels.positionOf("101");
+        var park = mock(PreparedParkMap.class);
+        var sites = mapper.createArrayNode();
+        var folk = sites.addObject().put("id", "folk").put("radius", 3).put("heightTolerance", .7);
+        folk.putArray("reachPosition").add(position.x()).add(position.y()).add(position.z());
+        when(park.constructionSites()).thenReturn(sites);
+        ReflectionTestUtils.setField(hub, "preparedPark", park);
+
+        hub.requireYutEntry(101, "park", false);
+        // 실제 이동 엔진의 바닥 보정과 분리해 접근점의 높이 경계를 검증한다.
+        folk.withArray("reachPosition").set(1, mapper.getNodeFactory().numberNode(position.y() + .71));
+        assertThatThrownBy(() -> hub.requireYutEntry(101, "park", false)).hasMessageContaining("전통놀이존");
+        // 이미 입장한 방은 거리만 면제하고 인증 소켓·채널 검사는 계속한다.
+        hub.requireYutEntry(101, "park", true);
+        assertThatThrownBy(() -> hub.requireYutEntry(101, "other", true)).hasMessageContaining("연결된 공원");
+    }
+
+    @Test
+    void 전통놀이존이_없는_맵은_윷놀이_진입을_허용하지_않는다() throws Exception {
+        peer(101);
+        var park = mock(PreparedParkMap.class);
+        when(park.constructionSites()).thenReturn(mapper.createArrayNode());
+        ReflectionTestUtils.setField(hub, "preparedPark", park);
+
+        assertThatThrownBy(() -> hub.requireYutEntry(101, "park", false)).hasMessageContaining("전통놀이존");
+    }
+
     private void entranceAt(long user) {
         var position = channels.positionOf(Long.toString(user));
         var park = mock(PreparedParkMap.class);

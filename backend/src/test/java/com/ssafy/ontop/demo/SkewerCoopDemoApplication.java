@@ -64,7 +64,8 @@ public final class SkewerCoopDemoApplication {
                 @Override
                 protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
                         FilterChain chain) throws ServletException, IOException {
-                    if (!request.getRequestURI().equals("/local/skewer/entrance")
+                    boolean yut = request.getRequestURI().equals("/local/yut/entrance");
+                    if ((!request.getRequestURI().equals("/local/skewer/entrance") && !yut)
                             || !request.getMethod().equals("POST")) {
                         chain.doFilter(request, response);
                         return;
@@ -78,7 +79,22 @@ public final class SkewerCoopDemoApplication {
                             response.setStatus(409);
                             return;
                         }
-                        var entrance = map.prepared().orElseThrow().vrEntrance().orElseThrow().center();
+                        var prepared = map.prepared().orElseThrow();
+                        var entrance = prepared.vrEntrance().orElseThrow().center();
+                        if (yut) {
+                            boolean found = false;
+                            for (var site : prepared.constructionSites()) {
+                                if (site.path("id").asText().equals("folk")) {
+                                    var point = site.path("reachPosition");
+                                    entrance = new Pose(point.path(0).asDouble(), point.path(1).asDouble(),
+                                            point.path(2).asDouble(), site.path("yaw").asDouble());
+                                    found = true;
+                                }
+                            }
+                            if (!found) {
+                                throw new IllegalStateException("최신 전통놀이존 접근점이 없는 맵입니다.");
+                            }
+                        }
                         channels.releaseFacility(identity,
                                 new Pose(entrance.x(), entrance.y(), entrance.z(), entrance.yaw()));
                         response.setContentType("application/json");
