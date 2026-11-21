@@ -5,6 +5,7 @@ import { gradeFountainCourses } from './fountainAccessGeometry'
 import { ParkAssetLoader } from '../src/world/art/assetLoader'
 import { parkDetailIds, parkDetailMeshes, type ParkDetailId } from './parkDetailMeshes'
 import { LakePart, LakeStage } from './lakeStages'
+import { optimizedGeometryMatchesSource } from './optimizedGeometrySource'
 
 const urls = import.meta.glob<string>('./models/detail-*-optimized.glb', {
   eager: true,
@@ -13,7 +14,21 @@ const urls = import.meta.glob<string>('./models/detail-*-optimized.glb', {
 })
 const profile = new URLSearchParams(window.location.search)
 
-function DetailGeometry({ id, url, pending }: { id: ParkDetailId; url: string; pending?: Set<() => void> }) {
+function DetailGeometry({ id, url, file, pending }: { id: ParkDetailId; url: string; file: string; pending?: Set<() => void> }) {
+  const { scene } = useThree()
+  const [accepted, setAccepted] = useState<string | null>(null)
+  useLayoutEffect(() => {
+    const sources = parkDetailMeshes(scene, id).map(group => group.source)
+    if (!optimizedGeometryMatchesSource(file, sources)) {
+      performance.mark('park-detail-geometry-skipped-' + id)
+      return
+    }
+    setAccepted(file)
+  }, [id, file, scene])
+  return accepted === file ? <LoadedDetailGeometry id={id} url={url} pending={pending} /> : null
+}
+
+function LoadedDetailGeometry({ id, url, pending }: { id: ParkDetailId; url: string; pending?: Set<() => void> }) {
   const { scene, invalidate } = useThree()
   const { scene: gltfScene } = useLoader(ParkAssetLoader, url)
 
@@ -114,7 +129,7 @@ export function ParkDetailGeometry({ jumpCourse, deferDistant = false, distantRe
     if (id === 'city' || id === 'jump' && jumpCourse || deferDistant && !mounted && distantDetails.has(id)) return null
     const url = urls['./models/detail-' + id + '-optimized.glb']
     if (!url) return null
-    const detail = <Suspense key={id} fallback={null}><DetailGeometry id={id} url={url} pending={deferDistant ? pending : undefined} /></Suspense>
+    const detail = <Suspense key={id} fallback={null}><DetailGeometry id={id} url={url} file={`detail-${id}-optimized.glb`} pending={deferDistant ? pending : undefined} /></Suspense>
     // These assets contain parts from more than one district.
     if (id === 'fence' || id === 'bench') {
       return <LakePart key={id} at={LakeStage.Boats}>{detail}</LakePart>
@@ -126,12 +141,12 @@ export function ParkDetailGeometry({ jumpCourse, deferDistant = false, distantRe
 export function JumpCourseGeometry() {
   const url = urls['./models/detail-jump-course-optimized.glb']
   return url && profile.get('details-profile') === 'after'
-    ? <Suspense fallback={null}><DetailGeometry id="jump" url={url} /></Suspense>
+    ? <Suspense fallback={null}><DetailGeometry id="jump" url={url} file="detail-jump-course-optimized.glb" /></Suspense>
     : null
 }
 export function CityDetailGeometry() {
   const url = urls['./models/detail-city-optimized.glb']
   return url && profile.get('details-profile') !== 'before'
-    ? <Suspense fallback={null}><DetailGeometry id="city" url={url} /></Suspense>
+    ? <Suspense fallback={null}><DetailGeometry id="city" url={url} file="detail-city-optimized.glb" /></Suspense>
     : null
 }

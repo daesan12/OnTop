@@ -1,8 +1,9 @@
-import { useLayoutEffect } from 'react'
+import { useLayoutEffect, useState } from 'react'
 import { useLoader, useThree } from '@react-three/fiber'
 import { Mesh } from 'three'
 import type { Object3D } from 'three'
 import { ParkAssetLoader } from '../src/world/art/assetLoader'
+import { optimizedGeometryMatchesSource } from './optimizedGeometrySource'
 
 const geometryUrls = {
   tower: new URL('./models/facility-tower-optimized.glb', import.meta.url).href,
@@ -33,7 +34,8 @@ export function facilityGeometryMeshes(root: Object3D, id: GeometryFacility) {
   const meshes: Mesh[] = []
   for (const group of groups) {
     group.traverse(node => {
-      if (node instanceof Mesh && !node.userData.distanceProxy && !Array.isArray(node.material) && triangleCount(node) >= 24) {
+      if (node instanceof Mesh && !node.userData.distanceProxy && !node.userData.winterSnow
+        && !Array.isArray(node.material) && triangleCount(node) >= 24) {
         meshes.push(node)
       }
     })
@@ -42,6 +44,21 @@ export function facilityGeometryMeshes(root: Object3D, id: GeometryFacility) {
 }
 
 export function FacilityGeometry({ id }: { id: GeometryFacility }) {
+  const { scene } = useThree()
+  const [accepted, setAccepted] = useState<GeometryFacility | null>(null)
+  useLayoutEffect(() => {
+    const root = scene.getObjectByName(facilityGeometryRoot(id))
+    const sources = root ? facilityGeometryMeshes(root, id).map(mesh => mesh.geometry) : []
+    if (!optimizedGeometryMatchesSource(`facility-${id}-optimized.glb`, sources)) {
+      performance.mark('park-facility-geometry-skipped-' + id)
+      return
+    }
+    setAccepted(id)
+  }, [id, scene])
+  return accepted === id ? <LoadedFacilityGeometry id={id} /> : null
+}
+
+function LoadedFacilityGeometry({ id }: { id: GeometryFacility }) {
   const { scene, invalidate } = useThree()
   const gltf = useLoader(ParkAssetLoader, geometryUrls[id])
 
