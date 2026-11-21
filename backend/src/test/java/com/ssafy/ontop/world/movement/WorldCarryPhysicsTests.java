@@ -468,4 +468,51 @@ class WorldCarryPhysicsTests {
             physics.step(now.get(), Set.of());
         }
     }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void 얇은_건물벽에_던져도_통과하거나_벽속에서_착지하지_않는다(boolean clientPositions) throws Exception {
+        Path directory = Path.of("../frontend/generated/park");
+        var scene = PreparedParkMap.load(directory.resolve("server-map.json"), directory.resolve("manifest.json"),
+                Set.of("one")).createScene();
+        ObjectNode data = scene.data.deepCopy();
+        addBox(data, "thin-building-wall", 6, 5, 78, .025, 5, 2);
+        try (var physics = new WorldPhysics(ParkScene.fromPreparedData(data, scene.metadata()),
+                clientPositions, now::get, clientPositions)) {
+            physics.add("a"); physics.add("b");
+            physics.place("a", 0, .84, 78); physics.place("b", 1, .84, 78);
+            step(physics, 5);
+            assertThat(physics.pickup("a", "b")).isTrue();
+            assertThat(physics.throwCarried("a", physics.carryState("a").carryId(), 1, 0, 0)).isTrue();
+            for (int tick = 0; tick < 120; tick++) {
+                step(physics, 1);
+                assertThat(physics.snapshot("b").x()).isLessThan(5.8);
+            }
+            var landed = physics.snapshot("b");
+            assertThat(physics.carryState("b")).isNull();
+            assertThat(physics.canStand(landed.x(), landed.y(), landed.z())).isTrue();
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void 최신_팔각정의_기둥으로_던진_사용자는_안전한_발판으로_떨어진다(boolean clientPositions) throws Exception {
+        var scene = renewalMap().createScene();
+        try (var physics = new WorldPhysics(scene, clientPositions, now::get, clientPositions)) {
+            physics.add("a"); physics.add("b");
+            physics.place("a", 2, 7.555, 1.60823); physics.place("b", 3, 7.555, 1.60823);
+            step(physics, 5);
+            assertThat(physics.pickup("a", "b")).isTrue();
+            assertThat(physics.throwCarried("a", physics.carryState("a").carryId(), 1, 0, 0)).isTrue();
+            for (int tick = 0; tick < 120; tick++) {
+                step(physics, 1);
+                var flying = physics.snapshot("b");
+                assertThat(flying.x() > 5.374 && flying.x() < 6.174
+                        && flying.z() > 1.208 && flying.z() < 2.008).isFalse();
+            }
+            var landed = physics.snapshot("b");
+            assertThat(physics.carryState("b")).isNull();
+            assertThat(physics.canStand(landed.x(), landed.y(), landed.z())).as("landed=%s", landed).isTrue();
+        }
+    }
 }
