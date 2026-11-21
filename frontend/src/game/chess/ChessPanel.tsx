@@ -7,6 +7,7 @@ import { resultSettlement } from '../../features/tableLobby/gatheringModel'
 import { useOmokEvents } from '../omok/spectatorEvents'
 import { canUseChess } from './actions'
 import { CHESS_END_REASON, type ChessMove } from './protocol'
+import { ChessBoard3D } from './ChessBoard3D'
 import pieces from './assets/pieces.png'
 import './chess.css'
 
@@ -14,6 +15,12 @@ const kinds = 'KQRBNP'
 const labels: Record<string, string> = { K: '킹', Q: '퀸', R: '룩', B: '비숍', N: '나이트', P: '폰' }
 const coord = (index: number) => `${'abcdefgh'[index % 8]}${1 + Math.floor(index / 8)}`
 const clockLabel = (ms: number) => `${Math.floor(Math.max(0, ms) / 60000)}:${String(Math.floor(Math.max(0, ms) / 1000) % 60).padStart(2, '0')}`
+
+function ChessClock({ ms, deadline, label }: { ms: number; deadline: string | null; label: string }) {
+  const [now, setNow] = useState(estimatedServerTime)
+  useEffect(() => { const timer = setInterval(() => setNow(estimatedServerTime()), 200); return () => clearInterval(timer) }, [])
+  return <time aria-label={label}>{clockLabel(deadline ? Date.parse(deadline) - now : ms)}</time>
+}
 
 export function ChessPiece({ piece }: { piece: string }) {
   return <span className="chess-piece" aria-hidden="true" style={{ backgroundImage: `url(${pieces})`,
@@ -27,10 +34,8 @@ export function ChessPanel() {
   const [selected, setSelected] = useState(''), [promotion, setPromotion] = useState<ChessMove[]>([])
   const [flip, setFlip] = useState(false), [confirmForfeit, setConfirmForfeit] = useState(false)
   const [claimMode, setClaimMode] = useState(false), [text, setText] = useState('')
-  const [now, setNow] = useState(estimatedServerTime)
   const panel = useRef<HTMLElement>(null)
   const game = state.game?.chess ? state.game : null
-  useEffect(() => { const timer = setInterval(() => setNow(estimatedServerTime()), 200); return () => clearInterval(timer) }, [])
   useEffect(() => { setSelected(''); setPromotion([]); setClaimMode(false); setConfirmForfeit(false) }, [game?.gameId, game?.version])
   useEffect(() => { panel.current?.focus({ preventScroll: true }) }, [game?.gameId])
   if (!game) return <section className="chess-panel"><h2>체스</h2><p role="status">경기 상태를 확인하고 있습니다.</p>
@@ -38,7 +43,6 @@ export function ChessPanel() {
   const c = game.chess, player = game.role === 'PLAYER', playing = c.status === 'PLAYING'
   const blackView = (own === c.blackUserId) !== flip, canUse = connected && canUseChess(own)
   const myTurn = canUse && c.turnUserId === own
-  const visible = Array.from({ length: 64 }, (_, i) => blackView ? (Math.floor(i / 8) * 8 + 7 - i % 8) : ((7 - Math.floor(i / 8)) * 8 + i % 8))
   const name = (id: string) => id === own ? '나' : profiles[id]?.nickname ?? '상대'
   const status = !playing ? c.winnerUserId ? `${name(c.winnerUserId)} 승리 · ${CHESS_END_REASON[c.endReason ?? '']}`
     : `무승부 · ${CHESS_END_REASON[c.endReason ?? '']}` : `${c.turnUserId === c.whiteUserId ? '백' : '흑'}의 차례${c.inCheck ? ' · 체크!' : ''}`
@@ -56,8 +60,7 @@ export function ChessPanel() {
     if (matches.length === 1) { send(matches[0]); return }
     setSelected(c.legalMoves.some(m => m.from === square) ? square : '')
   }
-  const clocks = [c.whiteUserId, c.blackUserId].map((id, index) => ({ id, ms: playing && c.turnUserId === id
-    ? Date.parse(c.turnDeadline!) - now : c.remainingMs[index] }))
+  const clocks = [c.whiteUserId, c.blackUserId].map((id, index) => ({ id, ms: c.remainingMs[index] }))
   const destinations = c.legalMoves.filter(m => m.from === selected).map(m => m.to)
   const lastMove = c.moves.at(-1)
   return <section ref={panel} tabIndex={-1} role="dialog" aria-modal="true" className="chess-panel" aria-label="체스 경기" data-role={game.role} data-status={c.status}
@@ -71,25 +74,13 @@ export function ChessPanel() {
     }} onWheel={e => e.stopPropagation()}>
     <header className="chess-heading"><h2>체스</h2><p role="status" aria-live="polite">{status}</p></header>
     <div className="chess-layout">
-      <div className="chess-board-wrap"><div className="chess-board" role="group" aria-label="체스판 8 곱하기 8">
-        {visible.map((index, displayIndex) => {
-          const square = coord(index), piece = c.board[index], target = destinations.includes(square)
-          const ping = pings.some(p => p.gameId === game.gameId && p.x === index % 8 && p.y === Math.floor(index / 8))
-          const recent = lastMove?.slice(0, 2) === square || lastMove?.slice(2, 4) === square
-          return <button key={square} type="button" className={`chess-square ${(index % 8 + Math.floor(index / 8)) % 2 ? 'light' : 'dark'}${target ? ' legal' : ''}${selected === square ? ' selected' : ''}${recent ? ' recent' : ''}${ping ? ' ping' : ''}`}
-            aria-label={`${square} ${piece === '.' ? '빈 칸' : `${piece === piece.toUpperCase() ? '백' : '흑'} ${labels[piece.toUpperCase()]}`}${target ? ' 이동 가능' : ''}`}
-            aria-pressed={selected === square} aria-disabled={player ? !myTurn || promotion.length > 0 : !playing}
-            onClick={() => clickSquare(index)}>
-            {displayIndex % 8 === 0 && <small className="chess-rank">{square[1]}</small>}
-            {displayIndex >= 56 && <small className="chess-file">{square[0]}</small>}
-            {piece !== '.' && <ChessPiece piece={piece} />}{target && <span className="chess-destination" />}
-          </button>
-        })}
-      </div></div>
+      <ChessBoard3D board={c.board} blackView={blackView} selected={selected} destinations={destinations} lastMove={lastMove}
+        pings={pings.filter(p => p.gameId === game.gameId).map(p => p.y * 8 + p.x)}
+        disabled={player ? !myTurn || promotion.length > 0 : !playing} onSquare={clickSquare} />
       <aside className="chess-sidebar">
         <div className="chess-players">{[...clocks].reverse().map(({ id, ms }) => <div key={id} className={`chess-player ${c.turnUserId === id ? 'active' : ''}`}>
           <ChessPiece piece={id === c.whiteUserId ? 'P' : 'p'} /><span>{id === c.whiteUserId ? '백' : '흑'} · {name(id)}</span>
-          <time aria-label={`${id === c.whiteUserId ? '백' : '흑'} 남은 시간`}>{clockLabel(ms)}</time>
+          <ChessClock ms={ms} deadline={playing && c.turnUserId === id ? c.turnDeadline : null} label={`${id === c.whiteUserId ? '백' : '흑'} 남은 시간`} />
         </div>)}</div>
         <section className="chess-history" aria-label="이동 기록"><h3>이동 기록</h3>
           {c.moves.length ? <ol>{Array.from({ length: Math.ceil(c.moves.length / 2) }, (_, i) => <li key={i}>
