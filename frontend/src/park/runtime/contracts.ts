@@ -68,6 +68,7 @@ export interface ParkRuntimePort {
   hitOneCardHand?(attemptId: string): Promise<boolean>
   sendAlkkagiSpectator?(input: Record<string, unknown>): Promise<boolean>
   actStoneRumble?(input: import('../../game/stone-rumble/protocol').StoneAction, clearQueuedActions?: boolean): Promise<boolean>
+  actQuoridor?(input: import('../../game/quoridor/protocol').QuoridorInput): Promise<boolean>
   actAlkkagi?(input: Record<string, unknown>): Promise<boolean>
   actBridge(input: import('../../game/bridge/protocol').BridgeInput): Promise<boolean>
   actLedger(input: import('../../game/ledger/protocol').LedgerInput): Promise<boolean>

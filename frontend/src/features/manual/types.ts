@@ -9,6 +9,7 @@ export const manualGameIds = [
   "bridge",
   "ledger",
   "halligalli",
+  "quoridor",
   "janggi",
   "fishing",
   "fish-bread",

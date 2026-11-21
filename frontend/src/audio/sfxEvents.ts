@@ -13,6 +13,7 @@ export function turnOwner(g: Game): string | null {
   if (g.onecard) return g.onecard.turnUserId
   if (g.ledger) return g.ledger.turnUserId
   if (g.halli) return g.halli.turnUserId
+  if (g.quoridor) return g.quoridor.turnUserId
   return g.bridge.stage === 'RESPONDING' ? g.bridge.responderUserId : g.bridge.turnUserId
 }
 

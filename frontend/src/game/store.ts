@@ -160,7 +160,7 @@ export function receiveGame(m: Envelope, ownId: string, tableId: string) {
     if (['RESTORED', 'FINISHED', 'ELIMINATED'].includes(status)) {
       if (!id(p.gameId) || !integer(p.version) || !record(p.state))
         throw new Error('경기 복구 응답을 확인해주세요.')
-      const wrappedGame = record(p.state.publicState) && ['ONE_CARD', 'LIAR_BRIDGE', 'DICE_LEDGER', 'ALKKAGI', 'HALLI_GALLI', 'STONE_RUMBLE'].includes(String(p.state.publicState.gameCode))
+      const wrappedGame = record(p.state.publicState) && ['ONE_CARD', 'LIAR_BRIDGE', 'DICE_LEDGER', 'ALKKAGI', 'HALLI_GALLI', 'QUORIDOR', 'STONE_RUMBLE'].includes(String(p.state.publicState.gameCode))
       if (!wrappedGame && !['OMOK', 'DICE'].includes(String(p.state.gameCode))) {
         useGame.setState({
           recovery: status,
@@ -219,7 +219,7 @@ export function receiveGame(m: Envelope, ownId: string, tableId: string) {
     }
   } else if (m.type === 'GAME_STATE') {
     if (p.gameId !== s.permittedGameId && p.gameId !== s.watchedGameId) return
-    if (!record(p.publicState) || !['OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE', 'DICE_LEDGER', 'ALKKAGI', 'HALLI_GALLI', 'STONE_RUMBLE'].includes(String(p.publicState.gameCode))) {
+    if (!record(p.publicState) || !['OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE', 'DICE_LEDGER', 'ALKKAGI', 'HALLI_GALLI', 'QUORIDOR', 'STONE_RUMBLE'].includes(String(p.publicState.gameCode))) {
       useGame.setState({
         game: null,
         uncertain: true,
