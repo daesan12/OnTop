@@ -43,16 +43,16 @@ export function parseBang(value: unknown): BangState {
     || !cards(value.store) || !Array.isArray(value.winnerUserIds) || !value.winnerUserIds.every(uid)
     || !Array.isArray(value.history) || value.history.length > 30 || !value.history.every(line => typeof line === 'string' && line.length <= 160)
     || !(value.endReason === null || ['LAW_WINS', 'OUTLAWS_WIN', 'RENEGADE_WINS', 'NO_ELIGIBLE_WINNERS'].includes(String(value.endReason)))
-    || !(value.endedAt === null || iso(value.endedAt))) throw new Error('뱅 공개 상태 형식을 확인해주세요.')
+    || !(value.endedAt === null || iso(value.endedAt))) throw new Error('총잡이 공개 상태 형식을 확인해주세요.')
   const players = value.players as unknown as BangPlayer[]
   if (value.status === 'PLAYING' ? !players.some(player => player.userId === value.turnUserId)
     || !players.some(player => player.userId === value.actorUserId && player.active) || !iso(value.turnDeadline)
     || value.endedAt !== null || value.endReason !== null || value.winnerUserIds.length !== 0
     : value.turnUserId !== null || value.actorUserId !== null || value.turnDeadline !== null || !iso(value.endedAt)
-      || value.endReason === null || players.some(player => player.role === null)) throw new Error('뱅 차례와 결과를 확인해주세요.')
+      || value.endReason === null || players.some(player => player.role === null)) throw new Error('총잡이 차례와 결과를 확인해주세요.')
   if (value.response !== undefined && (!record(value.response) || !['BANG', 'DUEL', 'INDIANS'].includes(String(value.response.kind))
     || !uid(value.response.sourceUserId) || !uid(value.response.targetUserId) || !integer(value.response.remaining)
-    || value.response.remaining < 1 || value.response.remaining > 2)) throw new Error('뱅 응답 상태를 확인해주세요.')
+    || value.response.remaining < 1 || value.response.remaining > 2)) throw new Error('총잡이 응답 상태를 확인해주세요.')
   return structuredClone(value) as unknown as BangState
 }
 export function parseBangHand(value: unknown, state: BangState, ownId: string, role: 'PLAYER' | 'SPECTATOR'): BangHand | null {
@@ -66,9 +66,9 @@ export function parseBangHand(value: unknown, state: BangState, ownId: string, r
       && ['play', 'draw', 'end_turn', 'discard', 'respond', 'barrel', 'take_hit', 'rescue', 'give_up', 'choose', 'sid_heal'].includes(String(action.kind))
       && (action.cardId === undefined || identifier(action.cardId)) && (action.secondCardId === undefined || identifier(action.secondCardId))
       && (action.targetCardId === undefined || identifier(action.targetCardId)) && (action.targetUserId === undefined || uid(action.targetUserId))))
-    throw new Error('뱅 개인 상태를 확인해주세요.')
+    throw new Error('총잡이 개인 상태를 확인해주세요.')
   const me = state.players.find(player => player.userId === ownId)
   if (!me || me.role !== null && me.role !== value.role || value.hand.length !== me.cardCount || new Set(value.hand.map(card => card.id)).size !== value.hand.length
-    || !me.active && value.actions.length) throw new Error('뱅 손패 소유자를 확인해주세요.')
+    || !me.active && value.actions.length) throw new Error('총잡이 손패 소유자를 확인해주세요.')
   return structuredClone(value) as unknown as BangHand
 }

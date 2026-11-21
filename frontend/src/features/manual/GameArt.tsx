@@ -12,7 +12,7 @@ import jumpThumbnail from "../jumpmap/assets/thumbnail.webp";
 
 /** 게임 고르기 화면(태블릿·오락기)과 같은 대표 그림. 태블릿 그림은 public/art/tablet에 있다. */
 const gameThumbnails: Partial<Record<ManualGameId, string>> = {
-  bang: "/art/bang/cover.webp",
+  bang: "/art/bang/cover-v2.webp",
   alkkagi: alkkagiThumbnail,
   gomoku: "/art/tablet/omok.webp",
   farkle: "/art/tablet/dice-v2.webp",

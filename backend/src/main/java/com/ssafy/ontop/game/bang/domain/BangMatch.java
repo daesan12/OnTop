@@ -66,7 +66,7 @@ public final class BangMatch {
         if (users == null || users.size() < 4 || users.size() > 7
                 || users.stream().anyMatch(user -> user == null || user <= 0)
                 || users.stream().distinct().count() != users.size()) {
-            throw new IllegalArgumentException("뱅은 서로 다른 4~7명의 참가자가 필요해요.");
+            throw new IllegalArgumentException("탑골 총잡이는 서로 다른 4~7명의 참가자가 필요해요.");
         }
         this.gameId = Objects.requireNonNull(gameId);
         this.tableId = Objects.requireNonNull(tableId);
@@ -91,7 +91,7 @@ public final class BangMatch {
     }
 
     public static List<Role> roles(int count) {
-        if (count < 4 || count > 7) { throw new IllegalArgumentException("뱅은 4~7인 게임이에요."); }
+        if (count < 4 || count > 7) { throw new IllegalArgumentException("탑골 총잡이는 4~7인 게임이에요."); }
         List<Role> roles = new ArrayList<>(List.of(Role.SHERIFF, Role.RENEGADE, Role.OUTLAW, Role.OUTLAW));
         if (count >= 5) { roles.add(Role.DEPUTY); }
         if (count >= 6) { roles.add(Role.OUTLAW); }
@@ -425,7 +425,7 @@ public final class BangMatch {
                 if (card.kind() == Kind.PANIC) { player.hand.add(taken); }
                 else { discard.add(taken); }
             }
-            default -> throw new IllegalStateException("처리되지 않은 뱅 카드입니다.");
+            default -> throw new IllegalStateException("처리되지 않은 총잡이 카드입니다.");
         }
     }
 

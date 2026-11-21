@@ -27,7 +27,7 @@ async function boot() {
   const account = Number(new URLSearchParams(location.search).get('account') ?? 101)
   if (![101, 202, 303, 404, 505, 606, 707, 808].includes(account)) throw new Error('테스트 계정을 확인해주세요.')
   const response = await fetch('/api/v1/local/bang/session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ account }) })
-  if (!response.ok) throw new Error('로컬 뱅 서버 연결을 확인해주세요.')
+  if (!response.ok) throw new Error('로컬 총잡이 서버 연결을 확인해주세요.')
   const { exchangeCode } = await response.json()
   location.hash = new URLSearchParams({ exchange_code: exchangeCode }).toString()
   await exchangeCallbackCode()
@@ -63,7 +63,7 @@ async function boot() {
   createRoot(document.getElementById('root')!).render(<>
     <ParkPage onExit={async () => { await parkRuntime.stop(); location.reload() }} exitError="" onAuthEnded={() => location.reload()} onOperationBlocked={() => location.reload()} />
     <LocalChannelEntry />
-    <aside style={{ position: 'fixed', bottom: 6, left: 8, zIndex: 43, font: '12px sans-serif', background: '#f7e7c9', color: '#302314', padding: 6, borderRadius: 5 }}>
+    <aside style={{ position: 'fixed', bottom: 6, left: 8, zIndex: 41, pointerEvents: 'none', maxWidth: 'calc(100vw - 16px)', font: '12px sans-serif', background: '#f7e7c9', color: '#302314', padding: 6, borderRadius: 5 }}>
       테스트 계정 {account / 101} · 인증/지갑은 메모리 fixture · 공원/게임/소켓은 실제 로컬 서버
     </aside>
   </>)

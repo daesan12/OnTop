@@ -51,7 +51,7 @@ public final class BangEngine implements GameEngine {
         BangMatch existing = games.get(gameId);
         if (existing != null) {
             if (!existing.tableId().equals(tableId) || !existing.users().equals(users)) {
-                throw new IllegalStateException("기존 경기와 다른 뱅 생성 요청입니다.");
+                throw new IllegalStateException("기존 경기와 다른 총잡이 생성 요청입니다.");
             }
             return;
         }
@@ -178,7 +178,7 @@ public final class BangEngine implements GameEngine {
     private void publish(List<Object> notices) {
         for (Object notice : notices) {
             try { events.accept(notice); }
-            catch (RuntimeException exception) { log.warn("뱅 상태 알림 전달 실패", exception); }
+            catch (RuntimeException exception) { log.warn("총잡이 상태 알림 전달 실패", exception); }
         }
     }
 }

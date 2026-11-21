@@ -41,7 +41,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 /** 테스트 classpath + loopback 전용. 실제 회원·DB·지갑·재화는 사용하지 않는다. */
 public final class BangParkApplication {
-    private static String nickname(long id) { return id == 808 ? "뱅 관전자" : "뱅 검수" + id / 101; }
+    private static String nickname(long id) { return id == 808 ? "총잡이 관전자" : "총잡이 검수" + id / 101; }
     public static void main(String[] args) {
         new SpringApplication(OntopApplication.class, Fixture.class).run(
             "--spring.profiles.active=local,frontend-test,bang-park", "--server.address=127.0.0.1", "--server.port=19187",

@@ -38,7 +38,7 @@ const gameChoices = choiceOrder.map(code => TABLE_GAMES.find(game => game.code =
 const availableGameChoices = gameChoices.filter(game => game.playable)
 const constructionGameChoices = gameChoices.filter(game => !game.playable)
 export function GameArt({ code }: { code: TableGameCode }) {
-  const thumbnail = code === 'BANG' ? '/art/bang/cover.webp' : code === 'STONE_RUMBLE' ? '/art/stone-rumble/cover-v3.webp' : code === 'ALKKAGI' ? alkkagiThumbnail : code === 'HALLI_GALLI' ? fruitDdaengThumbnail : code === 'DICE_LEDGER' ? ledgerThumbnail : undefined
+  const thumbnail = code === 'BANG' ? '/art/bang/cover-v2.webp' : code === 'STONE_RUMBLE' ? '/art/stone-rumble/cover-v3.webp' : code === 'ALKKAGI' ? alkkagiThumbnail : code === 'HALLI_GALLI' ? fruitDdaengThumbnail : code === 'DICE_LEDGER' ? ledgerThumbnail : undefined
   return <div className="tablet-game-art" data-game={code} style={thumbnail ? { backgroundImage: `url(${thumbnail})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined} role="img" aria-label={TABLE_GAMES.find(g => g.code === code)?.name} />
 }
 function StoneLobbyCover({ children }: { children: ReactNode }) {

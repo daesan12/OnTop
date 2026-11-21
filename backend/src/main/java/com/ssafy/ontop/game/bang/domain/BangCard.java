@@ -33,7 +33,7 @@ public record BangCard(String id, Kind kind, Suit suit, int rank) {
 
     public BangCard {
         if (id == null || id.isBlank() || kind == null || suit == null || rank < 2 || rank > 14) {
-            throw new IllegalArgumentException("뱅 카드 정보를 확인해주세요.");
+            throw new IllegalArgumentException("총잡이 카드 정보를 확인해주세요.");
         }
     }
 
