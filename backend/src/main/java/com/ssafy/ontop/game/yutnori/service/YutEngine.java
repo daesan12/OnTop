@@ -406,6 +406,7 @@ public final class YutEngine implements GameEngine {
         state.set("eliminatedTeams", mapper.valueToTree(match.eliminatedTeams));
         state.set("rules", mapper.valueToTree(match.rules));
         state.set("rolls", mapper.valueToTree(match.rolls));
+        state.set("lastThrow", mapper.valueToTree(match.lastThrow));
         state.set("moves", mapper.valueToTree(match.legalMoves()));
         state.set("opening", mapper.valueToTree(match.opening));
         state.set("log", mapper.valueToTree(match.log));

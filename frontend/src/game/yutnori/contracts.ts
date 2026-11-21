@@ -3,6 +3,7 @@ export interface YutChatMessage { id: number; scope: YutChatScope; team: number;
 export interface YutRules { emptyBackEnters: boolean; doubleCaptureBonus: boolean; backHomeFinish: boolean }
 export interface YutMove { piece: number; rollId: number; shortcut: boolean; to: number }
 export interface YutRoll { id: number; name: string; steps: number; mask: number; bonus: boolean }
+export interface YutThrow extends YutRoll { userId: string; team: number; out: boolean; at: number }
 export interface YutPlayer { userId: string; nickname: string; team: number; ready: boolean; connected: boolean }
 export interface YutSnapshot {
   gameId: string; version: number; registered: boolean; role: 'PLAYER' | 'SPECTATOR'
@@ -12,6 +13,7 @@ export interface YutSnapshot {
     host: string; turnUser: string; team: number; credits: number; deadline: number; winner: number; reason: string
     message: string; entryFee: 0; rules: YutRules; players: YutPlayer[]; rolls: YutRoll[]; pieces: number[][]
     chat: YutChatMessage[]; moves: YutMove[]; opening: number[]; log: string[]; teamCount: number; pieceCount: number; eliminatedTeams: number[]
+    lastThrow?: YutThrow | null
   }
 }
 export interface YutRoom { gameId: string; name: string; hostNickname: string; players: number; phase: string; teamCount: number; pieceCount: number }
@@ -24,6 +26,17 @@ export function parseYut(value: unknown): YutSnapshot | null {
     || !['PLAYER', 'SPECTATOR'].includes(String(value.role)) || !object(value.publicState)) return null
   const p = value.publicState
   const validTeam = (team: unknown) => Number.isInteger(team) && (team as number) >= 0 && (team as number) < (p.teamCount as number)
+  const thrown = p.lastThrow
+  if (thrown !== undefined && thrown !== null) {
+    if (!object(thrown) || !Number.isSafeInteger(thrown.id) || (thrown.id as number) < 1
+      || typeof thrown.userId !== 'string' || !thrown.userId || !validTeam(thrown.team)
+      || !Number.isInteger(thrown.mask) || (thrown.mask as number) < 0 || (thrown.mask as number) > 15
+      || typeof thrown.out !== 'boolean' || !Number.isSafeInteger(thrown.at) || (thrown.at as number) < 0) return null
+    const mask = thrown.mask as number, count = mask.toString(2).replaceAll('0', '').length
+    const steps = thrown.out ? 0 : mask === 0 ? 5 : mask === 1 ? -1 : count
+    const name = thrown.out ? '낙' : mask === 1 ? '빽도' : ['모', '도', '개', '걸', '윷'][count]
+    if (thrown.steps !== steps || thrown.name !== name || thrown.bonus !== (!thrown.out && steps >= 4)) return null
+  }
   const chatMessage = (entry: unknown, scope: YutChatScope) => object(entry) && entry.scope === scope
     && Number.isSafeInteger(entry.id) && (entry.id as number) > 0 && Number.isSafeInteger(entry.sentAt)
     && typeof entry.userId === 'string' && typeof entry.nickname === 'string' && typeof entry.text === 'string'

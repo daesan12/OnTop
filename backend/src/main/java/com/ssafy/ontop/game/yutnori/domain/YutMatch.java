@@ -11,6 +11,8 @@ import java.util.random.RandomGenerator;
 public final class YutMatch {
     public record Rules(boolean emptyBackEnters, boolean doubleCaptureBonus, boolean backHomeFinish) { }
     public record Roll(int id, String name, int steps, int mask, boolean bonus) { }
+    public record ThrowResult(int id, String userId, int team, int mask, String name, int steps,
+            boolean bonus, boolean out, long at) { }
     public static final class Player {
         public final long userId;
         public final String nickname;
@@ -49,6 +51,7 @@ public final class YutMatch {
     public int credits;
     public int winner = -1;
     public boolean registered;
+    public ThrowResult lastThrow;
     private int serial;
     private final int[] teamTurn;
 
@@ -121,12 +124,16 @@ public final class YutMatch {
                 require(credits > 0 && rolls.size() < 32, "먼저 이동권을 사용해주세요.");
                 credits--;
                 int mask = random.nextInt(16);
-                if (random.nextInt(100) < 2) {
+                Roll rolled = roll(++serial, mask);
+                boolean out = random.nextInt(100) < 2;
+                // 이동권이 사라지는 낙·빈 판 빽도도 동일한 확정 결과로 연출·복구한다.
+                lastThrow = new ThrowResult(rolled.id(), Long.toString(user), team, mask,
+                        out ? "낙" : rolled.name(), out ? 0 : rolled.steps(), !out && rolled.bonus(), out, now);
+                if (out) {
                     rolls.clear();
                     credits = 0;
                     note("낙! 윷이 멍석 밖으로 나가 차례를 넘겨요.");
                 } else {
-                    Roll rolled = roll(++serial, mask);
                     rolls.add(rolled);
                     if (rolled.bonus()) {
                         credits++;

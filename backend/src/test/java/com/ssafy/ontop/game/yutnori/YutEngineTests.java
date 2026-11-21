@@ -53,8 +53,14 @@ class YutEngineTests {
         var command = new GameActionCommand(turn, id, "throw", state.path("version").asLong(),
                 mapper.createObjectNode().put("type", "THROW"));
         var first = router.apply(command);
+        var thrown = engine.member(101, id).path("publicState").path("lastThrow");
+        assertThat(thrown.path("id").asInt()).isEqualTo(1);
+        assertThat(thrown.path("userId").asText()).isEqualTo(Long.toString(turn));
+        var spectator = engine.watch(505, "channel-1", id);
+        assertThat(spectator.path("publicState").path("lastThrow")).isEqualTo(thrown);
         int events = notices.size();
         assertThat(router.apply(command)).isEqualTo(first);
+        assertThat(engine.member(202, id).path("publicState").path("lastThrow")).isEqualTo(thrown);
         assertThat(notices).hasSize(events);
         assertThatThrownBy(() -> router.apply(new GameActionCommand(turn, id, "throw", command.expectedVersion(),
                 mapper.createObjectNode().put("type", "MOVE")))).isInstanceOf(GameActionGateway.Rejected.class);

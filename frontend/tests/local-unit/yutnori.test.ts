@@ -112,3 +112,22 @@ it('채팅 전송이 거절되면 실패를 반환하여 입력을 지우지 않
   expect(client.store.getState().error).toContain('입력은 남겨두었으니')
   client.stop()
 })
+
+it('마지막 던지기의 윷면과 이름이 일치하며 낙도 공개 결과로 받는다', () => {
+  for (let mask = 0; mask < 16; mask++) {
+    const base = snapshot(), count = mask.toString(2).replaceAll('0', '').length
+    const lastThrow = { id: 1, userId: '101', team: 0, mask, name: mask === 1 ? '빽도' : ['모', '도', '개', '걸', '윷'][count],
+      steps: mask === 1 ? -1 : mask === 0 ? 5 : count, bonus: mask === 0 || mask === 15, out: false, at: 1000 }
+    const state = { ...base, publicState: { ...base.publicState, lastThrow } }
+    expect(parseYut(state)).not.toBeNull()
+    state.publicState.lastThrow.steps = 99
+    expect(parseYut(state)).toBeNull()
+  }
+  const base = snapshot()
+  const state = { ...base, publicState: { ...base.publicState, lastThrow: {
+    id: 2, userId: '101', team: 0, mask: 1, name: '낙', steps: 0, bonus: false, out: true, at: 1000,
+  } } }
+  expect(parseYut(state)).not.toBeNull()
+  state.publicState.lastThrow.mask = 16
+  expect(parseYut(state)).toBeNull()
+})
