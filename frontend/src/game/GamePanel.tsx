@@ -1,3 +1,4 @@
+import { ChessPanel } from './chess/ChessPanel'
 import {NpcResultPanel,useNpcResult} from '../features/ai/NpcResultPanel'
 import { lazy, Suspense } from 'react'
 import { StoneLoadingTips } from './stone-rumble/StoneLoadingTips'
@@ -39,7 +40,9 @@ export function GamePanel() {
   const card = useGame(s => !!s.game?.onecard || (s.start?.gameCode === 'ONE_CARD' && ['PLAYING', 'SETTLING'].includes(s.start.phase)))
   const bridge = useGame(s => !!s.game?.bridge || (s.start?.gameCode === 'LIAR_BRIDGE' && ['PLAYING', 'SETTLING'].includes(s.start.phase)))
   const ledger = useGame(s => !!s.game?.ledger || (s.start?.gameCode === 'DICE_LEDGER' && ['PLAYING', 'SETTLING'].includes(s.start.phase)))
+  const chess = useGame(s => !!s.game?.chess || (s.start?.gameCode === 'CHESS' && ['PLAYING', 'SETTLING'].includes(s.start.phase)))
   const halli = useGame(s => !!s.game?.halli || (s.start?.gameCode === 'HALLI_GALLI' && ['PLAYING', 'SETTLING'].includes(s.start.phase)))
+  if (chess) return <ChessPanel />
   if (npcResult) return <NpcResultPanel practice={npcResult}/>
   if (terminalPlayer && !seated) return null
   if (stone) return <Suspense fallback={<StoneLoadingTips ready={0} total={stonePlayers} ownReady={false} error="" retry={() => void runtime.checkRecovery()} />}><StoneRumblePanel /></Suspense>

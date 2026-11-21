@@ -7,6 +7,7 @@ import type { SfxName } from './sfx'
 /** Who must act now: the bridge responder answers a declaration, otherwise the turn holder. */
 export function turnOwner(g: Game): string | null {
   if (g.stone) return null
+  if (g.chess) return g.chess.turnUserId
   if (g.alkkagi) return g.alkkagi.turnUserId
   if (g.omok) return g.omok.turnUserId
   if (g.dice) return g.dice.turnUserId

@@ -1,3 +1,4 @@
+import { parseChess, type Chess } from './chess/protocol'
 import { parseAlkkagi, parseAlkkagiHand, type Alkkagi, type AlkkagiHand } from './alkkagi/protocol'
 import { parseStoneState, type StoneState } from './stone-rumble/protocol'
 import { integer, record } from '../network/protocol'
@@ -55,15 +56,16 @@ interface GameHeader {
   version: number
   role: 'PLAYER' | 'SPECTATOR'
 }
-export interface OmokGame extends GameHeader { stone?: never; ledger?: never; alkkagi?: never; alkkagiHand?: never; omok: Omok; dice?: never; onecard?: never; hand?: never; bridge?: never; secret?: never; halli?: never }
-export interface DiceGame extends GameHeader { stone?: never; ledger?: never; alkkagi?: never; alkkagiHand?: never; dice: Farkle; omok?: never; onecard?: never; hand?: never; bridge?: never; secret?: never; halli?: never }
-export interface OneCardGame extends GameHeader { stone?: never; ledger?: never; alkkagi?: never; alkkagiHand?: never; onecard: OneCard; hand: Hand | null; omok?: never; dice?: never; bridge?: never; secret?: never; halli?: never }
-export interface BridgeGame extends GameHeader { stone?: never; ledger?: never; alkkagi?: never; alkkagiHand?: never; bridge: Bridge; secret: SecretDie | null; omok?: never; dice?: never; onecard?: never; hand?: never; halli?: never }
-export interface AlkkagiGame extends GameHeader { stone?: never; ledger?: never; alkkagi: Alkkagi; alkkagiHand: AlkkagiHand | null; omok?: never; dice?: never; onecard?: never; hand?: never; bridge?: never; secret?: never; halli?: never }
-export interface LedgerGame extends GameHeader { stone?: never; alkkagi?: never; alkkagiHand?: never; ledger: DiceLedger; omok?: never; dice?: never; onecard?: never; hand?: never; bridge?: never; secret?: never; halli?: never }
-export interface HalliGame extends GameHeader { stone?: never; ledger?: never; alkkagi?: never; alkkagiHand?: never; halli: HalliGalli; omok?: never; dice?: never; onecard?: never; hand?: never; bridge?: never; secret?: never }
-export interface StoneGame extends GameHeader { stone: StoneState; ledger?: never; alkkagi?: never; alkkagiHand?: never; omok?: never; dice?: never; onecard?: never; hand?: never; bridge?: never; secret?: never; halli?: never }
-export type Game = StoneGame | OmokGame | DiceGame | OneCardGame | BridgeGame | AlkkagiGame | LedgerGame | HalliGame
+export interface OmokGame extends GameHeader { chess?: never; stone?: never; ledger?: never; alkkagi?: never; alkkagiHand?: never; omok: Omok; dice?: never; onecard?: never; hand?: never; bridge?: never; secret?: never; halli?: never }
+export interface DiceGame extends GameHeader { chess?: never; stone?: never; ledger?: never; alkkagi?: never; alkkagiHand?: never; dice: Farkle; omok?: never; onecard?: never; hand?: never; bridge?: never; secret?: never; halli?: never }
+export interface OneCardGame extends GameHeader { chess?: never; stone?: never; ledger?: never; alkkagi?: never; alkkagiHand?: never; onecard: OneCard; hand: Hand | null; omok?: never; dice?: never; bridge?: never; secret?: never; halli?: never }
+export interface BridgeGame extends GameHeader { chess?: never; stone?: never; ledger?: never; alkkagi?: never; alkkagiHand?: never; bridge: Bridge; secret: SecretDie | null; omok?: never; dice?: never; onecard?: never; hand?: never; halli?: never }
+export interface AlkkagiGame extends GameHeader { chess?: never; stone?: never; ledger?: never; alkkagi: Alkkagi; alkkagiHand: AlkkagiHand | null; omok?: never; dice?: never; onecard?: never; hand?: never; bridge?: never; secret?: never; halli?: never }
+export interface LedgerGame extends GameHeader { chess?: never; stone?: never; alkkagi?: never; alkkagiHand?: never; ledger: DiceLedger; omok?: never; dice?: never; onecard?: never; hand?: never; bridge?: never; secret?: never; halli?: never }
+export interface HalliGame extends GameHeader { chess?: never; stone?: never; ledger?: never; alkkagi?: never; alkkagiHand?: never; halli: HalliGalli; omok?: never; dice?: never; onecard?: never; hand?: never; bridge?: never; secret?: never }
+export interface StoneGame extends GameHeader { chess?: never; stone: StoneState; ledger?: never; alkkagi?: never; alkkagiHand?: never; omok?: never; dice?: never; onecard?: never; hand?: never; bridge?: never; secret?: never; halli?: never }
+export interface ChessGame extends GameHeader { chess: Chess; stone?: never; ledger?: never; alkkagi?: never; alkkagiHand?: never; omok?: never; dice?: never; onecard?: never; hand?: never; bridge?: never; secret?: never; halli?: never }
+export type Game = ChessGame | StoneGame | OmokGame | DiceGame | OneCardGame | BridgeGame | AlkkagiGame | LedgerGame | HalliGame
 export interface Farkle {
   gameCode: 'DICE'; status: 'PLAYING' | 'FINISHED'; players: string[]; scores: number[]
   targetScore: number; turnTimeLimitMs: 30000; turnUserId: string | null; turnDeadline: string | null
@@ -74,8 +76,8 @@ export interface Farkle {
   winnerUserId: string | null; endReason: string | null; endedAt: string | null
   lastRoll?: { rollId: number; actorUserId: string; dice: Farkle['dice'] } | null
 }
-export const gameState = (g: Game) => g.omok ?? g.dice ?? g.onecard ?? g.bridge ?? g.ledger ?? g.alkkagi ?? g.halli ?? g.stone
-export const gamePlayers = (g: Game) => g.omok ? [g.omok.blackUserId, g.omok.whiteUserId] : g.dice ? g.dice.players : g.alkkagi ? g.alkkagi.players : (g.onecard ?? g.bridge ?? g.ledger ?? g.halli ?? g.stone).players.map(p => p.userId)
+export const gameState = (g: Game) => g.chess ?? g.omok ?? g.dice ?? g.onecard ?? g.bridge ?? g.ledger ?? g.alkkagi ?? g.halli ?? g.stone
+export const gamePlayers = (g: Game) => g.chess ? [g.chess.whiteUserId, g.chess.blackUserId] : g.omok ? [g.omok.blackUserId, g.omok.whiteUserId] : g.dice ? g.dice.players : g.alkkagi ? g.alkkagi.players : (g.onecard ?? g.bridge ?? g.ledger ?? g.halli ?? g.stone).players.map(p => p.userId)
 export interface Result {
   version: number
   gameSessionId: string
@@ -268,6 +270,7 @@ export function parseGame(p: Record<string, unknown>, ownId = ''): Game {
     version: p.version,
     role: p.role as Game['role'],
   }
+  if (record(p.publicState) && p.publicState.gameCode === 'CHESS') return { ...common, chess: parseChess(p.publicState) }
   if (record(p.publicState) && p.publicState.gameCode === 'STONE_RUMBLE') return { ...common, stone: parseStoneState(p.publicState) }
   if (record(p.publicState) && p.publicState.gameCode === 'ALKKAGI') {
     const alkkagi = parseAlkkagi(p.publicState, common.gameId, common.version)
@@ -292,7 +295,7 @@ export function parseResult(p: Record<string, unknown>, ownId: string): Result {
   if (
     !id(p.gameSessionId) ||
     !integer(p.version) ||
-    !['OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE', 'DICE_LEDGER', 'ALKKAGI', 'HALLI_GALLI', 'STONE_RUMBLE'].includes(String(p.gameCode)) ||
+    !['CHESS', 'OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE', 'DICE_LEDGER', 'ALKKAGI', 'HALLI_GALLI', 'STONE_RUMBLE'].includes(String(p.gameCode)) ||
     !['FINISHED', 'INVALID'].includes(String(p.status)) ||
     typeof p.endReason !== 'string' || !/^[A-Z][A-Z0-9_]{0,31}$/.test(p.endReason) ||
     !['PENDING', 'SETTLED'].includes(String(p.settlementStatus)) ||

@@ -10,6 +10,7 @@ export const STONE_RUMBLE_ENABLED = import.meta.env.VITE_STONE_RUMBLE_ENABLED ==
 const GAME_OPTIONS = [
   ...(STONE_RUMBLE_ENABLED ? [{ code: 'STONE_RUMBLE', name: '돌탑 생존전', capacity: 8, playable: true }] as const : []),
   { code: 'ALKKAGI', name: '알까기', capacity: 2, playable: ALKKAGI_ENABLED },
+  { code: 'CHESS', name: '체스', capacity: 2, playable: true },
   { code: 'OMOK', name: '오목', capacity: 2, playable: true },
   { code: 'DICE', name: '주사위 한 판', capacity: 4, playable: true },
   { code: 'ONE_CARD', name: '원카드', capacity: 4, playable: true },
