@@ -22,7 +22,7 @@ export default function TableBoards({ anchor, nativeFurniture }: { anchor: Table
         <BridgeBoard anchor={anchor} />
         <LedgerTable anchor={anchor} />
         <HalliBoard anchor={anchor} />
-        <ParkSecretTiles anchor={anchor} />
+        <ParkSecretTiles anchor={anchor} heightScale={nativeFurniture ? tableScale(anchor) : 1} />
         </Suspense>
       </DebrisGameSurface>
       </group>

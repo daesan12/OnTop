@@ -1,9 +1,11 @@
 import { memo, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Canvas, useFrame, useLoader, useThree } from '@react-three/fiber'
-import { CanvasTexture, Group, MathUtils, PerspectiveCamera, RepeatWrapping, SRGBColorSpace, TextureLoader } from 'three'
+import { CanvasTexture, Group, MathUtils, PerspectiveCamera, RepeatWrapping, SRGBColorSpace, TextureLoader, type Mesh, type MeshStandardMaterial } from 'three'
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
 import ontopLogo from '../../assets/entry/ontop-logo.webp'
 import type { CodeTile, DavinciHand, DavinciState, TileColor } from './protocol'
+import type { TileReaction } from './effects'
+import { REACTION_MS, uniformTileScale, supplyPose } from './layout'
 
 const TILE = new RoundedBoxGeometry(.57, .87, .24, 3, .06)
 const railGeometry = new RoundedBoxGeometry(1, 1, 1, 2, .05)
@@ -81,10 +83,10 @@ function JokerLogo() {
   </mesh>
 }
 
-export const Tile = memo(function Tile({ tile, hidden, faceUp, selected, scale = 1, onClick, clickable, flat = false }: {
-  tile: CodeTile; hidden: boolean; faceUp: boolean; selected: boolean; scale?: number; onClick(): void; clickable: boolean; flat?: boolean
+export const Tile = memo(function Tile({ tile, hidden, faceUp, selected, scale = 1, onClick, clickable, flat = false, reaction }: {
+  tile: CodeTile; hidden: boolean; faceUp: boolean; selected: boolean; scale?: number; onClick(): void; clickable: boolean; flat?: boolean; reaction?: TileReaction
 }) {
-  const pivot = useRef<Group>(null)
+  const pivot = useRef<Group>(null), body = useRef<Mesh>(null), ripple = useRef<Mesh>(null)
   const [hovered, setHovered] = useState(false)
   const reduce = useMemo(() => matchMedia('(prefers-reduced-motion: reduce)').matches, [])
   const textures = useMemo(() => ({ front: faceTexture(tile.color, hidden ? null : tile.value, false), back: faceTexture(tile.color, null, true) }), [tile.color, tile.value, hidden])
@@ -95,12 +97,28 @@ export const Tile = memo(function Tile({ tile, hidden, faceUp, selected, scale =
     const alpha = reduce ? 1 : 1 - Math.exp(-12 * Math.min(delta, .1))
     pivot.current.rotation.x = MathUtils.lerp(pivot.current.rotation.x, target, alpha)
     pivot.current.position.y = MathUtils.lerp(pivot.current.position.y, selected ? .18 : hovered && clickable ? .12 : 0, alpha)
+    const t = reaction ? Math.max(0, (performance.now() - reaction.started) / REACTION_MS) : 1
+    const active = t < 1
+    pivot.current.rotation.z = active && reaction?.kind === 'wrong' && !reduce ? Math.sin(t * Math.PI * 12) * .055 * (1 - t) : 0
+    const material = body.current?.material as MeshStandardMaterial | undefined
+    if (material) {
+      material.emissive.set(active ? reaction?.kind === 'wrong' ? '#a34426' : reaction?.kind === 'penalty' ? '#ac702c' : '#cba642' : '#aa742b')
+      material.emissiveIntensity = active ? .2 + .5 * (1 - t) : selected ? .4 : hovered && clickable ? .22 : 0
+    }
+    if (ripple.current) {
+      ripple.current.visible = active && reaction?.kind !== 'wrong'
+      ripple.current.scale.setScalar(reduce ? 1 : 1 + t * 1.5)
+      ;(ripple.current.material as MeshStandardMaterial).opacity = active ? (1 - t) * .65 : 0
+    }
   })
-  return <group scale={scale}>
+  return <group scale={scale} name="secret-tile-model" userData={{ tileId: tile.id }}>
+    <mesh ref={ripple} rotation={[-Math.PI / 2, 0, 0]} position={[0, .008, 0]} visible={false} raycast={() => {}}>
+      <ringGeometry args={[.34, .38, 32]} /><meshStandardMaterial color="#ecd289" emissive="#d9b85d" emissiveIntensity={.6} transparent depthWrite={false} />
+    </mesh>
     <group ref={pivot} onClick={e => { e.stopPropagation(); if (clickable) onClick() }}
       onPointerOver={e => { e.stopPropagation(); if (clickable) { setHovered(true); document.body.style.cursor = 'pointer' } }}
       onPointerOut={() => { setHovered(false); document.body.style.cursor = '' }}>
-      <mesh geometry={TILE} dispose={null} position={[0, .445, 0]} castShadow receiveShadow>
+      <mesh ref={body} geometry={TILE} dispose={null} position={[0, .445, 0]} castShadow receiveShadow>
         <meshStandardMaterial color={tile.color === 'BLACK' ? '#28372f' : '#e6dcc4'} roughness={.72} metalness={.02}
           emissive={selected || hovered && clickable ? '#aa742b' : '#000000'} emissiveIntensity={selected ? .4 : hovered && clickable ? .22 : 0} />
       </mesh>
@@ -134,6 +152,7 @@ function Scene({ state, hand, viewerId, selected, enabled, canPing, pingTileId, 
   const anchor = Math.max(0, state.players.findIndex(p => p.userId === viewerId))
   const slots = state.players.length === 2 ? [0, 2] : state.players.length === 3 ? [0, 1, 3] : [0, 1, 2, 3]
   const positions: [number, number, number][] = [[0, .11, 2.85], [-3.7, .11, -.1], [0, .11, -3.0], [3.7, .11, -.1]]
+  const scale = uniformTileScale(state.players.map((p, i) => ({ slot: slots[(i - anchor + state.players.length) % state.players.length]!, count: p.tileCount + (state.stage === 'PLACE_TILE' && state.turnUserId === p.userId ? 1 : 0) })))
   return <>
     <color attach="background" args={['#576554']} /><fog attach="fog" args={['#89927b', 19, 35]} />
     <ambientLight intensity={1.4} /><hemisphereLight args={['#fff7dd', '#465540', 1.1]} />
@@ -158,7 +177,6 @@ function Scene({ state, hand, viewerId, selected, enabled, canPing, pingTileId, 
       const own = player.userId === viewerId
       const tiles = own && hand ? hand.tiles : player.tiles
       const display = state.stage === 'SETUP' && !own ? Array.from({ length: player.tileCount }, (_, i): CodeTile => ({ id: `setup-${i}`, color: i % 2 ? 'WHITE' : 'BLACK', value: null, revealed: false })) : tiles
-      const scale = Math.min(1.2, (slot % 2 ? 5.1 : 7.1) / Math.max(1, display.length * .69))
       return <group key={player.userId} position={positions[slot]} rotation={[0, slot === 1 ? Math.PI / 2 : slot === 2 ? Math.PI : slot === 3 ? -Math.PI / 2 : 0, 0]}>
         <mesh position={[0, -.015, .05]} geometry={railGeometry} scale={[Math.max(1.3, display.length * .69 * scale + .22), .09, .43]} receiveShadow><meshStandardMaterial map={textures.wood} /></mesh>
         {display.map((tile, i) => <group key={tile.id} position={[(i - (display.length - 1) / 2) * .69 * scale, 0, 0]}>
@@ -168,11 +186,11 @@ function Scene({ state, hand, viewerId, selected, enabled, canPing, pingTileId, 
         </group>)}
       </group>
     })}
-    {state.supply.map((tile, i) => <group key={tile.id} position={[((i % 6) - 2.5) * .67, .15 + Math.floor(i / 18) * .03, (Math.floor(i / 6) - 1.5) * .55]}
-      rotation={[0, Math.sin(i * 4.2) * .15, 0]}>
-      <Tile tile={{ ...tile, value: null, revealed: false }} hidden faceUp={false} flat scale={.72} selected={false}
+    {state.supply.map((tile, i) => { const p = supplyPose(i, state.supply.length, scale); return <group key={tile.id} position={[p.x, p.y, p.z]}
+      rotation={[0, p.yaw, 0]}>
+      <Tile tile={{ ...tile, value: null, revealed: false }} hidden faceUp={false} flat scale={scale} selected={false}
         clickable={enabled && state.stage === 'DRAW'} onClick={() => draw(tile.id)} />
-    </group>)}
+    </group>})}
   </>
 }
 

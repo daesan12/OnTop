@@ -12,7 +12,7 @@ function TileShowcase() {
     <header style={{padding:'16px 24px'}}><h1 style={{margin:0,fontSize:24}}>흑백수사 · 숫자패와 온탑 조커</h1><p>원목 테두리 · 기와 먹색 / 상아색 · 동일한 창살 뒷면 · 에셋 검수</p></header>
     <div style={{flex:1,minHeight:250}}><Canvas camera={{position:[0,2.3,6.4],fov:38}} onCreated={({camera})=>camera.lookAt(0,.45,0)}>
       <color attach="background" args={['#ded8c5']}/><ambientLight intensity={2}/><directionalLight position={[2,6,4]} intensity={2.1}/>
-      {samples.map((s,i)=><group key={i} position={[(i-1.5)*.95,0,0]}><Tile tile={{...s,id:`asset-${i}`,revealed:false}} hidden={false} faceUp={false} selected={false} clickable={false} scale={1.2} onClick={()=>{}}/></group>)}
+      {samples.map((s,i)=><group key={i} position={[(i-1.5)*.95,0,0]}><Tile tile={{...s,id:`asset-${i}`,revealed:false}} hidden={false} faceUp={false} selected={false} clickable={false} onClick={()=>{}}/></group>)}
       {(['BLACK','WHITE'] as const).map((color,i)=><group key={color} position={[(i-.5)*4.8,0,0]} rotation={[0,Math.PI,0]}><Tile tile={{id:`back-${i}`,color,value:null,revealed:false}} hidden faceUp={false} selected={false} clickable={false} onClick={()=>{}}/></group>)}
       <mesh position={[0,-.05,0]}><boxGeometry args={[5.6,.08,3.8]}/><meshStandardMaterial color="#31513c" roughness={1}/></mesh>
     </Canvas></div>
