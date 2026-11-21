@@ -38,10 +38,11 @@ export function Board({ state, selected, destinations, onPiece, onMove, onPing }
     {state.pieces.flatMap((tokens, team) => tokens.map((node, piece) => {
       if (node === 0 || node === 30 || tokens.indexOf(node) !== piece) return null
       const [x, y] = boardPoint(node), count = tokens.filter(at => at === node).length
-      return <button key={`${team}:${piece}`} className={`yut-token yut-team-${team}`}
+      const destination = destinations.find(move => move.to === node)
+      return <button key={`${team}:${piece}`} className={`yut-token yut-team-${team}${destination ? ' yut-destination' : ''}`}
         style={{ left: `${x / 5.2}%`, top: `${y / 5.2}%` }}
         aria-label={`${teamName(team)} ${piece + 1}번 말${count > 1 ? ` ${count}개 업힘` : ''}`}
-        aria-pressed={team === state.team && state.pieces[team][selected] === node} onClick={() => onPiece(team, piece)}>{count > 1 ? count : piece + 1}</button>
+        aria-pressed={team === state.team && state.pieces[team][selected] === node} onClick={() => destination ? onMove(destination) : onPiece(team, piece)}>{count > 1 ? count : piece + 1}</button>
     }))}
   </div>
 }

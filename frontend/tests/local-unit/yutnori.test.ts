@@ -6,13 +6,13 @@ import { YutClient } from '../../src/game/yutnori/client'
 import type { CoopTransport } from '../../src/features/skewer/coop/contracts'
 
 function snapshot() {
-  return { gameId: 'yut-test', version: 1, registered: true, role: 'PLAYER', publicState: {
+  return { gameId: 'yut-test', version: 1, registered: true, role: 'PLAYER', privateState: {} as { teamChat?: unknown[] }, publicState: {
     gameCode: 'YUTNORI', phase: 'PLAYING', channelId: 'channel-1', roomName: '함께', host: '101', turnUser: '101',
     teamCount: 2, pieceCount: 4, eliminatedTeams: [], team: 0, credits: 1, deadline: 90000, winner: -1, reason: '', message: '', entryFee: 0,
     rules: { emptyBackEnters: false, doubleCaptureBonus: false, backHomeFinish: false },
     players: [{ userId: '101', nickname: '청', team: 0, ready: true, connected: true },
       { userId: '202', nickname: '홍', team: 1, ready: true, connected: true }],
-    pieces: [[0, 0, 0, 0], [0, 0, 0, 0]], rolls: [], moves: [], opening: [0, 3], log: [],
+    chat: [] as unknown[], pieces: [[0, 0, 0, 0], [0, 0, 0, 0]], rolls: [], moves: [], opening: [0, 3], log: [],
   } }
 }
 
@@ -83,4 +83,32 @@ describe('공식 29칸과 빽도 표식, 다팀 계약', () => {
     const wrong = snapshot(); wrong.publicState.pieceCount = 3
     expect(parseYut(wrong)).toBeNull()
   })
+})
+
+
+it('팀 대화를 공개 채팅이나 관전자 개인 상태로 받지 않는다', () => {
+  const message = { id: 1, scope: 'TEAM', team: 0, userId: '101', nickname: '청', text: '비밀', sentAt: 1000 }
+  const state = snapshot(); state.privateState.teamChat = [message]
+  expect(parseYut(state)).not.toBeNull()
+  state.publicState.chat = [message]
+  expect(parseYut(state)).toBeNull()
+  state.publicState.chat = []; state.role = 'SPECTATOR'
+  expect(parseYut(state)).toBeNull()
+  state.privateState = {}
+  expect(parseYut(state)).not.toBeNull()
+})
+
+
+it('채팅 전송이 거절되면 실패를 반환하여 입력을 지우지 않도록 한다', async () => {
+  const transport: CoopTransport = {
+    scope: () => ({ userId: '101', channelId: 'channel-1', connected: true }), subscribe: () => () => {},
+    requestJSON: async (_url, init) => {
+      if (init?.method === 'POST') throw Object.assign(new Error('409'), { code: 'YUT_REJECTED' })
+      return { rooms: [], mine: snapshot() }
+    }, request: vi.fn() as CoopTransport['request'],
+  }
+  const client = new YutClient(transport); client.start(); await client.refresh()
+  expect(await client.chat('ALL', '남겨둘 메시지')).toBe(false)
+  expect(client.store.getState().error).toContain('입력은 남겨두었으니')
+  client.stop()
 })

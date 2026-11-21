@@ -105,9 +105,9 @@ try {
   }
   expect(moves).toBeGreaterThan(0)
   await red.screenshot({ path: path.join(output, 'game-after-moves.png') })
-  await red.getByLabel('같은 경기 채팅', { exact: true }).fill('같이 가요!')
+  await red.getByLabel('전체 채팅 입력', { exact: true }).fill('같이 가요!')
   await red.getByRole('button', { name: '보내기', exact: true }).click()
-  await expect(blue.locator('.yut-social')).toContainText('같이 가요!', { timeout: 10000 })
+  await expect(blue.getByRole('log', { name: '전체 채팅 기록' })).toContainText('같이 가요!', { timeout: 10000 })
   // 실제 계정 재로그인·새 소켓으로 같은 경기를 복구한다.
   await blue.reload()
   await expect(blue.locator('.yut-board')).toBeVisible({ timeout: 45000 })
@@ -116,9 +116,9 @@ try {
   await expect(viewer.getByRole('heading', { name: '관전 중', exact: true })).toBeVisible()
   await expect(viewer.getByRole('button', { name: /^윷 던지기/ })).toBeDisabled()
   await viewer.getByRole('button', { name: '1번 칸 핑 보내기', exact: true }).click()
-  await expect(red.locator('.yut-social')).toContainText('📍 윷판 1번 칸', { timeout: 10000 })
+  await expect(red.locator('.yut-match-history')).toContainText('📍 윷판 1번 칸', { timeout: 10000 })
   await red.getByRole('button', { name: '기권·나가기', exact: true }).click()
-  await expect(red.getByRole('heading', { name: '경기를 나갈까요?', exact: true })).toBeVisible()
+  await expect(red.getByRole('heading', { name: '나가면 우리 팀이 탈락해요.', exact: true })).toBeVisible()
   await red.getByRole('button', { name: '기권하고 공원으로', exact: true }).click()
   await expect(red.locator('.yut-shell')).not.toBeVisible()
   await expect(blue.getByRole('heading', { name: /승리!$/ })).toBeVisible({ timeout: 10000 })

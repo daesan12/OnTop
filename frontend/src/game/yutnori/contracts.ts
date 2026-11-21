@@ -1,14 +1,17 @@
+export type YutChatScope = 'ALL' | 'TEAM'
+export interface YutChatMessage { id: number; scope: YutChatScope; team: number; userId: string; nickname: string; text: string; sentAt: number }
 export interface YutRules { emptyBackEnters: boolean; doubleCaptureBonus: boolean; backHomeFinish: boolean }
 export interface YutMove { piece: number; rollId: number; shortcut: boolean; to: number }
 export interface YutRoll { id: number; name: string; steps: number; mask: number; bonus: boolean }
 export interface YutPlayer { userId: string; nickname: string; team: number; ready: boolean; connected: boolean }
 export interface YutSnapshot {
   gameId: string; version: number; registered: boolean; role: 'PLAYER' | 'SPECTATOR'
+  privateState: { teamChat?: YutChatMessage[] }
   publicState: {
     gameCode: 'YUTNORI'; phase: 'WAITING' | 'PLAYING' | 'FINISHED'; channelId: string; roomName: string
     host: string; turnUser: string; team: number; credits: number; deadline: number; winner: number; reason: string
     message: string; entryFee: 0; rules: YutRules; players: YutPlayer[]; rolls: YutRoll[]; pieces: number[][]
-    moves: YutMove[]; opening: number[]; log: string[]; teamCount: number; pieceCount: number; eliminatedTeams: number[]
+    chat: YutChatMessage[]; moves: YutMove[]; opening: number[]; log: string[]; teamCount: number; pieceCount: number; eliminatedTeams: number[]
   }
 }
 export interface YutRoom { gameId: string; name: string; hostNickname: string; players: number; phase: string; teamCount: number; pieceCount: number }
@@ -21,6 +24,14 @@ export function parseYut(value: unknown): YutSnapshot | null {
     || !['PLAYER', 'SPECTATOR'].includes(String(value.role)) || !object(value.publicState)) return null
   const p = value.publicState
   const validTeam = (team: unknown) => Number.isInteger(team) && (team as number) >= 0 && (team as number) < (p.teamCount as number)
+  const chatMessage = (entry: unknown, scope: YutChatScope) => object(entry) && entry.scope === scope
+    && Number.isSafeInteger(entry.id) && (entry.id as number) > 0 && Number.isSafeInteger(entry.sentAt)
+    && typeof entry.userId === 'string' && typeof entry.nickname === 'string' && typeof entry.text === 'string'
+    && entry.text.length <= 100 && (scope === 'ALL' ? entry.team === -1 : validTeam(entry.team))
+  if (!object(value.privateState) || value.role === 'SPECTATOR' && Object.keys(value.privateState).length !== 0
+    || value.privateState.teamChat !== undefined && (!Array.isArray(value.privateState.teamChat)
+      || !value.privateState.teamChat.every(entry => chatMessage(entry, 'TEAM')))
+    || !Array.isArray(p.chat) || !p.chat.every(entry => chatMessage(entry, 'ALL'))) return null
   if (p.gameCode !== 'YUTNORI' || !['WAITING', 'PLAYING', 'FINISHED'].includes(String(p.phase))
     || ![2, 3, 4].includes(p.teamCount as number) || ![1, 2, 3, 4].includes(p.pieceCount as number)
     || !Array.isArray(p.eliminatedTeams) || !p.eliminatedTeams.every(validTeam)

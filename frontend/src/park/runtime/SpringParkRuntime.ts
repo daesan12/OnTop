@@ -483,7 +483,7 @@ export class ParkRuntime implements ParkRuntimePort {
       || method === 'GET' && /^\/api\/v1\/minigames\/skewer\/coop\/rankings(?:\?mode=(?:PC|VR|ALL))?$/.test(path)
       || method === 'POST' && ['/api/v1/minigames/skewer/coop/rooms', '/api/v1/minigames/skewer/coop/leave'].includes(path)
     const yutRequest = method === 'GET' && /^\/api\/v1\/minigames\/yutnori\/rooms\?channelId=[^&#?]+$/.test(path)
-      || method === 'POST' && /^\/api\/v1\/minigames\/yutnori\/(?:rooms|lobby|start|leave|watch|feedback)$/.test(path)
+      || method === 'POST' && /^\/api\/v1\/minigames\/yutnori\/(?:rooms|lobby|start|leave|watch|feedback|chat)$/.test(path)
     const rpsRouletteRequest = (method === 'GET' && path === '/api/v1/minigames/rps-roulette/status')
       || (method === 'POST' && /^\/api\/v1\/minigames\/rps-roulette\/rounds(?:\/[1-9]\d{0,18}\/(?:hands|challenge|stop))?$/.test(path))
     const plusMinusRequest = (method === 'GET' && path === '/api/v1/minigames/plus-minus/status')

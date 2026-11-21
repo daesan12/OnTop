@@ -1,6 +1,6 @@
 import { createStore } from 'zustand/vanilla'
 import type { CoopTransport } from '../../features/skewer/coop/contracts'
-import { parseYut, type YutSnapshot, type YutRoom, type YutRules } from './contracts'
+import { parseYut, type YutSnapshot, type YutRoom, type YutRules, type YutChatScope } from './contracts'
 
 const api = '/api/v1/minigames/yutnori'
 export class YutClient {
@@ -115,6 +115,17 @@ export class YutClient {
         throw error
       }
     })
+  }
+  async chat(scope: YutChatScope, text: string) {
+    let sent = false
+    await this.run(async () => {
+      try { await this.post('/chat', { gameId: this.snapshot!.gameId, scope, text }); sent = true }
+      catch (error) {
+        if ((error as { code?: string }).code === 'YUT_REJECTED') throw new Error('채팅을 보내지 못했어요. 입력은 남겨두었으니 잠시 후 다시 보내주세요.')
+        throw error
+      }
+    })
+    return sent
   }
   feedback(text: string) { return this.run(async () => { await this.post('/feedback', { gameId: this.snapshot!.gameId, text }) }) }
   async leave(forfeit = false) {

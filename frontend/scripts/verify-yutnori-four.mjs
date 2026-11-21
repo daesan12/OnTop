@@ -85,7 +85,7 @@ try {
   await expect(host.locator('.yut-board circle')).toHaveCount(29)
   await expect(host.locator('circle[r="18"]')).toHaveCount(5)
   await expect(host.locator('circle[data-node="25"]')).toHaveAttribute('r','13')
-  await expect(host.locator('.yut-play-panel .yut-piece-rack button')).toHaveCount(16)
+  await expect(host.locator('.yut-match-teams .yut-piece-rack button')).toHaveCount(16)
   await expect(host.locator('.yut-backdo-key')).toContainText('빽도 · 뒤로 1칸')
   await host.screenshot({path:path.join(output,'game-four.png')})
   const users=['101','202','505','606'], labels=['청팀','홍팀','녹팀','황팀']; let moved=0
@@ -109,8 +109,8 @@ try {
   for(const [width,height]of [[390,844],[1024,500]]){
     await host.setViewportSize({width,height})
     expect(await host.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
-    await host.getByLabel('같은 경기 채팅',{exact:true}).scrollIntoViewIfNeeded()
-    await expect(host.getByLabel('같은 경기 채팅',{exact:true})).toBeInViewport()
+    await host.getByLabel('전체 채팅 입력',{exact:true}).scrollIntoViewIfNeeded()
+    await expect(host.getByLabel('전체 채팅 입력',{exact:true})).toBeInViewport()
     await host.screenshot({path:path.join(output,'four-'+width+'x'+height+'.png')})
   }
   await host.setViewportSize({width:1440,height:960})
