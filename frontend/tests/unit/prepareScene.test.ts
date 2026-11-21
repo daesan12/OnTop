@@ -1,8 +1,27 @@
 import { afterEach, expect, it, vi } from 'vitest'
-import { BoxGeometry, Group, Mesh, MeshBasicMaterial, PerspectiveCamera, PointLight, Scene, Texture, Vector4, type WebGLRenderer } from 'three'
-import { prepareScene, warmSceneGeometry, waitForScenePrograms } from '../../src/world/prepareScene'
+import { BoxGeometry, Group, Mesh, MeshBasicMaterial, MeshStandardMaterial, PerspectiveCamera, PointLight, Scene, Texture, Vector4, type WebGLRenderer } from 'three'
+import { prepareObjectTextures, prepareScene, warmSceneGeometry, waitForScenePrograms } from '../../src/world/prepareScene'
 
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks() })
+
+it('uploads streamed textures between display frames and skips remaining uploads after disposal', async () => {
+  const frames: FrameRequestCallback[] = []
+  vi.stubGlobal('requestAnimationFrame', (frame: FrameRequestCallback) => { frames.push(frame); return frames.length })
+  const color = new Texture(), normal = new Texture(), geometry = new BoxGeometry()
+  const material = new MeshStandardMaterial({ map: color, normalMap: normal })
+  const initTexture = vi.fn(), renderer = { initTexture } as unknown as WebGLRenderer
+  let live = true
+  try {
+    const pending = prepareObjectTextures(renderer, new Mesh(geometry, material), () => live)
+    expect(initTexture).not.toHaveBeenCalled()
+    frames.shift()!(0); await Promise.resolve()
+    expect(initTexture.mock.calls).toEqual([[color]])
+    live = false; frames.shift()!(16); await pending
+    expect(initTexture).toHaveBeenCalledOnce()
+  } finally {
+    vi.unstubAllGlobals(); color.dispose(); normal.dispose(); geometry.dispose(); material.dispose()
+  }
+})
 
 it('waits for every shared-material program variant while uploads overlap async compilation', async () => {
   vi.useFakeTimers()
@@ -11,11 +30,12 @@ it('waits for every shared-material program variant while uploads overlap async 
   scene.add(new Mesh(geometry, material), new Mesh(geometry, material))
   let releaseCompile!: () => void, secondReady = false, done = false
   const first = {}, second = {}
+  const getUniforms = vi.fn(), getAttributes = vi.fn()
   const initTexture = vi.fn()
   const renderer = {
     compileAsync: () => new Promise<void>(resolve => { releaseCompile = resolve }),
     initTexture,
-    info: {programs:[{program:first},{program:second}]},
+    info: {programs:[{program:first,getUniforms,getAttributes},{program:second,getUniforms,getAttributes}]},
     getContext: () => ({isContextLost:()=>false,getExtension:()=>({COMPLETION_STATUS_KHR:0x91b1}),
       getProgramParameter:(program:unknown) => program === first || secondReady}),
   } as unknown as WebGLRenderer
@@ -28,7 +48,30 @@ it('waits for every shared-material program variant while uploads overlap async 
   await vi.runAllTimersAsync()
   await pending
   expect(done).toBe(true)
+  expect(getUniforms).toHaveBeenCalledTimes(2)
+  expect(getAttributes).toHaveBeenCalledTimes(2)
   geometry.dispose(); material.dispose(); texture.dispose()
+})
+
+it('reflects bindings once per linked program, yields between programs and cancels on disposal', async () => {
+  vi.useFakeTimers()
+  let live = true
+  const programs = Array.from({ length: 2 }, () => ({ getUniforms: vi.fn(), getAttributes: vi.fn() }))
+  const renderer = { info: { programs }, getContext: () => ({
+    isContextLost: () => false, getExtension: () => null,
+  }) } as unknown as WebGLRenderer
+  const pending = waitForScenePrograms(renderer, () => live)
+  expect(programs[0]!.getUniforms).toHaveBeenCalledOnce()
+  expect(programs[1]!.getUniforms).not.toHaveBeenCalled()
+  live = false; await vi.runAllTimersAsync(); await pending
+  expect(programs[1]!.getUniforms).not.toHaveBeenCalled()
+  live = true
+  const resumed = waitForScenePrograms(renderer, () => live)
+  await vi.runAllTimersAsync(); await resumed
+  for (const program of programs) {
+    expect(program.getUniforms).toHaveBeenCalledOnce()
+    expect(program.getAttributes).toHaveBeenCalledOnce()
+  }
 })
 
 it('supports renderers without parallel compilation and propagates compilation failures', async () => {

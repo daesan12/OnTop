@@ -2,7 +2,28 @@ import { Frustum, Matrix4, Object3D, Sprite, Texture, Vector4, VideoTexture, typ
 
 const nextTurn = () => new Promise<void>(resolve => setTimeout(resolve, 0))
 const PROGRAM_TIMEOUT_MS = 30_000
+const preparedBindings = new WeakSet<object>()
 interface PreparationView { position: readonly [number, number, number]; target: readonly [number, number, number] }
+
+/** A streamed model's first draw must not upload all of its maps in one frame. */
+export async function prepareObjectTextures(renderer: WebGLRenderer, root: Object3D, live: () => boolean) {
+  const textures = new Set<Texture>()
+  root.traverse(object => {
+    if (!('material' in object)) return
+    const materials = Array.isArray(object.material) ? object.material : [object.material]
+    for (const material of materials as Material[]) for (const value of Object.values(material)) {
+      if (value instanceof Texture && !(value instanceof VideoTexture)) textures.add(value)
+    }
+  })
+  for (const texture of textures) {
+    if (!live()) return
+    // This path runs after entry. Leave a display/input frame between uploads.
+    if (typeof requestAnimationFrame === 'function') await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
+    else await nextTurn()
+    if (!live()) return
+    renderer.initTexture(texture)
+  }
+}
 
 export async function prepareVisibleScenePrograms(renderer: WebGLRenderer, scene: Scene, camera: Camera, live: () => boolean) {
   scene.updateMatrixWorld()
@@ -42,7 +63,19 @@ export async function waitForScenePrograms(renderer: WebGLRenderer, live: () => 
     if (context.isContextLost()) throw new Error('WebGL 컨텍스트가 유실되어 셰이더 준비를 중단했습니다.')
     if (status.failed) throw status.error
     if (!status.pending && (!parallel || !renderer.info.programs?.some(program => program.program
-      && !context.getProgramParameter(program.program as WebGLProgram, parallel.COMPLETION_STATUS_KHR)))) return
+      && !context.getProgramParameter(program.program as WebGLProgram, parallel.COMPLETION_STATUS_KHR)))) {
+      // Linking alone leaves uniform/attribute reflection to the first draw.
+      // Spread that driver work across turns before revealing streamed models.
+      for (const program of renderer.info?.programs ?? []) {
+        if (!live()) return
+        if (preparedBindings.has(program)) continue
+        program.getUniforms()
+        program.getAttributes()
+        preparedBindings.add(program)
+        await nextTurn()
+      }
+      return
+    }
     if (performance.now() - started >= PROGRAM_TIMEOUT_MS) throw new Error('셰이더 준비 대기 시간을 초과했습니다.')
     await new Promise<void>(resolve => setTimeout(resolve, 10))
   }

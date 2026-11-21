@@ -42,6 +42,26 @@ const resident = () => h(ResidentModel, { kind: 'CHILD', speed: { current: 0 } }
 const advance = (ms: number) => act(async () => { await vi.advanceTimersByTimeAsync(ms) })
 
 describe('주민의 첫 화면 이후 로딩', () => {
+  it('셰이더 준비 중에는 모델을 붙이지 않고 퇴장 시 준비 중인 자원도 한 번만 해제한다', async () => {
+    const view = await renderer(), release = vi.fn(), dispose = vi.fn()
+    const actor = { root: new THREE.Group(), update: vi.fn(), dispose }
+    let finish!: () => void
+    await view.mount(null)
+    Object.assign(view.state.gl, { extensions: { has: () => true },
+      compileAsync: () => new Promise<void>(resolve => { finish = resolve }),
+      getContext: () => ({ isContextLost: () => false, getExtension: () => null }),
+    })
+    assets.acquire.mockReturnValue({ ready: Promise.resolve({}), release })
+    vi.mocked(instantiateResident).mockReturnValue(actor as unknown as ReturnType<typeof instantiateResident>)
+    await view.mount(resident()); await view.tick(.01)
+    await vi.waitFor(() => expect(instantiateResident).toHaveBeenCalledOnce())
+    expect(view.state.scene.getObjectByName('detailed-npc-CHILD')!.children).toHaveLength(0)
+    await view.mount(null)
+    expect(dispose).toHaveBeenCalledOnce(); expect(release).toHaveBeenCalledOnce()
+    await act(async () => { finish(); await new Promise(resolve => setTimeout(resolve, 20)) })
+    expect(dispose).toHaveBeenCalledOnce(); expect(release).toHaveBeenCalledOnce()
+    expect(actor.root.parent).toBeNull()
+  })
   it('첫 화면 전에는 요청하지 않고 실제 모델이 준비될 때 한 번만 표시한다', async () => {
     const view = await renderer()
     let finish!: (source: never) => void
