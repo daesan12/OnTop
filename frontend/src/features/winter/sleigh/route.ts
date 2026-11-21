@@ -13,8 +13,15 @@ const curve = new CatmullRomCurve3([
   [-55, 66, 85], [6, 51, 102], [6, 23, 94], [6, dock.y, 86],
 ].map(p => new Vector3(...p as [number, number, number])), false, 'centripetal')
 const count = 400
+/** Ease only the first/last 3.2s; keep departure and landing smooth without a long crawl. */
+export function sleighTravelProgress(time: number) {
+  const t = Math.max(0, Math.min(1, time)), ramp = .08
+  if (t < ramp) return t * t / (2 * ramp * (1 - ramp))
+  if (t > 1 - ramp) return 1 - (1 - t) ** 2 / (2 * ramp * (1 - ramp))
+  return (t - ramp / 2) / (1 - ramp)
+}
 export const SLEIGH_ROUTE = { durationMs: SLEIGH_LAP_MS, points: Array.from({ length: count + 1 }, (_, i) => {
-  const t = i / count, eased = t * t * (3 - 2 * t), p = curve.getPointAt(eased)
+  const t = i / count, p = curve.getPointAt(sleighTravelProgress(t))
   return { x: p.x, y: Math.max(dock.y, p.y), z: p.z }
 }) }
 export const SLEIGH_DOCK = { ...dock, yaw: Math.PI }
