@@ -25,6 +25,7 @@ public final class DavinciMatch {
 
     private final String gameId;
     private final String tableId;
+    private final Instant openingStartedAt;
     private final List<Long> players;
     private final Map<Long, List<CodeTile>> hands = new HashMap<>();
     private final List<CodeTile> pool;
@@ -50,10 +51,11 @@ public final class DavinciMatch {
                 || players.stream().anyMatch(id -> id == null || id <= 0) || deck.size() != 26
                 || deck.stream().map(CodeTile::id).distinct().count() != 26
                 || deck.stream().map(tile -> tile.color() + ":" + tile.value()).distinct().count() != 26) {
-            throw new IllegalArgumentException("다빈치 코드 경기 구성을 확인해주세요.");
+            throw new IllegalArgumentException("비밀패 경기 구성을 확인해주세요.");
         }
         this.gameId = gameId;
         this.tableId = tableId;
+        this.openingStartedAt = now;
         this.players = List.copyOf(players);
         this.pool = new ArrayList<>(deck);
         int count = players.size() == 4 ? 3 : 4;
@@ -107,6 +109,8 @@ public final class DavinciMatch {
         receipts.put(receiptId, new Receipt(input, command.expectedVersion(), result));
         return result;
     }
+
+    public Instant openingStartedAt() { return openingStartedAt; }
 
     private void setup(long user, String kind, JsonNode input, Instant now) {
         require(!ready.contains(user));

@@ -561,7 +561,22 @@ public class WorldChannelRegistry implements ChannelPresence {
         return counts;
     }
 
-    public record PublicTable(String tableId, String anchorId, int chairCount, String gameCode) {
+    /** 타일 표현만 갱신한다. 좌석·물리·맵 계약의 배치 값은 바꾸지 않는다. */
+    public synchronized void secretTilePresentations(Map<String, com.fasterxml.jackson.databind.JsonNode> current) {
+        for (Room room : rooms.values()) {
+            var next = room.tables.stream().map(table -> new PublicTable(table.tableId(), table.anchorId(),
+                    table.chairCount(), table.gameCode(), "DAVINCI_CODE".equals(table.gameCode())
+                            ? current.get(table.tableId()) : null)).toList();
+            if (!next.equals(room.tables)) { room.tables = next; room.worldVersion++; room.dirty = true; }
+        }
+    }
+
+    public record PublicTable(String tableId, String anchorId, int chairCount, String gameCode,
+            @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+            com.fasterxml.jackson.databind.JsonNode secretTiles) {
+        public PublicTable(String tableId, String anchorId, int chairCount, String gameCode) {
+            this(tableId, anchorId, chairCount, gameCode, null);
+        }
         public PublicTable(String tableId, String anchorId, int chairCount) {
             this(tableId, anchorId, chairCount, null);
         }

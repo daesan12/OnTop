@@ -31,6 +31,20 @@ class DavinciEngineTests {
     private List<Long> players = List.of(101L, 202L);
 
     @Test
+    void 공원_투영은_준비중_순서와_개인_숫자를_보내지_않고_섞기_시각을_유지한다() {
+        engine.create("game", "table", players);
+        var initial = engine.tablePresentations().get("table");
+        assertThat(initial.has("privateState")).isFalse();
+        assertThat(initial.path("state").path("players").get(0).path("tiles").size()).isZero();
+        String started = initial.path("state").path("openingStartedAt").asText();
+        readyAll();
+        var playing = engine.tablePresentations().get("table").path("state");
+        assertThat(playing.path("openingStartedAt").asText()).isEqualTo(started);
+        playing.path("players").forEach(player -> player.path("tiles").forEach(tile ->
+                assertThat(tile.path("value").isNull()).isTrue()));
+    }
+
+    @Test
     void 사인전에서_여러_상대를_연속으로_탈락시키고_마지막_생존자를_판정한다() {
         players = List.of(101L, 202L, 303L, 404L);
         engine.create("game", "table", players);

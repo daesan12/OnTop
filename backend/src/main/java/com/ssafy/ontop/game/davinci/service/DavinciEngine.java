@@ -51,7 +51,7 @@ public final class DavinciEngine implements GameEngine {
         DavinciMatch existing = games.get(gameId);
         if (existing != null) {
             if (!existing.tableId().equals(tableId) || !existing.players().equals(players)) {
-                throw new IllegalStateException("기존 다빈치 코드 경기와 다른 생성 요청입니다.");
+                throw new IllegalStateException("기존 비밀패 경기와 다른 생성 요청입니다.");
             }
             return;
         }
@@ -93,6 +93,18 @@ public final class DavinciEngine implements GameEngine {
                     ? GameStateView.Role.PLAYER : GameStateView.Role.SPECTATOR,
                     publicState(match), player ? privateState(match, userId) : mapper.createObjectNode(), match.tableId()));
         }
+    }
+
+    /** 공원 구경꾼에게도 보내는 공개 투영. 개인 상태와 준비 중 타일 순서는 포함하지 않는다. */
+    public synchronized Map<String, com.fasterxml.jackson.databind.JsonNode> tablePresentations() {
+        Map<String, com.fasterxml.jackson.databind.JsonNode> result = new HashMap<>();
+        for (DavinciMatch match : games.values()) {
+            if (match.endedAt() != null) { continue; }
+            ObjectNode view = mapper.createObjectNode().put("gameId", match.gameId());
+            view.set("state", publicState(match));
+            result.put(match.tableId(), view);
+        }
+        return Map.copyOf(result);
     }
 
     @Override
@@ -181,11 +193,13 @@ public final class DavinciEngine implements GameEngine {
     }
 
     private ObjectNode publicState(DavinciMatch match) {
+        // 서버 시각 기준으로 늦게 접속한 클라이언트도 섞기 연출을 다시 재생하지 않는다.
         ObjectNode data = mapper.createObjectNode();
         data.put("gameCode", DavinciMatch.GAME_CODE).put("status", match.endedAt() == null ? "PLAYING" : "FINISHED")
                 .put("stage", match.stage().name()).put("version", match.version())
                 .put("turnUserId", match.turnUserId() == null ? null : match.turnUserId().toString())
                 .put("turnDeadline", match.deadline() == null ? null : match.deadline().toString())
+                .put("openingStartedAt", match.openingStartedAt().toString())
                 .put("endedAt", match.endedAt() == null ? null : match.endedAt().toString())
                 .put("endReason", match.endedAt() == null ? null : "LAST_PLAYER_STANDING");
         data.set("winnerUserIds", mapper.valueToTree(match.winners().stream().map(Object::toString).toList()));
@@ -238,7 +252,7 @@ public final class DavinciEngine implements GameEngine {
     private void publish(List<Object> notices) {
         for (Object notice : notices) {
             try { events.accept(notice); }
-            catch (RuntimeException exception) { log.error("다빈치 코드 알림 전달 실패", exception); }
+            catch (RuntimeException exception) { log.error("비밀패 알림 전달 실패", exception); }
         }
     }
 }

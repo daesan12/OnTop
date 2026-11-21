@@ -50,7 +50,7 @@ public final class DavinciParkApplication {
             "--ontop.auth.jwt-secret-base64=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
             "--ontop.auth.allowed-origins=http://127.0.0.1:5523,http://localhost:5523",
             "--ontop.game-start.enabled=true", "--ontop.games.davinci.enabled=true",
-            "--ontop.world.channels[0].channel-id=channel-1", "--ontop.world.channels[0].name=다빈치 로컬 공원",
+            "--ontop.world.channels[0].channel-id=channel-1", "--ontop.world.channels[0].name=비밀패 로컬 공원",
             "--ontop.world.channels[0].capacity=16",
             "--ontop.world.map.source=GENERATED", "--ontop.world.map.json-path=../frontend/generated/park-renewal/server-map.json",
             "--ontop.world.map.manifest-path=../frontend/generated/park-renewal/manifest.json", "--ontop.world.map.require-match=true",
@@ -74,7 +74,7 @@ public final class DavinciParkApplication {
                 for (long id : ids) {
                     if (Set.of(101L,202L,303L,404L,999L).contains(id)) {
                         result.put(id, new WorldProfileGateway.Profile(
-                                id == 999 ? "관전 로컬" : "다빈치 " + id / 101, "MALE"));
+                                id == 999 ? "관전 로컬" : "비밀패 " + id / 101, "MALE"));
                     }
                 }
                 return Map.copyOf(result);
@@ -114,7 +114,7 @@ public final class DavinciParkApplication {
                         try {
                             String bearer=request.getHeader("Authorization");
                             var user=auth.authenticate(bearer != null && bearer.startsWith("Bearer ") ? bearer.substring(7) : "");
-                            body=Map.of("userId",user.userId(),"nickname",user.userId()==999 ? "관전 로컬" : "다빈치 " + user.userId()/101,"characterGender","MALE");
+                            body=Map.of("userId",user.userId(),"nickname",user.userId()==999 ? "관전 로컬" : "비밀패 " + user.userId()/101,"characterGender","MALE");
                         } catch(RuntimeException denied) { response.setStatus(401); return; }
                     }
                     if (body == null) { chain.doFilter(request,response); return; }

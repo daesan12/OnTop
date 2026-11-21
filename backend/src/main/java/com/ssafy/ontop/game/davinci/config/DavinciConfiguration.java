@@ -5,6 +5,7 @@ import com.ssafy.ontop.config.RuntimeProfiles;
 import com.ssafy.ontop.game.davinci.service.DavinciEngine;
 import com.ssafy.ontop.game.engine.GameEngineGateways;
 import com.ssafy.ontop.game.engine.GameEngineRouter;
+import com.ssafy.ontop.world.service.WorldChannelRegistry;
 import java.security.SecureRandom;
 import java.time.Clock;
 import java.util.Collections;
@@ -33,10 +34,15 @@ public class DavinciConfiguration {
     }
 
     @Bean(destroyMethod = "shutdownNow")
-    ScheduledExecutorService davinciTimer(DavinciEngine engine) {
+    ScheduledExecutorService davinciTimer(DavinciEngine engine, Optional<WorldChannelRegistry> world) {
         ScheduledExecutorService timer = Executors.newSingleThreadScheduledExecutor(
                 Thread.ofPlatform().daemon(true).name("davinci-turn-timer").factory());
-        timer.scheduleWithFixedDelay(engine::tick, 250, 250, TimeUnit.MILLISECONDS);
+        timer.scheduleWithFixedDelay(() -> {
+            engine.tick();
+            // 엔진 잠금에서 빠져나온 공개 복사본만 월드에 전달한다.
+            var views = engine.tablePresentations();
+            world.ifPresent(channels -> channels.secretTilePresentations(views));
+        }, 0, 250, TimeUnit.MILLISECONDS);
         return timer;
     }
 }
