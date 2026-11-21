@@ -6,6 +6,7 @@ import { ParkSoundscape } from '../audio/ParkSoundscape'
 import { lazy } from 'react'
 import { GENERATED_PARK_ENABLED, JUMPMAP_ENABLED, RENEWAL_GATE_STARTUP, RENEWAL_PARK_ENABLED } from '../park/mapSelection'
 import { loadRenewalParkWorld } from '../park/loadRenewalParkWorld'
+import { usePageVisible } from '../park/usePageVisible'
 import { LIVE_MAP_IDENTITY } from '../network/mapContract'
 import { ShaderPreparedGroup } from '../../park-renewal-preview/live/ShaderPreparedGroup'
 import { useJumpmap } from '../features/jumpmap/state'
@@ -37,6 +38,7 @@ import { Avatars } from './Avatars'
 import {JokeJudgeActor} from '../features/ai/JokeJudgeActor'
 import { CompanionActors } from '../features/ai/CompanionActors'
 import { PoliceNpcs } from '../features/ai/PoliceNpcs'
+import { ResidentLoading } from '../features/ai/residentLoading'
 import { AvatarPoseFrame } from './AvatarPoseFrame'
 import { FollowRopes } from '../features/follow/FollowRopes'
 import { RouteArrows } from '../features/navigation/RouteArrows'
@@ -198,7 +200,7 @@ export const WorldCanvas = memo(function WorldCanvas({
   const boardDetail = boardPlayer && !!scope && scope !== lookScope || boardSpectator && spectatorView === 'board'
   const preset = QUALITY[quality]
   const overlayTargets = useMemo<OverlayTargets>(() => new Map(), [])
-  const [visible, setVisible] = useState(() => !document.hidden)
+  const visible = usePageVisible()
   const gachaSurface = useGachaOverlay(s => s.surface)
   const fortuneOpen = useFortune(s => s.open)
   const [viewport, setViewport] = useState(() => ({
@@ -215,11 +217,6 @@ export const WorldCanvas = memo(function WorldCanvas({
       })
     window.addEventListener('resize', resize)
     return () => window.removeEventListener('resize', resize)
-  }, [])
-  useEffect(() => {
-    const changed = () => setVisible(!document.hidden)
-    document.addEventListener('visibilitychange', changed)
-    return () => document.removeEventListener('visibilitychange', changed)
   }, [])
   const dpr = effectiveDpr(
     quality,
@@ -290,9 +287,12 @@ export const WorldCanvas = memo(function WorldCanvas({
           <Suspense fallback={null}>
             <Avatars overlayTargets={overlayTargets} firstGateFrameAt={RENEWAL_GATE_STARTUP ? firstFrameAt : undefined} />
           </Suspense>
-        <PoliceNpcs />
-        <CompanionActors />
-        <JokeJudgeActor />          <FollowRopes />
+        <ResidentLoading.Provider value={!RENEWAL_PARK_ENABLED || entryPresented}>
+          <PoliceNpcs />
+          <CompanionActors />
+          <JokeJudgeActor />
+        </ResidentLoading.Provider>
+          <FollowRopes />
           <RouteArrows />
         {breadSceneMounted && <Suspense fallback={null}><BungeoppangGrill /></Suspense>}
           <ParkDebrisScene />

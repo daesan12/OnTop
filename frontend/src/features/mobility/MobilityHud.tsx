@@ -54,7 +54,7 @@ export function MobilityHud() {
       </svg>
     </span>
     <span className="mobility-rental-copy">
-      <strong>{choice.label} 대여{rentalCapability.available ? ` · ${choice.rate}냥/초` : ''}</strong>
+      <strong>{choice.label} 대여{rentalCapability.available ? ` · ${choice.billingSeconds}초에 ${choice.rate}냥` : ''}</strong>
       <small>{!rentalCapability.available ? '현재 대여 불가' : holdAt === null ? '길게 눌러 탑승' : '계속 눌러주세요'}</small>
     </span>
   </aside>
