@@ -37,7 +37,7 @@ async function renderer() {
 const resident = () => h(ResidentModel, { kind: 'CHILD', speed: { current: 0 } })
 
 describe('주민의 첫 화면 이후 로딩', () => {
-  it('첫 화면 전에는 요청하지 않고 준비 중에는 대체 주민을 유지한다', async () => {
+  it('첫 화면 전에는 요청하지 않고 실제 모델이 준비될 때 한 번만 표시한다', async () => {
     const view = await renderer()
     let finish!: (source: never) => void
     const release = vi.fn(), dispose = vi.fn(), actor = { root: new THREE.Group(), update: vi.fn(), dispose }
@@ -47,38 +47,53 @@ describe('주민의 첫 화면 이후 로딩', () => {
     await view.mount(tree(false)); await view.tick(.01)
     expect(assets.acquire).not.toHaveBeenCalled()
     await view.mount(tree(true))
-    expect(view.state.scene.getObjectByName('resident-placeholder')).toBeDefined()
+    expect(view.state.scene.getObjectByName('resident-placeholder')).toBeUndefined()
+    expect(view.state.scene.getObjectByName('detailed-npc-CHILD')!.children).toHaveLength(0)
     expect(assets.acquire).not.toHaveBeenCalled()
     await view.tick(.02)
     await vi.waitFor(() => expect(assets.acquire).toHaveBeenCalledOnce())
     await act(async () => { finish({} as never) })
     expect(instantiateResident).toHaveBeenCalledOnce()
     expect(view.state.scene.getObjectByName('resident-placeholder')).toBeUndefined()
+    expect(view.state.scene.getObjectByName('detailed-npc-CHILD')!.children).toEqual([actor.root])
     await view.mount(null)
     expect(release).toHaveBeenCalledOnce(); expect(dispose).toHaveBeenCalledOnce()
   })
 
-  it('90m 밖과 경계 이동에서도 대체 주민을 유지하고 해제된 상세 모델은 복제하지 않는다', async () => {
+  it('90m 경계에서 임시 모델 없이 상세 요청만 시작하고 해제된 모델은 복제하지 않는다', async () => {
     const view = await renderer()
     let finish!: (source: never) => void
     const release = vi.fn()
     assets.acquire.mockReturnValue({ ready: new Promise(resolve => { finish = resolve as typeof finish }), release })
     await view.mount(h('group', { position: [200, 0, 0] }, resident()))
-    const placeholder = view.state.scene.getObjectByName('resident-placeholder')
-    expect(placeholder).toBeDefined()
+    const host = view.state.scene.getObjectByName('detailed-npc-CHILD')!
+    expect(host.children).toHaveLength(0)
     await view.tick(.01)
-    expect(view.state.scene.getObjectByName('resident-placeholder')).toBe(placeholder)
+    expect(host.children).toHaveLength(0)
     expect(assets.acquire).not.toHaveBeenCalled()
     view.state.camera.position.x = 111 // 89m: only the detailed request becomes eligible.
     await view.tick(.02)
     await vi.waitFor(() => expect(assets.acquire).toHaveBeenCalledOnce())
-    view.state.camera.position.x = 109 // 91m: keep the same lightweight actor.
+    view.state.camera.position.x = 109 // Crossing back must not add a temporary actor or restart the request.
     await view.tick(.03)
-    expect(view.state.scene.getObjectByName('resident-placeholder')).toBe(placeholder)
+    expect(host.children).toHaveLength(0)
+    expect(view.state.scene.getObjectByName('resident-placeholder')).toBeUndefined()
     expect(assets.acquire).toHaveBeenCalledOnce()
     await view.mount(null)
     await act(async () => { finish({} as never) })
     expect(release).toHaveBeenCalledOnce()
     expect(instantiateResident).not.toHaveBeenCalled()
+  })
+
+  it('다운로드 실패 때에도 다른 모습의 대체 주민을 표시하지 않는다', async () => {
+    const view = await renderer(), release = vi.fn()
+    assets.acquire.mockImplementation(() => ({ ready: Promise.reject(Error('offline')), release }))
+    await view.mount(resident()); await view.tick(.01)
+    await vi.waitFor(() => expect(view.state.scene.getObjectByName('detailed-npc-CHILD')!.userData.loadError).toBe(true))
+    expect(view.state.scene.getObjectByName('detailed-npc-CHILD')!.children).toHaveLength(0)
+    expect(view.state.scene.getObjectByName('resident-placeholder')).toBeUndefined()
+    expect(instantiateResident).not.toHaveBeenCalled()
+    await view.mount(null)
+    expect(release).toHaveBeenCalledOnce()
   })
 })

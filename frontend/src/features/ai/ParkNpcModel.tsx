@@ -3,7 +3,6 @@ import {useFrame} from '@react-three/fiber'
 import {Group,Sphere,Vector3} from 'three'
 import {CustomerModelPoolV5} from '../bungeoppang/customerModelV5'
 import {instantiateResident,RESIDENT_LOOKS,type ResidentKind} from './residentRig'
-import {CharacterModel} from '../../ai-lab/CharacterModel'
 import {npcFrameView} from './npcFrameView'
 import {OMOK_FOCUS_LAYER} from '../../world/omokCamera'
 import {ResidentLoading} from './residentLoading'
@@ -13,14 +12,14 @@ const pool=new CustomerModelPoolV5()
 const loads=new ResidentLoadQueue()
 export function ResidentModel({kind,speed,seated=false,airborne=false,talking=false}:{kind:ResidentKind;speed:{current:number};seated?:boolean;airborne?:boolean;talking?:boolean}) {
  const enabled=useContext(ResidentLoading)
- const host=useRef<Group>(null),instance=useRef<ReturnType<typeof instantiateResident>|null>(null),[loaded,setLoaded]=useState(false),[wanted,setWanted]=useState(false)
+ const host=useRef<Group>(null),instance=useRef<ReturnType<typeof instantiateResident>|null>(null),[wanted,setWanted]=useState(false)
  const distance=useRef(Infinity)
  const frame=useRef({ elapsed:0, center:new Vector3(), sphere:new Sphere(new Vector3(),3), visible:true })
  useEffect(()=>{
   if(!enabled||!wanted)return
   let active=true,lease:ReturnType<typeof pool.acquire>|undefined
   const root=host.current!
-  setLoaded(false);root.userData.loadError=false
+  root.userData.loadError=false
   const cancel=loads.enqueue(async()=>{
    if(!active)return
    performance.mark('park-resident-load-start-'+kind)
@@ -30,7 +29,7 @@ export function ResidentModel({kind,speed,seated=false,airborne=false,talking=fa
     if(!active)return
     performance.mark('park-resident-clone-start-'+kind)
     const actor=instantiateResident(source,kind)
-    instance.current=actor;root.add(actor.root);root.userData.loaded=true;setLoaded(true)
+    instance.current=actor;root.add(actor.root);root.userData.loaded=true
     performance.mark('park-resident-clone-end-'+kind)
    } catch {if(active)root.userData.loadError=true}
   },()=>distance.current)
@@ -68,6 +67,6 @@ export function ResidentModel({kind,speed,seated=false,airborne=false,talking=fa
   resident.update(Math.min(.1,state.elapsed),speed.current,seated,airborne,talking)
   state.elapsed=0
  },.75)
- // Distance only gates detailed GLB work; keep the cheap actor visible as soon as enabled.
- return <group ref={host} name={'detailed-npc-'+kind}>{enabled&&!loaded&&<group scale={RESIDENT_LOOKS[kind].height/2.1}><CharacterModel role={kind==='POLICE'?'POLICE':kind==='ELDER'?'GUIDE':'VISITOR'} moving={speed.current>.1} talking={talking} motionSpeed={speed} airborne={airborne}/></group>}</group>
+ // Attach only the finished resident; a different temporary character visibly morphs on load.
+ return <group ref={host} name={'detailed-npc-'+kind}/>
 }
