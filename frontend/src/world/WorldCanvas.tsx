@@ -288,9 +288,13 @@ export const WorldCanvas = memo(function WorldCanvas({
             <Avatars overlayTargets={overlayTargets} firstGateFrameAt={RENEWAL_GATE_STARTUP ? firstFrameAt : undefined} />
           </Suspense>
         <ResidentLoading.Provider value={!RENEWAL_PARK_ENABLED || entryPresented}>
-          <PoliceNpcs />
-          <CompanionActors />
-          <JokeJudgeActor />
+          {/* External-store actor updates can repeatedly restart an uncommitted
+              Suspense tree. Subscribe after the entrance has actually rendered. */}
+          {(!RENEWAL_PARK_ENABLED || entryPresented) && <>
+            <PoliceNpcs />
+            <CompanionActors />
+            <JokeJudgeActor />
+          </>}
         </ResidentLoading.Provider>
           <FollowRopes />
           <RouteArrows />
