@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect } from 'react'
+import { useRummikubDraft, toggleRummikubTile } from './draft'
 import { COLOR_LABEL, COLORS, physical, validMeld, type Color, type Placed, type Rummikub, type Tile } from './protocol'
 
 function TileButton({ tile, selected, disabled, onClick }: {
@@ -9,19 +10,21 @@ function TileButton({ tile, selected, disabled, onClick }: {
     aria-label={joker ? `조커${tile.color ? ` · ${COLOR_LABEL[tile.color]} ${tile.number}` : ''}` : `${COLOR_LABEL[tile.color!]} ${tile.number}`}
     title={joker ? '조커 · 대체 색상과 숫자를 지정하세요' : `${COLOR_LABEL[tile.color!]} ${tile.number}`}
     disabled={disabled} onClick={onClick}>
-    <span>{joker ? '★' : tile.number}</span>{joker && tile.color && <small>{tile.number}</small>}
+    {joker ? <img src="/art/rummikub/joker-ontop.png" alt="" style={{width:'70%'}}/> : <span>{tile.number}</span>}{joker && tile.color && <small>{tile.number}</small>}
   </button>
 }
 
-export function RummikubTable({ state, tiles, own, editable, sending, error, notice, onPlay, onDraw, onPing, pingIndices = [] }: {
+export function RummikubTable({ state, tiles, own, editable, sending, error, notice, onPlay, onDraw, onPing, pingIndices = [], tabletop = false }: {
   state: Rummikub; tiles: Tile[]; own: string; editable: boolean; sending: boolean; error: string; notice?: string
-  pingIndices?: number[]; onPlay(melds: Placed[][]): void; onDraw(): void; onPing?(meld: number): void
+  tabletop?: boolean; pingIndices?: number[]; onPlay(melds: Placed[][]): void; onDraw(): void; onPing?(meld: number): void
 }) {
-  const [draft, setDraft] = useState<Placed[][]>(() => state.melds.map(m => [...m]))
-  const [selected, setSelected] = useState<string[]>([])
-  const [sort, setSort] = useState<'color' | 'number'>('color')
-  const [jokerColor, setJokerColor] = useState<Color>('RED')
-  const [jokerNumber, setJokerNumber] = useState(1)
+  const ui = useRummikubDraft(), draft = ui.source===state ? ui.draft ?? state.melds : state.melds, {selected, sort, jokerColor, jokerNumber} = ui
+  useEffect(() => { useRummikubDraft.setState({source:state,draft:state.melds.map(m=>[...m]),selected:[]}) }, [state])
+  const setDraft = (draft: Placed[][]) => useRummikubDraft.setState({draft})
+  const setSelected = (selected: string[]) => useRummikubDraft.setState({selected})
+  const setSort = (sort: 'color' | 'number') => useRummikubDraft.setState({sort})
+  const setJokerColor = (jokerColor: Color) => useRummikubDraft.setState({jokerColor})
+  const setJokerNumber = (jokerNumber: number) => useRummikubDraft.setState({jokerNumber})
   const registered = state.players.find(p => p.userId === own)?.registered ?? false
   const ownIds = new Set(tiles.map(t => t.id)), placedIds = new Set(draft.flat().map(t => t.id))
   const rack = tiles.filter(t => !placedIds.has(t.id)).sort((a, b) => sort === 'color'
@@ -32,7 +35,7 @@ export function RummikubTable({ state, tiles, own, editable, sending, error, not
   const dirty = JSON.stringify(draft) !== JSON.stringify(state.melds)
   const valid = added.length > 0 && draft.every(validMeld) && (registered || points >= 30)
   const selectedJoker = selected.some(id => physical(id)?.color === null)
-  const toggle = (id: string) => setSelected(previous => previous.includes(id) ? previous.filter(value => value !== id) : [...previous, id])
+  const toggle = toggleRummikubTile
   function move(target: number | null) {
     const picked: Placed[] = selected.map(id => {
       const tile = draft.flat().find(t => t.id === id) ?? tiles.find(t => t.id === id)!
@@ -46,12 +49,12 @@ export function RummikubTable({ state, tiles, own, editable, sending, error, not
     setDraft(next.filter(m => m.length)); setSelected([])
   }
   return <>
-    <div className="rummi-board" aria-label="공개 타일 조합">
+    <div className={`rummi-board${tabletop ? ' rummi-board-index' : ''}`} aria-label="공개 타일 조합">
       {draft.length === 0 && <p className="rummi-empty">손패에서 타일을 고른 뒤<br/><strong>새 조합</strong>으로 첫 수를 놓아보세요.</p>}
       {draft.map((meld, index) => {
         const original = !registered && index < state.melds.length
         return <div className="rummi-meld" data-ping={pingIndices.includes(index) || undefined} data-invalid={!validMeld(meld) || undefined} key={index} aria-label={`${index + 1}번 조합`}>
-          <div className="rummi-meld-tiles">{meld.map(tile => <TileButton key={tile.id} tile={tile} selected={selected.includes(tile.id)}
+          <div className="rummi-meld-tiles">{tabletop && <span>{index+1}번 · </span>}{meld.map(tile => <TileButton key={tile.id} tile={tile} selected={selected.includes(tile.id)}
             disabled={!editable || original} onClick={() => toggle(tile.id)}/>)}</div>
           {editable && !original && selected.length > 0 && <button className="rummi-attach" onClick={() => move(index)}>{index + 1}번에 붙이기</button>}
           {!validMeld(meld) && <small>3개 이상인 유효한 조합으로 완성하세요</small>}

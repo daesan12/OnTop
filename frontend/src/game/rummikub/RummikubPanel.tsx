@@ -19,17 +19,17 @@ export function RummikubPanel() {
   const [now, setNow] = useState(Date.now)
   useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 500); return () => clearInterval(timer) }, [])
   const g = s.game?.rummikub ? s.game : null
-  if (!g) return <section className="rummikub-panel"><p>루미큐브 상태를 확인하고 있습니다.</p><button onClick={() => void runtime.checkRecovery()}>경기 복구 다시 확인</button></section>
+  if (!g) return <section className="rummikub-panel"><p>수패마루 상태를 확인하고 있습니다.</p><button onClick={() => void runtime.checkRecovery()}>경기 복구 다시 확인</button></section>
   const r = g.rummikub, player = g.role === 'PLAYER'
   const name = (id: string) => id === own ? '나' : profiles[id]?.nickname ?? `참가자 ${r.players.findIndex(p => p.userId === id) + 1}`
   const remaining = r.turnDeadline ? Math.max(0, Math.ceil((Date.parse(r.turnDeadline) - now) / 1000)) : null
   const canAct = connection === 'connected' && canActRummikub(own, { kind: 'draw' }, now)
   const send = (input: RummikubInput) => { void runtime.actRummikub?.(input) }
-  const status = r.status === 'FINISHED' ? `${r.endReason === 'EMPTY_HAND' ? '루미큐브! · ' : ''}${r.winnerUserIds.map(name).join(' · ')} 승리`
+  const status = r.status === 'FINISHED' ? `${r.endReason === 'EMPTY_HAND' ? '수패마루! · ' : ''}${r.winnerUserIds.map(name).join(' · ')} 승리`
     : r.turnUserId === own && player ? `내 차례 · ${remaining}초` : `${name(r.turnUserId!)} 차례 · ${remaining}초`
   const me = r.players.find(p => p.userId === own)
-  return <section className="rummikub-panel" aria-label="루미큐브" onPointerDown={e => e.stopPropagation()} onKeyDown={e => e.stopPropagation()}>
-    <header className="rummi-header"><h2>루미큐브</h2><strong role="status">{status}</strong>
+  return <section className="rummikub-panel" aria-label="수패마루" onPointerDown={e => e.stopPropagation()} onKeyDown={e => e.stopPropagation()}>
+    <header className="rummi-header"><h2>수패마루</h2><strong role="status">{status}</strong>
       <span>{me?.registered ? '등록 완료' : '첫 등록 30점'}</span><span>더미 {r.poolCount}개</span>
       <button onClick={() => openManual('rummikub')}>게임 설명</button>
       {player ? <OmokSurrender context={{ userId: own, gameId: g.gameId, version: g.version }} disabled={s.pending}/>
@@ -45,7 +45,7 @@ export function RummikubPanel() {
       {p.score !== null && <b>{p.score > 0 ? '+' : ''}{p.score}점</b>}
     </div>)}</div>
     <RummikubTable key={`${g.gameId}:${g.version}`} state={r} own={own} tiles={g.rummikubHand?.tiles ?? []}
-      editable={canAct} sending={s.pending} error={s.error}
+      tabletop editable={canAct} sending={s.pending} error={s.error}
       notice={s.uncertain ? '반영 여부가 불명확합니다. 최신 상태 확인 후 진행하세요.' : connection !== 'connected' ? '연결 복구 중 · 입력이 잠겼습니다.'
         : g.version < s.awaitingVersion ? '처리 확인 수신 · 최신 타일 상태를 기다리고 있습니다.' : !player ? '관전 중 · 개인 손패는 공개되지 않습니다.' : undefined}
       onPing={!player && pings.canSend ? index => { void runtime.pingRummikub?.(index) } : undefined}

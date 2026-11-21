@@ -12,7 +12,7 @@ const fresh = (): Rummikub => ({
   winnerUserIds: [], endReason: null, endedAt: null, lastEvent: 'START',
 })
 const hand = () => ({ userId: '101', tiles: Array.from({ length: 14 }, (_, i) => physical(`RED-${Math.floor(i / 2) + 1}-${i % 2}`)!) })
-describe('루미큐브 계약', () => {
+describe('수패마루 계약', () => {
   it('4색 고유 타일과 조커만 허용한다', () => {
     expect(physical('BLUE-13-1')).toEqual({ id: 'BLUE-13-1', color: 'BLUE', number: 13 })
     expect(physical('GREEN-1-0')).toBeNull()

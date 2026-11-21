@@ -1842,7 +1842,7 @@ export class ParkRuntime implements ParkRuntimePort {
     } catch (error) {
       if (generation === this.generation && useGame.getState().permittedGameId === g.gameId)
         useGame.setState({ uncertain: !(error instanceof ServerError && ['GAME_ACTION_INVALID_ACTION', 'GAME_ACTION_NOT_YOUR_TURN'].includes(error.code)),
-          error: error instanceof Error ? error.message : '루미큐브 처리 결과를 확인해주세요.' })
+          error: error instanceof Error ? error.message : '수패마루 처리 결과를 확인해주세요.' })
       throw error
     } finally { if (generation === this.generation) useGame.setState({ pending: false }) }
   })

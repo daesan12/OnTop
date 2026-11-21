@@ -6,6 +6,7 @@ import { FarkleTable } from '../../game/farkle/FarkleTable'
 import { OneCardBoard } from '../../game/onecard/OneCardBoard'
 import { BridgeBoard } from '../../game/bridge/BridgeBoard'
 import { LedgerTable } from '../../game/ledger/LedgerTable'
+import { RummikubSurface } from '../../game/rummikub/RummikubSurface'
 import { HalliBoard } from '../../game/halligalli/HalliBoard'
 import {DebrisGameSurface} from '../parkDebris/presentation'
 
@@ -20,6 +21,7 @@ export default function TableBoards({ anchor, nativeFurniture }: { anchor: Table
         <OneCardBoard anchor={anchor} />
         <BridgeBoard anchor={anchor} />
         <LedgerTable anchor={anchor} />
+        <RummikubSurface anchor={anchor} />
         <HalliBoard anchor={anchor} />
         </Suspense>
       </DebrisGameSurface>

@@ -53,7 +53,7 @@ public final class RummikubMatch {
                 || players.stream().distinct().count() != players.size() || firstPlayer < 0
                 || firstPlayer >= players.size() || now == null || deck == null || deck.size() != 106
                 || !new HashSet<>(deck).equals(new HashSet<>(RummikubTile.deck()))) {
-            throw new IllegalArgumentException("루미큐브 경기·참가자·타일을 확인해주세요.");
+            throw new IllegalArgumentException("수패마루 경기·참가자·타일을 확인해주세요.");
         }
         this.gameId = gameId;
         this.tableId = tableId;

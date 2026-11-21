@@ -18,8 +18,8 @@ const ids = ['RED-1-0', 'RED-8-0', 'RED-13-0', 'BLUE-1-0', 'BLUE-6-0', 'BLUE-7-0
 function Preview() {
   const [state, setState] = useState(sample), [tiles, setTiles] = useState(ids.map(id => physical(id)!)), [notice, setNotice] = useState('독립 화면 검수 · 로컬 상태 · 실제 경기/재화 없음')
   const [version, setVersion] = useState(0)
-  return <section className="rummikub-panel" aria-label="루미큐브 독립 화면">
-    <header className="rummi-header"><h2>루미큐브</h2><strong>내 차례</strong><span>등록 완료</span><span>더미 {state.poolCount}개</span>
+  return <section className="rummikub-panel" aria-label="수패마루 독립 화면">
+    <header className="rummi-header"><h2>수패마루</h2><strong>내 차례</strong><span>등록 완료</span><span>더미 {state.poolCount}개</span>
       <button onClick={() => { setState(sample); setTiles(ids.map(id => physical(id)!)); setVersion(v => v + 1); setNotice('처음 상태로 돌아왔습니다.') }}>처음부터</button></header>
     <div className="rummi-opponents">{['민수', '지현', '현우'].map(name => <div key={name}><strong>{name}</strong><span>14개</span></div>)}</div>
     <RummikubTable key={version} state={state} tiles={tiles} own="101" editable sending={false} error="" notice={notice}

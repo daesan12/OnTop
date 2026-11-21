@@ -31,7 +31,7 @@ export function validMeld(meld: Placed[]): boolean {
   return (meld.length <= 4 && new Set(meld.map(t => t.number)).size === 1 && new Set(meld.map(t => t.color)).size === meld.length)
     || meld.every((t, i) => t.color === meld[0]!.color && (!i || t.number === meld[i - 1]!.number + 1))
 }
-const invalid = (): never => { throw new Error('루미큐브 상태 형식을 확인해주세요.') }
+const invalid = (): never => { throw new Error('수패마루 상태 형식을 확인해주세요.') }
 export function parseRummikub(p: unknown): Rummikub {
   if (!record(p) || p.gameCode !== 'RUMMIKUB' || !['PLAYING', 'FINISHED'].includes(String(p.status))
     || p.turnTimeLimitMs !== 60000 || p.initialMeldPoints !== 30 || p.jokerPenalty !== 30

@@ -19,7 +19,7 @@
 .rummi-meld { display:flex; flex-direction:column; gap:6px; align-items:center; max-width:100%; }
 .rummi-meld[data-invalid] { outline:2px dashed #8a3423; outline-offset:5px; }
 .rummi-meld-tiles { display:flex; max-width:100%; overflow-x:auto; scrollbar-width:none; padding:7px 4px; transform:rotateX(8deg); }
-.rummikub-panel .rummi-tile { position:relative; display:inline-flex; align-items:center; justify-content:center; flex:none; width:var(--rummi-tile-width); height:calc(var(--rummi-tile-width)*1.38); margin:0 1px; padding:0 0 8%; border:none; border-radius:8px; background:transparent url('/art/rummikub/tile.png') center/100% 100% no-repeat; box-shadow:1px 5px 3px #29170950; color:#171714; transition:transform .13s ease; opacity:1; }
+.rummikub-panel .rummi-tile { position:relative; display:inline-flex; align-items:center; justify-content:center; flex:none; width:var(--rummi-tile-width); height:calc(var(--rummi-tile-width)*1.38); margin:0 1px; padding:0 0 8%; border:none; border-radius:8px; background:transparent url('/art/rummikub/tile-ontop.png') center/100% 100% no-repeat; box-shadow:1px 5px 3px #29170950; color:#171714; transition:transform .13s ease; opacity:1; }
 .rummikub-panel .rummi-tile span { font:800 clamp(24px,3.3vw,46px)/1 Georgia,serif; text-shadow:0 1px 0 #fff7d4; }
 .rummikub-panel .rummi-tile small { position:absolute; bottom:10%; right:17%; font-size:15px; }
 .rummikub-panel .rummi-tile[data-color='RED'] { color:#b71e16; }
@@ -36,7 +36,7 @@
 .rummi-announcement p { margin:3px 0; }
 .rummi-announcement [role='alert'] { color:#6d130e; background:#fff1d4; padding:8px; }
 .rummi-rack-wrap { padding:6px 5% 0; }
-.rummi-rack { display:grid; grid-template-columns:repeat(14,minmax(0,1fr)); align-content:center; justify-items:center; gap:12px 2px; min-height:160px; padding:30px 4% 25px; background:url('/art/rummikub/rack.png') center/100% 100% no-repeat; }
+.rummi-rack { display:grid; grid-template-columns:repeat(14,minmax(0,1fr)); align-content:center; justify-items:center; gap:12px 2px; min-height:160px; padding:30px 4% 25px; background:url('/art/rummikub/rack-ontop.png') center/100% 100% no-repeat; }
 .rummi-rack .rummi-tile { width:min(var(--rummi-tile-width),100%); }
 .rummi-rack p { grid-column:1/-1; padding:30px 0; }
 .rummi-controls { display:flex; justify-content:center; align-items:center; flex-wrap:wrap; gap:14px; padding:14px 18px; background:var(--rummi-green); border-top:2px solid var(--rummi-gold); margin-top:12px; }
@@ -58,3 +58,23 @@
 .rummi-rack { grid-template-columns:repeat(7,minmax(0,1fr)); max-width:1050px; margin:auto; min-height:320px; background-size:100% 150%; }
 .rummi-rack .rummi-tile { width:clamp(40px,6.2vw,95px); height:calc(clamp(40px,6.2vw,95px)*1.32); }
 @media(max-width:600px) { .rummi-rack { min-height:200px; } }
+/* 공원 테이블은 3D 표면에 표시하고 이 패널은 조작만 담당한다. */
+.rummikub-panel:has(.rummi-board-index) { inset:74px 86px auto auto; max-height:calc(100dvh - 94px); width:min(340px,30vw); z-index:5; background:#183827ed; border:1px solid #bda46e; border-radius:12px; font-size:12px; }
+.rummikub-panel:has(.rummi-board-index) .rummi-header {padding:10px;gap:7px;}
+.rummikub-panel:has(.rummi-board-index) .rummi-header h2 {font-size:20px;}
+.rummikub-panel:has(.rummi-board-index) .rummi-header strong {font-size:14px;}
+.rummikub-panel:has(.rummi-board-index) .rummi-header span {padding:0 4px;}
+.rummikub-panel:has(.rummi-board-index) button {min-height:30px;font-size:12px;padding:5px 8px;}
+.rummikub-panel:has(.rummi-board-index) .rummi-opponents {gap:4px;padding:7px;}
+.rummikub-panel:has(.rummi-board-index) .rummi-opponents>div {gap:5px;padding:4px 7px;}
+.rummikub-panel:has(.rummi-board-index) .rummi-board {flex:none;min-height:0;max-height:150px;padding:8px;gap:8px;color:#f9ebc8;}
+.rummikub-panel:has(.rummi-board-index) .rummi-empty {font-size:12px;margin:4px;color:#f9ebc8;}
+.rummikub-panel:has(.rummi-board-index) .rummi-rack {background:none;display:flex;flex-wrap:wrap;gap:3px;min-height:0;padding:8px;}
+.rummikub-panel:has(.rummi-board-index) .rummi-tile {width:27px;height:36px;padding:0;}
+.rummikub-panel:has(.rummi-board-index) .rummi-tile span {font-size:19px;}
+.rummikub-panel:has(.rummi-board-index) .rummi-edit-tools {gap:5px;padding:6px;color:#f9ebc8;}
+.rummikub-panel:has(.rummi-board-index) .rummi-announcement {color:#f9ebc8;font-size:12px;}
+.rummikub-panel:has(.rummi-board-index) .rummi-controls {gap:5px;padding:8px;}
+.rummikub-panel:has(.rummi-board-index) .rummi-controls button {min-width:85px;}
+.rummikub-panel:has(.rummi-board-index) .rummi-social {padding:6px 9px;}
+@media(max-width:700px){.rummikub-panel:has(.rummi-board-index){inset:auto 5px 5px 5px;width:auto;max-height:42dvh;}.rummikub-panel:has(.rummi-board-index) .rummi-opponents{display:none;}}

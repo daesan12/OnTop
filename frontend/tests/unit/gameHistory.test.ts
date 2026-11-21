@@ -70,7 +70,7 @@ describe('approved history API contract', () => {
   })
 })
 
-it('루미큐브_기록과_전적을_기존_게임과_함께_파싱한다', () => {
+it('수패마루_기록과_전적을_기존_게임과_함께_파싱한다', () => {
   expect(historyPath('RUMMIKUB')).toContain('gameCode=RUMMIKUB');
   expect(parseHistory(page({items:[item('8',{gameCode:'RUMMIKUB'})]})).items[0].gameCode).toBe('RUMMIKUB');
   expect(parseStats({items:[{...stats,gameCode:'RUMMIKUB'}]})[0].gameCode).toBe('RUMMIKUB');

@@ -67,7 +67,7 @@ public final class RummikubParkApplication {
                 var result = new HashMap<Long, WorldProfileGateway.Profile>();
                 for (long id : ids) if (Set.of(101L,202L,505L).contains(id))
                     result.put(id, new WorldProfileGateway.Profile(
-                        id==101 ? "루미큐브 A" : id==202 ? "루미큐브 B" : "관전 로컬", "MALE"));
+                        id==101 ? "수패마루 A" : id==202 ? "수패마루 B" : "관전 로컬", "MALE"));
                 return Map.copyOf(result);
             };
         }

@@ -366,7 +366,7 @@ export function CameraRig() {
     const ownDice = seated && !!avatar.tableId && game?.role === 'PLAYER' && !!game.dice
     const diceFocus = seated && !!avatar.tableId && diceFocusActive(game, session.sessionId,
       useDiceUI.getState().boardView || holdBustCamera(game?.gameId, session.sessionId))
-    const ledgerFocus = seated && !!avatar.tableId && ledgerFocusActive(game, session.sessionId, looking)
+    const ledgerFocus = seated && !!avatar.tableId && (ledgerFocusActive(game, session.sessionId, looking) || !looking && game?.role === 'PLAYER' && !!game.rummikub)
     state.look.set(pose.x, pose.y + CAMERA.focusHeight - 0.8, pose.z)
     if (state.owner !== session.sessionId) {
       state.focus.copy(state.look)
@@ -478,13 +478,13 @@ export function CameraRig() {
       const anchor = closeAnchor ?? watchedAnchor ?? TABLES.find((t) => t.id === avatar.tableId)!
       state.look.set(
         // 주사위 장부 관전은 오른쪽 2D 장부에 판이 가리지 않도록 화면 왼쪽에 둔다.
-        anchor.position[0] + (spectatorBoard && game?.ledger ? LEDGER_CAMERA.panOffset * tableScale(anchor) : 0),
+        anchor.position[0] + (spectatorBoard && (game?.ledger || game?.rummikub) ? LEDGER_CAMERA.panOffset * tableScale(anchor) : 0),
         anchor.position[1] + GOMOKU.boardY,
         anchor.position[2],
       )
       state.desired.set(
         state.look.x,
-        Math.min(state.look.y + (spectatorBoard && game?.ledger ? 3.2 : 2.6) * tableScale(anchor), spectatorClearHeight(anchor.pavilionId)),
+        Math.min(state.look.y + (spectatorBoard && (game?.ledger || game?.rummikub) ? 3.2 : 2.6) * tableScale(anchor), spectatorClearHeight(anchor.pavilionId)),
         state.look.z + 0.001,
       )
     } else if (closeAnchor) {

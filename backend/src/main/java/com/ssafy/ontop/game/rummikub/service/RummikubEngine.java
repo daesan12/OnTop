@@ -61,12 +61,12 @@ public final class RummikubEngine implements GameEngine {
             if (existing != null) {
                 Snapshot state = existing.snapshot();
                 if (!state.tableId().equals(tableId) || !state.players().equals(players)) {
-                    throw new IllegalStateException("기존 경기와 다른 루미큐브 생성 요청입니다.");
+                    throw new IllegalStateException("기존 경기와 다른 수패마루 생성 요청입니다.");
                 }
                 return;
             }
             if (players == null || players.size() < 2 || players.size() > 4) {
-                throw new IllegalArgumentException("루미큐브 참가자는2~4명입니다.");
+                throw new IllegalArgumentException("수패마루 참가자는2~4명입니다.");
             }
             List<RummikubTile> deck = RummikubTile.deck();
             shuffle.accept(deck);
@@ -264,7 +264,7 @@ public final class RummikubEngine implements GameEngine {
         for (Object notice : notices) {
             try { events.accept(notice); }
             catch (RuntimeException exception) {
-                log.warn("루미큐브 상태 알림 전달 실패 type={}", notice.getClass().getSimpleName());
+                log.warn("수패마루 상태 알림 전달 실패 type={}", notice.getClass().getSimpleName());
             }
         }
     }

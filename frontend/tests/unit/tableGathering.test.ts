@@ -82,7 +82,7 @@ it('opens the same result and camera with a stale PLAYING engine or no engine at
   expect(getGathering()).toBeNull(); expect(gatheringCameraActive()).toBe(false)
 })
 
-it('루미큐브는_서버가_확정한_게임_점수를_엽전과_구분해_보여준다', () => {
+it('수패마루는_서버가_확정한_게임_점수를_엽전과_구분해_보여준다', () => {
   const rummikub = { gameCode: 'RUMMIKUB' as const, status: 'FINISHED' as const, turnTimeLimitMs: 120000, turnUserId: null, turnId: 4, turnDeadline: null, poolCount: 78, initialMeldPoints: 30, jokerPenalty: 30, melds: [], players: [{userId:'101',tileCount:0,registered:true,forfeited:false,score:42},{userId:'102',tileCount:6,registered:true,forfeited:false,score:-42}], winnerUserIds:['101'], endReason:'EMPTY_HAND', endedAt:'2026-11-21T00:00:00Z', lastEvent:'PLAY' };
   const m = gatheringModel({table:{...table,gameCode:'RUMMIKUB'},ownId:'101',game:{gameId:'g',version:4,role:'PLAYER',rummikub,rummikubHand:null},result:null,start,nickname:id=>id});
   expect(m.headline).toBe('101 승리');

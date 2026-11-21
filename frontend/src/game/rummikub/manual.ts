@@ -1,8 +1,8 @@
 import type { GameManual } from '../../features/manual/types'
 
 export const rummikubManual: GameManual = {
-  id: 'rummikub', status: 'available', category: 'game', title: '루미큐브', subtitle: '타일을 잇고 손패를 모두 비워요',
-  keywords: '루미큐브 rummikub 숫자 타일 그룹 런 조커 30점 재조합', players: '2~4명', goal: '손패를 먼저 모두 내려놓기',
+  id: 'rummikub', status: 'available', category: 'game', title: '수패마루', subtitle: '타일을 잇고 손패를 모두 비워요',
+  keywords: '수패마루 숫자 타일 그룹 런 조커 30점 재조합', players: '2~4명', goal: '손패를 먼저 모두 내려놓기',
   timing: '한 차례 60초 · 시간 초과 시 벌칙 3개 뽑기',
   summary: '같은 숫자·서로 다른 색 3~4개 또는 같은 색·연속 숫자 3개 이상을 만들어요. 최초 등록은 내 타일만으로 30점 이상이어야 해요.',
   flow: [
@@ -15,7 +15,7 @@ export const rummikubManual: GameManual = {
   points: ['그룹은 같은 숫자에 서로 다른 색 3~4개예요. 런은 같은 색의 연속 숫자 3~13개예요. 13 다음 1은 안 돼요.',
     '최초 등록 턴에는 기존 묶음을 바꿀 수 없어요. 조커는 대신하는 숫자로 점수를 계산해요.',
     '조커를 회수하려면 손패의 같은 색·숫자 타일로 교체하고, 그 턴의 다른 유효한 조합에 조커를 사용해야 해요.',
-    '마지막 타일을 내면 자동으로 “루미큐브!” 승리를 판정해요. 패자의 남은 숫자 합(조커는 30점)을 벌점으로 계산하고 승자는 그 합을 얻어요. 엽전은 공통 서버 정산을 따라요.'],
+    '마지막 타일을 내면 자동으로 “수패마루!” 승리를 판정해요. 패자의 남은 숫자 합(조커는 30점)을 벌점으로 계산하고 승자는 그 합을 얻어요. 엽전은 공통 서버 정산을 따라요.'],
   sections: [
     { id: 'rummi-joker', title: '조커를 옮기는 방법', paragraphs: [
       '조커를 선택하면 대체 색상과 숫자를 지정할 수 있어요. 먼저 조커를 새 조합으로 옮기고, 손패의 실제 대체 타일을 원래 묶음에 놓으세요.',
