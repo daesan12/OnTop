@@ -14,6 +14,7 @@ import { useRpsRoulette } from '../features/rpsRoulette/store'
 import { useSpeedMole } from '../features/speedMole/store'
 import { consumeWalletRewardSoundLevel } from '../features/wallet/settlementRefresh'
 import { chessSpecialMoveGap, chessSoundGame } from '../game/chess/sound'
+import { ChessClockSound } from '../game/chess/clockSound'
 
 // 오락기 게임은 결과 화면의 받은 엽전 표시(RewardCoinSource)가 정산음을 낸다.
 // 잔액은 그보다 먼저(룰렛이 도는 중, 다음 판 시작 때) 바뀔 수 있어 창이 열린 동안에는 잔액 증가음을 내지 않는다.
@@ -29,10 +30,20 @@ export function ParkSfx() {
     const alkkagi = new AlkkagiFeedback()
     const connected = () => { const s = useSession.getState(); return s.status === 'connected' && s.mapCompatible }
     let chessLiveGameId = chessSoundGame('', useGame.getState(), connected())
+    const chessClock = new ChessClockSound()
+    const clockTick = () => {
+      const state = useGame.getState(), session = useSession.getState()
+      const cue = chessClock.update(state.game, session.sessionId, estimatedServerTime(),
+        connected() && state.recovery === 'RESTORED' && !state.uncertain, !document.hidden)
+      if (cue) playSfx(cue)
+    }
+    clockTick()
+    const clockTimer = setInterval(clockTick, 200)
     const stops = [
       useGame.subscribe((next, prev) => {
         const beforeChessGameId = chessLiveGameId
         chessLiveGameId = chessSoundGame(chessLiveGameId, next, connected())
+        clockTick()
         if (next.game === prev.game) return
         // 할리갈리 상태에 들어오면 종소리를 미리 디코드한다. 캐시된 뒤에는 조회만 하고, 잠금 해제 전이면 다음 갱신에서 다시 시도한다.
         if (next.game?.halli) preloadSfx('halli-bell')
@@ -50,6 +61,7 @@ export function ParkSfx() {
       }),
       useSession.subscribe((next, prev) => {
         if (next.status !== 'connected' || !next.mapCompatible) chessLiveGameId = ''
+        clockTick()
         const balance = next.account?.balance, before = prev.account?.balance
         // The first read after entry is not income.
         const breadPhase = useBungeoppang.getState().phase
@@ -82,9 +94,12 @@ export function ParkSfx() {
       if ((event as CustomEvent<AlkkagiFeedbackEvent>).detail?.type === 'PIECE_SELECTED') playSfx('alkkagi-select')
     }
     document.addEventListener('click', click, true)
+    document.addEventListener('visibilitychange', clockTick)
     window.addEventListener('alkkagi:feedback', alkkagiSelect)
     return () => {
       stops.forEach(stop => stop())
+      clearInterval(clockTimer)
+      document.removeEventListener('visibilitychange', clockTick)
       document.removeEventListener('click', click, true)
       window.removeEventListener('alkkagi:feedback', alkkagiSelect)
       setSfxLoop('dice-shake', 0)
