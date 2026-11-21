@@ -14,10 +14,11 @@ export function boardPoint(node: number): [number, number] {
   }
   return points[node] ?? [460, 460]
 }
-export function Board({ state, selected, destinations, onPiece, onMove, onPing }: {
+export interface BoardProps {
   state: YutSnapshot['publicState']; selected: number; destinations: YutMove[]
   onPiece(team: number, piece: number): void; onMove(move: YutMove): void; onPing(node: number): void
-}) {
+}
+export function Board({ state, selected, destinations, onPiece, onMove, onPing }: BoardProps) {
   return <div className="yut-board" aria-label="29칸 윷판">
     <svg viewBox="0 0 520 520" role="img" aria-label="바깥길과 대각선 지름길">
       <path d="M60 60H460V460H60ZM60 60L460 460M460 60L60 460" fill="none" stroke="currentColor" strokeWidth="3" />

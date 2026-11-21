@@ -79,6 +79,8 @@ try {
   await red.getByRole('button', { name: '윷놀이 시작', exact: true }).click()
   await expect(red.locator('.yut-board')).toBeVisible()
   await expect(blue.locator('.yut-board')).toBeVisible()
+  await expect(red.locator('.yut-board-3d')).toHaveAttribute('data-ready', 'true')
+  await expect(red.locator('.yut-3d-controls [data-node]')).toHaveCount(29)
   await red.setViewportSize({ width: 1487, height: 1058 })
   await red.screenshot({ path: path.join(output, 'game-concept-native.png') })
   await red.setViewportSize({ width: 1440, height: 960 })

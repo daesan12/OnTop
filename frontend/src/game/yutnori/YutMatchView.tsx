@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Board } from './Board'
+import { Board3D } from './Board3D'
 import { StickResult } from './StickResult'
 import { YutChatPanel } from './YutChatPanel'
 import type { YutClient } from './client'
@@ -45,7 +45,7 @@ export function YutMatchView({ client, snapshot, user, busy, pending, myTurn, se
       <YutChatPanel client={client} snapshot={snapshot} busy={busy} />
     </aside>
     <section className="yut-board-region yut-match-board" aria-label="중앙 윷판">
-      <div className="yut-board-stage"><Board state={state} selected={selected} destinations={destinations}
+      <div className="yut-board-stage"><Board3D state={state} selected={selected} destinations={destinations}
         onPiece={(team, piece) => { if (myTurn && team === state.team) onPiece(piece) }} onMove={move}
         onPing={node => { if (!busy) void client.feedback(`📍 윷판 ${node}번 칸`) }} /></div>
       <p className="yut-board-caption">이동권 → 말 → 도착 칸 · 참먹이에서 한 칸 더 가면 완주</p>

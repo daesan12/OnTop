@@ -78,13 +78,16 @@ try {
   const before = (await state(host)).mine
   expect(before.publicState.teamCount).toBe(4); expect(before.publicState.pieceCount).toBe(4)
   expect(new Set(before.publicState.players.map(p=>p.team)).size).toBe(4)
-  for (const page of pages) await page.getByRole('button', { name:'준비 완료',exact:true }).click()
+  for (const page of pages) {
+    await page.getByRole('button', { name:'준비 완료',exact:true }).click()
+    await expect(page.getByRole('button', { name:'준비 취소',exact:true })).toBeVisible()
+  }
+  await expect.poll(async () => (await state(host)).mine.publicState.players.every(player => player.ready)).toBe(true)
   await host.screenshot({path:path.join(output,'lobby-four.png')})
   await host.getByRole('button',{name:'윷놀이 시작',exact:true}).click()
   await expect(host.locator('.yut-board')).toBeVisible()
-  await expect(host.locator('.yut-board circle')).toHaveCount(29)
-  await expect(host.locator('circle[r="18"]')).toHaveCount(5)
-  await expect(host.locator('circle[data-node="25"]')).toHaveAttribute('r','13')
+  await expect(host.locator('.yut-board-3d')).toHaveAttribute('data-ready', 'true')
+  await expect(host.locator('.yut-3d-controls [data-node]')).toHaveCount(29)
   await expect(host.locator('.yut-match-teams .yut-piece-rack button')).toHaveCount(16)
   await expect(host.locator('.yut-backdo-key')).toContainText('빽도 · 뒤로 1칸')
   await host.screenshot({path:path.join(output,'game-four.png')})

@@ -31,10 +31,10 @@ describe('윷놀이 서버 계약과 유실 입력 복구', () => {
       scope: () => ({ userId: '101', channelId: 'channel-1', connected: true }), subscribe: () => () => {},
       requestJSON: async () => ({ rooms: [], mine: snapshot() }),
       request: vi.fn(async (_type, payload) => {
-        if (_type !== 'GAME_ACTION_SEND') return { type: 'GAME_CONNECTION_STATE', payload: {} }
+        if (_type !== 'GAME_ACTION_SEND') return { type: 'GAME_CONNECTION_STATE', requestId: 'yut-test', payload: {} }
         requests.push(structuredClone(payload))
         if (requests.length === 1) throw new Error('timeout')
-        return { type: 'GAME_ACTION_RESULT', payload: {} }
+        return { type: 'GAME_ACTION_RESULT', requestId: 'yut-test', payload: {} }
       }) as CoopTransport['request'],
     }
     const client = new YutClient(transport)
