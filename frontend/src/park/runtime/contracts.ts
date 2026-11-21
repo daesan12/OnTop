@@ -30,6 +30,7 @@ export interface ParkRuntimePort {
   setMyRoomOpen?(open: boolean): Promise<boolean>
   sendSpectatorChat(text: string): Promise<boolean>
   pingOmok(x: number, y: number): Promise<boolean>
+  pingBang?(targetUserId: string): Promise<boolean>
   pingLedger(target: import('../../game/ledger/protocol').LedgerPingTarget): Promise<boolean>
   sendEmote(id: import('../../features/emotes/catalog').EmoteId): Promise<boolean>
   pickupAvatar?(targetId: string): Promise<boolean>
@@ -69,6 +70,7 @@ export interface ParkRuntimePort {
   sendAlkkagiSpectator?(input: Record<string, unknown>): Promise<boolean>
   actStoneRumble?(input: import('../../game/stone-rumble/protocol').StoneAction, clearQueuedActions?: boolean): Promise<boolean>
   actAlkkagi?(input: Record<string, unknown>): Promise<boolean>
+  actBang?(input: import('../../game/bang/protocol').BangAction): Promise<boolean>
   actBridge(input: import('../../game/bridge/protocol').BridgeInput): Promise<boolean>
   actLedger(input: import('../../game/ledger/protocol').LedgerInput): Promise<boolean>
   flipHalli(): Promise<boolean>

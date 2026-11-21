@@ -1,0 +1,19 @@
+import type { BangAction, BangCard, BangCharacter, BangRole, CardKind } from './protocol'
+
+export const ROLE_NAME: Record<BangRole, string> = { SHERIFF: '보안관', DEPUTY: '부관', OUTLAW: '무법자', RENEGADE: '배신자' }
+export const ROLE_GOAL: Record<BangRole, string> = { SHERIFF: '무법자와 배신자를 모두 제거하세요.', DEPUTY: '보안관을 지키고 무법자와 배신자를 제거하세요.', OUTLAW: '보안관을 제거하세요.', RENEGADE: '마지막 한 사람으로 살아남으세요.' }
+export const CARD_NAME: Record<CardKind, string> = { BANG: '뱅!', MISSED: '빗나감!', BEER: '맥주', SALOON: '주점', DUEL: '결투', INDIANS: '인디언!', GATLING: '기관총', STAGECOACH: '역마차', WELLS_FARGO: '웰스 파고', GENERAL_STORE: '백화점', PANIC: '강탈!', CAT_BALOU: '캣 벌로우', BARREL: '술통', JAIL: '감옥', DYNAMITE: '다이너마이트', MUSTANG: '야생마', SCOPE: '조준경', VOLCANIC: '볼캐닉', SCHOFIELD: '스코필드', REMINGTON: '레밍턴', REV_CARABINE: '리브 카빈', WINCHESTER: '윈체스터' }
+export const CARD_DESCRIPTION: Record<CardKind, string> = {
+  BANG: '사거리 안의 한 사람을 공격해요. 한 턴에 1장.', MISSED: '뱅! 공격을 피할 때 사용해요.', BEER: '생명력 1 회복. 최후의 2인에게는 효과가 없어요.', SALOON: '생존자 모두 생명력을 1 회복해요.', DUEL: '거리와 관계없이 번갈아 뱅!을 버려요.', INDIANS: '다른 생존자는 뱅!을 버리거나 생명력 1을 잃어요.', GATLING: '다른 생존자 모두에게 뱅! 공격.', STAGECOACH: '카드 2장을 뽑아요.', WELLS_FARGO: '카드 3장을 뽑아요.', GENERAL_STORE: '나부터 시계 방향으로 공개된 카드 1장씩 선택.', PANIC: '거리 1인 사람의 무작위 손패나 공개 장비를 가져와요.', CAT_BALOU: '거리와 관계없이 손패 1장이나 공개 장비를 버려요.', BARREL: '뱅! 공격마다 판정 1회. 하트면 회피.', JAIL: '보안관을 제외한 사람에게 설치. 하트가 아니면 다음 턴을 쉬어요.', DYNAMITE: '다음 턴 시작에 스페이드 2~9면 피해 3. 아니면 다음 사람에게.', MUSTANG: '다른 사람이 나를 보는 거리 +1.', SCOPE: '내가 다른 사람을 보는 거리 -1.', VOLCANIC: '사거리 1 · 뱅! 사용 횟수 무제한.', SCHOFIELD: '사거리 2.', REMINGTON: '사거리 3.', REV_CARABINE: '사거리 4.', WINCHESTER: '사거리 5.',
+}
+export const CHARACTER: Record<BangCharacter, [string, string]> = {
+  BART_CASSIDY: ['바트 캐시디', '생명력 1을 잃을 때마다 카드 1장.'], BLACK_JACK: ['블랙 잭', '두 번째 뽑는 카드가 빨간색이면 1장 추가.'], CALAMITY_JANET: ['칼라미티 자넷', '뱅!과 빗나감!을 서로 바꿔 사용해요.'], EL_GRINGO: ['엘 그링고', '다른 사람이 준 피해 1마다 그 사람 손패 1장.'], JESSE_JONES: ['제시 존스', '첫 카드를 다른 사람 손패에서 뽑을 수 있어요.'], JOURDONNAIS: ['주르도네', '항상 술통 효과. 실제 술통과 중첩돼요.'], KIT_CARLSON: ['킷 칼슨', '3장을 보고 덱에 돌려놓을 1장을 선택.'], LUCKY_DUKE: ['럭키 듀크', '판정할 때 2장을 보고 원하는 결과 선택.'], PAUL_REGRET: ['폴 리그렛', '항상 야생마 효과. 실제 야생마와 중첩돼요.'], PEDRO_RAMIREZ: ['페드로 라미레즈', '첫 카드를 버린 더미에서 가져올 수 있어요.'], ROSE_DOOLAN: ['로즈 둘란', '항상 조준경 효과. 실제 조준경과 중첩돼요.'], SID_KETCHUM: ['시드 케첨', '언제든 손패 2장을 버리고 생명력 1 회복.'], SLAB_THE_KILLER: ['슬랩 더 킬러', '내 뱅!을 피하려면 빗나감! 효과 2회 필요.'], SUZY_LAFAYETTE: ['수지 라파예트', '손패가 비면 카드 1장을 뽑아요.'], VULTURE_SAM: ['벌처 샘', '탈락한 사람의 손패와 장비를 가져와요.'], WILLY_THE_KID: ['윌리 더 키드', '내 턴에 뱅!을 횟수 제한 없이 사용.'],
+}
+export const PHASE_LABEL: Record<string, string> = { PLAY: '카드를 사용하거나 턴을 마치세요', DRAW: '첫 카드를 뽑을 곳을 선택하세요', KIT: '덱에 돌려놓을 카드 1장을 선택하세요', LUCKY: '적용할 판정 카드 1장을 선택하세요', DISCARD: '현재 생명력보다 많은 손패를 버리세요', RESPONSE: '방어 카드를 내거나 피해를 받으세요', RESCUE: '맥주 또는 인물 능력으로 살아남으세요', STORE: '백화점에서 가져갈 카드 1장을 선택하세요', FINISHED: '경기가 끝났어요' }
+export const END_REASON: Record<string, string> = { LAW_WINS: '보안관과 부관 승리', OUTLAWS_WIN: '무법자 승리', RENEGADE_WINS: '배신자 승리', NO_ELIGIBLE_WINNERS: '승리 자격이 남지 않아 무효 처리' }
+export const SUIT = { HEARTS: '♥', DIAMONDS: '♦', CLUBS: '♣', SPADES: '♠' }
+export function cardRank(card: BangCard) { return `${SUIT[card.suit]} ${({ 11: 'J', 12: 'Q', 13: 'K', 14: 'A' } as Record<number, string>)[card.rank] ?? card.rank}` }
+export function actionLabel(action: BangAction, name: (id: string) => string) {
+  const labels: Record<string, string> = { play: '카드 사용', end_turn: '턴 종료', discard: '선택 카드 버리기', respond: '방어 카드 사용', barrel: '술통 판정', take_hit: '피해 받기', rescue: '맥주로 생존', give_up: '탈락 수락', choose: '선택 확정', sid_heal: '2장 버리고 생명력 회복', draw: action.fromDiscard ? '버린 더미에서 뽑기' : action.targetUserId ? `${name(action.targetUserId)} 손패에서 뽑기` : '덱에서 뽑기' }
+  return (labels[action.kind] ?? '행동 선택') + (action.zone === 'HAND' ? ' · 무작위 손패' : action.zone === 'TABLE' ? ' · 공개 장비' : '')
+}

@@ -1,6 +1,7 @@
 import {NpcResultPanel,useNpcResult} from '../features/ai/NpcResultPanel'
 import { lazy, Suspense } from 'react'
 import { StoneLoadingTips } from './stone-rumble/StoneLoadingTips'
+const BangPanel = lazy(() => import('./bang/BangPanel').then(module => ({ default: module.BangPanel })))
 const StoneRumblePanel = lazy(() => import('./stone-rumble/StoneRumblePanel').then(module => ({ default: module.StoneRumblePanel })))
 import { AlkkagiPanel } from './alkkagi/AlkkagiPanel'
 import { useDisplayGame as useGame } from './displayGame'
@@ -29,6 +30,7 @@ export function GamePanel() {
   const spectatorResult = useGame(s => s.game?.role === 'SPECTATOR' && gameState(s.game).status === 'FINISHED' ? s.game : null)
   const stone = useGame(s => !!s.game?.stone || (s.start?.gameCode === 'STONE_RUMBLE' && ['PLAYING', 'SETTLING'].includes(s.start.phase)))
   const stonePlayers = useSession(s => s.tableStates[s.tableId]?.selectedPlayers ?? s.tableStates[s.tableId]?.capacity ?? 8)
+  const useBang = useGame(s => !!s.game?.bang)
   const alkkagi = useGame(s => !!s.game?.alkkagi)
   const profiles = useSession(s => s.profiles)
   const seated = useSession(s => !!s.tableId && s.seatIndex >= 0
@@ -43,6 +45,7 @@ export function GamePanel() {
   if (npcResult) return <NpcResultPanel practice={npcResult}/>
   if (terminalPlayer && !seated) return null
   if (stone) return <Suspense fallback={<StoneLoadingTips ready={0} total={stonePlayers} ownReady={false} error="" retry={() => void runtime.checkRecovery()} />}><StoneRumblePanel /></Suspense>
+  if (useBang) return <Suspense fallback={<p role="status">뱅! 테이블을 준비하고 있어요.</p>}><BangPanel /></Suspense>
   if (alkkagi) return <AlkkagiPanel />
   if (spectatorResult) {
     if (spectatorResult.dice) return <FarklePanel />

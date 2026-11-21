@@ -130,7 +130,7 @@ function validTableMode(value: Record<string, unknown>) {
       ? integer(value.selectedPlayers) && value.selectedPlayers >= 2 && value.selectedPlayers <= tableMaximum(value.gameCode) && value.selectedPlayers === value.capacity
       : value.selectedPlayers == null)
 }
-const tableMaximum = (gameCode: unknown) => gameCode === 'STONE_RUMBLE' ? 8 : 4
+const tableMaximum = (gameCode: unknown) => gameCode === 'STONE_RUMBLE' ? 8 : gameCode === 'BANG' ? 7 : 4
 export function parseEnvelope(data: unknown): Envelope {
   // A full 174-seat facility snapshot exceeds 64 KiB; other message limits stay unchanged.
   if (typeof data !== 'string' || data.length > 262_144)
@@ -252,7 +252,7 @@ export function worldState(value: Record<string, unknown>): WorldState {
   }
   const publicTables = value.tables as PublicTable[] | undefined
   if (value.avatars.some(a => a.tableSeat && a.tableSeat.seatNumber > 4
-    && !publicTables?.some(table => table.tableId === a.tableSeat.tableId && table.gameCode === 'STONE_RUMBLE'
+    && !publicTables?.some(table => table.tableId === a.tableSeat.tableId && (table.gameCode === 'STONE_RUMBLE' || table.gameCode === 'BANG')
       && table.chairCount >= a.tableSeat.seatNumber))) throw new Error('돌탑 좌석 공개 상태가 일치하지 않습니다.')
   return value as unknown as WorldState
 }

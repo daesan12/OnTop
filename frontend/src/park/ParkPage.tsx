@@ -153,6 +153,7 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked, welco
     || !!arcadeScope || moleOpen || plusMinusOpen || rpsOpen || speedMoleOpen || jumpRopeOpen || spotDifferenceOpen || gachaOpen
   const omokFocus = useGame(s => (s.game?.omok?.status === 'PLAYING' || s.game?.alkkagi?.status === 'PLAYING') && !s.lastResult)
   const omokChat = useGame(s => (s.game?.omok?.status === 'PLAYING' || s.game?.alkkagi?.status === 'PLAYING') && !s.lastResult)
+  const bangFocus = useGame(s => !!s.game?.bang)
   const stoneOverlay = useGame(s => {
     if (!s.game?.stone && !(s.start?.gameCode === 'STONE_RUMBLE' && ['PLAYING', 'SETTLING'].includes(s.start.phase))) return 'none'
     return s.game?.role === 'PLAYER' && (s.game.stone?.status === 'FINISHED' || s.result || s.lastResult) ? 'result' : 'game'
@@ -219,7 +220,7 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked, welco
         </div>}
 
         <div className="park-chat-layer" hidden={bungeoppang} inert={bungeoppang}>
-          {omokChat ? <SpectatorChat /> : !omokFocus && <ParkChat key={`${session.sessionId}:${session.roomId}`} />}
+          {!bangFocus && (omokChat ? <SpectatorChat /> : !omokFocus && <ParkChat key={`${session.sessionId}:${session.roomId}`} />)}
         </div>
 
         {!omokFocus && <aside className="park-shortcuts" aria-label="조작 방법">

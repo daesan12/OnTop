@@ -91,7 +91,7 @@ export function TableFurniture({ anchor, onInspect = interactWithTable, nativeFu
             <circleGeometry args={[anchor.pavilionId === 'P0' ? 2.1 : 1.55, 24]} />
             <meshBasicMaterial visible={false} />
           </mesh>
-          {tableSeats(anchor).slice(2, seatCount).map((seat, i) => {
+          {tableSeats(anchor, seatCount).slice(2, seatCount).map((seat, i) => {
             const height = anchor.seatSurfaceY ?? .56
             return <group key={i} position={[seat.x, 0, seat.z]} rotation={[0, seat.yaw, 0]}>
               <mesh position={[0, height - .07, 0]}>
@@ -139,6 +139,11 @@ export function TableFurniture({ anchor, onInspect = interactWithTable, nativeFu
           </Instances>
         </>
       )}
+      {!nativeFurniture && seatCount > 4 && tableSeats(anchor, seatCount).slice(4, seatCount).map((seat, index) => <group
+        key={`extra-chair-${index}`} name={`table-extra-chair-${index + 5}`} position={[seat.x, 0, seat.z]} rotation={[0, seat.yaw, 0]}>
+        <mesh position={[0, .49, 0]} castShadow receiveShadow><boxGeometry args={[.72, .14, .66]} /><SurfaceMaterial kind={anchor.picnicId ? 'stone' : 'wood'} /></mesh>
+        <mesh position={[0, .21, 0]} castShadow><boxGeometry args={[.46, .42, .46]} /><SurfaceMaterial kind={anchor.picnicId ? 'stone' : 'wood'} /></mesh>
+      </group>)}
       {children}
     </group>
   )

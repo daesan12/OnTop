@@ -201,6 +201,7 @@ export const WorldCanvas = memo(function WorldCanvas({
   const [visible, setVisible] = useState(() => !document.hidden)
   const gachaSurface = useGachaOverlay(s => s.surface)
   const fortuneOpen = useFortune(s => s.open)
+  const bangOpen = useGame(s => !!s.game?.bang)
   const [viewport, setViewport] = useState(() => ({
     width: innerWidth,
     height: Math.max(620, innerHeight),
@@ -236,7 +237,7 @@ export const WorldCanvas = memo(function WorldCanvas({
       <Canvas
         events={parkPointerEvents}
         // Redraw the visible park backdrop on resize without running a second continuous render loop.
-        frameloop={!visible || !active || gachaSurface === 'boxes' || (fortuneOpen && firstFrameAt.current !== null)
+        frameloop={!visible || !active || bangOpen || gachaSurface === 'boxes' || (fortuneOpen && firstFrameAt.current !== null)
           ? 'never' : gachaSurface === 'machine' ? 'demand' : 'always'}
         shadows={!GENERATED_PARK_ENABLED&&!RENEWAL_PARK_ENABLED&&preset.shadows ? 'percentage' : false}
         dpr={renderDpr}

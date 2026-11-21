@@ -25,6 +25,7 @@ const TabletPortrait = lazy(() => import('./TabletPortrait').then(module => ({ d
 const ResidentSeatInvite=lazy(()=>import('../../ai-park/ResidentSeatInvite').then(module=>({default:module.ResidentSeatInvite})))
 
 const descriptions: Record<TableGameCode, string> = {
+  BANG: '정체를 숨기고 서부의 마지막 총잡이가 되세요',
   STONE_RUMBLE: '세 층의 돌탑에서 비둘기로 밀어내고 끝까지 버텨요',
   ALKKAGI: '알을 튕기고 비책으로 승부하는 2인 경기',
   OMOK: '다섯 돌을 이어 만드는 한 수', DICE: '주사위를 굴려 목표 점수에 도전해요',
@@ -32,12 +33,12 @@ const descriptions: Record<TableGameCode, string> = {
   DICE_LEDGER: '세 번 굴려 장부 열두 칸을 채워요',
   HALLI_GALLI: '같은 과일이 다섯 개면 누구보다 빨리 종!',
 }
-const choiceOrder: TableGameCode[] = ['OMOK', 'ONE_CARD', 'DICE_LEDGER', 'DICE', 'LIAR_BRIDGE', 'ALKKAGI', 'HALLI_GALLI']
+const choiceOrder: TableGameCode[] = ['OMOK', 'ONE_CARD', 'DICE_LEDGER', 'DICE', 'LIAR_BRIDGE', 'ALKKAGI', 'HALLI_GALLI', 'BANG']
 const gameChoices = choiceOrder.map(code => TABLE_GAMES.find(game => game.code === code)).filter(game => game != null)
 const availableGameChoices = gameChoices.filter(game => game.playable)
 const constructionGameChoices = gameChoices.filter(game => !game.playable)
 export function GameArt({ code }: { code: TableGameCode }) {
-  const thumbnail = code === 'STONE_RUMBLE' ? '/art/stone-rumble/cover-v3.webp' : code === 'ALKKAGI' ? alkkagiThumbnail : code === 'HALLI_GALLI' ? fruitDdaengThumbnail : code === 'DICE_LEDGER' ? ledgerThumbnail : undefined
+  const thumbnail = code === 'BANG' ? '/art/bang/cover.webp' : code === 'STONE_RUMBLE' ? '/art/stone-rumble/cover-v3.webp' : code === 'ALKKAGI' ? alkkagiThumbnail : code === 'HALLI_GALLI' ? fruitDdaengThumbnail : code === 'DICE_LEDGER' ? ledgerThumbnail : undefined
   return <div className="tablet-game-art" data-game={code} style={thumbnail ? { backgroundImage: `url(${thumbnail})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined} role="img" aria-label={TABLE_GAMES.find(g => g.code === code)?.name} />
 }
 function StoneLobbyCover({ children }: { children: ReactNode }) {
@@ -156,6 +157,7 @@ function TabletSession({ tableId }: { tableId: string }) {
   const amount = stoneRumble ? 0 : Number(bet), validBet = /^\d+$/.test(bet) && Number.isSafeInteger(amount) && amount >= 0 && Number.isSafeInteger(amount * max)
   const countSupported = !!port || count === max
   const canConfigure = host && isTableGamePlayable(selectedCode) && countSupported && count >= occupied
+    && count >= (selectedCode === 'BANG' ? 4 : 2) && count <= max
     && (stoneRumble || validBet && canAffordBet(balance,amount))
   const confirmation = signature
   const finalReadyBlocked = !port && !mine?.ready && readyWouldAutoStart(table, s.own)
@@ -188,7 +190,7 @@ function TabletSession({ tableId }: { tableId: string }) {
       </header>
       {step === 'select' ? stoneRumble ? <StoneLobbyCover>
         <fieldset disabled={!host || busy}><legend>참가 인원</legend><div className="tablet-counts" data-maximum={max}>
-          {Array.from({ length: max - 1 }, (_, index) => index + 2).map(n => <button key={n}
+          {Array.from({ length: max - (selectedCode === 'BANG' ? 3 : 1) }, (_, index) => index + (selectedCode === 'BANG' ? 4 : 2)).map(n => <button key={n}
             disabled={n < occupied} aria-pressed={count === n} onClick={() => setCount(n)}>{n}인</button>)}
         </div></fieldset>
         {!countSupported && <p role="status">{count}인 정원 선택은 서버 연결 준비 중입니다.</p>}
@@ -203,8 +205,8 @@ function TabletSession({ tableId }: { tableId: string }) {
               : null}
             <button className="tablet-game-card" data-selected={code === item.code} data-construction={!item.playable}
               aria-pressed={code === item.code} disabled={!item.playable || !host || busy}
-              onClick={() => { setCode(item.code); setCount(2) }}>
-              <GameArt code={item.code} />{!item.playable && <b className="tablet-construction">공사 중</b>}<span><strong>{item.name}</strong><small>{item.capacity === 2 ? '2인' : `2~${item.capacity}인`}</small></span>
+              onClick={() => { setCode(item.code); setCount(item.code === 'BANG' ? 4 : 2) }}>
+                <GameArt code={item.code} />{!item.playable && <b className="tablet-construction">공사 중</b>}<span><strong>{item.name}</strong><small>{item.code === 'BANG' ? '4~7인' : item.capacity === 2 ? '2인' : `2~${item.capacity}인`}</small></span>
             </button>
           </Fragment>)}
           <div className="tablet-coming">장기 · 준비 중</div>
@@ -212,7 +214,7 @@ function TabletSession({ tableId }: { tableId: string }) {
         <div className="tablet-selection-detail">
           <small>선택한 게임</small><h3>{TABLE_GAMES.find(g => g.code === code)?.name}</h3><p>{descriptions[code]}</p>
           <GameArt code={code} />
-          <fieldset disabled={!host || busy || !isTableGamePlayable(code)}><legend>참가 인원</legend><div className="tablet-counts" data-maximum={max}>{Array.from({ length: max - 1 }, (_, index) => index + 2).map(n => <button key={n}
+          <fieldset disabled={!host || busy || !isTableGamePlayable(code)}><legend>참가 인원</legend><div className="tablet-counts" data-maximum={max}>{Array.from({ length: max - (selectedCode === 'BANG' ? 3 : 1) }, (_, index) => index + (selectedCode === 'BANG' ? 4 : 2)).map(n => <button key={n}
             aria-pressed={count === n} onClick={() => setCount(n)}>{n}인</button>)}</div></fieldset>
           {code === 'DICE' && <label className="tablet-score">목표 점수<select aria-label="주사위 목표 점수" disabled={!host || busy || !isTableGamePlayable(code)} value={target} onChange={e => setTarget(Number(e.target.value))}>
             {TARGET_SCORES.map(score => <option key={score} value={score}>{score.toLocaleString()}점</option>)}</select></label>}

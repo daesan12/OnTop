@@ -1,3 +1,4 @@
+import { acceptBangPing } from '../../game/bang/social'
 import { parseSnowballAim } from '../../features/winter/trajectory'
 import { winterFrozen } from '../../features/winter/state'
 import { acceptAlkkagiSocial, resetAlkkagiSocial, syncAlkkagiSocial } from '../../game/alkkagi/spectatorEvents'
@@ -288,6 +289,12 @@ export class ParkRuntime implements ParkRuntimePort {
     ? this.oneCardDefense.reach(targetUserId, cardIndex, handVersion) : Promise.resolve(false)
   hitOneCardHand = (attemptId: string) => this.oneCardDefense.hit(attemptId)
   restoreOneCardHand = () => this.oneCardPranks.restore()
+  pingBang = (targetUserId: string) => this.action(async () => {
+    const state = useGame.getState(), game = state.game
+    if (!game?.bang || game.role !== 'SPECTATOR' || state.watchedGameId !== game.gameId
+      || game.bang.status !== 'PLAYING' || !game.bang.players.some(player => player.userId === targetUserId)) return
+    await this.socket.request('GAME_SPECTATOR_PING_SEND', { gameId: game.gameId, eventId: crypto.randomUUID(), basedOnVersion: game.version, targetUserId }, ['GAME_SPECTATOR_PING'])
+  }, { blockControls: false })
   pingOmok = (x: number, y: number) => this.omokEvents.send('ping', { x, y })
   private resetSpectator() {
     this.omokEvents.reset()
@@ -793,6 +800,7 @@ export class ParkRuntime implements ParkRuntimePort {
       acceptAlkkagiSocial(message, eligible ? g!.gameId : '', g?.version)
       return
     }
+    if (acceptBangPing(message, useGame.getState().game)) return
     if (this.ledgerPings.accept(message)) return
     if (this.omokEvents.accept(message)) return
     if (this.worldTime.ownsError(message) || message.type === 'WORLD_TIME_STATE') return
@@ -1481,7 +1489,7 @@ export class ParkRuntime implements ParkRuntimePort {
   setReady = (ready: boolean) =>
     this.action(async () => {
       const s = useSession.getState()
-      if (tableBusy() || !['OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE', 'DICE_LEDGER', 'ALKKAGI', 'HALLI_GALLI', 'STONE_RUMBLE'].includes(s.tableStates[s.tableId]?.gameCode ?? ''))
+      if (tableBusy() || !['OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE', 'DICE_LEDGER', 'ALKKAGI', 'HALLI_GALLI', 'STONE_RUMBLE', 'BANG'].includes(s.tableStates[s.tableId]?.gameCode ?? ''))
         throw new Error('플레이 가능한 게임을 선택한 대기 테이블에서 준비해주세요.')
       const table = s.tableStates[s.tableId]
       if (ready && !isTableGamePlayable(table.gameCode)) throw new Error(GAME_CONSTRUCTION_NOTICE)
@@ -1788,6 +1796,24 @@ export class ParkRuntime implements ParkRuntimePort {
     } catch { return false }
     finally { this.stoneControlRequests.delete(requestId) }
   }
+  actBang = (input: import('../../game/bang/protocol').BangAction) => this.action(async () => {
+    const own = useSession.getState(), state = useGame.getState(), game = state.game
+    if (own.status !== 'connected' || !game?.bang || game.role !== 'PLAYER' || game.gameId !== state.permittedGameId
+      || state.recovery !== 'RESTORED' || state.pending || state.uncertain || game.version < state.awaitingVersion
+      || game.bang.status !== 'PLAYING' || !game.bangHand?.actions.some(action => JSON.stringify(action) === JSON.stringify(input)
+        || action.kind === 'sid_heal' && input.kind === 'sid_heal' && input.cardId !== input.secondCardId
+          && game.bangHand?.hand.some(card => card.id === input.cardId) && game.bangHand?.hand.some(card => card.id === input.secondCardId)))
+      throw new Error('최신 경기 상태에서 가능한 행동을 선택해주세요.')
+    const generation = this.generation
+    useGame.setState({ pending: true, error: '' })
+    try {
+      await this.socket.request('GAME_ACTION_SEND', { gameId: game.gameId, actionId: crypto.randomUUID(), expectedVersion: game.version, input: { ...input } }, ['GAME_ACTION_RESULT'])
+    } catch (error) {
+      if (generation === this.generation && useGame.getState().permittedGameId === game.gameId)
+        useGame.setState({ uncertain: !(error instanceof ServerError), error: error instanceof Error ? error.message : '행동 반영 여부를 확인해주세요.' })
+      throw error
+    } finally { if (generation === this.generation) useGame.setState({ pending: false }) }
+  })
   actAlkkagi = (input: Record<string, unknown>) => this.action(async () => {
     const own = useSession.getState(), s = useGame.getState(), g = s.game
     if (own.status !== 'connected' || !g?.alkkagi || g.role !== 'PLAYER' || g.gameId !== s.permittedGameId
