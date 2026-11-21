@@ -114,6 +114,15 @@ public class YutController {
         return response(engine.watch(account, channel, body.path("gameId").asText()));
     }
 
+    @PostMapping("/chat")
+    public ResponseEntity<Void> chat(@AuthenticationPrincipal AuthenticatedUser user, @RequestBody JsonNode body) {
+        fields(body, Set.of("gameId", "scope", "text"));
+        require(body.path("gameId").isTextual() && body.path("scope").isTextual()
+                && body.path("text").isTextual(), "채팅 내용을 확인해주세요.");
+        engine.chat(account(user), body.path("gameId").asText(), body.path("scope").asText(), body.path("text").asText());
+        return ResponseEntity.noContent().build();
+    }
+
     @PostMapping("/feedback")
     public ResponseEntity<Void> feedback(@AuthenticationPrincipal AuthenticatedUser user, @RequestBody JsonNode body) {
         fields(body, Set.of("gameId", "text"));

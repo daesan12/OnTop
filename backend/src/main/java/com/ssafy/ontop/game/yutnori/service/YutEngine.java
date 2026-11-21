@@ -12,6 +12,7 @@ import com.ssafy.ontop.game.reconnect.GameRecoverySnapshot;
 import com.ssafy.ontop.game.result.GameLifecycle;
 import com.ssafy.ontop.game.state.GameStateChanged;
 import com.ssafy.ontop.game.state.GameStateView;
+import com.ssafy.ontop.game.yutnori.domain.YutChat;
 import com.ssafy.ontop.game.yutnori.domain.YutMatch;
 import java.time.Clock;
 import java.util.ArrayList;
@@ -210,6 +211,24 @@ public final class YutEngine implements GameEngine {
         changed(match);
     }
 
+    public synchronized void chat(long user, String id, String scope, String text) {
+        YutMatch match = game(id);
+        boolean participant = id.equals(latest.get(user)) && match.players.containsKey(user);
+        boolean spectator = id.equals(watching.get(user));
+        require((participant || spectator) && connected.test(user, match.channel), "현재 참가·관전 중인 경기에서만 대화할 수 있어요.");
+        require("ALL".equals(scope) || "TEAM".equals(scope), "전체 또는 팀 채팅을 선택해주세요.");
+        require(!"TEAM".equals(scope) || participant && !match.phase.equals("WAITING"),
+                "팀 채팅은 경기 시작 후 같은 팀 참가자만 사용할 수 있어요.");
+        require(text != null && !text.isBlank() && text.length() <= 100
+                && clock.millis() - feedbackAt.getOrDefault(user, 0L) >= 1000, "잠시 후 100자 안으로 보내주세요.");
+        feedbackAt.put(user, clock.millis());
+        var player = participant ? match.players.get(user) : null;
+        match.chat.append(user, player == null ? "관전자" : player.nickname, YutChat.Scope.valueOf(scope),
+                player == null ? -1 : player.team, text.strip(), clock.millis());
+        match.version++;
+        changed(match);
+    }
+
     @Override
     public GameActionResult apply(GameActionCommand command) {
         GameActionResult result;
@@ -273,7 +292,7 @@ public final class YutEngine implements GameEngine {
         }
         return Optional.of(new GameStateView(user, id, match.version,
                 match.players.containsKey(user) ? GameStateView.Role.PLAYER : GameStateView.Role.SPECTATOR,
-                publicState(match), mapper.createObjectNode(), "folk:" + id));
+                publicState(match), privateState(match, user), "folk:" + id));
     }
 
     @Override
@@ -364,8 +383,17 @@ public final class YutEngine implements GameEngine {
         var node = mapper.createObjectNode().put("gameId", match.id).put("version", match.version)
                 .put("registered", match.registered).put("role", match.players.containsKey(user) ? "PLAYER" : "SPECTATOR");
         node.set("publicState", publicState(match));
-        node.putObject("privateState");
+        node.set("privateState", privateState(match, user));
         return node;
+    }
+
+    private ObjectNode privateState(YutMatch match, long user) {
+        var state = mapper.createObjectNode();
+        var player = match.players.get(user);
+        if (player != null && match.id.equals(latest.get(user))) {
+            state.set("teamChat", mapper.valueToTree(match.chat.team(player.team)));
+        }
+        return state;
     }
 
     private ObjectNode publicState(YutMatch match) {
@@ -381,6 +409,7 @@ public final class YutEngine implements GameEngine {
         state.set("moves", mapper.valueToTree(match.legalMoves()));
         state.set("opening", mapper.valueToTree(match.opening));
         state.set("log", mapper.valueToTree(match.log));
+        state.set("chat", mapper.valueToTree(match.chat.everyone()));
         state.set("pieces", mapper.valueToTree(match.pieces.stream()
                 .map(tokens -> tokens.stream().map(YutMatch::position).toList()).toList()));
         var players = state.putArray("players");

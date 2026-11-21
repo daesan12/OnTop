@@ -35,6 +35,7 @@ public final class YutMatch {
     public final Map<Long, Player> players = new LinkedHashMap<>();
     public final List<Roll> rolls = new ArrayList<>();
     public final List<String> log = new ArrayList<>();
+    public final YutChat chat = new YutChat();
     public final List<List<List<Integer>>> pieces = new ArrayList<>();
     public final List<Integer> opening = new ArrayList<>();
     public String phase = "WAITING";
