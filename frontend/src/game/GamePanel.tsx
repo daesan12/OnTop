@@ -1,4 +1,5 @@
 import { ChessPanel } from './chess/ChessPanel'
+import { ChessSpectatorCheckmate } from './chess/ChessSpectatorCheckmate'
 import {NpcResultPanel,useNpcResult} from '../features/ai/NpcResultPanel'
 import { lazy, Suspense } from 'react'
 import { StoneLoadingTips } from './stone-rumble/StoneLoadingTips'
@@ -23,6 +24,9 @@ import { FinishedForfeitStatus } from './OmokSurrender'
 import { BoardRewardCoinSource } from '../features/wallet/RewardCoinFlight'
 
 export function GamePanel() {
+  return <><GamePanelContent /><ChessSpectatorCheckmate /></>
+}
+function GamePanelContent() {
   const runtime = useParkRuntime(), pending = useSession(s => s.pending), connected = useSession(s => s.status === 'connected')
   const npcResult=useNpcResult()
   const productGathering = useGathering(), localPractice=useGame(s=>s.localPractice)

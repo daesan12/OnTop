@@ -11,6 +11,8 @@ import { TABLET_ENABLED } from './tabletFeature'
 import { LegacyTableGatheringHud } from './LegacyTableGatheringHud'
 import { BoardRewardCoinSource } from '../wallet/RewardCoinFlight'
 import {useDebrisPresentation} from '../parkDebris/presentation'
+import { ChessCheckmateHero } from '../../game/chess/ChessCheckmateHero'
+import { chessCheckmateWinner } from '../../game/chess/checkmate'
 
 export function TableGatheringHud({ model }: { model: GatheringModel }) {
   const presentation=useDebrisPresentation(model.tableId)
@@ -26,10 +28,12 @@ export function TabletResult({ model, actions }: { model: GatheringModel; action
   const checkable = useGame(s => !!(s.permittedGameId || s.completedGameId) && !s.watchedGameId && s.game?.role !== 'SPECTATOR')
   const outcome = model.invalid ? '무효 경기' : model.rows.find(row => row.playerId === own)?.label ?? '경기 종료'
   const stone = model.gameCode === 'STONE_RUMBLE'
+  const chessWinner = chessCheckmateWinner(model)
   if (closed === model.scope) return <button className="paper-reopen" onClick={() => setClosed('')}>경기 결과 다시 보기</button>
   return <PaperPopup title={`${model.gameName} · ${model.rows.filter(row => row.playerId).length}인 경기 종료`}
     label="경기 결과" onClose={() => setClosed(model.scope)} className="table-result-popover">
-    {!model.invalid && <ResultTrophy />}<h2>{outcome}</h2><p className="paper-subtitle">{model.invalid ? stone ? '경기가 무효 처리됐어요' : '경기가 무효 처리되어 참가비 예약을 해제해요' : outcome === '승리' ? '멋진 한 판이었어요' : outcome === '무승부' ? '좋은 승부였어요' : '함께해서 즐거운 한 판이었어요'}</p>
+    {chessWinner ? <ChessCheckmateHero key={model.scope} winnerName={chessWinner.nickname} isWinner={chessWinner.playerId === own} />
+      : <>{!model.invalid && <ResultTrophy />}<h2>{outcome}</h2><p className="paper-subtitle">{model.invalid ? stone ? '경기가 무효 처리됐어요' : '경기가 무효 처리되어 참가비 예약을 해제해요' : outcome === '승리' ? '멋진 한 판이었어요' : outcome === '무승부' ? '좋은 승부였어요' : '함께해서 즐거운 한 판이었어요'}</p></>}
     <ol className="paper-players" aria-label="참가자 결과">{model.rows.filter(row => row.playerId).map(row => <li key={row.playerId} data-winner={row.winner}>
       <span className="paper-person-icon" aria-hidden="true">{row.nickname.slice(0, 1)}</span>
       <span className="paper-player-name">{row.rank && `${model.rows.filter(r => r.rank === row.rank).length > 1 ? '공동 ' : ''}${row.rank}위 · `}{row.playerId === own ? '나' : row.nickname}</span><span>{row.rewardCoins != null ? `${row.rewardCoins}냥` : row.score}</span>

@@ -1,0 +1,21 @@
+.chess-checkmate{position:relative;text-align:center;isolation:isolate}
+.chess-checkmate-art{position:relative;width:260px;max-width:100%;height:184px;margin:0 auto;pointer-events:none}
+.chess-checkmate-halo{position:absolute;inset:12px 40px -8px;border-radius:50%;background:radial-gradient(ellipse,#e9c46d7a,transparent 68%);animation:chess-victory-halo 1.8s ease-out both}
+.chess-checkmate-laurel{position:absolute;inset:0;width:100%;height:100%;color:#a47728;opacity:.7}
+.chess-checkmate-king{position:absolute;inset:-12px 25px -8px;animation:chess-victory-king 1s cubic-bezier(.18,.8,.25,1) both}
+.chess-checkmate-sparks{position:absolute;inset:0;overflow:hidden}
+.chess-checkmate-sparks i{position:absolute;top:58%;left:50%;width:5px;height:12px;border-radius:2px;background:#bb8937;opacity:0;--angle:calc(var(--spark)*30deg);animation:chess-victory-spark 1.7s calc(var(--spark)*.035s) ease-out both}
+.chess-checkmate[data-outcome=lose] .chess-checkmate-sparks{display:none}
+.chess-checkmate .chess-checkmate-eyebrow{margin:5px 0 4px;font:700 11px/1.4 'Malgun Gothic',sans-serif;letter-spacing:.24em;color:#886423}
+.table-paper-popup .chess-checkmate h2{margin:0;font:700 clamp(28px,6vw,40px)/1.25 BusanDandiMyeongjo,serif;color:#25462e}
+.chess-checkmate .chess-checkmate-winner{display:flex;justify-content:center;align-items:baseline;flex-wrap:wrap;gap:4px 10px;margin:12px 0 6px;font-size:26px;line-height:1.35;color:#7b5520;overflow-wrap:anywhere}
+.chess-checkmate-winner strong{min-width:0;max-width:100%;font-weight:700}.chess-checkmate-winner span{flex-shrink:0;font-weight:700}
+.chess-checkmate .chess-checkmate-outcome{margin:6px 0 16px;font:500 13px/1.6 'Malgun Gothic',sans-serif;color:#4b503d}
+.chess-checkmate[data-outcome=lose] .chess-checkmate-outcome{color:#874333}
+.chess-checkmate-dialog{box-sizing:border-box;width:min(430px,calc(100vw - 36px));scrollbar-width:none}.chess-checkmate-dialog::-webkit-scrollbar{display:none}
+.chess-checkmate-dialog>button:not(.paper-close){min-height:42px;border:1px solid #b69b63;border-radius:8px;padding:8px 20px;font:inherit;background:#24452f;color:#fff8df;cursor:pointer}
+@keyframes chess-victory-king{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
+@keyframes chess-victory-halo{0%{opacity:0;transform:scale(.5)}45%{opacity:1;transform:scale(1.2)}100%{opacity:.7;transform:scale(1)}}
+@keyframes chess-victory-spark{0%{opacity:0;transform:rotate(var(--angle)) translateY(0) rotate(0)}15%{opacity:1}100%{opacity:0;transform:rotate(var(--angle)) translateY(-110px) rotate(150deg)}}
+@media(max-height:650px){.chess-checkmate-art{height:126px;width:200px}.chess-checkmate-king{inset:-16px 22px -6px}.chess-checkmate .chess-checkmate-winner{font-size:23px;margin-top:8px}}
+@media(prefers-reduced-motion:reduce){.chess-checkmate *{animation:none!important}.chess-checkmate-sparks{display:none}}

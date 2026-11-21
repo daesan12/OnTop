@@ -1,5 +1,6 @@
 import { parseSnowballAim } from '../../features/winter/trajectory'
 import { canActChess } from '../../game/chess/actions'
+import { ChessSpectatorFinishWait, waitingForChessFinish } from '../../game/chess/spectatorFinish'
 import { winterFrozen } from '../../features/winter/state'
 import { acceptAlkkagiSocial, resetAlkkagiSocial, syncAlkkagiSocial } from '../../game/alkkagi/spectatorEvents'
 import { notifyOwnBalloonEnd, receiveRemoteBalloon } from '../../features/balloon/remoteRide'
@@ -165,6 +166,7 @@ export class ParkRuntime implements ParkRuntimePort {
   private untrackPracticeEvents: (() => void) | undefined
   private facilityMapInvalid = false
   private spectatorIntent: { userId: string; channelId: string; tableId: string; benchScope: string; awaitingStart?: boolean; npcPractice?: boolean } | null = null
+  private chessFinishWait = new ChessSpectatorFinishWait()
   private npcWatchAttempt = 0
   private gameWatchRequestId = ''
   private spectatorChecks = new Map<string, string>()
@@ -291,6 +293,7 @@ export class ParkRuntime implements ParkRuntimePort {
   restoreOneCardHand = () => this.oneCardPranks.restore()
   pingOmok = (x: number, y: number) => this.omokEvents.send('ping', { x, y })
   private resetSpectator() {
+    this.chessFinishWait.reset()
     this.omokEvents.reset()
     this.ledgerPings.reset()
     this.oneCardPranks.reset()
@@ -314,6 +317,9 @@ export class ParkRuntime implements ParkRuntimePort {
       intent.awaitingStart = false
       useTableLobby.setState({ entryNotice: null })
     }
+    const watching = useGame.getState(), table = intent && s.tableStates[intent.tableId]
+    if (intent && !reference && waitingForChessFinish(watching.game, watching.watchedGameId, table?.gameCode, table?.gameId)
+      && this.chessFinishWait.hold(watching.watchedGameId, () => this.syncSpectator())) return
     if (intent && (!reference || useGame.getState().watchedGameId && reference.gameId !== useGame.getState().watchedGameId)) {
       this.closeTable(); return
     }
@@ -1963,6 +1969,7 @@ export class ParkRuntime implements ParkRuntimePort {
     return this.spectator.set({ gameId: ref.gameId, scope: JSON.stringify([this.generation, s.sessionId, s.roomId, current.watchedTableId, scope]) }, true)
   }
   unwatchGame = async (preserveInspection = false): Promise<boolean> => {
+    this.chessFinishWait.reset()
     ++this.npcWatchAttempt
     if (this.spectatorIntent?.npcPractice) {
       this.spectatorIntent=null
@@ -1989,6 +1996,7 @@ export class ParkRuntime implements ParkRuntimePort {
     return approved
   }
   closeTable = () => {
+    this.chessFinishWait.reset()
     ++this.npcWatchAttempt
     this.spectatorIntent = null
     resetBenchSpectator()
