@@ -2,13 +2,21 @@ import { useEffect, useRef, useState } from 'react'
 import { useSession } from '../../network/worldClient'
 import { clearRoamingInput, focusParkCanvas } from '../../world/inputOwnership'
 import { NpcDialogueFrame } from './NpcDialogueFrame'
-import { parkDialogues, type ParkSpeaker } from './parkDialogue'
+import { parkDialoguePortrait, parkDialoguePortraits, parkDialogues, type ParkSpeaker } from './parkDialogue'
 import { closeParkDialogue, useParkDialogue } from './parkDialogueState'
 import '../welcomeStory/parkWelcomeStory.css'
 
 function Conversation({ speaker }: { speaker: ParkSpeaker }) {
   const element = useRef<HTMLDialogElement>(null), [index, setIndex] = useState(0)
   const story = parkDialogues[speaker], last = index === story.lines.length - 1
+  const portrait = parkDialoguePortrait(speaker, index)
+  useEffect(() => {
+    for (const frame of parkDialoguePortraits(speaker)) {
+      const image = new Image()
+      image.src = frame.src
+      void image.decode().catch(() => {})
+    }
+  }, [speaker])
   useEffect(() => {
     clearRoamingInput()
     if (document.pointerLockElement) document.exitPointerLock()
@@ -22,7 +30,7 @@ function Conversation({ speaker }: { speaker: ParkSpeaker }) {
       if (e.key !== 'e' && e.key !== 'E' && (e.key !== 'Enter' || e.target !== e.currentTarget)) return
       e.preventDefault(); e.stopPropagation(); if (!e.repeat) next()
     }}>
-    <NpcDialogueFrame portrait={story.portrait} portraitAlt={story.name}>
+    <NpcDialogueFrame portrait={portrait.src} portraitAlt={portrait.alt}>
       <header className="joke-dialogue-heading"><h2 className="joke-nameplate" id="park-npc-speaker">{story.name}</h2>
         <button type="button" className="joke-close" onClick={closeParkDialogue}>대화 닫기 <span aria-hidden="true">×</span></button></header>
       <div className="joke-speech" aria-live="polite" tabIndex={0}><p>{story.lines[index]}</p></div>
