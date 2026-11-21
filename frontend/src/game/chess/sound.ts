@@ -2,9 +2,9 @@ import type { Game, Recovery } from '../protocol'
 import { chessMotion } from './motion'
 import type { Chess } from './protocol'
 
-export type ChessSound = 'chess-promotion' | 'chess-invalid' | 'chess-select' | 'chess-move' | 'chess-capture' | 'chess-check' | 'chess-checkmate' | 'chess-checkmate-win' | 'chess-checkmate-lose' | 'chess-draw'
+export type ChessSound = 'chess-castle' | 'chess-promotion' | 'chess-invalid' | 'chess-select' | 'chess-move' | 'chess-capture' | 'chess-check' | 'chess-checkmate' | 'chess-checkmate-win' | 'chess-checkmate-lose' | 'chess-draw'
 export const CHESS_SOUND_DURATION = { 'chess-move': .15, 'chess-capture': .23, 'chess-check': .42,
-  'chess-checkmate': .95, 'chess-checkmate-win': .95, 'chess-checkmate-lose': .88, 'chess-draw': .78, 'chess-select': .09, 'chess-invalid': .16, 'chess-promotion': .48 } as const
+  'chess-checkmate': .95, 'chess-checkmate-win': .95, 'chess-checkmate-lose': .88, 'chess-draw': .78, 'chess-select': .09, 'chess-invalid': .16, 'chess-promotion': .48, 'chess-castle': .3 } as const
 export const isChessSound = (name: string): name is ChessSound => Object.hasOwn(CHESS_SOUND_DURATION, name)
 
 /** Input feedback uses server destinations; choosing another own piece is not a failed move. */
@@ -40,7 +40,12 @@ export function chessMoveSound(previous: Game | null, next: Game, serverNow: num
   if (!previous?.chess || !next.chess) return null
   const motion = chessMotion({ gameId: previous.gameId, board: previous.chess.board, moves: previous.chess.moves },
     { gameId: next.gameId, board: next.chess.board, moves: next.chess.moves })
-  return motion ? motion.captured ? 'chess-capture' : 'chess-move' : null
+  if (!motion) return null
+  const king = motion.travel[0]
+  if (motion.travel.length === 2 && !motion.captured && (
+    king.piece === 'K' && king.from === 4 && [2, 6].includes(king.to)
+    || king.piece === 'k' && king.from === 60 && [58, 62].includes(king.to))) return 'chess-castle'
+  return motion.captured ? 'chess-capture' : 'chess-move'
 }
 
 /** Only a reconciled server move from the pawn's penultimate rank is a completed promotion. */
@@ -53,10 +58,11 @@ export function chessPromotionSound(previous: Game | null, next: Game, serverNow
     || piece === 'p' && move[1] === '2' && move[3] === '1' ? 'chess-promotion' : null
 }
 
-/** Position alerts follow the promotion flourish instead of masking it. */
-export function chessPromotionGap(cue: string, cues: readonly string[]) {
-  return cues.includes('chess-promotion') && (cue === 'chess-check' || cue.startsWith('chess-checkmate') || cue === 'chess-draw')
-    ? CHESS_SOUND_DURATION['chess-promotion'] + .06 : 0
+/** Position alerts follow special move sounds instead of masking them. */
+export function chessSpecialMoveGap(cue: string, cues: readonly string[]) {
+  if (cue !== 'chess-check' && !cue.startsWith('chess-checkmate') && cue !== 'chess-draw') return 0
+  if (cues.includes('chess-promotion')) return CHESS_SOUND_DURATION['chess-promotion'] + .06
+  return cues.includes('chess-castle') ? CHESS_SOUND_DURATION['chess-castle'] + .06 - .18 : 0
 }
 
 const DRAW_REASONS = new Set(['STALEMATE', 'INSUFFICIENT_MATERIAL', 'THREEFOLD_REPETITION', 'FIVEFOLD_REPETITION',
@@ -107,7 +113,7 @@ export function chessSoundSamples(kind: ChessSound, rate: number) {
     }
     return samples
   }
-  const capture = kind === 'chess-capture'
+  const capture = kind === 'chess-capture', castle = kind === 'chess-castle'
   let seed = 188, low = 0, peak = 0
   for (let i = 0; i < samples.length; i++) {
     const t = i / rate
@@ -118,7 +124,8 @@ export function chessSoundSamples(kind: ChessSound, rate: number) {
       * (.48 * Math.sin(2 * Math.PI * frequency * age) * Math.exp(-age * 45)
         + .2 * Math.sin(2 * Math.PI * frequency * 2.61 * age) * Math.exp(-age * 80)
         + .32 * low * Math.exp(-age * 65))
-    samples[i] = (impact(t, capture ? 245 : kind === 'chess-select' ? 620 : 390) + (capture ? .5 * impact(t - .045, 540) : 0))
+    samples[i] = (impact(t, castle ? 280 : capture ? 245 : kind === 'chess-select' ? 620 : 390)
+      + (castle ? .65 * impact(t - .095, 420) : capture ? .5 * impact(t - .045, 540) : 0))
       * Math.min(1, t / .001) * Math.min(1, (duration - t) / .015)
     peak = Math.max(peak, Math.abs(samples[i]))
   }

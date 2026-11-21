@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ChessGame } from '../../src/game/protocol'
 import { gameSfx } from '../../src/audio/sfxEvents'
-import { CHESS_SOUND_DURATION, chessMoveSound, chessPositionSound, chessPromotionGap, chessPromotionSound, chessSelectionSound, chessSoundGame, chessSoundBuffer, chessSoundSamples } from '../../src/game/chess/sound'
+import { CHESS_SOUND_DURATION, chessMoveSound, chessPositionSound, chessSpecialMoveGap, chessPromotionSound, chessSelectionSound, chessSoundGame, chessSoundBuffer, chessSoundSamples } from '../../src/game/chess/sound'
 
 const NOW = Date.parse('2026-11-21T00:00:00Z')
 function game(pieces: Record<string, string>, moves: string[], version: number, patch: Partial<ChessGame['chess']> = {}, role: ChessGame['role'] = 'PLAYER'): ChessGame {
@@ -37,19 +37,19 @@ describe('체스 승인 이동 효과음', () => {
     const a = game({ a7: 'P' }, [], 0), b = game({ a8: 'Q' }, ['a7a8q'], 1, { inCheck: true })
     const check = gameSfx(a, b, '101', NOW)
     expect(check).toEqual(['chess-move', 'chess-promotion', 'chess-check'])
-    expect(chessPromotionGap('chess-check', check)).toBeCloseTo(.54)
+    expect(chessSpecialMoveGap('chess-check', check)).toBeCloseTo(.54)
     const mate = { ...b, chess: { ...b.chess, status: 'FINISHED' as const, endReason: 'CHECKMATE', winnerUserId: '101', endedAt: new Date(NOW).toISOString() } }
     for (const own of ['101', '202']) {
       const cues = gameSfx(a, mate, own, NOW), end = cues.at(-1)!
       expect(cues).toEqual(['chess-move', 'chess-promotion', own === '101' ? 'chess-checkmate-win' : 'chess-checkmate-lose'])
-      expect(.18 + chessPromotionGap(end, cues)).toBeGreaterThan(.18 + CHESS_SOUND_DURATION['chess-promotion'])
+      expect(.18 + chessSpecialMoveGap(end, cues)).toBeGreaterThan(.18 + CHESS_SOUND_DURATION['chess-promotion'])
     }
     const draw = gameSfx(a, { ...mate, chess: { ...mate.chess, endReason: 'STALEMATE', winnerUserId: null } }, '101', NOW)
     expect(draw).toEqual(['chess-move', 'chess-promotion', 'chess-draw'])
-    expect(chessPromotionGap('chess-draw', draw)).toBeCloseTo(.54)
-    expect(chessPromotionGap('chess-promotion', check)).toBe(0)
-    expect(chessPromotionGap('chess-move', check)).toBe(0)
-    expect(chessPromotionGap('chess-check', ['chess-move', 'chess-check'])).toBe(0)
+    expect(chessSpecialMoveGap('chess-draw', draw)).toBeCloseTo(.54)
+    expect(chessSpecialMoveGap('chess-promotion', check)).toBe(0)
+    expect(chessSpecialMoveGap('chess-move', check)).toBe(0)
+    expect(chessSpecialMoveGap('chess-check', ['chess-move', 'chess-check'])).toBe(0)
   })
   it('선택 후 서버 목적지 밖의 빈칸·상대 기물만 잘못된 이동으로 안내한다', () => {
     const c = game({ e2: 'P', e7: 'p', d2: 'P', e1: 'K' }, [], 0,
@@ -105,9 +105,39 @@ describe('체스 승인 이동 효과음', () => {
     expect(chessMoveSound(a, b, NOW + 1200)).toBeNull()
     expect(chessMoveSound(a, b, NOW - 1201)).toBeNull()
   })
-  it('앙파상은 잡기, 캐슬링은 한 번의 이동 소리로 낸다', () => {
+  it('앙파상은 잡기, 캐슬링은 한 번의 전용 소리로 낸다', () => {
     expect(chessMoveSound(game({ e5: 'P', d5: 'p' }, [], 0), game({ d6: 'P' }, ['e5d6'], 1), NOW)).toBe('chess-capture')
-    expect(gameSfx(game({ e1: 'K', h1: 'R' }, [], 0), game({ g1: 'K', f1: 'R' }, ['e1g1'], 1), '202', NOW)).toEqual(['chess-move'])
+    expect(gameSfx(game({ e1: 'K', h1: 'R' }, [], 0), game({ g1: 'K', f1: 'R' }, ['e1g1'], 1), '202', NOW)).toEqual(['chess-castle'])
+  })
+  it('백흑 킹사이드·퀸사이드 모두 두 기물 확정 이동을 전용 소리 한 번으로 묶는다', () => {
+    for (const [before, after, move] of [
+      [{ e1: 'K', h1: 'R' }, { g1: 'K', f1: 'R' }, 'e1g1'],
+      [{ e1: 'K', a1: 'R' }, { c1: 'K', d1: 'R' }, 'e1c1'],
+      [{ e8: 'k', h8: 'r' }, { g8: 'k', f8: 'r' }, 'e8g8'],
+      [{ e8: 'k', a8: 'r' }, { c8: 'k', d8: 'r' }, 'e8c8'],
+    ] as [Record<string,string>, Record<string,string>, string][]) {
+      const a=game(before, [], 0), b=game(after, [move], 1)
+      expect(gameSfx(a,b,'101',NOW)).toEqual(['chess-castle'])
+      expect(gameSfx({...a,role:'SPECTATOR'},{...b,role:'SPECTATOR'},'505',NOW)).toEqual(['chess-castle'])
+      expect(chessMoveSound(null,b,NOW)).toBeNull()
+      expect(chessMoveSound(b,{...b,version:2},NOW)).toBeNull()
+      expect(chessMoveSound(a,b,NOW+1200)).toBeNull()
+    }
+  })
+  it('일반 킹·룩 이동과 룩이 바뀌지 않은 거절/잘못된 보드를 캐슬링으로 알리지 않는다', () => {
+    const a=game({e1:'K',h1:'R'},[],0)
+    expect(chessMoveSound(a,game({f1:'K',h1:'R'},['e1f1'],1),NOW)).toBe('chess-move')
+    expect(chessMoveSound(a,game({e1:'K',f1:'R'},['h1f1'],1),NOW)).toBe('chess-move')
+    expect(chessMoveSound(a,game({g1:'K',h1:'R'},['e1g1'],1),NOW)).toBeNull()
+    expect(chessMoveSound(a,{...a,version:1},NOW)).toBeNull()
+    expect(chessMoveSound(a,game({g1:'K',f1:'R'},['e1f1','f1g1'],2),NOW)).toBeNull()
+  })
+  it('캐슬링 체크·종료 알림은 두 타격음이 끝난 뒤에 시작한다', () => {
+    const a=game({e1:'K',h1:'R'},[],0), b=game({g1:'K',f1:'R'},['e1g1'],1,{inCheck:true})
+    expect(gameSfx(a,b,'101',NOW)).toEqual(['chess-castle','chess-check'])
+    for (const cue of ['chess-check','chess-checkmate-win','chess-checkmate-lose','chess-draw'])
+      expect(.18+chessSpecialMoveGap(cue,['chess-castle',cue])).toBeCloseTo(CHESS_SOUND_DURATION['chess-castle']+.06)
+    expect(chessSpecialMoveGap('chess-castle',['chess-castle','chess-check'])).toBe(0)
   })
   it('종료를 만든 마지막 잡기도 재생하고 비이동 종료에는 재생하지 않는다', () => {
     const a = game({ h5: 'Q', f7: 'p' }, [], 0), b = game({ f7: 'Q' }, ['h5f7'], 1, { status: 'FINISHED', endedAt: new Date(NOW).toISOString(), endReason: 'CHECKMATE' })

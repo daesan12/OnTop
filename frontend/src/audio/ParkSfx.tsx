@@ -13,7 +13,7 @@ import { usePlusMinus } from '../features/plusMinus/store'
 import { useRpsRoulette } from '../features/rpsRoulette/store'
 import { useSpeedMole } from '../features/speedMole/store'
 import { consumeWalletRewardSoundLevel } from '../features/wallet/settlementRefresh'
-import { chessPromotionGap, chessSoundGame } from '../game/chess/sound'
+import { chessSpecialMoveGap, chessSoundGame } from '../game/chess/sound'
 
 // 오락기 게임은 결과 화면의 받은 엽전 표시(RewardCoinSource)가 정산음을 낸다.
 // 잔액은 그보다 먼저(룰렛이 도는 중, 다음 판 시작 때) 바뀔 수 있어 창이 열린 동안에는 잔액 증가음을 내지 않는다.
@@ -42,7 +42,7 @@ export function ParkSfx() {
           // A recovery snapshot is current position, not a new move to replay.
           if (cue.startsWith('chess-') && (!chessLiveGameId || beforeChessGameId !== chessLiveGameId
             || prev.uncertain || next.uncertain || !connected())) continue
-          playSfx(cue, undefined, 1, chessPromotionGap(cue, cues))
+          playSfx(cue, undefined, 1, chessSpecialMoveGap(cue, cues))
         }
         // 경기를 떠났다가 같은 경기를 다시 보더라도 그 사이 변화를 한꺼번에 재생하지 않는다.
         if (next.game?.alkkagi) for (const [cue, level] of alkkagiCues(alkkagi.update(next.game.alkkagi))) playSfx(cue, undefined, level)
