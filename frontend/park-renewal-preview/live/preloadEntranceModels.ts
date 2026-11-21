@@ -5,10 +5,5 @@ import { models } from '../modelUrls'
 export function preloadEntranceModels() {
   useLoader.preload(ParkAssetLoader, models.main!)
   useLoader.preload(ParkAssetLoader, models.fortune!)
-}
-
-export function preloadGateSurroundings() {
-  for (const kind of ['bread', 'pigeon', 'cafe']) {
-    useLoader.preload(ParkAssetLoader, models[kind]!)
-  }
+  useLoader.preload(ParkAssetLoader, models.lottery!)
 }

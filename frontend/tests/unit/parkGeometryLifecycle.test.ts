@@ -69,6 +69,23 @@ function asset(file: keyof typeof catalog) {
 }
 
 describe('공원 geometry 마운트와 프레임 수명주기', () => {
+  it('입구 GLB가 모두 준비되기 전에는 절차적 나무와 겨울 장식을 반복 생성하지 않는다', async () => {
+    const { EntranceAssetsReady } = await import('../../park-renewal-preview/EntrancePavilion')
+    const view = await renderer()
+    let ready = false, finish!: () => void, builds = 0
+    const pending = new Promise<void>(resolve => { finish = resolve })
+    vi.mocked(useLoader).mockImplementation((_loader, input) => {
+      if (String(input).includes('lottery') && !ready) throw pending
+      return { scene: new THREE.Group() }
+    })
+    function EntranceArt() { builds++; return h('group', { name: 'critical-entrance-art' }) }
+    await view.mount(h(Suspense, { fallback: null }, h(EntranceAssetsReady, { children: h(EntranceArt) })))
+    expect(builds).toBe(0)
+    await act(async () => { ready = true; finish() })
+    expect(builds).toBe(1)
+    expect(view.state.scene.getObjectByName('critical-entrance-art')).toBeDefined()
+  })
+
   it('침엽수는 자동 렌더를 유지하고 계산된 인스턴스 경계로 LOD와 히스테리시스를 적용한다', async () => {
     const view = await renderer()
     const near = new THREE.ConeGeometry(2, 5, 12), far = new THREE.ConeGeometry(2, 5, 4)
