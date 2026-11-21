@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ChessGame } from '../../src/game/protocol'
 import { gameSfx } from '../../src/audio/sfxEvents'
-import { CHESS_SOUND_DURATION, chessMoveSound, chessPositionSound, chessSelectionSound, chessSoundGame, chessSoundBuffer, chessSoundSamples } from '../../src/game/chess/sound'
+import { CHESS_SOUND_DURATION, chessMoveSound, chessPositionSound, chessPromotionGap, chessPromotionSound, chessSelectionSound, chessSoundGame, chessSoundBuffer, chessSoundSamples } from '../../src/game/chess/sound'
 
 const NOW = Date.parse('2026-11-21T00:00:00Z')
 function game(pieces: Record<string, string>, moves: string[], version: number, patch: Partial<ChessGame['chess']> = {}, role: ChessGame['role'] = 'PLAYER'): ChessGame {
@@ -11,6 +11,46 @@ function game(pieces: Record<string, string>, moves: string[], version: number, 
     whiteUserId: '101', blackUserId: '202', turnUserId: '202', turnStartedAt: new Date(NOW).toISOString(), endedAt: null, ...patch } as ChessGame['chess'] }
 }
 describe('체스 승인 이동 효과음', () => {
+  it('백흑의 네 종류 잡기 승격과 일반 승격을 서버 보드/기보와 대조한다', () => {
+    for (const promotion of ['q', 'r', 'b', 'n']) {
+      const a = game({ a7: 'P', b8: 'r' }, [], 0), b = game({ b8: promotion.toUpperCase() }, ['a7b8' + promotion], 1)
+      expect(gameSfx(a, b, '101', NOW)).toEqual(['chess-capture', 'chess-promotion'])
+      const c = game({ h2: 'p', g1: 'R' }, [], 0), d = game({ g1: promotion }, ['h2g1' + promotion], 1)
+      expect(gameSfx(c, d, '202', NOW)).toEqual(['chess-capture', 'chess-promotion'])
+      expect(gameSfx({ ...c, role: 'SPECTATOR' }, { ...d, role: 'SPECTATOR' }, '505', NOW)).toEqual(['chess-capture', 'chess-promotion'])
+    }
+    expect(gameSfx(game({ a7: 'P' }, [], 0), game({ a8: 'Q' }, ['a7a8q'], 1), '101', NOW)).toEqual(['chess-move', 'chess-promotion'])
+  })
+  it('승격 선택/취소·중복·복구·잘못된 승격 보드에는 승격음을 내지 않는다', () => {
+    const a = game({ a7: 'P' }, [], 0), b = game({ a8: 'Q' }, ['a7a8q'], 1)
+    expect(chessPromotionSound(a, { ...a, version: 1 }, NOW)).toBeNull()
+    expect(chessPromotionSound(null, b, NOW)).toBeNull()
+    expect(chessPromotionSound(b, { ...b, version: 2 }, NOW)).toBeNull()
+    expect(chessPromotionSound(a, b, NOW + 1200)).toBeNull()
+    expect(chessPromotionSound(a, { ...b, role: 'SPECTATOR' }, NOW)).toBeNull()
+    expect(chessPromotionSound(a, game({ a8: 'R' }, ['a7a8q'], 1), NOW)).toBeNull()
+    expect(chessPromotionSound(game({ a5: 'P' }, [], 0), game({ a6: 'Q' }, ['a5a6q'], 1), NOW)).toBeNull()
+    expect(chessPromotionSound(game({ a7: 'R' }, [], 0), game({ a8: 'Q' }, ['a7a8q'], 1), NOW)).toBeNull()
+    expect(chessPromotionSound(a, game({ a8: 'Q' }, ['a7a8q', 'e8e7'], 2), NOW)).toBeNull()
+  })
+  it('승격 후 체크·체크메이트·무승부는 승격음 뒤에 이어서 재생한다', () => {
+    const a = game({ a7: 'P' }, [], 0), b = game({ a8: 'Q' }, ['a7a8q'], 1, { inCheck: true })
+    const check = gameSfx(a, b, '101', NOW)
+    expect(check).toEqual(['chess-move', 'chess-promotion', 'chess-check'])
+    expect(chessPromotionGap('chess-check', check)).toBeCloseTo(.54)
+    const mate = { ...b, chess: { ...b.chess, status: 'FINISHED' as const, endReason: 'CHECKMATE', winnerUserId: '101', endedAt: new Date(NOW).toISOString() } }
+    for (const own of ['101', '202']) {
+      const cues = gameSfx(a, mate, own, NOW), end = cues.at(-1)!
+      expect(cues).toEqual(['chess-move', 'chess-promotion', own === '101' ? 'chess-checkmate-win' : 'chess-checkmate-lose'])
+      expect(.18 + chessPromotionGap(end, cues)).toBeGreaterThan(.18 + CHESS_SOUND_DURATION['chess-promotion'])
+    }
+    const draw = gameSfx(a, { ...mate, chess: { ...mate.chess, endReason: 'STALEMATE', winnerUserId: null } }, '101', NOW)
+    expect(draw).toEqual(['chess-move', 'chess-promotion', 'chess-draw'])
+    expect(chessPromotionGap('chess-draw', draw)).toBeCloseTo(.54)
+    expect(chessPromotionGap('chess-promotion', check)).toBe(0)
+    expect(chessPromotionGap('chess-move', check)).toBe(0)
+    expect(chessPromotionGap('chess-check', ['chess-move', 'chess-check'])).toBe(0)
+  })
   it('선택 후 서버 목적지 밖의 빈칸·상대 기물만 잘못된 이동으로 안내한다', () => {
     const c = game({ e2: 'P', e7: 'p', d2: 'P', e1: 'K' }, [], 0,
       { legalMoves: [{ from: 'e2', to: 'e4', promotion: null }, { from: 'd2', to: 'd4', promotion: null }] }).chess

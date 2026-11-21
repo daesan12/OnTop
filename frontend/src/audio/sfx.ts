@@ -6,6 +6,7 @@ export type SfxName = 'ui-click' | 'ui-manual' | 'ui-equip' | 'coin-gain'
   | 'game-ready' | 'game-start' | 'game-turn' | 'omok-place' | 'dice-roll' | 'card-draw' | 'card-one' | 'halli-bell'
   | 'chess-move' | 'chess-capture' | 'chess-check' | 'chess-checkmate' | 'chess-checkmate-win' | 'chess-checkmate-lose'
   | 'chess-draw' | 'chess-select' | 'chess-invalid'
+  | 'chess-promotion'
   | 'bungeo-pour' | 'bungeo-flip' | 'bungeo-burn'
   | 'emote-clap' | 'emote-tsk' | 'emote-fart' | 'emote-wave-male' | 'emote-wave-female'
   | 'move-jump' | 'move-land' | 'move-splash' | 'move-step-stone' | 'move-step-grass' | 'amb-pigeon-takeoff'
@@ -25,6 +26,7 @@ const LEVEL: Record<SfxName | SfxLoop, number> = {
   'chess-draw': .5,
   'chess-select': .22,
   'chess-invalid': .28,
+  'chess-promotion': .5,
   'game-ready': 0.5, 'game-start': 0.55, 'game-turn': 0.5, 'dice-roll': 0.6, 'card-draw': 0.5, 'card-one': 0.55,
   'halli-bell': 0.55,
   'bungeo-pour': 0.5, 'bungeo-flip': 0.5, 'bungeo-burn': 0.45,
@@ -79,7 +81,7 @@ export function preloadSfx(name: SfxName) {
 }
 
 /** Plays once; `at` places it in the park so it pans and fades with distance from the camera. */
-export function playSfx(name: SfxName, at?: SoundPoint, level = 1) {
+export function playSfx(name: SfxName, at?: SoundPoint, level = 1, delaySeconds = 0) {
   if (isChessSound(name)) {
     const settings = useSfxSettings.getState()
     if (settings.muted || settings.volume === 0 || typeof document !== 'undefined' && document.hidden) return
@@ -103,7 +105,7 @@ export function playSfx(name: SfxName, at?: SoundPoint, level = 1) {
     else gain.connect(bus)
     source.onended = () => { voices--; source.disconnect(); gain.disconnect(); space?.disconnect() }
     // Let the wooden move/capture impact speak before the position alert.
-    source.start(context.currentTime + (name === 'chess-check' || name.startsWith('chess-checkmate') || name === 'chess-draw' ? .18 : 0))
+    source.start(context.currentTime + delaySeconds + (name === 'chess-promotion' || name === 'chess-check' || name.startsWith('chess-checkmate') || name === 'chess-draw' ? .18 : 0))
   })
 }
 

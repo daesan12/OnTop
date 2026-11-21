@@ -2,9 +2,9 @@ import type { Game, Recovery } from '../protocol'
 import { chessMotion } from './motion'
 import type { Chess } from './protocol'
 
-export type ChessSound = 'chess-invalid' | 'chess-select' | 'chess-move' | 'chess-capture' | 'chess-check' | 'chess-checkmate' | 'chess-checkmate-win' | 'chess-checkmate-lose' | 'chess-draw'
+export type ChessSound = 'chess-promotion' | 'chess-invalid' | 'chess-select' | 'chess-move' | 'chess-capture' | 'chess-check' | 'chess-checkmate' | 'chess-checkmate-win' | 'chess-checkmate-lose' | 'chess-draw'
 export const CHESS_SOUND_DURATION = { 'chess-move': .15, 'chess-capture': .23, 'chess-check': .42,
-  'chess-checkmate': .95, 'chess-checkmate-win': .95, 'chess-checkmate-lose': .88, 'chess-draw': .78, 'chess-select': .09, 'chess-invalid': .16 } as const
+  'chess-checkmate': .95, 'chess-checkmate-win': .95, 'chess-checkmate-lose': .88, 'chess-draw': .78, 'chess-select': .09, 'chess-invalid': .16, 'chess-promotion': .48 } as const
 export const isChessSound = (name: string): name is ChessSound => Object.hasOwn(CHESS_SOUND_DURATION, name)
 
 /** Input feedback uses server destinations; choosing another own piece is not a failed move. */
@@ -43,6 +43,22 @@ export function chessMoveSound(previous: Game | null, next: Game, serverNow: num
   return motion ? motion.captured ? 'chess-capture' : 'chess-move' : null
 }
 
+/** Only a reconciled server move from the pawn's penultimate rank is a completed promotion. */
+export function chessPromotionSound(previous: Game | null, next: Game, serverNow: number): 'chess-promotion' | null {
+  if (!chessMoveSound(previous, next, serverNow) || !previous?.chess || !next.chess) return null
+  const move = next.chess.moves.at(-1)!
+  if (!/^[a-h][27][a-h][18][qrbn]$/.test(move)) return null
+  const piece = previous.chess.board[move.charCodeAt(0) - 97 + (Number(move[1]) - 1) * 8]
+  return piece === 'P' && move[1] === '7' && move[3] === '8'
+    || piece === 'p' && move[1] === '2' && move[3] === '1' ? 'chess-promotion' : null
+}
+
+/** Position alerts follow the promotion flourish instead of masking it. */
+export function chessPromotionGap(cue: string, cues: readonly string[]) {
+  return cues.includes('chess-promotion') && (cue === 'chess-check' || cue.startsWith('chess-checkmate') || cue === 'chess-draw')
+    ? CHESS_SOUND_DURATION['chess-promotion'] + .06 : 0
+}
+
 const DRAW_REASONS = new Set(['STALEMATE', 'INSUFFICIENT_MATERIAL', 'THREEFOLD_REPETITION', 'FIVEFOLD_REPETITION',
   'FIFTY_MOVES', 'SEVENTY_FIVE_MOVES', 'TIMEOUT_DRAW', 'AGREED_DRAW'])
 
@@ -71,9 +87,10 @@ export function chessPositionSound(previous: Game | null, next: Game, serverNow:
 /** Original percussion/chimes; deterministic, with no downloads or extra AudioContext. */
 export function chessSoundSamples(kind: ChessSound, rate: number) {
   const duration = CHESS_SOUND_DURATION[kind], samples = new Float32Array(Math.ceil(duration * rate))
-  if (kind === 'chess-check' || kind.startsWith('chess-checkmate') || kind === 'chess-draw' || kind === 'chess-invalid') {
+  if (kind === 'chess-check' || kind.startsWith('chess-checkmate') || kind === 'chess-draw' || kind === 'chess-invalid' || kind === 'chess-promotion') {
     // Rounded attacks and a soft final fade keep the warning distinct without a harsh alarm.
     const notes = kind === 'chess-check' ? [[0, 740], [.15, 622.25]]
+      : kind === 'chess-promotion' ? [[0, 659.25], [.1, 880], [.2, 1174.66]]
       : kind === 'chess-invalid' ? [[0, 330], [.065, 277.18]]
       : kind === 'chess-draw' ? [[0, 440], [.18, 523.25], [.36, 440]]
       : kind === 'chess-checkmate-lose' ? [[0, 392], [.14, 329.63], [.28, 261.63], [.42, 196]]
