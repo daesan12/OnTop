@@ -1,10 +1,10 @@
-import { memo, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { CanvasTexture, Group, MathUtils, PerspectiveCamera, RepeatWrapping, SRGBColorSpace } from 'three'
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
 import type { CodeTile, DavinciHand, DavinciState, TileColor } from './protocol'
 
-const TILE = new RoundedBoxGeometry(.57, .87, .22, 3, .045)
+const TILE = new RoundedBoxGeometry(.57, .87, .24, 3, .06)
 const railGeometry = new RoundedBoxGeometry(1, 1, 1, 2, .05)
 type Selection = { userId: string; tileId: string } | null
 export interface BoardProps {
@@ -18,15 +18,34 @@ function faceTexture(color: TileColor, value: number | null, back: boolean) {
   const canvas = document.createElement('canvas')
   canvas.width = 256; canvas.height = 384
   const c = canvas.getContext('2d')!
-  c.fillStyle = color === 'BLACK' ? '#242622' : '#eee4cf'; c.fillRect(0, 0, 256, 384)
-  c.strokeStyle = color === 'BLACK' ? '#ae8b4b' : '#8f7753'
-  c.lineWidth = 2; c.strokeRect(13, 16, 230, 352); c.strokeRect(19, 23, 218, 338)
-  c.clearRect(0, 0, 6, 6)
+  // 원목 액자와 기와/상아색 면. 뒷면 문양은 숫자·조커에 관계없이 동일하다.
+  const wood = c.createLinearGradient(0, 0, 256, 384)
+  wood.addColorStop(0, '#a27b4d'); wood.addColorStop(.45, '#60432c'); wood.addColorStop(1, '#8c653d')
+  c.fillStyle = wood; c.fillRect(0, 0, 256, 384)
+  c.strokeStyle = '#d5ad6b55'; c.lineWidth = 1
+  for (let i = 0; i < 28; i++) { c.beginPath(); c.moveTo(i * 11, 0); c.bezierCurveTo(i * 11 - 9, 100, i * 11 + 8, 270, i * 11 - 2, 384); c.stroke() }
+  c.fillStyle = color === 'BLACK' ? '#202d29' : '#eee4cc'; c.beginPath(); c.roundRect(17, 18, 222, 348, 18); c.fill()
+  c.strokeStyle = color === 'BLACK' ? '#c3a96a' : '#8f7954'; c.lineWidth = 2; c.beginPath(); c.roundRect(25, 26, 206, 332, 12); c.stroke()
+  c.globalAlpha = .12; c.strokeStyle = color === 'BLACK' ? '#e4d3a1' : '#6e7959'
+  for (let y = 45; y < 354; y += 13) { c.beginPath(); c.moveTo(30, y); c.bezierCurveTo(82, y - 3, 172, y + 3, 226, y); c.stroke() }
+  c.globalAlpha = 1
+  // 윗부분의 구름 장식은 숫자의 읽는 영역을 침범하지 않는다.
+  c.strokeStyle = '#b89b63'; c.lineWidth = 3; c.beginPath(); c.moveTo(86, 64); c.bezierCurveTo(90, 51, 108, 51, 113, 61); c.bezierCurveTo(122, 43, 145, 49, 146, 62); c.lineTo(172, 62); c.stroke()
   if (!back && value !== null) {
     c.fillStyle = color === 'BLACK' ? '#fff7e2' : '#18281e'
-    c.font = `500 ${value >= 10 ? 190 : 246}px Georgia, serif`
-    c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(value === -1 ? '−' : String(value), 128, 192)
-    c.fillRect(92, 313, 72, 4)
+    c.textAlign = 'center'; c.textBaseline = 'middle'
+    if (value === -1) {
+      c.save(); c.translate(128, 135)
+      for (let petal = 0; petal < 5; petal++) { c.save(); c.rotate(petal * Math.PI * 2 / 5); c.fillStyle = color === 'BLACK' ? '#d3b570' : '#a55e4c'; c.beginPath(); c.ellipse(0, -21, 12, 20, 0, 0, Math.PI * 2); c.fill(); c.restore() }
+      c.fillStyle = color === 'BLACK' ? '#a46c4f' : '#d4ae65'; c.beginPath(); c.arc(0, 0, 8, 0, Math.PI * 2); c.fill(); c.restore()
+      c.fillStyle = color === 'BLACK' ? '#fff7e2' : '#18281e'; c.font = '500 148px Georgia, serif'; c.fillText('−', 128, 224)
+      c.font = '600 25px "Malgun Gothic", sans-serif'; c.fillText('조커', 128, 291)
+    } else { c.font = `500 ${value >= 10 ? 176 : 218}px Georgia, serif`; c.fillText(String(value), 128, 194) }
+    c.fillRect(95, 320, 66, 4)
+  } else {
+    c.save(); c.translate(128, 202); c.rotate(Math.PI / 4); c.strokeStyle = color === 'BLACK' ? '#c1a56a' : '#8c805e'; c.lineWidth = 3
+    c.strokeRect(-43, -43, 86, 86); c.strokeRect(-33, -33, 66, 66)
+    c.beginPath(); c.moveTo(-33, 0); c.lineTo(33, 0); c.moveTo(0, -33); c.lineTo(0, 33); c.stroke(); c.restore()
   }
   const texture = new CanvasTexture(canvas)
   texture.colorSpace = SRGBColorSpace
@@ -58,27 +77,30 @@ export const Tile = memo(function Tile({ tile, hidden, faceUp, selected, scale =
   tile: CodeTile; hidden: boolean; faceUp: boolean; selected: boolean; scale?: number; onClick(): void; clickable: boolean; flat?: boolean
 }) {
   const pivot = useRef<Group>(null)
+  const [hovered, setHovered] = useState(false)
   const reduce = useMemo(() => matchMedia('(prefers-reduced-motion: reduce)').matches, [])
   const textures = useMemo(() => ({ front: faceTexture(tile.color, hidden ? null : tile.value, false), back: faceTexture(tile.color, null, true) }), [tile.color, tile.value, hidden])
-  useEffect(() => () => { textures.front.dispose(); textures.back.dispose() }, [textures])
+  useEffect(() => () => { textures.front.dispose(); textures.back.dispose(); document.body.style.cursor = '' }, [textures])
   useFrame((_, delta) => {
     if (!pivot.current) return
     const target = flat ? Math.PI / 2 : faceUp ? -Math.PI / 2 : 0
     const alpha = reduce ? 1 : 1 - Math.exp(-12 * Math.min(delta, .1))
     pivot.current.rotation.x = MathUtils.lerp(pivot.current.rotation.x, target, alpha)
-    pivot.current.position.y = MathUtils.lerp(pivot.current.position.y, selected ? .18 : 0, alpha)
+    pivot.current.position.y = MathUtils.lerp(pivot.current.position.y, selected ? .18 : hovered && clickable ? .12 : 0, alpha)
   })
   return <group scale={scale}>
     <group ref={pivot} onClick={e => { e.stopPropagation(); if (clickable) onClick() }}
-      onPointerOver={e => { e.stopPropagation(); if (clickable) document.body.style.cursor = 'pointer' }}
-      onPointerOut={() => { document.body.style.cursor = '' }}>
+      onPointerOver={e => { e.stopPropagation(); if (clickable) { setHovered(true); document.body.style.cursor = 'pointer' } }}
+      onPointerOut={() => { setHovered(false); document.body.style.cursor = '' }}>
       <mesh geometry={TILE} dispose={null} position={[0, .445, 0]} castShadow receiveShadow>
-        <meshStandardMaterial color={tile.color === 'BLACK' ? '#1f2520' : '#e9dfca'} roughness={.4} metalness={.04}
-          emissive={selected ? '#aa742b' : '#000000'} emissiveIntensity={selected ? .4 : 0} />
+        <meshStandardMaterial color={tile.color === 'BLACK' ? '#28372f' : '#e6dcc4'} roughness={.72} metalness={.02}
+          emissive={selected || hovered && clickable ? '#aa742b' : '#000000'} emissiveIntensity={selected ? .4 : hovered && clickable ? .22 : 0} />
       </mesh>
-      <mesh position={[0, .445, .113]}><planeGeometry args={[.51, .78]} /><meshStandardMaterial map={textures.front} roughness={.6} /></mesh>
-      <mesh position={[0, .445, -.113]} rotation={[0, Math.PI, 0]}><planeGeometry args={[.51, .78]} /><meshStandardMaterial map={textures.back} roughness={.6} /></mesh>
-      <mesh position={[0, .052, .115]}><boxGeometry args={[.49, .045, .025]} /><meshStandardMaterial color="#b58e4b" metalness={.55} roughness={.4} /></mesh>
+      <mesh position={[0, .445, .123]}><planeGeometry args={[.51, .78]} /><meshStandardMaterial map={textures.front} roughness={.82} /></mesh>
+      <mesh position={[0, .445, -.123]} rotation={[0, Math.PI, 0]}><planeGeometry args={[.51, .78]} /><meshStandardMaterial map={textures.back} roughness={.82} /></mesh>
+      {[.045, .845].map(y => <mesh key={y} geometry={railGeometry} dispose={null} position={[0, y, 0]} scale={[.59, .055, .26]} castShadow>
+        <meshStandardMaterial color="#85603e" roughness={.72} />
+      </mesh>)}
     </group>
   </group>
 })

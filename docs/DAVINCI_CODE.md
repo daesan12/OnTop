@@ -25,7 +25,8 @@
 ## 연결 계약
 
 - 기존 테이블의 선택·준비·시작·인증 WebSocket을 사용한다. 판돈 예약 커밋 후 `CommittedGameStartService`가 엔진을 만든다.
-- `GAME_ACTION_SEND.input.kind`: `place_joker`, `ready`, `draw`, `place`, `guess`, `stop`, `reveal`.
+- `GAME_ACTION_SEND.input.kind`: `place_joker`, `ready`, `draw`, `draw_random`, `place`, `guess`, `stop`, `reveal`.
+- `draw`는 선택한 공급 패의 `tileId`를 받는다. `draw_random`은 서버의 `SecureRandom`으로 현재 공급 패 중 하나를 고르고 같은 뽑기 경로를 사용한다. 권한·차례·버전·중복 요청 검사와 공개/개인 상태 분리는 동일하다.
 - `guess`: `targetUserId`, `tileId`, `value`(-1~11). `place`: `position`. `place_joker`: `tileId`, `position`.
 - `publicState`: 단계, 참가자, 색/공개 여부/공개된 숫자, 공급 타일 ID/색, 남은 시간과 마지막 추리. 숨겨진 숫자와 덱 순서는 보내지 않는다. 초기 배치 중 상대의 정렬 전 순서도 보내지 않는다.
 - `privateState`: 본인 ID/타일 숫자, 본인이 뽑은 타일, 합법 배치 위치, 아직 배치하지 않은 조커. 관전자는 빈 객체만 받는다.
@@ -74,6 +75,8 @@ pnpm exec vite --mode park-renewal-integration --host 127.0.0.1 --port 5523 --st
 - 계정 1: `/secret-tiles-park.html?role=1`, 계정 2: `?role=2`. 별도 탭에서 각자 교환 로그인하며 토큰은 URL에 남기지 않는다. 페이지의 인증 상태는 메모리에만 있다. 이전 로컬 URL도 호환된다.
 - 추가 참가자: `?role=3`, `?role=4`, 관전자: `?role=viewer`.
 - 최신 공원 입구에서 중앙광장 돌테이블로 이동 → E 착석 → 흑백수사 선택 → 인원·판돈 설정 → 전원 준비·시작. 섞기·분배 후 조커 배치를 마치고 준비한다. 테이블 타일을 직접 클릭하거나 가장자리의 타일 버튼을 이용한다.
+- 내 뽑기 차례에 중앙의 실제 3D 패를 클릭하거나 `중앙 패 직접 고르기` 목록을 펼쳐 선택한다. `무작위 뽑기` 버튼 또는 R은 서버 무작위 선택이다. 채팅 입력·설명서·팝업·열린 게임 메뉴·IME·반복 입력 중에는 R을 처리하지 않는다.
+- Enter로 기존 공통 경기 채팅을 열고 Z로 기록을 확인한다. 시간과 게임 메뉴는 공통 `GameHudClock`·`GameHudMenu`, 채팅은 기존 `ParkChat`을 사용한다. 게임별 채팅 UI는 제거했다.
 - 이 검수 서버는 기존 맵의 생성물만 읽는다. 기존 다른 서버·포트·worktree를 변경하지 않는다.
 - 허용된 FE 검증만 수행하며 맵 전수 탐색 및 자전거·킥보드 주행 테스트는 실행하지 않는다.
 
@@ -81,7 +84,29 @@ pnpm exec vite --mode park-renewal-integration --host 127.0.0.1 --port 5523 --st
 
 `http://127.0.0.1:5523/secret-tiles-preview.html`에서 2·3·4인 배치를 전환할 수 있다. 서버 미연결 배치 fixture다. 실제 제품 플레이는 공원 테이블을 사용한다.
 
+`?view=tiles`는 검정/흰색 숫자·매화 조커·동일한 창살 뒷면 6개를 보는 에셋 검수 화면이다. 공원과 프리뷰 모두 같은 Three.js 모델을 사용한다. 원목 마감·기와 먹색·상아색·구름 문양으로 제작하고 숨겨진 숫자/조커의 앞면 문양은 만들지 않는다.
+
 ## 검증 결과 (2026-11-21)
+
+### 숫자패·선택·공통 UI 개선 검수
+
+- 기준 `origin/dev`는 `2aecab6531b06ec3c919726baf41cf75e31a059c`이며 작업 이력에 포함됨을 재확인했다. 시설 좌표·충돌·맵 생성물·맵 버전·인프라 파일과 기존 V183은 변경하지 않았다.
+- BE 관련 92개(엔진 16, 시작 3, 월드 투영 1, 공통 프로토콜 72), FE 관련 90개 통과. 서버 무작위 선택의 공급 패 일치·한 장 제거·개인 상태·관전자 보호·중복 행동과 R 입력 소유권을 포함한다. TypeScript 검사도 통과했다.
+- 최종 Vite 통합 모드 빌드 통과: 1,764모듈, 45.73초. 기존 Three.js CJS·대형 청크 경고가 남는다. 맵 전체 탐색·자전거/킥보드 테스트는 실행하지 않았다.
+- 실제 공원 계정 101/202의 로그인·맵 계약 확인·이동·착석·시작을 검증했다. R과 무작위 버튼, 실제 3D 중앙 패 클릭, 펼침 목록 선택이 한 장씩 처리되고 선택한 ID와 일치함을 확인했다. 채팅 입력·게임 메뉴·설명서에서 R이 패를 뽑지 않았다.
+- 공통 경기 채팅이 한 개만 표시되고 참가자/관전자 간 메시지와 타일 핑이 전달됐다. 관전자에게 비공개 숫자가 전달되지 않았다. 마지막 승리·정산·다음 판 준비·일어나기 이후 두 계정이 각각 2.7m/3.1m 이동했다.
+- 1440×900, 390×844, 800×420 브라우저 화면을 확인했다. 모바일 채팅과 조작판의 겹침·가로 넘침이 없고 중첩 패 목록 끝까지 스크롤할 수 있다. 로컬 검수용 계정 배지는 경기 중 숨겨 공통 채팅을 가리지 않는다. 브라우저 예외는 없었다.
+- Browser 플러그인이 제공되지 않아 기존 CLI Playwright와 전용 Chrome 검수 프로필을 사용했다. 스크립트·스크린샷·빌드 산출물은 저장소 밖 `OnTop/output/`에 둔다. BE 19203과 FE 5523은 사용자 검수를 위해 유지한다. 실제 게임 엔진/WS와 메모리 인증·지갑·정산 대역을 사용하며 운영 DB/OAuth·배포 검증은 아니다.
+
+```powershell
+# backend
+.\gradlew.bat test --tests '*Davinci*Tests' --tests '*TableProtocolTests' --offline --console=plain
+# frontend
+pnpm exec vitest run tests/unit/davinci.test.ts tests/unit/davinciShortcuts.test.ts tests/unit/gameFlow.test.ts tests/unit/forfeit.test.ts tests/unit/chat.test.ts tests/unit/chatDisplay.test.ts tests/unit/diceChatClicks.test.ts tests/unit/chatTyping.test.ts tests/unit/gameHud.test.ts
+pnpm exec tsc --noEmit
+```
+
+### 이전 통합·표시명 변경 검수
 
 - 공원 통합 변경의 BE 관련 테스트 113개 통과: 흑백수사 규칙·4인 순차 탈락·공개/개인 상태·공원 공개 투영·중복/낡은 요청·재접속·관전·기권·타임아웃, 예약 후 생성, 공통 종료/대기실 전이와 기존 시작/프로토콜/월드 채널 회귀.
 - FE 관련 테스트 144개 통과: 공개 월드 정보의 비밀값/개인 상태 차단, 섞기 시각, parser·관전 핑과 기존 gameFlow/gameHistory/gameReactions/tableGamePresentation/tableLobby/forfeit.

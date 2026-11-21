@@ -27,6 +27,15 @@ function LocalChannelEntry() {
   return null
 }
 
+function LocalPreviewBadge({ role }: { role: string }) {
+  const playing = useGame(state => !!state.game?.davinci)
+  if (playing) return null
+  return <nav style={{ position: 'fixed', bottom: 8, left: 8, zIndex: 65, background: '#fff8df', padding: 8, borderRadius: 8 }} aria-label="로컬 흑백수사 검수">
+    <strong>로컬 검수 · 실제 회원/재화 없음</strong> · 참가자 {role}
+    {Array.from({ length: 4 }, (_, index) => <a key={index} href={`?role=${index + 1}`} target="_blank" rel="noreferrer" style={{ marginLeft: 8 }}>{index + 1}</a>)}
+  </nav>
+}
+
 async function boot() {
   if (!import.meta.env.DEV
     || !['localhost', '127.0.0.1'].includes(location.hostname)) throw new Error('로컬 검수 전용 화면입니다.')
@@ -59,11 +68,7 @@ async function boot() {
     <ParkPage onExit={async () => { await parkRuntime.stop(); location.reload() }} exitError=""
       onAuthEnded={() => location.reload()} onOperationBlocked={() => location.reload()} />
     <LocalChannelEntry />
-    <nav style={{ position: 'fixed', bottom: 8, left: 8, zIndex: 65, background: '#fff8df', padding: 8, borderRadius: 8 }} aria-label="로컬 흑백수사 검수">
-      <strong>로컬 검수 · 실제 회원/재화 없음</strong> · 참가자 {role}
-      {Array.from({ length: 4 }, (_, index) => <a key={index} href={`?role=${index + 1}`} target="_blank" rel="noreferrer" style={{ marginLeft: 8 }}>{index + 1}</a>)}
-
-    </nav>
+    <LocalPreviewBadge role={role} />
   </>)
 }
 void boot().catch(error => { document.getElementById('root')!.textContent = String(error) })

@@ -90,8 +90,8 @@ export function ParkSecretTiles({ anchor }: { anchor: TableAnchor }) {
           </group>)}
         </group>
       })}
-      {state.supply.map((tile, i) => <group key={tile.id} name="secret-supply-tile" userData={{ tileId: tile.id }} position={[(i % 6 - 2.5) * .6, .18, (Math.floor(i / 6) - 1.1) * .5]} rotation={[0, Math.sin(i * 4.2) * .14, 0]}>
-        <Tile tile={{ ...tile, value: null, revealed: false }} hidden flat faceUp={false} selected={false} scale={.66}
+      {state.supply.map((tile, i) => <group key={tile.id} name="secret-supply-tile" userData={{ tileId: tile.id }} position={[(i % 6 - 2.5) * .7, .2, (Math.floor(i / 6) - 1.1) * .64]} rotation={[0, Math.sin(i * 4.2) * .14, 0]}>
+        <Tile tile={{ ...tile, value: null, revealed: false }} hidden flat faceUp={false} selected={false} scale={.76}
           clickable={enabled && state.stage === 'DRAW'} onClick={() => void runtime.actDavinci?.({ kind: 'draw', tileId: tile.id })} />
       </group>)}
     </> : <>{Array.from({ length: 12 }, (_, i) => <group key={i} position={[(i % 6 - 2.5) * .75, .2, (Math.floor(i / 6) - .5) * .7]}>

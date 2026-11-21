@@ -3,13 +3,15 @@ import { createPortal } from 'react-dom'
 import { useGame } from '../store'
 import { useSession } from '../../network/worldClient'
 import { useParkRuntime } from '../../park/runtime/ParkRuntime'
-import { clearRoamingInput, inputState } from '../../world/inputOwnership'
+import { clearRoamingInput } from '../../world/inputOwnership'
 import { OmokSurrender } from '../OmokSurrender'
 import { forfeitBlocksInput } from '../forfeit'
 import { returnToWaiting, useGathering } from '../../features/tableLobby/gathering'
 import { resultSettlement } from '../../features/tableLobby/gatheringModel'
-import { useOmokEvents } from '../omok/spectatorEvents'
-import { filterChat } from '../../features/chat/filterChat'
+import { GameHudClock, GameHudMenu } from '../GameHud'
+import { openManual } from '../../features/manual/manualState'
+import { estimatedServerTime } from '../../network/serverEventClock'
+import { openingActive } from './presentation'
 import { DavinciScreen } from './DavinciScreen'
 import { useDavinciPing } from './social'
 
@@ -21,31 +23,38 @@ export function DavinciPanel() {
   const worldPending = useSession(s => s.pending)
   const profiles = useSession(s => s.profiles), runtime = useParkRuntime(), gathering = useGathering()
   const result = useGame(s => (s.result ?? s.lastResult)?.gameSessionId === game?.gameId ? s.result ?? s.lastResult : null)
-  const history = useOmokEvents(s => s.history), canChat = useOmokEvents(s => s.canSend)
   const ping = useDavinciPing(s => s.ping), [now, setNow] = useState(Date.now)
   useEffect(() => {
-    const previous = inputState.minigameOpen
-    inputState.minigameOpen = true; clearRoamingInput()
+    clearRoamingInput()
     if (document.pointerLockElement) void document.exitPointerLock()
-    return () => { inputState.minigameOpen = previous; clearRoamingInput() }
+    return clearRoamingInput
   }, [])
   useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 250); return () => clearInterval(timer) }, [])
   if (!game?.davinci) return null
   const spectator = game.role === 'SPECTATOR'
   const names = Object.fromEntries(game.davinci.players.map((p, i) => [p.userId, profiles[p.userId]?.nickname ?? `참가자 ${i + 1}`]))
   const enabled = connected && !worldPending && !uncertain && recovery === 'RESTORED' && !forfeitBlocksInput(game.gameId) && game.version >= awaiting
-  return createPortal(<DavinciScreen tabletop gameId={game.gameId} state={game.davinci} hand={game.davinciHand} viewerId={spectator ? '' : own} names={names}
+  const state = game.davinci, myTurn = !spectator && state.turnUserId === own
+  const shuffling = openingActive(state, estimatedServerTime())
+  return createPortal(<>
+    <GameHudClock game="흑백수사" label={shuffling ? '패를 섞고 나누는 중' : state.stage === 'SETUP' ? '내 패를 확인해주세요' : myTurn ? '내 차례' : `${names[state.turnUserId ?? ''] ?? '상대'}님의 차례`}
+      remainingMs={state.turnDeadline ? Date.parse(state.turnDeadline) - estimatedServerTime() : null} limitMs={120000} myTurn={myTurn}
+      phase={shuffling ? '섞는 중' : state.status === 'FINISHED' ? '종료' : undefined} hint="중앙 패 클릭 · R 무작위 뽑기" />
+    <GameHudMenu>
+      <button type="button" data-icon="manual" onClick={() => openManual('davinci')}>게임 설명</button>
+      <button type="button" data-icon="refresh" onClick={() => { if (!connected) runtime.reconnect(); else void runtime.checkRecovery() }}>경기 상태 확인</button>
+      {spectator ? <button type="button" data-icon="exit" onClick={() => void runtime.unwatchGame()}>관전 종료</button>
+        : <OmokSurrender key={game.gameId} context={{ userId: own, gameId: game.gameId, version: game.version }} disabled={!enabled || pending} />}
+    </GameHudMenu>
+    <DavinciScreen tabletop gameId={game.gameId} state={game.davinci} hand={game.davinciHand} viewerId={spectator ? '' : own} names={names}
     enabled={enabled} busy={pending || worldPending} error={!connected ? '연결이 끊겼어요. 다시 연결한 뒤 경기 상태를 확인해주세요.' : error}
     act={input => { void runtime.actDavinci?.(input) }} recover={() => { if (!connected) runtime.reconnect(); else void runtime.checkRecovery() }}
-    topActions={spectator ? <button onClick={() => void runtime.unwatchGame()}>관전 종료</button>
-      : <OmokSurrender key={game.gameId} context={{ userId: own, gameId: game.gameId, version: game.version }} disabled={!enabled || pending} />}
+    topActions={null}
     resultActions={spectator ? <button onClick={() => void runtime.unwatchGame()}>관전 종료</button> : <>
       <button onClick={() => void runtime.checkResult()}>정산 결과 확인</button><button className="davinci-primary" disabled={!gathering?.canReturn || pending} onClick={returnToWaiting}>대기실로 돌아가기</button></>}
     rewardStatus={spectator ? undefined : result ? resultSettlement(result) : '서버의 결과·정산을 확인하고 있어요.'}
-    chat={{ messages: history.filter(m => m.gameId === game.gameId).map(m => ({ id: m.eventId, userId: m.senderUserId, text: m.text })),
-      canSend: connected && canChat, send: text => runtime.sendSpectatorChat(filterChat(text)) }}
     ping={{ tileId: ping?.gameId === game.gameId && ping.basedOnVersion === game.version && ping.until > now ? ping.tileId : null,
       canSend: connected && spectator && game.davinci.status === 'PLAYING' && game.davinci.stage !== 'SETUP',
       send: (userId, tileId) => runtime.pingDavinci?.(userId, tileId) ?? Promise.resolve(false) }}
-  />, document.body)
+  /></>, document.querySelector('.park-page') ?? document.body)
 }

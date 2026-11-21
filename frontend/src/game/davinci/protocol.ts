@@ -14,7 +14,7 @@ export interface DavinciState {
   players: CodePlayer[]; supply: Pick<CodeTile, 'id' | 'color'>[]; winnerUserIds: string[]; lastEvent: CodeEvent | null
 }
 export interface DavinciHand { userId: string; tiles: CodeTile[]; pendingTile: CodeTile | null; validPositions: number[]; unplacedJokerIds: string[] }
-export type DavinciInput = { kind: 'ready' | 'stop' }
+export type DavinciInput = { kind: 'ready' | 'stop' | 'draw_random' }
   | { kind: 'draw' | 'reveal'; tileId: string }
   | { kind: 'place'; position: number }
   | { kind: 'place_joker'; tileId: string; position: number }
