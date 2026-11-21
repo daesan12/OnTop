@@ -4,8 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ssafy.ontop.game.action.GameActionCommand;
 import com.ssafy.ontop.game.action.GameActionGateway.Rejected;
 import com.ssafy.ontop.game.rummikub.domain.RummikubMatch;
-import com.ssafy.ontop.game.rummikub.domain.RummikubRules.Placed;
 import com.ssafy.ontop.game.rummikub.domain.RummikubRules;
+import com.ssafy.ontop.game.rummikub.domain.RummikubRules.Placed;
 import com.ssafy.ontop.game.rummikub.domain.RummikubTile;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -201,14 +201,32 @@ class RummikubMatchTests {
     }
 
     @Test
-    void 시간초과는_한개_자동뽑기이며_재호출로_중복되지_않는다() {
+    void 제한시간은_60초이며_초과시_벌칙_3개를_중복없이_받는다() {
         var match = match(List.of(), List.of());
-        match.expire(NOW.plusSeconds(120));
-        match.expire(NOW.plusSeconds(120));
+        match.expire(NOW.plusSeconds(59));
+        assertThat(match.hand(1)).hasSize(14);
+        match.expire(NOW.plusSeconds(60));
+        match.expire(NOW.plusSeconds(60));
 
-        assertThat(match.hand(1)).hasSize(15);
+        assertThat(match.hand(1)).hasSize(17);
+        assertThat(match.snapshot().poolCount()).isEqualTo(75);
         assertThat(match.snapshot().version()).isEqualTo(1);
         assertThat(match.snapshot().lastEvent()).isEqualTo("TURN_TIMEOUT");
+    }
+
+    @Test
+    void 시간초과_뒤_도착한_미완성_판은_반영하지_않고_기존_조합을_유지한다() {
+        var match = match(group(10), group(11));
+        play(match, 1, List.of(group(10)));
+        var board = match.snapshot().melds();
+        var late = new GameActionCommand(2, "game", "late", match.snapshot().version(),
+                MAPPER.valueToTree(Map.of("kind", "play", "melds", List.of(group(11)))));
+
+        assertThatThrownBy(() -> match.apply(late, NOW.plusSeconds(60))).isInstanceOf(Rejected.class);
+
+        assertThat(match.snapshot().melds()).isEqualTo(board);
+        assertThat(match.hand(2)).hasSize(17);
+        assertThat(match.snapshot().turnUserId()).isEqualTo(1);
     }
 
     @Test
@@ -228,13 +246,63 @@ class RummikubMatchTests {
     }
 
     @Test
-    void 더미소진_패스는_타일을_추가하지_않고_막힌_판을_종료한다() {
+    void 더미소진_뒤_전원에게_정확히_한_차례씩_더_준다() {
         var match = match(List.of(), List.of());
-        for (int index = 0; index < 80; index++) { draw(match, match.snapshot().turnUserId()); }
+        for (int index = 0; index < 78; index++) { draw(match, match.snapshot().turnUserId()); }
+
+        assertThat(match.snapshot().finalTurnUserIds()).containsExactly(1L, 2L);
+        assertThat(match.snapshot().endReason()).isNull();
+        draw(match, 1);
+        assertThat(match.snapshot().finalTurnUserIds()).containsExactly(2L);
+        assertThat(match.snapshot().endReason()).isNull();
+        draw(match, 2);
 
         assertThat(match.snapshot().poolCount()).isZero();
         assertThat(match.snapshot().endReason()).isEqualTo("STALEMATE");
         assertThat(match.hand(1).size() + match.hand(2).size()).isEqualTo(106);
+    }
+
+    @Test
+    void 마지막_차례에_타일을_내도_다른_사람의_차례만_남는다() {
+        var match = match(group(10), List.of());
+        for (int index = 0; index < 78; index++) { draw(match, match.snapshot().turnUserId()); }
+
+        play(match, 1, List.of(group(10)));
+
+        assertThat(match.snapshot().finalTurnUserIds()).containsExactly(2L);
+        draw(match, 2);
+        assertThat(match.snapshot().endReason()).isEqualTo("STALEMATE");
+        int lowest = match.snapshot().playerViews().stream().filter(p -> !p.forfeited())
+                .mapToInt(p -> match.hand(p.userId()).stream().mapToInt(RummikubTile::penalty).sum()).min().orElseThrow();
+        assertThat(match.snapshot().winnerUserIds()).allMatch(user -> match.hand(user).stream()
+                .mapToInt(RummikubTile::penalty).sum() == lowest);
+    }
+
+    @Test
+    void 벌칙_뽑기에서_더미가_부족하면_남은_타일만_받는다() {
+        var match = match(List.of(), List.of());
+        for (int index = 0; index < 77; index++) { draw(match, match.snapshot().turnUserId()); }
+        long user = match.snapshot().turnUserId();
+        int before = match.hand(user).size();
+
+        match.expire(NOW.plusSeconds(60));
+
+        assertThat(match.hand(user)).hasSize(before + 1);
+        assertThat(match.snapshot().poolCount()).isZero();
+        assertThat(match.snapshot().finalTurnUserIds()).containsExactly(1L, 2L);
+    }
+
+    @Test
+    void 마지막_차례의_기권자는_남은_차례에서_빠진다() {
+        var match = new RummikubMatch("game", "table", List.of(1L, 2L, 3L, 4L), RummikubTile.deck(), 0, NOW);
+        for (int index = 0; index < 50; index++) { draw(match, match.snapshot().turnUserId()); }
+        assertThat(match.snapshot().turnUserId()).isEqualTo(3);
+        assertThat(match.snapshot().finalTurnUserIds()).containsExactly(1L, 2L, 3L, 4L);
+
+        match.forfeit(3, NOW);
+
+        assertThat(match.snapshot().finalTurnUserIds()).containsExactly(1L, 2L, 4L);
+        assertThat(match.snapshot().turnUserId()).isEqualTo(4);
     }
 
     @Test

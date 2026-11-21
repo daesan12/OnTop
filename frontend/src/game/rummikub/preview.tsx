@@ -6,7 +6,8 @@ import './rummikub.css'
 
 const p = (color: Placed['color'], number: number): Placed => ({ id: `${color}-${number}-0`, color, number })
 const sample: Rummikub = {
-  gameCode: 'RUMMIKUB', status: 'PLAYING', turnTimeLimitMs: 120000, turnUserId: '101', turnId: 1, turnDeadline: null,
+  gameCode: 'RUMMIKUB', status: 'PLAYING', turnTimeLimitMs: 60000, turnUserId: '101', turnId: 1, turnDeadline: null,
+  firstUserId: '101', openingDraws: ['101', '202', '303', '404'].map((userId, i) => ({ userId, color: 'RED', number: 13 - i })), finalTurnUserIds: [],
   poolCount: 37, initialMeldPoints: 30, jokerPenalty: 30, lastEvent: 'PLAY', winnerUserIds: [], endReason: null, endedAt: null,
   players: ['101', '202', '303', '404'].map(userId => ({ userId, tileCount: 14, registered: true, forfeited: false, score: null })),
   melds: [[p('RED', 4), p('RED', 5), p('RED', 6)], [p('BLUE', 9), p('BLUE', 10), p('BLUE', 11)],

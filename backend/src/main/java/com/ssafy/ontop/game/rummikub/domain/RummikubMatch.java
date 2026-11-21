@@ -17,10 +17,12 @@ import java.util.Set;
 
 /** 편집 초안은 클라이언트에만 둔다. 전체 판 검증에 성공한 턴만 원자적으로 확정한다. */
 public final class RummikubMatch {
-    public static final int TURN_SECONDS = 120;
+    public static final int TURN_SECONDS = 60;
     private final String gameId;
     private final String tableId;
     private final List<Long> players;
+    private final long firstUserId;
+    private final List<OpeningDraw> openingDraws;
     private final Map<String, RummikubTile> tiles = new LinkedHashMap<>();
     private final Map<Long, List<RummikubTile>> hands = new LinkedHashMap<>();
     private final List<RummikubTile> pool;
@@ -31,7 +33,7 @@ public final class RummikubMatch {
     private long version;
     private long turnId = 1;
     private int turn;
-    private int passes;
+    private Set<Long> finalTurnUsers;
     private Instant deadline;
     private Instant endedAt;
     private String endReason;
@@ -40,6 +42,11 @@ public final class RummikubMatch {
 
     public RummikubMatch(String gameId, String tableId, List<Long> players, List<RummikubTile> deck,
             int firstPlayer, Instant now) {
+        this(gameId, tableId, players, deck, firstPlayer, List.of(), now);
+    }
+
+    public RummikubMatch(String gameId, String tableId, List<Long> players, List<RummikubTile> deck,
+            int firstPlayer, List<OpeningDraw> openingDraws, Instant now) {
         if (gameId == null || gameId.isBlank() || gameId.length() > 120 || tableId == null || tableId.isBlank()
                 || players == null || players.size() < 2 || players.size() > 4
                 || players.stream().anyMatch(id -> id == null || id <= 0)
@@ -51,6 +58,8 @@ public final class RummikubMatch {
         this.gameId = gameId;
         this.tableId = tableId;
         this.players = List.copyOf(players);
+        this.firstUserId = players.get(firstPlayer);
+        this.openingDraws = List.copyOf(openingDraws);
         deck.forEach(tile -> tiles.put(tile.id(), tile));
         for (int index = 0; index < players.size(); index++) {
             hands.put(players.get(index), new ArrayList<>(deck.subList(index * 14, (index + 1) * 14)));
@@ -79,7 +88,7 @@ public final class RummikubMatch {
         if (players.get(turn) != command.userId()) { throw new Rejected(Rejection.NOT_YOUR_TURN); }
         JsonNode input = command.input();
         if (input.path("kind").asText().equals("draw") && input.size() == 1) {
-            draw(now, "DRAW");
+            draw(now, "DRAW", 1);
         } else if (input.path("kind").asText().equals("play") && input.size() == 2) {
             play(command.userId(), parseBoard(input.path("melds")), now);
         } else {
@@ -136,10 +145,9 @@ public final class RummikubMatch {
         Set<String> playedIds = new HashSet<>(added.stream().map(Placed::id).toList());
         hands.get(user).removeIf(tile -> playedIds.contains(tile.id()));
         registered.add(user);
-        passes = 0;
         lastEvent = "PLAY";
         if (hands.get(user).isEmpty()) { finish(List.of(user), "EMPTY_HAND", now); }
-        else { advance(now); }
+        else { completeTurn(user, now); }
     }
 
     private void validateJokers(List<List<Placed>> candidate, List<Placed> added) {
@@ -160,26 +168,42 @@ public final class RummikubMatch {
         }
     }
 
-    private void draw(Instant now, String event) {
-        if (pool.isEmpty()) {
-            passes++;
-        } else {
+    private void draw(Instant now, String event, int count) {
+        long user = players.get(turn);
+        boolean alreadyFinalRound = finalTurnUsers != null;
+        for (int index = 0; index < count && !pool.isEmpty(); index++) {
             hands.get(players.get(turn)).add(pool.removeLast());
-            passes = 0;
         }
         lastEvent = event;
-        if (pool.isEmpty() && passes >= players.size() - forfeited.size()) {
-            int lowest = players.stream().filter(this::isActive).mapToInt(this::penalty).min().orElseThrow();
-            finish(players.stream().filter(this::isActive).filter(user -> penalty(user) == lowest).toList(),
-                    "STALEMATE", now);
-        } else {
+        if (!alreadyFinalRound && pool.isEmpty()) {
+            // 마지막 타일을 뽑은 차례 이후, 모든 활동 참가자에게 한 차례씩 더 준다.
+            finalTurnUsers = new HashSet<>(players.stream().filter(this::isActive).toList());
             advance(now);
+        } else {
+            completeTurn(user, now);
         }
+    }
+
+    private void completeTurn(long user, Instant now) {
+        if (finalTurnUsers != null) {
+            finalTurnUsers.remove(user);
+            if (finalTurnUsers.isEmpty()) {
+                finishByPenalty(now);
+                return;
+            }
+        }
+        advance(now);
+    }
+
+    private void finishByPenalty(Instant now) {
+        int lowest = players.stream().filter(this::isActive).mapToInt(this::penalty).min().orElseThrow();
+        finish(players.stream().filter(this::isActive).filter(user -> penalty(user) == lowest).toList(),
+                "STALEMATE", now);
     }
 
     public void expire(Instant now) {
         if (endedAt == null && !now.isBefore(deadline)) {
-            draw(now, "TURN_TIMEOUT");
+            draw(now, "TURN_TIMEOUT", 3);
             version++;
         }
     }
@@ -187,10 +211,11 @@ public final class RummikubMatch {
     public void forfeit(long user, Instant now) {
         if (endedAt != null || !isActive(user)) { return; }
         forfeited.add(user);
-        passes = 0;
+        if (finalTurnUsers != null) { finalTurnUsers.remove(user); }
         lastEvent = "PLAYER_LEFT";
         List<Long> active = players.stream().filter(this::isActive).toList();
         if (active.size() == 1) { finish(active, "LAST_PLAYER_STANDING", now); }
+        else if (finalTurnUsers != null && finalTurnUsers.isEmpty()) { finishByPenalty(now); }
         else if (players.get(turn) == user) { advance(now); }
         version++;
     }
@@ -203,6 +228,7 @@ public final class RummikubMatch {
 
     private void finish(List<Long> winnerIds, String reason, Instant now) {
         winners = List.copyOf(winnerIds);
+        if (finalTurnUsers != null) { finalTurnUsers.clear(); }
         endReason = reason;
         endedAt = now;
         deadline = null;
@@ -219,14 +245,18 @@ public final class RummikubMatch {
                 registered.contains(user), forfeited.contains(user), endedAt == null ? null
                         : winners.size() == 1 && winners.contains(user) ? losses : -penalty(user))).toList();
         return new Snapshot(gameId, tableId, players, version, endedAt == null ? players.get(turn) : null,
-                turnId, deadline, board, pool.size(), views, winners, endReason, endedAt, lastEvent);
+                turnId, deadline, board, pool.size(), views, winners, endReason, endedAt, lastEvent,
+                firstUserId, openingDraws, finalTurnUsers == null ? List.of()
+                        : players.stream().filter(finalTurnUsers::contains).toList());
     }
 
     private static void invalid() { throw new Rejected(Rejection.INVALID_ACTION); }
     private record Key(long user, String actionId) { }
     private record Accepted(long version, JsonNode input, GameActionResult result) { }
     public record Player(long userId, int tileCount, boolean registered, boolean forfeited, Integer score) { }
+    public record OpeningDraw(long userId, String color, int number) { }
     public record Snapshot(String gameId, String tableId, List<Long> players, long version, Long turnUserId,
             long turnId, Instant turnDeadline, List<List<Placed>> melds, int poolCount, List<Player> playerViews,
-            List<Long> winnerUserIds, String endReason, Instant endedAt, String lastEvent) { }
+            List<Long> winnerUserIds, String endReason, Instant endedAt, String lastEvent,
+            long firstUserId, List<OpeningDraw> openingDraws, List<Long> finalTurnUserIds) { }
 }

@@ -8,8 +8,8 @@ import com.ssafy.ontop.game.result.GameFinished;
 import com.ssafy.ontop.game.result.GameFinishedResultListener;
 import com.ssafy.ontop.game.result.GameResultService;
 import com.ssafy.ontop.game.rummikub.service.RummikubEngine;
-import com.ssafy.ontop.table.service.TableHub;
 import com.ssafy.ontop.game.state.GameStateChanged;
+import com.ssafy.ontop.table.service.TableHub;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -29,7 +30,48 @@ class RummikubEngineTests {
     private final List<Object> events = new ArrayList<>();
     private final RummikubEngine engine = new RummikubEngine(mapper,
             Clock.fixed(Instant.parse("2026-11-21T00:00:00Z"), ZoneOffset.UTC), events::add,
-            new GameEngineRouter(), tiles -> { }, size -> 0);
+            new GameEngineRouter(), tiles -> java.util.Collections.swap(tiles, 0, 12), size -> 0);
+
+    @Test
+    void 선공은_추첨_타일의_최고_숫자이며_조커가_13보다_높다() {
+        var shuffles = new AtomicInteger();
+        var openingEngine = new RummikubEngine(mapper, Clock.systemUTC(), events::add, new GameEngineRouter(),
+                tiles -> {
+                    if (shuffles.getAndIncrement() == 0) {
+                        moveFirst(tiles, List.of("RED-13-0", "JOKER-0", "BLUE-12-0", "BLACK-1-0"));
+                    }
+                }, size -> 0);
+
+        openingEngine.create("opening", "table", List.of(1L, 2L, 3L, 4L));
+        var state = openingEngine.load(99, "opening").orElseThrow().publicState();
+
+        assertThat(state.path("firstUserId").asText()).isEqualTo("2");
+        assertThat(state.path("turnUserId").asText()).isEqualTo("2");
+        assertThat(state.path("openingDraws").get(1).path("color").isNull()).isTrue();
+        assertThat(state.path("turnTimeLimitMs").asInt()).isEqualTo(60000);
+        assertThat(state.path("poolCount").asInt()).isEqualTo(50);
+        assertThat(shuffles.get()).isEqualTo(2);
+    }
+
+    @Test
+    void 선공_동점이면_최고_숫자를_뽑은_참가자_중에서만_정한다() {
+        var openingEngine = new RummikubEngine(mapper, Clock.systemUTC(), events::add, new GameEngineRouter(),
+                tiles -> moveFirst(tiles, List.of("RED-12-0", "BLUE-1-0", "BLACK-12-0")), size -> size - 1);
+
+        openingEngine.create("opening", "table", List.of(1L, 2L, 3L));
+
+        assertThat(openingEngine.load(1, "opening").orElseThrow().publicState().path("firstUserId").asText())
+                .isEqualTo("3");
+    }
+
+    private static void moveFirst(List<com.ssafy.ontop.game.rummikub.domain.RummikubTile> tiles, List<String> ids) {
+        for (int index = 0; index < ids.size(); index++) {
+            String id = ids.get(index);
+            int source = java.util.stream.IntStream.range(0, tiles.size()).filter(i -> tiles.get(i).id().equals(id))
+                    .findFirst().orElseThrow();
+            java.util.Collections.swap(tiles, index, source);
+        }
+    }
 
     @Test
     void 공통_종료_이벤트가_테이블_종료와_참가자_결과_조회를_연결한다() {

@@ -5,9 +5,10 @@ import { gameSelection } from '../../src/features/tableLobby/model'
 
 const tile = (color: string, number: number, copy = 0): Placed => ({ id: `${color}-${number}-${copy}`, color: color as Placed['color'], number })
 const fresh = (): Rummikub => ({
-  gameCode: 'RUMMIKUB', status: 'PLAYING', turnTimeLimitMs: 120000, turnUserId: '101', turnId: 1,
+  gameCode: 'RUMMIKUB', status: 'PLAYING', turnTimeLimitMs: 60000, turnUserId: '101', turnId: 1,
   turnDeadline: '2026-11-21T12:00:00Z', poolCount: 78, initialMeldPoints: 30, jokerPenalty: 30, melds: [],
   players: ['101', '202'].map(userId => ({ userId, tileCount: 14, registered: false, forfeited: false, score: null })),
+  firstUserId: '101', openingDraws: [{ userId: '101', color: 'RED', number: 13 }, { userId: '202', color: 'BLUE', number: 1 }], finalTurnUserIds: [],
   winnerUserIds: [], endReason: null, endedAt: null, lastEvent: 'START',
 })
 const hand = () => ({ userId: '101', tiles: Array.from({ length: 14 }, (_, i) => physical(`RED-${Math.floor(i / 2) + 1}-${i % 2}`)!) })
@@ -26,6 +27,23 @@ describe('루미큐브 계약', () => {
   it('공개 상태와 본인 손패를 파싱한다', () => {
     expect(parseRummikub(fresh()).poolCount).toBe(78)
     expect(parseRummikubHand(hand(), fresh(), '101', 'PLAYER')?.tiles).toHaveLength(14)
+  })
+  it('60초 제한과 선공 추첨의 최고값을 검사한다', () => {
+    const state = fresh()
+    expect(parseRummikub(state).firstUserId).toBe('101')
+    expect(() => parseRummikub({ ...state, turnTimeLimitMs: 120000 })).toThrow()
+    expect(() => parseRummikub({ ...state, firstUserId: '202' })).toThrow()
+    state.openingDraws[1] = { userId: '202', color: null, number: 0 }
+    state.firstUserId = '202'
+    expect(parseRummikub(state).firstUserId).toBe('202')
+  })
+  it('더미 소진 뒤 남은 마지막 차례와 참가자만 허용한다', () => {
+    const state = fresh()
+    state.players[0]!.tileCount += state.poolCount; state.poolCount = 0
+    state.finalTurnUserIds = ['101', '202']
+    expect(parseRummikub(state).finalTurnUserIds).toHaveLength(2)
+    expect(() => parseRummikub({ ...state, finalTurnUserIds: ['101', '101'] })).toThrow()
+    expect(() => parseRummikub({ ...state, finalTurnUserIds: ['999'] })).toThrow()
   })
   it('관전자 손패 노출과 다른 사람의 손패를 거절한다', () => {
     expect(parseRummikubHand({}, fresh(), '', 'SPECTATOR')).toBeNull()

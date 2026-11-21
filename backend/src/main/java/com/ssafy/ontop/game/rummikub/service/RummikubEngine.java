@@ -13,6 +13,7 @@ import com.ssafy.ontop.game.reconnect.GameRecoverySnapshot;
 import com.ssafy.ontop.game.result.GameDepartureReason;
 import com.ssafy.ontop.game.result.GameLifecycle;
 import com.ssafy.ontop.game.rummikub.domain.RummikubMatch;
+import com.ssafy.ontop.game.rummikub.domain.RummikubMatch.OpeningDraw;
 import com.ssafy.ontop.game.rummikub.domain.RummikubMatch.Snapshot;
 import com.ssafy.ontop.game.rummikub.domain.RummikubTile;
 import com.ssafy.ontop.game.state.GameStateChanged;
@@ -36,20 +37,20 @@ public final class RummikubEngine implements GameEngine {
     private final Consumer<Object> events;
     private final GameEngineRouter router;
     private final Consumer<List<RummikubTile>> shuffle;
-    private final IntUnaryOperator firstPlayer;
+    private final IntUnaryOperator tieBreaker;
     private final Map<String, RummikubMatch> games = new HashMap<>();
     private final Map<Long, String> latest = new HashMap<>();
     private final GameLifecycle lifecycle = new GameLifecycle();
     private final GameForfeitReceipts forfeits = new GameForfeitReceipts();
 
     public RummikubEngine(ObjectMapper mapper, Clock clock, Consumer<Object> events, GameEngineRouter router,
-            Consumer<List<RummikubTile>> shuffle, IntUnaryOperator firstPlayer) {
+            Consumer<List<RummikubTile>> shuffle, IntUnaryOperator tieBreaker) {
         this.mapper = mapper;
         this.clock = clock;
         this.events = events;
         this.router = router;
         this.shuffle = shuffle;
-        this.firstPlayer = firstPlayer;
+        this.tieBreaker = tieBreaker;
     }
 
     // 실제 참가·차감 커밋을 확인한 서버만 호출한다. 선공도 서버에서 정한다.
@@ -69,8 +70,21 @@ public final class RummikubEngine implements GameEngine {
             }
             List<RummikubTile> deck = RummikubTile.deck();
             shuffle.accept(deck);
+            List<OpeningDraw> opening = new ArrayList<>();
+            List<Integer> highestPlayers = new ArrayList<>();
+            int highest = 0;
+            for (int index = 0; index < players.size(); index++) {
+                RummikubTile tile = deck.get(index);
+                opening.add(new OpeningDraw(players.get(index), tile.color(), tile.number()));
+                int value = tile.joker() ? 14 : tile.number();
+                if (value > highest) { highest = value; highestPlayers.clear(); }
+                if (value == highest) { highestPlayers.add(index); }
+            }
+            int firstPlayer = highestPlayers.get(tieBreaker.applyAsInt(highestPlayers.size()));
+            // 선공 추첨 타일을 모두 돌려놓고 다시 섞어, 공개된 추첨 결과로 손패를 추론하지 못하게 한다.
+            shuffle.accept(deck);
             RummikubMatch match = new RummikubMatch(gameId, tableId, players, deck,
-                    firstPlayer.applyAsInt(players.size()), clock.instant());
+                    firstPlayer, opening, clock.instant());
             router.register(this, gameId, tableId, players);
             games.put(gameId, match);
             for (long userId : players) { latest.put(userId, gameId); }
@@ -214,6 +228,12 @@ public final class RummikubEngine implements GameEngine {
                 .put("endReason", state.endReason())
                 .put("endedAt", state.endedAt() == null ? null : state.endedAt().toString());
         data.set("melds", mapper.valueToTree(state.melds()));
+        data.put("firstUserId", id(state.firstUserId()));
+        var opening = data.putArray("openingDraws");
+        for (OpeningDraw draw : state.openingDraws()) {
+            opening.addObject().put("userId", id(draw.userId())).put("color", draw.color()).put("number", draw.number());
+        }
+        data.set("finalTurnUserIds", mapper.valueToTree(state.finalTurnUserIds().stream().map(Object::toString).toList()));
         data.set("winnerUserIds", mapper.valueToTree(state.winnerUserIds().stream().map(Object::toString).toList()));
         var players = data.putArray("players");
         for (var player : state.playerViews()) {

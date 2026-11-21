@@ -11,6 +11,7 @@ export interface Rummikub {
   poolCount: number; initialMeldPoints: number; jokerPenalty: number; melds: Placed[][]
   players: { userId: string; tileCount: number; registered: boolean; forfeited: boolean; score: number | null }[]
   winnerUserIds: string[]; endReason: string | null; endedAt: string | null; lastEvent: string
+  firstUserId: string; openingDraws: { userId: string; color: Color | null; number: number }[]; finalTurnUserIds: string[]
 }
 export interface RummikubHand { userId: string; tiles: Tile[] }
 export type RummikubInput = { kind: 'draw' } | { kind: 'play'; melds: Placed[][] }
@@ -33,7 +34,7 @@ export function validMeld(meld: Placed[]): boolean {
 const invalid = (): never => { throw new Error('루미큐브 상태 형식을 확인해주세요.') }
 export function parseRummikub(p: unknown): Rummikub {
   if (!record(p) || p.gameCode !== 'RUMMIKUB' || !['PLAYING', 'FINISHED'].includes(String(p.status))
-    || p.turnTimeLimitMs !== 120000 || p.initialMeldPoints !== 30 || p.jokerPenalty !== 30
+    || p.turnTimeLimitMs !== 60000 || p.initialMeldPoints !== 30 || p.jokerPenalty !== 30
     || !number(p.turnId, 1, Number.MAX_SAFE_INTEGER) || !number(p.poolCount, 0, 78)
     || !Array.isArray(p.players) || p.players.length < 2 || p.players.length > 4
     || !p.players.every(v => record(v) && id(v.userId) && number(v.tileCount, 0, 106)
@@ -44,6 +45,15 @@ export function parseRummikub(p: unknown): Rummikub {
   const players = p.players as Rummikub['players'], ids = players.map(v => v.userId)
   if (new Set(ids).size !== ids.length || !p.winnerUserIds.every(v => id(v) && ids.includes(v))
     || new Set(p.winnerUserIds).size !== p.winnerUserIds.length) return invalid()
+  if (!id(p.firstUserId) || !ids.includes(p.firstUserId) || !Array.isArray(p.openingDraws)
+    || p.openingDraws.length !== players.length || !p.openingDraws.every((v, i) => record(v) && v.userId === ids[i]
+      && (v.color === null ? v.number === 0 : isColor(v.color) && number(v.number, 1, 13)))
+    || !Array.isArray(p.finalTurnUserIds) || !p.finalTurnUserIds.every(v => id(v) && players.some(t => t.userId === v && !t.forfeited))
+    || new Set(p.finalTurnUserIds).size !== p.finalTurnUserIds.length
+    || p.poolCount !== 0 && p.finalTurnUserIds.length !== 0) return invalid()
+  const opening = p.openingDraws as Rummikub['openingDraws']
+  const openingValue = (v: Rummikub['openingDraws'][number]) => v.color === null ? 14 : v.number
+  if (openingValue(opening.find(v => v.userId === p.firstUserId)!) !== Math.max(...opening.map(openingValue))) return invalid()
   const seen = new Set<string>()
   const melds = p.melds.map(m => {
     if (!Array.isArray(m) || m.some(t => !record(t) || typeof t.id !== 'string' || !isColor(t.color) || !number(t.number, 1, 13))) return invalid()

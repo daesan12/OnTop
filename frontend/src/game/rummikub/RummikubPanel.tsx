@@ -6,7 +6,7 @@ import { OmokSurrender } from '../OmokSurrender'
 import { openManual } from '../../features/manual/manualState'
 import { RummikubTable } from './RummikubTable'
 import { canActRummikub } from './actions'
-import type { RummikubInput } from './protocol'
+import { COLOR_LABEL, type RummikubInput } from './protocol'
 import { useRummikubPings } from './pings'
 import { useOmokEvents } from '../omok/spectatorEvents'
 import './rummikub.css'
@@ -25,7 +25,7 @@ export function RummikubPanel() {
   const remaining = r.turnDeadline ? Math.max(0, Math.ceil((Date.parse(r.turnDeadline) - now) / 1000)) : null
   const canAct = connection === 'connected' && canActRummikub(own, { kind: 'draw' }, now)
   const send = (input: RummikubInput) => { void runtime.actRummikub?.(input) }
-  const status = r.status === 'FINISHED' ? `${r.winnerUserIds.map(name).join(' · ')} 승리`
+  const status = r.status === 'FINISHED' ? `${r.endReason === 'EMPTY_HAND' ? '루미큐브! · ' : ''}${r.winnerUserIds.map(name).join(' · ')} 승리`
     : r.turnUserId === own && player ? `내 차례 · ${remaining}초` : `${name(r.turnUserId!)} 차례 · ${remaining}초`
   const me = r.players.find(p => p.userId === own)
   return <section className="rummikub-panel" aria-label="루미큐브" onPointerDown={e => e.stopPropagation()} onKeyDown={e => e.stopPropagation()}>
@@ -35,6 +35,11 @@ export function RummikubPanel() {
       {player ? <OmokSurrender context={{ userId: own, gameId: g.gameId, version: g.version }} disabled={s.pending}/>
         : <button onClick={() => void runtime.unwatchGame()}>관전 종료</button>}
     </header>
+    <details className="rummi-social"><summary>선공 추첨 · {name(r.firstUserId)} 선공</summary>
+      <p>{r.openingDraws.map(d => `${name(d.userId)}: ${d.color === null ? '조커' : `${COLOR_LABEL[d.color]} ${d.number}`}`).join(' · ')}</p>
+      <p>조커가 가장 높아요. 최고 숫자가 같으면 동점자 중 무작위로 정해요. 추첨 타일은 돌려놓고 다시 섞었어요.</p>
+    </details>
+    {r.status === 'PLAYING' && r.poolCount === 0 && <p role="status">더미 소진 · 마지막 한 차례가 남은 참가자: {r.finalTurnUserIds.map(name).join(' · ')}</p>}
     <div className="rummi-opponents">{r.players.map(p => <div key={p.userId} data-turn={p.userId === r.turnUserId}>
       <strong>{name(p.userId)}</strong><span>{p.forfeited ? '기권' : `${p.tileCount}개`}</span><small>{p.registered ? '등록 완료' : '미등록'}</small>
       {p.score !== null && <b>{p.score > 0 ? '+' : ''}{p.score}점</b>}
