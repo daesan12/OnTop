@@ -86,3 +86,8 @@ describe('rps roulette presentation', () => {
     expect(statusLine({ ...base, round: parseRpsState(state(settled)).round })).toContain('졌어요')
   })
 })
+
+it('서버의 무제한 표시는 기존 횟수를 초과해도 유효하다', () => {
+  expect(parseRpsState({ ...state(null), playedToday: 120, rules: { ...rules, dailyPlays: 0 } }).rules.dailyPlays).toBe(0)
+  expect(() => parseRpsState({ ...state(null), rules: { ...rules, dailyPlays: -1 } })).toThrow()
+})
