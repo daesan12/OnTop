@@ -55,16 +55,28 @@ export function DavinciScreen({ state, hand, viewerId, names, enabled, busy, err
   const me = state.players.find(p => p.userId === viewerId), ownTurn = state.turnUserId === viewerId
   const shuffling = tabletop && openingActive(state, now)
   const mayAct = enabled && !busy && !!me?.active && state.status === 'PLAYING' && !rules && !shuffling
-  const actions = useRef<HTMLElement>(null)
+  const dock = useRef<HTMLElement>(null)
   const drawState = useRef({ allowed: false, act })
   drawState.current = { allowed: mayAct && ownTurn && state.stage === 'DRAW' && state.supply.length > 0, act }
   useEffect(() => installDrawShortcut(() => drawState.current.allowed, () => drawState.current.act({ kind: 'draw_random' })), [])
+  useEffect(() => {
+    const outside = (event: PointerEvent) => {
+      if (!(event.target instanceof Node)) return
+      for (const details of dock.current?.querySelectorAll<HTMLDetailsElement>('details[open]') ?? [])
+        if (!details.contains(event.target)) details.open = false
+    }
+    document.addEventListener('pointerdown', outside, true)
+    return () => document.removeEventListener('pointerdown', outside, true)
+  }, [])
   useLayoutEffect(() => {
-    const node = actions.current, root = node?.closest<HTMLElement>('.park-page')
-    if (!tabletop || !node || !root) return
-    const update = () => root.style.setProperty('--secret-tiles-actions-height', `${Math.ceil(node.getBoundingClientRect().height)}px`)
+    const node = dock.current, root = node?.closest<HTMLElement>('.park-page') ?? node?.closest<HTMLElement>('.davinci-screen')
+    if (!node || !root) return
+    const update = () => {
+      root.style.setProperty('--secret-tiles-dock-height', `${Math.ceil(node.getBoundingClientRect().height)}px`)
+      root.style.setProperty('--secret-tiles-header-height', `${Math.ceil(node.querySelector('.davinci-dock-header')!.getBoundingClientRect().height)}px`)
+    }
     const observer = new ResizeObserver(update); observer.observe(node); update()
-    return () => { observer.disconnect(); root.style.removeProperty('--secret-tiles-actions-height') }
+    return () => { observer.disconnect(); root.style.removeProperty('--secret-tiles-dock-height'); root.style.removeProperty('--secret-tiles-header-height') }
   }, [tabletop])
   const selected = selection?.gameId === gameId && selection.version === state.version ? selection : null
   const name = (id: string) => names[id] ?? (id === viewerId ? '나' : '참가자')
@@ -81,21 +93,39 @@ export function DavinciScreen({ state, hand, viewerId, names, enabled, busy, err
     : event?.kind === 'DRAW' ? `${name(event.actorUserId)}님이 타일을 뽑았어요.`
       : event?.kind === 'TIMEOUT' ? `${name(event.actorUserId)}님의 시간이 끝나 타일이 공개됐어요.`
         : event?.kind === 'FORFEIT' ? `${name(event.actorUserId)}님이 기권했어요.` : '비밀을 지키고, 숫자의 실마리를 찾아보세요.'
-  return <section className="davinci-screen" data-tabletop={tabletop || undefined} data-opening={shuffling || undefined} aria-label="흑백수사 경기">
+  return <section className="davinci-screen" data-stage={state.stage} data-tabletop={tabletop || undefined} data-opening={shuffling || undefined} aria-label="흑백수사 경기">
     {!tabletop && <header className="davinci-header"><div><h1>흑백수사</h1><p>숨겨진 숫자를 추리하세요</p></div>
       <nav aria-label="경기 메뉴"><button onClick={() => setRules(true)}>게임 방법</button>{topActions}</nav></header>}
     <div className="davinci-layout">
-      <aside className="davinci-players" aria-label="참가자 현황">{state.players.map(p => <div key={p.userId} data-turn={p.userId === state.turnUserId} data-out={!p.active}>
-        <strong>{name(p.userId)}{p.userId === viewerId && <small> 나</small>}</strong>
-        <span>{!p.active ? p.forfeited ? '기권' : '탈락' : state.stage === 'SETUP' ? p.ready ? '준비 완료' : '배치 중' : `비공개 ${p.tiles.filter(t => !t.revealed).length}개`}</span>
-      </div>)}<p>{state.supply.length ? `중앙 타일 ${state.supply.length}개` : '중앙 타일 소진'}{!tabletop && seconds !== null && <span> · {seconds}초</span>}</p></aside>
       {!tabletop && <div className="davinci-board"><DavinciBoard state={state} hand={hand} viewerId={viewerId} selected={selected}
         enabled={mayAct && ownTurn} canPing={ping?.canSend} pingTileId={ping?.tileId}
         select={(userId, tileId) => { if (ping?.canSend) void ping.send(userId, tileId); else pick(userId, tileId) }}
         draw={tileId => act({ kind: 'draw', tileId })} reveal={tileId => pick(viewerId, tileId)} /></div>}
-      <section ref={actions} className="davinci-actions" aria-label="게임 조작">
+      <footer ref={dock} className="davinci-dock" aria-label="흑백수사 하단 바" data-my-turn={ownTurn} onKeyDown={event => {
+        if (!(event.target instanceof HTMLElement)) return
+        if (['Enter', ' '].includes(event.key) && event.target.closest('summary')) {
+          const owner = event.target.closest('details')
+          for (const other of dock.current?.querySelectorAll<HTMLDetailsElement>('details[open]') ?? [])
+            if (other !== owner && !other.contains(owner)) other.open = false
+          event.stopPropagation()
+        }
+        const details = event.target.closest('details[open]') as HTMLDetailsElement | null
+        if (event.key === 'Escape' && details && !document.querySelector('dialog[open],[role="dialog"]')) {
+          event.preventDefault(); event.stopPropagation(); details.open = false; details.querySelector('summary')?.focus()
+        }
+      }}>
+      <div className="davinci-dock-header">
+      <aside className="davinci-players" aria-label="참가자 현황">{state.players.map(p => <div key={p.userId} data-turn={p.userId === state.turnUserId} data-out={!p.active}>
+        <strong title={name(p.userId)}>{name(p.userId)}{p.userId === viewerId && <small> 나</small>}</strong>
+        <span>{!p.active ? p.forfeited ? '기권' : '탈락' : state.stage === 'SETUP' ? p.ready ? '준비 완료' : '배치 중' : `비공개 ${p.tiles.filter(t => !t.revealed).length}개`}</span>
+      </div>)}<p>{state.supply.length ? `중앙 타일 ${state.supply.length}개` : '중앙 타일 소진'}{!tabletop && seconds !== null && <span> · {seconds}초</span>}</p></aside>
+      {tabletop && <div className="davinci-match-tools">{topActions}</div>}
+      </div>
+      <section className="davinci-actions" aria-label="게임 조작">
+        <div className="davinci-brief">
         <div className="davinci-turn"><strong>{state.status === 'FINISHED' ? '경기 종료' : state.stage === 'SETUP' ? '타일 준비' : !me ? '관전 중' : !me.active ? '탈락 · 관전 중' : ownTurn ? '내 차례' : `${name(state.turnUserId ?? '')}님의 차례`}</strong></div>
         <p className="davinci-instruction">{shuffling ? '패를 섞고 있어요. 섞인 패가 각 자리로 나뉘면 숫자를 확인하세요.' : state.status === 'FINISHED' ? `${state.winnerUserIds.map(name).join(' · ')} 승리!` : descriptions[state.stage]}</p>
+        </div><div className="davinci-commands">
         {state.status === 'FINISHED' ? <><p>{rewardStatus ?? '공개 경기 결과예요.'}</p>{resultActions}</>
           : shuffling ? <p role="status">패 섞는 중 · 잠시만 기다려주세요</p> : state.stage === 'SETUP' && hand && !me?.ready ? <>
             <p>{jokerId ? '조커를 놓을 위치를 선택하세요.' : '내 타일을 확인하고 준비를 마쳐주세요.'}</p>
@@ -105,35 +135,37 @@ export function DavinciScreen({ state, hand, viewerId, names, enabled, busy, err
               {state.stage === 'DRAW' && <div className="davinci-draw-options">
                 <button className="davinci-primary" aria-label="무작위 패 뽑기" aria-keyshortcuts="R" onClick={() => act({ kind: 'draw_random' })}>무작위 뽑기 <kbd>R</kbd></button>
                 <p>테이블 중앙의 뒤집힌 패를 직접 눌러 골라도 돼요.</p>
-                <details className="davinci-pool-picker"><summary>중앙 패 직접 고르기 · {state.supply.length}개</summary>
-                  <div>{state.supply.map((tile, i) => <button key={tile.id} data-color={tile.color}
-                    aria-label={`중앙 ${i + 1}번째 ${tile.color === 'BLACK' ? '검정' : '흰색'} 패 뽑기`}
-                    onClick={() => act({ kind: 'draw', tileId: tile.id })}><span aria-hidden="true">◇</span><small>{i + 1}</small></button>)}</div>
-                </details>
               </div>}
               {state.stage === 'PLACE_TILE' && <><p>뽑은 타일 · <b>{hand?.pendingTile?.color === 'BLACK' ? '검정' : '흰색'} {tileText(hand?.pendingTile?.value ?? null)}</b></p>
                 <div className="davinci-positions">{positionOptions.map(position => <button key={position} onClick={() => act({ kind: 'place', position })}>{position === 0 ? '맨 왼쪽' : position === hand?.tiles.length ? '맨 오른쪽' : `${position + 1}번째`}</button>)}</div></>}
-              {['GUESS', 'CONTINUE'].includes(state.stage) && <>
-                <p>{target && target.userId !== viewerId ? `${name(target.userId)} · ${target.tiles.findIndex(t => t.id === selected?.tileId) + 1}번째 ${chosen?.color === 'BLACK' ? '검정' : '흰색'} 타일` : '상대 타일을 먼저 선택하세요.'}</p>
+              {['GUESS', 'CONTINUE'].includes(state.stage) && <div className="davinci-guess-controls">
+                <p className="davinci-guess-target">{target && target.userId !== viewerId ? `${name(target.userId)} · ${target.tiles.findIndex(t => t.id === selected?.tileId) + 1}번째 ${chosen?.color === 'BLACK' ? '검정' : '흰색'} 타일` : '상대 타일을 먼저 선택하세요.'}</p>
                 <div className="davinci-numbers" aria-label="추리할 숫자">{CODE_VALUES.map(value => <button key={value} aria-pressed={guess === value}
                   disabled={!selected || selected.userId === viewerId || chosen?.revealed} onClick={() => setGuess(value)}>{value === -1 ? '조커' : value}</button>)}</div>
-                <button className="davinci-primary" disabled={guess === null || !selected || selected.userId === viewerId || chosen?.revealed}
+                <div className="davinci-confirm-actions"><button className="davinci-primary" disabled={guess === null || !selected || selected.userId === viewerId || chosen?.revealed}
                   onClick={() => selected && guess !== null && act({ kind: 'guess', tileId: selected.tileId, targetUserId: selected.userId, value: guess })}>추리하기</button>
-                {state.stage === 'CONTINUE' && <button onClick={() => act({ kind: 'stop' })}>여기서 멈추기</button>}</>}
+                {state.stage === 'CONTINUE' && <button onClick={() => act({ kind: 'stop' })}>여기서 멈추기</button>}</div></div>}
               {state.stage === 'REVEAL' && <button className="davinci-primary" disabled={!chosen || selected?.userId !== viewerId || chosen.revealed}
                 onClick={() => selected && act({ kind: 'reveal', tileId: selected.tileId })}>선택한 내 타일 공개</button>}
             </> : state.stage === 'SETUP' ? <p>다른 참가자가 타일을 준비하고 있어요.</p> : <p>{busy ? '행동을 확인하고 있어요.' : !enabled && me?.active ? '연결과 경기 상태를 확인해주세요.' : '공개된 숫자와 타일의 순서를 살펴보세요.'}</p>}
-        {error && <div className="davinci-error" role="alert"><p>{error}</p><button onClick={recover}>경기 상태 다시 확인</button></div>}
-        <div className="davinci-log" role="status"><strong>최근 수사 기록</strong><p>{eventText}</p></div>
+        </div>{error && <div className="davinci-error" role="alert"><p>{error}</p><button onClick={recover}>경기 상태 다시 확인</button></div>}
+      <div className="davinci-dock-options">
       <details className="davinci-accessible-tiles" aria-label="타일 선택"><summary>패 목록 · 내 패와 상대 패 선택</summary>
-        {state.players.map(p => <div key={p.userId}><strong>{name(p.userId)}</strong><div>{(p.userId === viewerId && hand ? hand.tiles : p.tiles).map((tile, index) => {
+        <div className="davinci-tile-sheet">{state.players.map(p => <div key={p.userId} className="davinci-player-tiles"><strong>{name(p.userId)}</strong><div>{(p.userId === viewerId && hand ? hand.tiles : p.tiles).map((tile, index) => {
           const own = p.userId === viewerId
           const selectable = mayAct && ownTurn && (own ? state.stage === 'REVEAL' && !tile.revealed : ['GUESS', 'CONTINUE'].includes(state.stage) && !tile.revealed)
           return <TileButton key={tile.id} tile={shuffling ? { ...tile, value: null } : tile} selected={selected?.tileId === tile.id} disabled={!selectable && !ping?.canSend}
             label={`${name(p.userId)} ${index + 1}번째 ${tile.color === 'BLACK' ? '검정' : '흰색'} ${tileText(shuffling ? null : tile.value)}${tile.revealed ? ' 공개됨' : ''}`}
-            onClick={() => { if (ping?.canSend && !selectable) void ping.send(p.userId, tile.id); else pick(p.userId, tile.id) }} />
-        })}</div></div>)}
-      </details></section>
+            onClick={() => { if (ping?.canSend && !selectable) void ping.send(p.userId, tile.id); else pick(p.userId, tile.id); dock.current?.querySelector<HTMLDetailsElement>('.davinci-accessible-tiles')?.removeAttribute('open') }} />
+        })}</div></div>)}</div>
+      </details>
+      {ownTurn && mayAct && state.stage === 'DRAW' && <details className="davinci-pool-picker"><summary>중앙 패 직접 고르기 · {state.supply.length}개</summary>
+        <div>{state.supply.map((tile, i) => <button key={tile.id} data-color={tile.color}
+          aria-label={`중앙 ${i + 1}번째 ${tile.color === 'BLACK' ? '검정' : '흰색'} 패 뽑기`}
+          onClick={() => act({ kind: 'draw', tileId: tile.id })}><span aria-hidden="true">◇</span><small>{i + 1}</small></button>)}</div>
+      </details>}
+      <details className="davinci-record"><summary>수사 기록</summary><div className="davinci-log" role="status"><strong>최근 수사 기록</strong><p>{eventText}</p></div></details>
+      </div></section></footer>
     </div>
     {rules && <RulesDialog close={() => setRules(false)} />}
   </section>

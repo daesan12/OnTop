@@ -17,7 +17,7 @@
 .davinci-header { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:12px 20px; background:var(--dc-surface); border-bottom:1px solid var(--dc-line); }
 .davinci-header>div { display:flex; align-items:center; gap:20px; }.davinci-header h1 { font-size:22px; }.davinci-header p { color:var(--dc-muted); }
 .davinci-header nav { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-.davinci-layout { position:relative; flex:1; min-height:620px; }
+.davinci-layout { position:relative; flex:1; min-height:0; }
 .davinci-board { position:absolute; inset:0; }
 .davinci-players,.davinci-actions { position:absolute; pointer-events:auto; border:1px solid var(--dc-line); border-radius:12px; background:var(--dc-surface); box-shadow:0 4px 16px #0003; }
 .davinci-players { top:16px; left:20px; width:224px; padding:8px 12px; }
@@ -39,8 +39,6 @@
 .davinci-pool-picker button { min-height:52px; padding:3px; border:2px solid #a88755; background:#27362f; color:#f7efd9; }
 .davinci-pool-picker button[data-color=WHITE] { background:#eee4cc; color:#243a2c; }.davinci-pool-picker small { display:block; font-size:11px; }
 .davinci-accessible-tiles { max-height:210px; overflow:auto; scrollbar-width:none; }
-.davinci-accessible-tiles>div { margin:9px 0; }.davinci-accessible-tiles>div>strong { display:block; font-size:12px; color:var(--dc-muted); margin-bottom:5px; }
-.davinci-accessible-tiles>div>div { display:flex; gap:5px; flex-wrap:wrap; }
 .davinci-screen .davinci-tile-button { width:35px; min-height:45px; padding:4px 1px; border:2px solid #a88755; border-radius:6px; background:#27362f; color:#fff5df; font:600 21px Georgia,serif; }
 .davinci-screen .davinci-tile-button[data-color=WHITE] { background:#eee4cc; color:#243a2c; }.davinci-screen .davinci-tile-button:disabled { opacity:1; }
 .davinci-tile-button[data-revealed=true] { transform:rotate(-5deg); }.davinci-tile-button small { display:block; font:10px/1.3 'Malgun Gothic',sans-serif; }
@@ -52,36 +50,90 @@
 .davinci-rules button { min-height:40px; padding:8px 14px; border:1px solid #a8864e; border-radius:8px; background:#fff8e7; color:#163d29; font:inherit; cursor:pointer; }
 .davinci-rules>.davinci-primary { width:100%; margin-top:16px; background:linear-gradient(#2b5035,#173e29); color:#fff7df; border:3px double #c8a15d; }
 .davinci-sr-only { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
-/* 공원에서는 공통 HUD·채팅을 재사용하고 실제 조작판만 가장자리에 둔다. */
+/* 상태와 조작을 한 하단 바에 모으고, 공원 Canvas는 그 위의 실제 화면 영역을 쓴다. */
+.davinci-board { bottom:var(--secret-tiles-dock-height,220px); }
 .davinci-screen[data-tabletop=true] { position:absolute; display:block; z-index:5; background:none; overflow:visible; pointer-events:none; }
 .davinci-screen[data-tabletop=true] .davinci-layout { position:absolute; inset:0; min-height:0; pointer-events:none; }
-.davinci-screen[data-tabletop=true] .davinci-players { top:210px; }
-.davinci-screen[data-tabletop=true] .davinci-actions { top:max(130px,calc(var(--game-hud-menu-bottom,110px) + 12px)); max-height:calc(100dvh - max(130px,calc(var(--game-hud-menu-bottom,110px) + 12px)) - 20px); }
+.davinci-dock { position:absolute; inset:auto 0 0; padding:0 16px 10px; background:var(--dc-surface); border-top:1px solid var(--dc-line); box-shadow:0 -8px 28px #13211933; pointer-events:auto; }
+.davinci-dock[data-my-turn=true] { border-top-color:var(--dc-gold); }
+.davinci-dock-header { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:8px 0; border-bottom:1px solid #ddc99833; }
+.davinci-dock .davinci-players { position:static; display:flex; align-items:center; gap:16px; min-width:0; flex:1; width:auto; padding:0; border:0; border-radius:0; background:none; box-shadow:none; }
+.davinci-dock .davinci-players>div { display:block; flex:0 1 142px; min-width:64px; padding:0 14px 0 0; border-bottom:0; border-right:1px solid #ddc99833; }
+.davinci-dock .davinci-players strong { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; }
+.davinci-dock .davinci-players span { display:block; font-size:11px; }
+.davinci-dock .davinci-players p { padding:0; white-space:nowrap; font-size:12px; }
+.davinci-match-tools { display:flex; align-items:center; gap:12px; flex-shrink:0; }
+.davinci-dock .davinci-actions { position:static; width:auto; min-height:140px; max-height:none; overflow:visible; padding:10px 0 0; border:0; border-radius:0; background:none; box-shadow:none; gap:8px; }
+.davinci-screen[data-tabletop=true] .davinci-actions { padding-right:288px; }
+.davinci-brief { display:flex; align-items:baseline; gap:14px; }
+.davinci-dock .davinci-turn { flex-shrink:0; padding:0; border:0; }.davinci-dock .davinci-turn strong { font-size:16px; }
+.davinci-dock .davinci-instruction { color:var(--dc-muted); font-size:13px; }
+.davinci-commands { display:flex; align-items:center; flex-wrap:wrap; gap:10px; min-width:0; max-height:28dvh; overflow-y:auto; scrollbar-width:none; }
+.davinci-dock .davinci-positions { max-height:110px; overflow:auto; scrollbar-width:none; }
+.davinci-dock .davinci-positions button { flex:0 0 auto; }
+.davinci-guess-controls { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:6px 12px; width:100%; }
+.davinci-guess-target { grid-column:1/-1; font-size:12px; color:var(--dc-muted); }
+.davinci-dock .davinci-numbers { grid-template-columns:repeat(12,minmax(28px,1fr)) 46px; gap:4px; }
+.davinci-dock .davinci-numbers button { min-height:38px; padding:4px 2px; font-size:18px; }
+.davinci-dock .davinci-numbers button:last-child { grid-column:auto; font-size:13px; }
+.davinci-confirm-actions { display:flex; gap:6px; align-items:stretch; }.davinci-confirm-actions>button { min-width:90px; }
+.davinci-dock .davinci-draw-options { display:flex; flex-direction:row; align-items:center; flex-wrap:wrap; gap:12px; }
+.davinci-dock-options { position:relative; display:flex; align-items:center; gap:18px; }
+.davinci-dock summary { min-height:28px; font-size:12px; }
+.davinci-dock :is(.davinci-accessible-tiles,.davinci-record,.davinci-pool-picker) { position:relative; border:0; padding:0; max-height:none; overflow:visible; }
+.davinci-dock-options>:is(.davinci-accessible-tiles,.davinci-record,.davinci-pool-picker) { position:static; }
+.davinci-dock :is(.davinci-tile-sheet,.davinci-record>.davinci-log,.davinci-pool-picker>div) { position:absolute; inset:auto auto calc(100% + 12px) 0; z-index:40; width:min(620px,calc(100vw - 32px)); max-height:min(340px,calc(100dvh - var(--secret-tiles-dock-height,220px) - 20px)); overflow:auto; scrollbar-width:none; padding:14px; border:1px solid var(--dc-line); border-radius:10px; background:#26362bf7; box-shadow:0 -8px 28px #0004; }
+.davinci-dock .davinci-pool-picker>div { width:min(420px,calc(100vw - 32px)); grid-template-columns:repeat(6,minmax(0,1fr)); margin:0; }
+.davinci-player-tiles+.davinci-player-tiles { margin-top:14px; }.davinci-player-tiles>strong { display:block; margin-bottom:6px; font-size:12px; color:var(--dc-muted); }.davinci-player-tiles>div { display:flex; flex-wrap:wrap; gap:6px; }
+.davinci-dock .davinci-record>.davinci-log { width:min(370px,calc(100vw - 32px)); }
+.davinci-dock .davinci-error { max-height:76px; overflow:auto; scrollbar-width:none; }
+.park-page .davinci-match-tools .game-hud-clock[data-embedded=true] { position:static; inset:auto; transform:none; display:grid; grid-template-columns:minmax(0,1fr) auto; gap:2px 8px; width:160px; padding:6px 10px; border-radius:7px; }
+.park-page .davinci-match-tools .game-hud-clock[data-embedded=true] strong { grid-column:2; grid-row:1/3; align-self:center; font-size:26px; line-height:1; }
+.park-page .davinci-match-tools .game-hud-clock[data-embedded=true][data-phase=true] strong { font-size:16px; }
+.park-page .davinci-match-tools .game-hud-clock[data-embedded=true] :is(.game-hud-eyebrow,.game-hud-turn) { min-width:0; overflow:hidden; }
+.park-page .davinci-match-tools .game-hud-clock[data-embedded=true] .game-hud-eyebrow { font-size:10px; white-space:nowrap; }.park-page .davinci-match-tools .game-hud-clock[data-embedded=true] .game-hud-turn { font-size:11px; max-width:95px; }
+.park-page .davinci-match-tools .game-hud-clock[data-embedded=true] progress { grid-column:1/-1; height:3px; }
+.park-page .davinci-match-tools .game-hud-clock[data-embedded=true]::after,.park-page .davinci-match-tools .game-hud-clock-hint { display:none; }
+.park-page .davinci-match-tools .game-hud-menu[data-embedded=true] { position:static; inset:auto; width:auto; display:flex; flex-direction:row; align-items:center; gap:8px; }
+.park-page .davinci-match-tools .game-hud-menu>details { flex-shrink:0; }.park-page .davinci-match-tools .game-hud-menu>details>summary { min-height:40px; padding:0 12px; font-size:13px; }
+.park-page .davinci-match-tools .game-hud-menu>details>.game-hud-menu-content { position:absolute; top:auto; right:0; bottom:calc(100% + 10px); z-index:50; width:230px; max-height:min(380px,calc(100dvh - var(--secret-tiles-dock-height,220px) - 20px)); border:1px solid var(--dc-line,#bdab79); border-radius:10px; background:#26362bf7; scrollbar-width:none; }
+.park-page .davinci-match-tools .game-spectator-roster { top:auto; bottom:calc(100% + 10px); max-height:min(280px,calc(100dvh - var(--secret-tiles-dock-height,220px) - 20px)); }
+.park-page .davinci-match-tools .game-spectator-preview { display:none; }
+.park-page:has(.davinci-screen[data-tabletop=true]) .park-scene { bottom:var(--secret-tiles-dock-height,220px); }
 .park-page:has(.davinci-screen[data-tabletop=true]) .park-quick-dock { visibility:hidden; }
-.park-page:has(.davinci-screen[data-tabletop=true]) .park-chat { max-width:min(360px,calc(100vw - 32px)); }
-.park-page:has(.davinci-screen[data-tabletop=true]) .game-hud-menu-content { scrollbar-width:none; }
-@media(max-width:900px),(max-height:620px) {
- .davinci-screen:not([data-tabletop=true]) .davinci-layout { display:flex; flex-direction:column; padding:8px; gap:8px; min-height:0; }
- .davinci-screen:not([data-tabletop=true]) .davinci-board { position:relative; height:340px; min-height:340px; }
- .davinci-screen:not([data-tabletop=true]) :is(.davinci-actions,.davinci-players) { position:relative; inset:auto; width:auto; max-height:none; }
- .davinci-header { flex-wrap:wrap; }.davinci-header p { display:none; }
- .davinci-screen[data-tabletop=true] .davinci-actions { right:8px; top:100px; width:270px; padding:12px; max-height:calc(100dvh - 112px); }
- .davinci-screen[data-tabletop=true] .davinci-players { left:8px; top:154px; width:190px; font-size:12px; }
- .park-page:has(.davinci-screen[data-tabletop=true]) { --game-hud-edge:8px; --game-hud-rail:190px; }
- .park-page:has(.davinci-screen[data-tabletop=true]) .game-hud-clock { padding:10px 12px; gap:4px; }
- .park-page:has(.davinci-screen[data-tabletop=true]) .game-hud-clock strong { font-size:26px; }
- .park-page:has(.davinci-screen[data-tabletop=true]) .game-hud-clock-hint { display:none; }
- .park-page:has(.davinci-screen[data-tabletop=true]) .park-chat { width:190px; padding:10px; }
- .park-page:has(.davinci-screen[data-tabletop=true]) .park-chat:not([data-expanded=true]) .park-chat__messages { display:none; }
+.park-page:has(.davinci-screen[data-tabletop=true]) .park-chat { inset:auto 16px 10px auto; width:264px; max-width:264px; padding:8px 10px; max-height:calc(var(--secret-tiles-dock-height,220px) - var(--secret-tiles-header-height,60px) - 18px); display:flex; flex-direction:column; gap:4px; }
+.park-page:has(.davinci-screen[data-tabletop=true]) .park-chat__messages { min-height:0; overflow:hidden; }
+.park-page:has(.davinci-screen[data-tabletop=true]) .park-chat__heading { padding-bottom:4px; }.park-page:has(.davinci-screen[data-tabletop=true]) .park-chat__heading h1 { font-size:12px; }
+.park-page:has(.davinci-screen[data-tabletop=true]) .park-chat__list { max-height:42px; overflow:auto; }
+.park-page:has(.davinci-screen[data-tabletop=true]) .park-chat__composer { flex-shrink:0; }
+.park-page:has(.davinci-screen[data-tabletop=true]):not(:has(.davinci-dock details[open])) .park-chat[data-expanded=true] { max-height:min(420px,65dvh); }.park-page:has(.davinci-screen[data-tabletop=true]) .park-chat[data-expanded=true] .park-chat__list { max-height:260px; }
+@media(max-width:999px) {
+ .davinci-screen[data-tabletop=true] .davinci-dock { padding-bottom:58px; }
+ .davinci-screen[data-tabletop=true] .davinci-actions { padding-right:0; }
+ .davinci-dock-header { gap:8px; }.davinci-dock .davinci-players { gap:8px; }.davinci-dock .davinci-players>div { padding-right:8px; flex-basis:105px; }.davinci-dock .davinci-players strong { font-size:12px; }
+ .davinci-match-tools { gap:8px; }.park-page .davinci-match-tools .game-hud-clock[data-embedded=true] { width:144px; }
+ .park-page:has(.davinci-screen[data-tabletop=true]) .park-chat { inset:auto 12px 8px; width:auto; max-width:none; padding:2px 4px; max-height:44px; }
+ .park-page:has(.davinci-screen[data-tabletop=true]) .park-chat__messages { display:none; }
+ .park-page:has(.davinci-screen[data-tabletop=true]):not(:has(.davinci-dock details[open])) .park-chat[data-expanded=true] { bottom:calc(var(--secret-tiles-dock-height,220px) + 8px); padding:10px; max-height:min(340px,calc(100dvh - var(--secret-tiles-dock-height,220px) - 20px)); }
+ .park-page:has(.davinci-screen[data-tabletop=true]):not(:has(.davinci-dock details[open])) .park-chat[data-expanded=true] .park-chat__messages { display:block; }
 }
 @media(max-width:600px) {
- .park-page:has(.davinci-screen[data-tabletop=true]) { --game-hud-rail:calc(50vw - 16px); }
- .davinci-screen[data-tabletop=true] .davinci-actions { inset:auto 8px 8px 8px; width:auto; max-height:32dvh; padding:10px; gap:9px; }
- .davinci-screen[data-tabletop=true] .davinci-players { top:139px; left:8px; width:calc(100% - 16px); display:flex; flex-wrap:nowrap; gap:14px; padding:5px 8px; overflow:auto; scrollbar-width:none; }
- .davinci-screen[data-tabletop=true] .davinci-players>div { flex:0 0 auto; display:block; padding:3px 0; border:0; }.davinci-screen[data-tabletop=true] .davinci-players span { display:block; font-size:11px; }.davinci-screen[data-tabletop=true] .davinci-players p { display:none; }
- .davinci-screen[data-tabletop=true] .davinci-turn { padding-bottom:6px; }.davinci-screen[data-tabletop=true] .davinci-instruction { font-size:13px; }
- .park-page:has(.davinci-screen[data-tabletop=true]) .park-chat { inset:auto 8px calc(var(--secret-tiles-actions-height,270px) + 18px) 8px; width:auto; max-width:none; max-height:calc(100dvh - var(--secret-tiles-actions-height,270px) - 80px); padding:8px 10px; }
- .park-page:has(.davinci-screen[data-tabletop=true]) .park-chat__list { max-height:140px; overflow:auto; }
+ .davinci-header { flex-wrap:wrap; padding:8px; }.davinci-header p { display:none; }
+ .davinci-dock { padding-left:12px; padding-right:12px; }.davinci-dock-header { flex-direction:column-reverse; align-items:stretch; gap:7px; padding:6px 0; }
+ .davinci-match-tools { justify-content:space-between; }.park-page .davinci-match-tools .game-hud-clock[data-embedded=true] { width:150px; padding:4px 8px; gap:2px 8px; }.park-page .davinci-match-tools .game-hud-clock[data-embedded=true] strong { font-size:23px; }
+ .park-page .davinci-match-tools .game-spectator-number small { display:none; }
+ .davinci-dock .davinci-players { gap:6px; }.davinci-dock .davinci-players>div { flex:1 1 0; min-width:0; padding-right:6px; }.davinci-dock .davinci-players strong { font-size:11px; }.davinci-dock .davinci-players span,.davinci-dock .davinci-players p { font-size:10px; }
+ .davinci-dock .davinci-actions { padding-top:7px; gap:6px; min-height:216px; }.davinci-brief { gap:10px; }.davinci-dock .davinci-turn strong { font-size:14px; }.davinci-dock .davinci-instruction { font-size:12px; }
+ .davinci-guess-controls { grid-template-columns:1fr; gap:6px; }.davinci-dock .davinci-numbers { grid-template-columns:repeat(7,minmax(0,1fr)); }.davinci-dock .davinci-numbers button { min-height:34px; }.davinci-dock .davinci-numbers button:last-child { grid-column:span 2; }
+ .davinci-confirm-actions>button { flex:1; min-height:36px; }.davinci-dock-options { gap:14px; }.davinci-dock summary { font-size:11px; min-height:24px; }
+ .davinci-dock .davinci-draw-options { gap:6px 12px; }.davinci-commands { gap:6px; max-height:28dvh; }
+ .davinci-dock .davinci-record>.davinci-log { left:auto; right:0; }
+}
+@media(max-height:520px) and (min-width:601px) {
+ .park-page .davinci-match-tools .game-hud-clock[data-embedded=true] { width:160px; padding:4px 10px; }.park-page .davinci-match-tools .game-hud-clock[data-embedded=true] strong { font-size:23px; }.park-page .davinci-match-tools .game-hud-clock[data-embedded=true] .game-hud-turn { display:none; }
+ .davinci-dock-header { padding:4px 0; }.davinci-dock .davinci-players>div { display:flex; flex-wrap:wrap; gap:2px 8px; }.davinci-dock .davinci-players span { font-size:10px; }
+ .davinci-dock .davinci-actions { padding-top:5px; gap:5px; min-height:112px; }.davinci-dock .davinci-instruction,.davinci-guess-target { font-size:11px; }.davinci-dock .davinci-turn strong { font-size:14px; }
+ .davinci-dock .davinci-numbers button,.davinci-confirm-actions>button { min-height:32px; }.davinci-dock summary { min-height:22px; }
 }
 @media(prefers-reduced-motion:reduce) { .davinci-screen * { scroll-behavior:auto; transition:none; } }
 

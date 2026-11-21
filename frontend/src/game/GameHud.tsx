@@ -45,15 +45,15 @@ export function GameHudMenu({ children, embedded = false }: { children: ReactNod
 }
 
 /** Displays a supplied server deadline. This component never starts a new turn or changes game timing. */
-export function GameHudClock({ game, label, remainingMs, limitMs = 30000, hint, myTurn = false, phase, rapidTurnKey }: {
-  game: string; label: string; remainingMs: number | null; limitMs?: number; hint?: string; myTurn?: boolean; phase?: string; rapidTurnKey?: string
+export function GameHudClock({ game, label, remainingMs, limitMs = 30000, hint, myTurn = false, phase, rapidTurnKey, embedded = false }: {
+  game: string; label: string; remainingMs: number | null; limitMs?: number; hint?: string; myTurn?: boolean; phase?: string; rapidTurnKey?: string; embedded?: boolean
 }) {
   const total = Number.isFinite(limitMs) && limitMs > 0 ? limitMs : 30000
   const value = remainingMs === null || !Number.isFinite(remainingMs) ? null : Math.min(total, Math.max(0, remainingMs))
   const stake = matchStake(useGame(s => s.game), useSession(s => s.tableStates))
   // Without a stake the eyebrow keeps its original markup; with one, the name and "· N냥" share one non-wrapping line.
   const title = stake === null ? game : <span className="game-hud-title">{game}<span className="game-hud-stake">{`\u00a0· ${stakeLabel(stake)}`}</span></span>
-  return <><HudLayer><div className="game-hud-clock" role="timer" aria-label={`${game} 남은 시간`} data-my-turn={myTurn} data-phase={!!phase}
+  return <><HudLayer embedded={embedded}><div className="game-hud-clock" data-embedded={embedded || undefined} role="timer" aria-label={`${game} 남은 시간`} data-my-turn={myTurn} data-phase={!!phase}
     data-urgent={!phase && value !== null && value > 0 && value <= Math.min(10000, total / 3)}>
     <span className="game-hud-eyebrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 6v6l4 2"/></svg>{title}</span><span key={rapidTurnKey} className="game-hud-turn" data-rapid-turn={!!rapidTurnKey && !phase || undefined} title={label}>{label}</span>
     <strong>{phase ?? (value === null ? '—' : Math.ceil(value / 1000))}{!phase && <small>초</small>}</strong>
