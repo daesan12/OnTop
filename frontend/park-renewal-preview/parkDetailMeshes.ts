@@ -35,6 +35,9 @@ function scope(id: ParkDetailId, root: Object3D) {
 }
 
 function visitMeshes(root: Object3D, id: ParkDetailId, visit: (mesh: Mesh) => void) {
+  // Seasonal overlays are generated after the authored model. They have no
+  // counterpart in its optimized GLB and must keep their own geometry.
+  if (root.userData.winterSnow) return
   if (id === 'fountain' && (root.name === 'fountain-jet-height' || root.name === 'water-surface')) return
   if (id === 'notes' && (root.name === 'observatory-user-notes' || root.name === 'observatory-notes-status')) return
   const mesh = root as Mesh

@@ -11,8 +11,8 @@ function surfaceY(t: number, angle: number) {
 }
 
 /** Six lobed boughs per existing tier, within the original cone's radius and height. */
-function tier(snow: 'light' | 'heavy' | null) {
-  const sides = snow ? 24 : 12
+function tier(snow: 'light' | 'heavy' | null, distant = false) {
+  const sides = snow ? (distant ? 12 : 24) : (distant ? 6 : 12)
   const vertices: number[] = []
   const triangle = (a: Point, b: Point, c: Point) => vertices.push(...a, ...b, ...c)
   const snowyEdge = (angle: number) => snow === 'heavy' ? .93 + .035 * lobe(angle) : .75 + .08 * lobe(angle)
@@ -23,7 +23,7 @@ function tier(snow: 'light' | 'heavy' | null) {
     const y = surfaceY(t, a) + (snow ? underside ? .008 : thickness * (.5 + .5 * (1 - ring) ** 2) : underside ? -.12 : 0)
     return [Math.sin(a) * r, y, Math.cos(a) * r]
   }
-  const rings = snow ? [.4, .75, 1] : [.4, .7, 1]
+  const rings = distant ? [1] : snow ? [.4, .75, 1] : [.4, .7, 1]
   for (let i = 0; i < sides; i++) {
     const next = (i + 1) % sides
     triangle([0, 1 + (snow ? .04 : 0), 0], point(rings[0]!, i), point(rings[0]!, next))
@@ -44,3 +44,7 @@ function tier(snow: 'light' | 'heavy' | null) {
 export const winterFirFoliage = tier(null)
 export const winterFirLightSnow = tier('light')
 export const winterFirHeavySnow = tier('heavy')
+// Distant sectors keep the same tree transforms, height and snow coverage.
+export const winterFirDistantFoliage = tier(null, true)
+export const winterFirDistantLightSnow = tier('light', true)
+export const winterFirDistantHeavySnow = tier('heavy', true)

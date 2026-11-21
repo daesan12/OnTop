@@ -6,7 +6,8 @@ import {plantings,trees,treeCount} from './landscape'
 import {isTreeBehindRenewalAdSign} from './live/advertisingPlacement'
 import {WINTER_TREES_ENABLED,winterTreeParts} from '../src/features/winter/trees'
 import {TreeSnowCaps} from '../src/features/winter/TreeSnowCaps'
-import {winterFirFoliage} from '../src/features/winter/winterFirGeometry'
+import {winterFirFoliage,winterFirDistantFoliage} from '../src/features/winter/winterFirGeometry'
+import {WinterFirInstances} from '../src/features/winter/WinterFirInstances'
 
 // Double the original 24 m grid while retaining frustum culling by sector.
 const treeSectorSize=48
@@ -25,8 +26,9 @@ export function PreviewTreeBatches({ live = false }: { live?: boolean }){
  if(useOriginalBatches)return <><FacetedParkTreeInstances parts={visibleParts} name="renewal-groves" treeCount={count}
   coneGeometry={'snowCones' in visibleParts?winterFirFoliage:undefined}/><TreeSnowCaps parts={visibleParts}/></>
  return <group name="renewal-groves" userData={{assetId:'park/faceted-trees',treeCount:count}}>
-  {treeBatches(visibleParts).map(({parts,geometry})=>
-   <SpatialInstances key={geometry.uuid} parts={parts} cellSize={treeSectorSize} shadow={false}
+  {treeBatches(visibleParts).map(({parts,geometry})=> geometry === winterFirFoliage
+   ? <WinterFirInstances key={geometry.uuid} parts={parts} geometry={geometry} distantGeometry={winterFirDistantFoliage}/>
+   : <SpatialInstances key={geometry.uuid} parts={parts} cellSize={treeSectorSize} shadow={false}
     material={<primitive object={parkTreeResources.material} attach="material" dispose={null}/>}>
     <primitive object={geometry} attach="geometry" dispose={null}/>
    </SpatialInstances>,

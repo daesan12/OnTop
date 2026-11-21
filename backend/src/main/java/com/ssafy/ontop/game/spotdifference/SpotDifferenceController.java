@@ -6,6 +6,7 @@ import com.ssafy.ontop.operation.config.NewActivity;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Profile;
@@ -62,12 +63,20 @@ public class SpotDifferenceController {
     @Operation(summary = "사격정 2인 대결 방 생성")
     public ResponseEntity<SpotDifferenceDuelService.DuelView> createDuel(
             @AuthenticationPrincipal AuthenticatedUser user, @RequestBody CreateDuel input) {
-        return response(duels.create(userId(user), input.difficulty()));
+        return response(duels.create(userId(user), input.difficulty(), input.title()));
+    }
+
+    @GetMapping("/duels")
+    @Operation(summary = "사격정 참가 가능한 공개 대결 방 목록")
+    public ResponseEntity<List<SpotDifferenceDuelService.Room>> rooms(
+            @AuthenticationPrincipal AuthenticatedUser user) {
+        userId(user);
+        return response(duels.rooms());
     }
 
     @PostMapping("/duels/{code}/join")
     @NewActivity
-    @Operation(summary = "초대 코드로 사격정 2인 대결 참가")
+    @Operation(summary = "공개 방 목록에서 사격정 2인 대결 참가")
     public ResponseEntity<SpotDifferenceDuelService.DuelView> joinDuel(
             @AuthenticationPrincipal AuthenticatedUser user, @PathVariable UUID code) {
         return response(duels.join(userId(user), code));
@@ -88,7 +97,7 @@ public class SpotDifferenceController {
         return response(duels.act(userId(user), id, action));
     }
 
-    record CreateDuel(SpotDifferenceService.Difficulty difficulty) { }
+    record CreateDuel(SpotDifferenceService.Difficulty difficulty, String title) { }
 
     private static <T> ResponseEntity<T> response(T value) {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(value);
