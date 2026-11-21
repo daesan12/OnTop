@@ -129,3 +129,13 @@
 - 통합 후 소스 TypeScript, park-integration production build, 윷놀이 38개 및 새 dev 관련 공원 표시/수명주기 12개(총 50개) 통과. 공원 테스트 첫 실행은 빌드와 겹친 상태에서 1개가 기본 5초 시간 제한으로 실패했고, 빌드 종료 후 변경 없이 순차 재실행하여 12개 모두 통과했다. 맵 전수 탐색/주행 테스트는 포함하지 않았다. 기존 Three CJS 및 큰 chunk 경고는 유지한다.
 - 최신 dev 통합 후 실제 2팀 전체 흐름도 다시 exit 0: 최신 공원 진입 → E 카드/방 → 직접 선공·새 소켓 복구 → 3D 던지기/말 이동 → 채팅·관전/핑 → 설명서·기권 취소/확정 → 승리·공원 복귀/이동, 페이지 오류 없음. 실제 서버 캡처는 actual-after-dev, 4팀의 고정 데이터 UI 캡처는 hud-*로 구분한다. 검수 브라우저의 종료 및 남은 자신의 Playwright 프로세스 없음을 확인했다.
 - HUD 구현 커밋 25e66516, 최신 dev 통합 ac2f206b. feat/yutnori에서 검증 기록과 함께 푸시하며 MR/dev 병합은 요청 전까지 보류하고 작업 브랜치는 유지한다. Jenkins의 기존 ontop-dev API는 HTTP 403으로 조회 권한이 없고, dev 전용 빌드를 이 기능 브랜치의 성공으로 표시하지 않는다. 이번 작업으로 실행한 새로운 서버는 없으며 기존 FE 5244/BE 19185는 보존했다. 임시 production build 산출물은 경로를 확인하고 정리했다.
+
+## 미적용 윷놀이 migration V187로 변경 (2026-11-22)
+
+- 사용자가 V187 사용을 지정했다. 시작 시 fetch가 기본 refspec의 삭제된 브랜치 항목 때문에 실패하여 설정을 바꾸지 않고 명시적 브랜치/MR refspec으로 다시 가져왔다. 최신 dev=f3980669e3d6a5c02d2472188a69d149932fbf94를 읽기 전용으로 확인했다. 주민 임시 모델 제거/로딩 재시도·창 복원 렌더 재개 영향과 인프라 변경 없음을 안내하고 ‘최신 dev 반영 후 마무리’ 승인을 받아 f6d4bd0b에서 충돌 없이 통합했다.
+- 원격/MR 참조 277개와 로컬 worktree 246개의 backend/src/main/resources/db 전체 location을 확인했다. V186은 윷놀이 파일만, V187은 원격 feat/bang-table 및 로컬 bang-20261121의 V187__allow_bang_game_sessions.sql이 점유했다. 사용자에게 알린 뒤 ‘뱅은 V188로 수정 중, 윷놀이는 V187 사용’이라는 번호 조율을 확인했다. 별도 팀 예약과 MR open/closed 상태는 확인 불가다. MR 통합 직전에 양쪽 최신 번호를 다시 확인한다.
+- feat/yutnori: backend/src/main/resources/db/migration/V187__create_yutnori_results.sql. 무료 YUTNORI 종료 결과 저장 테이블을 만드는 기존 미적용 migration 1개의 파일명만 V186→V187로 변경했다. 공유 DB 미적용이라는 기존 사용자 확인을 따르며 SQL 바이트/SHA256과 승리 팀 CHECK(-1/0/1/2/3)는 유지했다. 뱅 브랜치·적용된 다른 migration·DB/Flyway 설정·인프라는 수정하지 않았다.
+- application-db.yml의 기본 DB_MIGRATION_LOCATIONS(classpath:db/migration), dev+db의 db/migration,db/minigame 및 나머지 db 하위 경로를 읽기 전용 확인했다. 실제 운영 프로필/환경변수·MySQL 8.4 신규/순차 적용은 미확인이고 DB에는 적용하지 않았다. 과거 검증 기록의 V186 표기는 당시 이력이며 현재 윷놀이 배포 파일은 V187이다.
+- 검증: 변경 전후 SQL SHA256=252DBAC576A0F6E7AD48FFBA10A704DF19C0C12FC253A949ED9EDA263F39B892 동일. 현재 작업의 전체 db location 74개 파일에 버전 중복이 없고 V186 윷 파일은 제거됐다. Gradle 8.14.3 processResources --offline --no-daemon 성공, 출력 리소스에 V187만 있으며 소스와 바이트 동일함을 확인했다. 변경을 반복하는 파일명 단위 테스트는 추가하지 않았다.
+- 승인된 최신 dev 통합 후 FE 소스 TypeScript 및 pageVisibility/residentEntryLifecycle 테스트 11개 통과. 이번 번호 변경으로 게임 규칙·FE/BE 계약은 바뀌지 않아 기존 전체 경기 검수는 재실행하지 않았다. 새 검증 브라우저·서버는 실행하지 않았다. MySQL 8.4 실제 적용은 미검증이다.
+- 커밋 전 최신 dev=f3980669 및 윷놀이 원격과의 분기를 다시 확인했다. 뱅 원격은 아직 V187 파일이므로 사용자가 알린 V188 변경의 원격 반영은 확인 대기다. 윷 V187/뱅 V188이라는 사용자 번호 조율을 따르되 MR 통합 전에 반드시 재확인한다. MR·dev 병합은 요청 전까지 보류하고 브랜치는 유지한다.
