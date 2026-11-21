@@ -37,6 +37,7 @@ import { Avatars } from './Avatars'
 import {JokeJudgeActor} from '../features/ai/JokeJudgeActor'
 import { CompanionActors } from '../features/ai/CompanionActors'
 import { PoliceNpcs } from '../features/ai/PoliceNpcs'
+import { OntopActor } from '../features/ai/OntopActor'
 import { AvatarPoseFrame } from './AvatarPoseFrame'
 import { FollowRopes } from '../features/follow/FollowRopes'
 import { RouteArrows } from '../features/navigation/RouteArrows'
@@ -291,6 +292,7 @@ export const WorldCanvas = memo(function WorldCanvas({
             <Avatars overlayTargets={overlayTargets} firstGateFrameAt={RENEWAL_GATE_STARTUP ? firstFrameAt : undefined} />
           </Suspense>
         <PoliceNpcs />
+        <OntopActor />
         <CompanionActors />
         <JokeJudgeActor />          <FollowRopes />
           <RouteArrows />

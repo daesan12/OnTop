@@ -1088,7 +1088,7 @@ export class ParkRuntime implements ParkRuntimePort {
       if (!useSession.getState().roomId)
         throw new Error('먼저 채널에 입장해주세요.')
       await this.socket.request('WORLD_CHAT_SEND', { text }, [
-        'WORLD_CHAT_MESSAGE',
+        'WORLD_CHAT_MESSAGE', 'WORLD_ONTOP_DIALOGUE',
       ])
       // Only server echoes enter the message list. No optimistic duplicate or automatic replay.
     }, { blockControls: !parkXRView.active && !avatars.get(useSession.getState().sessionId)?.carry })

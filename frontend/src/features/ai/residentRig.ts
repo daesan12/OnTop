@@ -35,7 +35,7 @@ export function instantiateResident(source:GLTF,kind:ResidentKind) {
  const axis=new Vector3(),rotation=new Quaternion(),parentQ=new Quaternion(),worldQ=new Quaternion()
  function bend(name:string,radians:number){const bone=bones.get(name);if(!bone?.parent)return;root.updateMatrixWorld(true);axis.set(1,0,0).applyQuaternion(root.getWorldQuaternion(worldQ)).applyQuaternion(bone.parent.getWorldQuaternion(parentQ).invert());bone.quaternion.premultiply(rotation.setFromAxisAngle(axis,radians))}
  return {root,mixer:instance.mixer,bones,
-  update(delta:number,speed:number,seated=false,airborne=false,talking=false) {
+  update(delta:number,speed:number,seated=false,airborne=false,talking=false,snow?:{kind:string;progress:number;holding:boolean}) {
    instance.root.position.y=0
    for(const [name,pose]of base){const b=bones.get(name)!;b.quaternion.copy(pose.q);b.position.copy(pose.p)}
    const moving=!seated&&!airborne&&speed>.12;instance.play(moving?'walk':'idle')
@@ -47,6 +47,10 @@ export function instantiateResident(source:GLTF,kind:ResidentKind) {
    else if(airborne){bend('LeftUpLeg',-.5);bend('RightUpLeg',-.35);bend('LeftLeg',.7);bend('RightLeg',.55);bend('Spine',.10)}
    else if(speed>3) {bend('Spine',.12);bend('RightForeArm',-.35)}
    if(talking)bend('Head',Math.sin(instance.mixer.time*3)*.035)
+   if(snow?.kind==='gather'){bend('Spine',.65);bend('RightArm',-.65);bend('RightForeArm',-.5)}
+   else if(snow?.kind==='windup'){bend('RightArm',-2.2);bend('RightForeArm',-1.1)}
+   else if(snow?.kind==='throw'){bend('RightArm',-2.2+snow.progress*1.3);bend('RightForeArm',-.8*(1-snow.progress))}
+   else if(snow?.holding){bend('RightArm',-.6);bend('RightForeArm',-1)}
    root.updateMatrixWorld(true)
   },
   dispose(){instance.dispose();geometry.forEach(g=>g.dispose());materials.forEach(m=>m.dispose());root.removeFromParent()},

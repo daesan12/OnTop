@@ -1,0 +1,10 @@
+.park-chat[data-ontop] .park-chat__heading { flex-wrap: wrap; gap: 6px; }
+.park-chat[data-ontop] .park-chat__heading h1 { flex: 1 1 auto; }
+.park-chat[data-ontop] .park-chat__heading button { width: auto; min-height: 30px; padding: 4px 8px; }
+.park-chat[data-ontop] .park-chat__list { max-height: min(36dvh, 280px); overflow-y: auto; scrollbar-width: none; }
+.park-chat[data-ontop] .park-chat__list::-webkit-scrollbar { display: none; }
+.park-chat .ontop-chat-actions { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px; background: #f5eedb; border-radius: 8px; }
+.park-chat .ontop-chat-actions button { border: 1px solid #59735e; background: #fffaf0; color: #173d30; border-radius: 6px; min-height: 32px; padding: 4px 8px; font: inherit; font-size: 12px; cursor: pointer; }
+.park-chat .ontop-match-status { margin: 4px 0; padding: 7px 10px; border-radius: 8px; background: #173d30; color: #fff7df; font-size: 12px; overflow-wrap: anywhere; }
+.park-chat[data-ontop] .park-chat__message span { overflow-wrap: anywhere; }
+@media (max-height: 500px) { .park-chat[data-ontop] .park-chat__list { max-height: 22dvh; } }

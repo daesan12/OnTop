@@ -10,6 +10,7 @@ import { createCarryEscape, CARRY_ESCAPE_PRESSES } from '../carry/escape'
 import { SNOW_PILES } from './plan'
 import { CarryEscapeHint } from '../carry/CarryEscapeHint'
 import { useSnowballAim } from './aimState'
+import { useOntop } from '../ai/ontop'
 import { useWinter, winterFrozen } from './state'
 import './winter.css'
 import { useWinterBoardView, winterSceneryVisible } from './presentation'
@@ -88,7 +89,7 @@ export function WinterHud() {
       <button type="button" aria-keyshortcuts="Q" disabled={!ready || cooldown || gathering || windingUp || !player?.snowballs && !pileId} onClick={act}>
         <kbd>Q</kbd> {gathering ? '눈 모아 뭉치는 중…' : windingUp ? '던지는 중…' : cooldown ? '다음 동작 준비 중…' : player?.snowballs ? '눈덩이 던지기' : '눈 줍기 · 뭉치기'}
       </button>
-      {player?.snowballs === 1 && !gathering && <small role="status">{aim?.hitUserId ? `${avatars.get(aim.hitUserId)?.nickname ?? '상대'} 명중 예상 · ${aim.distance.toFixed(1)}m` : '캐릭터 정면의 표적으로 던져요'}</small>}
+      {player?.snowballs === 1 && !gathering && <small role="status">{aim?.hitUserId ? `${aim.hitUserId === useOntop.getState().actor?.id ? '온탑' : avatars.get(aim.hitUserId)?.nickname ?? '상대'} 명중 예상 · ${aim.distance.toFixed(1)}m` : '캐릭터 정면의 표적으로 던져요'}</small>}
       {!!player?.hits && <small>피격 {player.hits} / 3 · 세 번 맞으면 얼어요</small>}
     </>}
     {!frozen && <span role="status">{notice}</span>}

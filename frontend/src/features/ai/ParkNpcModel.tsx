@@ -1,6 +1,9 @@
 import {useEffect,useRef,useState} from 'react'
 import {useFrame} from '@react-three/fiber'
-import {Group,Sphere,Vector3} from 'three'
+import {Group,Mesh,Sphere,Vector3} from 'three'
+import { useWinter, winterMotion, winterFrozen } from '../winter/state'
+import { snowballHands } from '../winter/SnowballHand'
+import { estimatedServerTime } from '../../network/worldClient'
 import {CustomerModelPoolV5} from '../bungeoppang/customerModelV5'
 import {instantiateResident,RESIDENT_LOOKS,type ResidentKind} from './residentRig'
 import {CharacterModel} from '../../ai-lab/CharacterModel'
@@ -8,8 +11,10 @@ import {npcFrameView} from './npcFrameView'
 import {OMOK_FOCUS_LAYER} from '../../world/omokCamera'
 
 const pool=new CustomerModelPoolV5()
-export function ResidentModel({kind,speed,seated=false,airborne=false,talking=false}:{kind:ResidentKind;speed:{current:number};seated?:boolean;airborne?:boolean;talking?:boolean}) {
+export function ResidentModel({kind,speed,seated=false,airborne=false,talking=false,snowballId}:{kind:ResidentKind;speed:{current:number};seated?:boolean;airborne?:boolean;talking?:boolean;snowballId?:string}) {
  const host=useRef<Group>(null),instance=useRef<ReturnType<typeof instantiateResident>|null>(null),[failed,setFailed]=useState(false)
+ const snowball=useRef<Mesh>(null),handPoint=useRef(new Vector3())
+ useEffect(()=>()=>{if(snowballId)snowballHands.delete(snowballId)},[snowballId])
  const frame=useRef({ elapsed:0, center:new Vector3(), sphere:new Sphere(new Vector3(),3), visible:true })
  useEffect(()=>{let active=true;const root=host.current!,asset=RESIDENT_LOOKS[kind],lease=pool.acquire(asset)
   setFailed(false);root.userData.loadError=false
@@ -42,8 +47,18 @@ export function ResidentModel({kind,speed,seated=false,airborne=false,talking=fa
   state.elapsed+=dt
   if(!xr&&state.visible&&distanceSquared>24**2&&!airborne&&!talking&&state.elapsed<.05)return
   state.visible=true
-  resident.update(Math.min(.1,state.elapsed),speed.current,seated,airborne,talking)
+  const now=estimatedServerTime(),motion=snowballId?winterMotion(snowballId,now):null
+  const holding=!!snowballId&&useWinter.getState().players[snowballId]?.snowballs===1&&!winterFrozen(snowballId,now)
+  resident.update(Math.min(.1,state.elapsed),speed.current,seated,airborne,talking,
+    snowballId?{kind:motion?.kind??'',progress:motion?Math.max(0,Math.min(1,(now-motion.at)/motion.durationMs)):0,holding}:undefined)
+  if(snowballId&&snowball.current){
+   const hand=resident.bones.get('RightHand')
+   if(hand){hand.getWorldPosition(handPoint.current);snowballHands.set(snowballId,handPoint.current.clone());group.worldToLocal(handPoint.current);snowball.current.position.copy(handPoint.current)}
+   snowball.current.visible=holding
+  }
   state.elapsed=0
  },.75)
- return <group ref={host} name={'detailed-npc-'+kind}>{failed&&<group scale={RESIDENT_LOOKS[kind].height/2.1}><CharacterModel role={kind==='POLICE'?'POLICE':kind==='ELDER'?'GUIDE':'VISITOR'} moving={speed.current>.1} talking={talking} motionSpeed={speed} airborne={airborne}/></group>}</group>
+ return <group ref={host} name={'detailed-npc-'+kind}>{failed&&<group scale={RESIDENT_LOOKS[kind].height/2.1}><CharacterModel role={kind==='POLICE'?'POLICE':kind==='ELDER'?'GUIDE':'VISITOR'} moving={speed.current>.1} talking={talking} motionSpeed={speed} airborne={airborne}/></group>}
+  {snowballId&&<mesh ref={snowball} visible={false} name="ontop-held-snowball" raycast={()=>{}}><sphereGeometry args={[.15,10,8]}/><meshLambertMaterial color="#f4fcff"/></mesh>}
+ </group>
 }

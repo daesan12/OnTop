@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react'
+import { useOntop } from '../ai/ontop'
 import { useFrame } from '@react-three/fiber'
 import { Group, InstancedMesh, MeshBasicMaterial, Object3D, Vector3 } from 'three'
 import { avatars, estimatedServerTime, sampleAvatar, useSession } from '../../network/worldClient'
@@ -56,10 +57,15 @@ export function SnowballAim() {
         Object.assign(before, pose, { yaw })
       }
       const targets = []
+      const ontop = useOntop.getState().actor
       for (const [userId, avatar] of avatars) {
-        if (userId !== s.sessionId && !avatar.carry && !avatar.vehicle && carryPlayerAvailable(userId, avatar)) {
+        if (userId !== s.sessionId && !avatar.carry && !avatar.vehicle && carryPlayerAvailable(userId, avatar)
+          && ontop?.opponentId !== userId && ontop?.opponentId !== s.sessionId) {
           targets.push({ userId, position: sampleAvatar(avatar, now, { x: 0, y: 0, z: 0, yaw: 0 }) })
         }
+      }
+      if (ontop?.opponentId === s.sessionId) {
+        targets.push({ userId: ontop.id, position: { x: ontop.x, y: ontop.y + .8, z: ontop.z, yaw: ontop.yaw } })
       }
       state.local = localSnowballAim(s.roomId, s.sessionId, pose, yaw, state.distance, targets)
     }

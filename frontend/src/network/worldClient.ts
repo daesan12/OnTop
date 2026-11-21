@@ -1,4 +1,5 @@
 import { acceptSnowballWindup, acceptSnowball, acceptWinterState, resetWinter, winterFrozen } from '../features/winter/state'
+import { acceptOntopActor, acceptOntopReply, resetOntop } from '../features/ai/ontop'
 import { filterChat } from '../features/chat/filterChat'
 import { setHorrorOpen } from '../../park-renewal-preview/horrorPlan'
 import { create } from 'zustand'
@@ -255,6 +256,7 @@ export function resetWorld(status: Session['status'] = 'idle', error = '') {
   channelVersion = worldVersion = -1
   chatIds.clear()
   resetWorldAi()
+  resetOntop()
   useSession.setState({ ...initial(), status, error })
 }
 export function clearChannel(keepFeedbackDraft = false, keepNotesDraft = false) {
@@ -288,6 +290,7 @@ export function clearChannel(keepFeedbackDraft = false, keepNotesDraft = false) 
   channelVersion = worldVersion = -1
   chatIds.clear()
   resetWorldAi()
+  resetOntop()
   useSession.setState({
     roomId: '',
     channelName: '',
@@ -789,6 +792,14 @@ export function receive(message: Envelope, expectedMapVersion: string = EXPECTED
         for (const id of avatars.keys()) cancelAvatarEmote(id)
         clearRoamingInput()
       }
+      break
+    }
+    case 'WORLD_ONTOP_STATE': {
+      if (state.status === 'connected') acceptOntopActor(p, state.roomId)
+      break
+    }
+    case 'WORLD_ONTOP_DIALOGUE': {
+      if (state.status === 'connected') acceptOntopReply(p, state.roomId, state.sessionId)
       break
     }
     case 'WORLD_AI_PRIVATE_NOTICE': {
