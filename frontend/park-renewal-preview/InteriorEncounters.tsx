@@ -4,7 +4,7 @@ import { Raycaster, Vector3, type Group, type Light, type Mesh, type Object3D, t
 import { effectsOutput } from '../src/audio/bgm'
 import { playCageDrop, playRopeDrop, playWallCrack, playBehind, playEncounterLunge, playEncounterStaging, playFakeout, playJumpScare, playPounceCrouch, playSprint, playStalkStart, playStalkStep, playStoneStep } from './horrorAudio'
 import { AMBUSHERS, diamond, interiorVisit, type Encounter } from './interiorEvents'
-import { HeartDiamond } from './HeartDiamond'
+import { DiamondPendant } from './DiamondPendant'
 import { DiamondDisplayCase } from './DiamondDisplayCase'
 import { FALL, FAR_MIN, SIDE, encounterDistance, encounterScale, farStart, flashlight, lungeStop, offGaze, placeInView, stagePlan, standDistance, styleFrame } from './encounterStaging'
 import { strike } from './horrorStrike'
@@ -297,7 +297,6 @@ export function InteriorEncounters() {
       if (interiorVisit.added && !hadDiamond.current) diamondCue()
       hadDiamond.current = interiorVisit.added
       gem.current.visible = !interiorVisit.added
-      gem.current.rotation.y += dt
     }
     if (!active || active.presentedAt === undefined) return
     const group = objects.current[active.id]
@@ -484,8 +483,7 @@ export function InteriorEncounters() {
     <pointLight ref={accent} intensity={0} distance={5} decay={2} />
     <Shape at={[x,y-.62,z]} size={[.64,1.04,.64]} color="#5a5750" />
     <DiamondDisplayCase at={[x,y-.1,z]} />
-    {/* Lift only the gem: its lowest halo stone clears the fixed pedestal by about 5cm. */}
-    <HeartDiamond at={[x,y+.32,z]} reference={gem} />
+    <DiamondPendant at={[x,y+.32,z]} reference={gem} />
     {types.map(id => <group name={'interior-event-' + id} key={id} ref={node => {objects.current[id]=node}} visible={false}>
       <group>{encounterModels[id]}</group>
     </group>)}
