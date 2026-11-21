@@ -5,7 +5,7 @@ import {useSession} from '../network/worldClient'
 import {useCompanions,acceptCompanions,resetCompanionActors} from '../features/ai/companions'
 import {observedNpcPractice,syncPracticeSpectator} from '../features/ai/practiceSpectator'
 
-const IDLE_POLL_MS = 5_000
+const IDLE_POLL_MS = import.meta.env.DEV && import.meta.env.VITE_QA_FEEDBACK === '1' ? 1_000 : 5_000
 const PRACTICE_POLL_MS = 650
 
 /** Keep resident/game state synchronized; entry points live at the NPC and table seat. */

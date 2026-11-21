@@ -78,7 +78,7 @@ public final class StoneRumbleParkApplication {
 
     @TestConfiguration(proxyBeanMethods = false)
     @Profile("local & stone-rumble-park & !db & !dev & !prod & !production")
-    @Import({com.ssafy.ontop.game.spotdifference.SpotDifferenceParkFixture.class,
+    @Import({ArcadeParkQa.class, com.ssafy.ontop.game.spotdifference.SpotDifferenceParkFixture.class,
             com.ssafy.ontop.world.balloon.BalloonParkFixture.class})
     public static class Fixture {
         @Bean ActiveMemberLookup stoneRumbleMembers() {
@@ -149,6 +149,14 @@ public final class StoneRumbleParkApplication {
                         Long id = codes.remove(mapper.readTree(request.getInputStream()).path("exchangeCode").asText());
                         if (id == null) { response.setStatus(401); return; }
                         body=Map.of("status","AUTHENTICATED","accessToken",jwt.issue(id,TestLoginSessions.ID));
+                    } else if (Boolean.getBoolean("ontop.qa-feedback.enabled") && request.getMethod().equals("GET")
+                            && (path.equals("/api/v1/ai/features") || path.equals("/api/v1/ai/companions/status"))) {
+                        try {
+                            String bearer = request.getHeader("Authorization");
+                            auth.authenticate(bearer != null && bearer.startsWith("Bearer ") ? bearer.substring(7) : "");
+                            body = path.endsWith("/features") ? Map.of("companions", true, "jokeContest", false)
+                                    : ParkResidentsQa.snapshot(request.getParameter("channelId"));
+                        } catch (RuntimeException denied) { response.setStatus(401); return; }
                     } else if (path.equals("/api/v1/wallets/me") && request.getMethod().equals("GET")) {
                         try {
                             String bearer=request.getHeader("Authorization");
