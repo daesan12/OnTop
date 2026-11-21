@@ -30,7 +30,8 @@ async function boot() {
     || !['localhost', '127.0.0.1'].includes(location.hostname)) throw new Error('로컬 검수 전용 화면입니다.')
   const requested = new URLSearchParams(location.search).get('role') ?? '1'
   const role = /^(?:[1-8]|viewer)$/.test(requested) ? requested : '1'
-  const response = await fetch('/dev/stone-rumble-park/session', { method: 'POST',
+  const sessionPath = import.meta.env.VITE_QA_FEEDBACK === '1' ? '/api/v1/qa/session' : '/dev/stone-rumble-park/session'
+  const response = await fetch(sessionPath, { method: 'POST',
     headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role }) })
   if (!response.ok) throw new Error('로컬 공원 서버 연결을 확인해주세요.')
   const { exchangeCode } = await response.json()
