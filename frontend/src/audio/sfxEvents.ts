@@ -43,7 +43,7 @@ export function gameSfx(prev: Game | null, next: Game | null, ownId: string, ser
   if (omokPlaced) out.push('omok-place')
   const chess = chessMoveSound(before, next, serverNow)
   if (chess) out.push(chess)
-  const position = chess && chessPositionSound(before, next, serverNow, ownId)
+  const position = chessPositionSound(before, next, serverNow, ownId)
   if (position) out.push(position)
   // 경기를 끝낸 마지막 종도 울린다. 참가자·관전자 모두 같은 공개 상태로 판정한다.
   const bell = halliBellRung(before, next, serverNow)

@@ -91,6 +91,31 @@ describe('체스 승인 이동 효과음', () => {
     expect(chessPositionSound(null, b, NOW, '202')).toBeNull()
     expect(gameSfx({ ...a, role: 'SPECTATOR' }, { ...b, role: 'SPECTATOR' }, '202', NOW)).toEqual(['chess-move', 'chess-checkmate'])
   })
+  it('이동 없는 모든 서버 무승부는 참가자·관전자에게 같은 마무리음 한 번을 낸다', () => {
+    const a = game({ e2: 'P' }, ['g1f3'], 3)
+    for (const endReason of ['AGREED_DRAW', 'STALEMATE', 'INSUFFICIENT_MATERIAL', 'THREEFOLD_REPETITION',
+      'FIVEFOLD_REPETITION', 'FIFTY_MOVES', 'SEVENTY_FIVE_MOVES', 'TIMEOUT_DRAW']) {
+      const b = { ...a, version: 4, chess: { ...a.chess, status: 'FINISHED' as const, endReason, winnerUserId: null, endedAt: new Date(NOW).toISOString() } }
+      expect(gameSfx(a, b, '101', NOW)).toEqual(['chess-draw'])
+      expect(gameSfx(a, b, '202', NOW)).toEqual(['chess-draw'])
+      expect(gameSfx({ ...a, role: 'SPECTATOR' }, { ...b, role: 'SPECTATOR' }, '505', NOW)).toEqual(['chess-draw'])
+      expect(chessPositionSound(null, b, NOW, '101')).toBeNull()
+      expect(chessPositionSound(b, { ...b, version: 5 }, NOW, '101')).toBeNull()
+      expect(chessPositionSound(a, b, NOW + 1200, '101')).toBeNull()
+      expect(chessPositionSound(a, b, NOW, 'outsider')).toBeNull()
+      expect(chessPositionSound(a, { ...b, chess: { ...b.chess, winnerUserId: '101' } }, NOW, '101')).toBeNull()
+    }
+  })
+  it('자동 무승부 착수음은 유지하고 제안·거절·기권·건너뛴 종료에는 무승부음을 내지 않는다', () => {
+    const a = game({ e2: 'P' }, [], 0), b = game({ e4: 'P' }, ['e2e4'], 1,
+      { status: 'FINISHED', endReason: 'STALEMATE', winnerUserId: null, endedAt: new Date(NOW).toISOString() })
+    expect(gameSfx(a, b, '101', NOW)).toEqual(['chess-move', 'chess-draw'])
+    expect(chessPositionSound(a, { ...b, chess: { ...b.chess, moves: ['e2e3', 'e3e4'] } }, NOW, '101')).toBeNull()
+    for (const endReason of ['EXPLICIT_LEAVE', 'TIMEOUT', 'UNKNOWN'])
+      expect(chessPositionSound(a, { ...b, chess: { ...b.chess, endReason } }, NOW, '101')).toBeNull()
+    for (const drawOfferedBy of ['101', null])
+      expect(gameSfx(a, { ...a, version: 1, chess: { ...a.chess, drawOfferedBy } }, '101', NOW)).toEqual([])
+  })
   it('원본 파형은 짧고 유효하며 시작/끝의 클릭 잡음과 피크를 제한한다', () => {
     for (const rate of [22050, 44100, 48000]) for (const kind of Object.keys(CHESS_SOUND_DURATION) as (keyof typeof CHESS_SOUND_DURATION)[]) {
       const data = chessSoundSamples(kind, rate)
