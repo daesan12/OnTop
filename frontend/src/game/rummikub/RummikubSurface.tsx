@@ -11,7 +11,7 @@ import { useTableGameCode } from '../../features/tableLobby/tableGamePresentatio
 import { canActRummikub } from './actions'
 import { useRummikubDraft, sortRummikubTiles } from './draft'
 import type { Tile, Placed } from './protocol'
-import { layoutMelds, rackLayout } from './layout'
+import { layoutMelds, rackLayout, rackTileX } from './layout'
 import { useTileDrag } from './dragInput'
 
 const ink = { BLACK: '#1d2522', BLUE: '#123e9b', RED: '#ae201a', YELLOW: '#965400' }
@@ -113,7 +113,7 @@ export function RummikubSurface({ anchor }: { anchor: TableAnchor }) {
         <mesh geometry={rail} material={gold} dispose={null} position={[0, .085, .25]} />
         <mesh geometry={rail} material={gold} dispose={null} position={[0, .175, -.005]} />
         {[-.96, .96].map(x => <mesh key={x} geometry={feet} material={gold} dispose={null} position={[x, -.012, 0]} />)}
-        {hand.slice(rack * 14, rack * 14 + 14).map((tile, i) => <Block key={tile.id} tile={tile} x={(i % 7 - 3) * .275}
+        {hand.slice(rack * 14, rack * 14 + 14).map((tile, i, rowTiles) => <Block key={tile.id} tile={tile} x={rackTileX(i,rowTiles.length)}
           z={i < 7 ? -.14 : .12} y={i < 7 ? .27 : .18} logo={logo} begin={drag.begin} held selected={ui.selected.includes(tile.id)} enabled={enabled} />)}
       </group>)}
     </group>}

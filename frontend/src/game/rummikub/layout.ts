@@ -1,11 +1,11 @@
 import type { Placed } from './protocol'
 import type { TileDestination } from './edit'
 
-export const TILE_PITCH = .212, ROW_PITCH = .32, PUBLIC_TOP = -.86, PUBLIC_BASE_SCALE = .66
+export const TILE_PITCH = .212, ROW_PITCH = .32, PUBLIC_TOP = -.86, PUBLIC_BASE_SCALE = .56
 const WIDTH = 2.2, GROUP_GAP = .1, TILE_HALF_DEPTH = .131
 
 export function rackLayout(count: number) {
-  const racks = Math.max(1,Math.ceil(count/14)), scale = Math.min(1,1.25/(racks*.56))
+  const racks = Math.max(1,Math.ceil(count/14)), scale = Math.min(.88,1.25/(racks*.56))
   return {racks,scale,z:.65-(racks-1)*.28*scale,step:.56,depth:.52}
 }
 
@@ -37,7 +37,15 @@ export function layoutMelds(lengths: number[], handCount = 14) {
       cursor+=item.width+GROUP_GAP
     })
   })
-  return {scale,positions,originZ:PUBLIC_TOP,bottom}
+  const span=Math.max(0,rows.length-1)*ROW_PITCH*scale
+  const originZ=PUBLIC_TOP+Math.max(0,bottom-PUBLIC_TOP-span-TILE_HALF_DEPTH*scale)/2
+  return {scale,positions,originZ,bottom}
+}
+
+/** Center each occupied row rather than leaving the final tiles in empty slots. */
+export function rackTileX(index: number,count: number) {
+  const row=Math.floor(index/7),occupied=Math.min(7,Math.max(0,count-row*7))
+  return (index%7-(occupied-1)/2)*.275
 }
 
 /** Rendering and drop tests share dimensions, including a crowded board. */

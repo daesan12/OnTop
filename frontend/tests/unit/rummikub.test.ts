@@ -3,7 +3,7 @@ import { parseRummikub, parseRummikubHand, physical, validMeld, type Placed, typ
 import { parseGame } from '../../src/game/protocol'
 import { gameSelection } from '../../src/features/tableLobby/model'
 import { sortRummikubTiles, toggleRummikubTile, useRummikubDraft } from '../../src/game/rummikub/draft'
-import { layoutMelds, PUBLIC_BASE_SCALE, rackLayout } from '../../src/game/rummikub/layout'
+import { layoutMelds, PUBLIC_BASE_SCALE, PUBLIC_TOP, rackLayout, rackTileX } from '../../src/game/rummikub/layout'
 import { rummikubCameraPose } from '../../src/game/rummikub/camera'
 
 const tile = (color: string, number: number, copy = 0): Placed => ({ id: `${color}-${number}-${copy}`, color: color as Placed['color'], number })
@@ -19,8 +19,21 @@ describe('수패마루 계약', () => {
   it('공개 타일은 손패보다 작게 배치하고 여섯 조합을 두 줄 안에 담는다', () => {
     const l = layoutMelds([3,3,3,5,3,3])
     expect(l.scale).toBe(PUBLIC_BASE_SCALE)
-    expect(new Set(l.positions.map(p=>p.z)).size).toBe(2)
+    expect(new Set(l.positions.map(p=>p.z)).size).toBeLessThanOrEqual(2)
     expect(l.positions.every(p=>p.z*l.scale+l.originZ+.131*l.scale<=l.bottom)).toBe(true)
+  })
+  it('적은 조합도 뒤쪽에 고정하지 않고 공개 영역의 위아래 여백을 맞춘다',()=>{
+    for(const lengths of [[3],[3,3,3,3,3,3],Array(20).fill(3)]) {
+      const l=layoutMelds(lengths),last=Math.max(...l.positions.map(p=>p.z))*l.scale+l.originZ+.131*l.scale
+      expect(l.originZ-PUBLIC_TOP).toBeCloseTo(l.bottom-last)
+    }
+  })
+  it('손패의 마지막 줄도 실제 개수에 따라 가운데 정렬한다',()=>{
+    for(const count of [1,3,7,8,10,14])for(let start=0;start<count;start+=7) {
+      const end=Math.min(count,start+7)-1
+      expect(rackTileX(start,count)+rackTileX(end,count)).toBeCloseTo(0)
+    }
+    expect(rackLayout(14).scale).toBe(.88)
   })
   it('후반 104~106개와 최대 35조합을 받침대와 겹치지 않게 모두 담는다', () => {
     for(const [lengths,hand] of [[Array(26).fill(4),2],[Array(35).fill(3),1],[[...Array(34).fill(3),4],0],[Array(8).fill(13),2],[[13,13,13,13],42]] as [number[],number][]) {
