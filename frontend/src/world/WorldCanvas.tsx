@@ -37,6 +37,7 @@ import { Avatars } from './Avatars'
 import {JokeJudgeActor} from '../features/ai/JokeJudgeActor'
 import { CompanionActors } from '../features/ai/CompanionActors'
 import { PoliceNpcs } from '../features/ai/PoliceNpcs'
+import { ResidentLoading } from '../features/ai/residentLoading'
 import { AvatarPoseFrame } from './AvatarPoseFrame'
 import { FollowRopes } from '../features/follow/FollowRopes'
 import { RouteArrows } from '../features/navigation/RouteArrows'
@@ -290,9 +291,12 @@ export const WorldCanvas = memo(function WorldCanvas({
           <Suspense fallback={null}>
             <Avatars overlayTargets={overlayTargets} firstGateFrameAt={RENEWAL_GATE_STARTUP ? firstFrameAt : undefined} />
           </Suspense>
-        <PoliceNpcs />
-        <CompanionActors />
-        <JokeJudgeActor />          <FollowRopes />
+        <ResidentLoading.Provider value={!RENEWAL_PARK_ENABLED || entryPresented}>
+          <PoliceNpcs />
+          <CompanionActors />
+          <JokeJudgeActor />
+        </ResidentLoading.Provider>
+          <FollowRopes />
           <RouteArrows />
         {breadSceneMounted && <Suspense fallback={null}><BungeoppangGrill /></Suspense>}
           <ParkDebrisScene />
