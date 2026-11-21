@@ -28,7 +28,7 @@ export function FirepitEffects(){
   root.current.visible=distance<45
   resources.flame.uniforms.time!.value=time;resources.smoke.uniforms.time!.value=time;resources.sparks.uniforms.time!.value=time;resources.pool.uniforms.time!.value=time
   resources.smoke.uniforms.pixels!.value=size.height*gl.getPixelRatio();resources.sparks.uniforms.pixels!.value=size.height*gl.getPixelRatio()
-  if(time-last.current<.05)return;last.current=time
+  const audioNow=performance.now();if(audioNow-last.current<50)return;last.current=audioNow
   camera.getWorldDirection(resources.forward);setSfxListener(ear,resources.forward)
   const player=avatars.get(useSession.getState().sessionId)?.current
   const soundDistance=player?resources.source.distanceTo(player):distance
