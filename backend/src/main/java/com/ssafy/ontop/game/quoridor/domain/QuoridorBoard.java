@@ -108,23 +108,30 @@ public final class QuoridorBoard {
 
     /** 경로 보장은 말의 일시적 점유와 무관하게 장벽만으로 검사한다. */
     public static boolean hasPath(Cell start, Goal goal, List<Wall> walls) {
+        return distance(start, goal, walls) < Integer.MAX_VALUE;
+    }
+
+    /** 자동 이동 후보의 비교에는 일시적인 말 점유를 제외한 장벽 우회 거리를 사용한다. */
+    public static int distance(Cell start, Goal goal, List<Wall> walls) {
         Set<Cell> visited = new HashSet<>();
         ArrayDeque<Cell> queue = new ArrayDeque<>();
+        int[][] distances = new int[SIZE][SIZE];
         queue.add(start);
         visited.add(start);
         while (!queue.isEmpty()) {
             Cell cell = queue.removeFirst();
             if (goal.reached(cell)) {
-                return true;
+                return distances[cell.y()][cell.x()];
             }
             for (int[] direction : DIRECTIONS) {
                 Cell next = cell.step(direction[0], direction[1]);
                 if (!isBlocked(cell, next, walls) && visited.add(next)) {
+                    distances[next.y()][next.x()] = distances[cell.y()][cell.x()] + 1;
                     queue.addLast(next);
                 }
             }
         }
-        return false;
+        return Integer.MAX_VALUE;
     }
 
     public static boolean canPlace(Wall candidate, List<Wall> walls, List<Cell> pawns, List<Goal> goals) {

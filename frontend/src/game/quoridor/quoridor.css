@@ -71,3 +71,7 @@
   .park-page:has(.quoridor-hud) .park-chat {left:12px;bottom:32px;width:224px;max-width:224px}
   .park-page .quoridor-hud .qr-recommendations {left:252px;right:212px;bottom:32px;width:auto;max-height:80px;overflow:hidden;font-size:11px}
 }
+.park-page .quoridor-hud .qr-turn-time {display:flex;align-items:baseline;gap:10px;margin-top:6px;color:#47633e}
+.park-page .quoridor-hud .qr-turn-time b {font-size:30px;line-height:1.1;font-variant-numeric:tabular-nums;white-space:nowrap;flex-shrink:0}
+.park-page .quoridor-hud .qr-turn-time span {font-size:11px;line-height:1.4;min-width:0}
+.park-page .quoridor-hud .qr-turn-time[data-urgent=true] {color:#a33f2c}

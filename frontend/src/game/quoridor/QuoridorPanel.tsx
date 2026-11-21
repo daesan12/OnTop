@@ -13,6 +13,7 @@ import { useQuoridorControls, useQuoridorUI } from './controls'
 import { coordinate, GOAL_LABELS, PLAYER_COLORS, sameWall } from './presentation'
 import { quoridorViewport } from './camera'
 import './quoridor.css'
+import { TurnTime } from './TurnTime'
 
 type Runtime = Pick<ParkRuntimePort, 'actQuoridor' | 'unwatchGame' | 'checkRecovery'>
 export function QuoridorPanel() { return <QuoridorHud runtime={useParkRuntime()} /> }
@@ -63,12 +64,13 @@ export function QuoridorHud({ runtime }: { runtime: Runtime }) {
   const hint = !c.playing ? board.endReason === 'GOAL_REACHED' ? '맞은편 끝줄에 도착했습니다.' : '마지막까지 남은 참가자가 승리했습니다.'
     : !c.focused ? '게임 메뉴에서 판으로 돌아갈 수 있어요.' : !c.player ? '칸을 눌러 위치를 추천하세요 · 1초에 한 번'
     : !c.me?.active ? '기권했습니다. 남은 경기를 지켜볼 수 있어요.' : !c.canAct ? '상대가 생각 중이에요.'
-    : c.ui.wallMode ? selected ? `${coordinate(selected)} ${selected.orientation === 'HORIZONTAL' ? '가로' : '세로'} 장벽을 놓을까요?` : '밝은 홈을 선택한 뒤 장벽을 놓으세요.'
-    : '금색 표시가 있는 칸을 눌러 말을 옮기세요.'
+    : c.ui.wallMode ? selected ? `${coordinate(selected)} ${selected.orientation === 'HORIZONTAL' ? '가로' : '세로'} 장벽을 놓을까요?` : '판 가장자리의 장벽을 집어 밝은 홈에 놓으세요 · 홈 선택 후 버튼도 가능'
+    : '내 말을 집어 금색 칸에 놓으세요 · 칸을 눌러도 이동 · Esc 취소'
   return <section ref={root} className="quoridor-hud" aria-label="길목 한 수 경기" data-spectator={!c.player}>
     <div className="game-hud-clock qr-status" role="status" data-my-turn={c.canAct}>
       <span className="game-hud-eyebrow">길목 한 수 · {board.players.length}인전{!c.player ? ' · 관전 중' : ''}</span>
       <strong>{title}</strong><small>{c.me?.active ? `${GOAL_LABELS[c.me.goal]}이 목표예요 · 장벽 ${c.me.wallsRemaining}개` : '한 차례에 이동 또는 장벽 하나'}</small>
+      {c.playing ? <TurnTime deadline={board.turnDeadline} /> : null}
     </div>
     <header className="qr-roster" aria-label="참가자 상태" style={{ gridTemplateColumns: `repeat(${board.players.length},minmax(0,1fr))` }}>
       {board.players.map((player, index) => <div key={player.userId} data-turn={player.userId === board.turnUserId} data-active={player.active}>

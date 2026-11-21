@@ -6,7 +6,7 @@ export interface Wall extends Cell { orientation: Orientation }
 export interface Quoridor {
   gameCode: 'QUORIDOR'; boardSize: 9; version: number; status: 'PLAYING' | 'FINISHED'
   players: { userId: string; x: number; y: number; goal: 'NORTH' | 'EAST' | 'SOUTH' | 'WEST'; wallsRemaining: number; active: boolean }[]
-  walls: Wall[]; legalMoves: Cell[]; legalWalls: Wall[]; turnUserId: string | null; turnDeadline: null
+  walls: Wall[]; legalMoves: Cell[]; legalWalls: Wall[]; turnUserId: string | null; turnDeadline: string | null
   winnerUserIds: string[]; endReason: 'GOAL_REACHED' | 'LAST_PLAYER_STANDING' | null; endedAt: string | null
 }
 export type QuoridorInput = ({ kind: 'move' } & Cell) | ({ kind: 'wall' } & Wall)
@@ -16,7 +16,8 @@ const wall = (value: unknown): value is Wall => cell(value, 7) && record(value)
   && ['HORIZONTAL', 'VERTICAL'].includes(String(value.orientation))
 export function parseQuoridor(value: unknown): Quoridor {
   if (!record(value) || value.gameCode !== 'QUORIDOR' || value.boardSize !== 9 || !integer(value.version)
-    || !['PLAYING', 'FINISHED'].includes(String(value.status)) || value.turnDeadline !== null
+    || !['PLAYING', 'FINISHED'].includes(String(value.status))
+    || (value.turnDeadline !== null && (typeof value.turnDeadline !== 'string' || !Number.isFinite(Date.parse(value.turnDeadline))))
     || !Array.isArray(value.players) || ![2, 4].includes(value.players.length)
     || !value.players.every(p => record(p) && typeof p.userId === 'string' && /^[1-9]\d{0,18}$/.test(p.userId)
       && cell(p, 8) && ['NORTH', 'EAST', 'SOUTH', 'WEST'].includes(String(p.goal))
@@ -32,7 +33,7 @@ export function parseQuoridor(value: unknown): Quoridor {
     || (value.status === 'PLAYING'
       ? value.endReason !== null || value.endedAt !== null || value.winnerUserIds.length !== 0
         || !value.players.some(p => p.active && p.userId === value.turnUserId)
-      : value.turnUserId !== null || !['GOAL_REACHED', 'LAST_PLAYER_STANDING'].includes(String(value.endReason))
+      : value.turnUserId !== null || value.turnDeadline !== null || !['GOAL_REACHED', 'LAST_PLAYER_STANDING'].includes(String(value.endReason))
         || typeof value.endedAt !== 'string' || !Number.isFinite(Date.parse(value.endedAt))
         || value.winnerUserIds.length !== 1 || !value.players.some(p => p.active && p.userId === (value.winnerUserIds as unknown[])[0])))
     throw new Error('길목 한 수 판·참가자·차례 상태를 확인해주세요.')

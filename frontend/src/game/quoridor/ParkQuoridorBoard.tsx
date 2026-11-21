@@ -40,6 +40,7 @@ function LiveBoard() {
         onSelect={wall => { if (ready() && c.canAct) useQuoridorUI.setState({ selected: wall }) }}
         onHover={hover => useQuoridorUI.setState({ hover })}
         onMove={cell => { if (ready() && c.canAct) void parkRuntime.actQuoridor?.({ kind: 'move', ...cell }) }}
+        onPlace={wall => { if (ready() && c.canAct) void parkRuntime.actQuoridor?.({ kind: 'wall', ...wall }) }}
         onPing={cell => { if (ready() && c.canPing) void parkRuntime.pingOmok(cell.x, cell.y) }} />
     </group>
   </>

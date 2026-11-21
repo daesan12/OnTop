@@ -14,6 +14,50 @@ class QuoridorMatchTests {
     private static final Instant NOW = Instant.parse("2026-11-21T00:00:00Z");
 
     @Test
+    void 자동이동은_장벽을_통과하지_않고_우회하며_장벽을_소비하지_않는다() {
+        QuoridorMatch match = new QuoridorMatch(List.of(1L, 2L), 0, NOW);
+        match.place(1, new Wall(4, 7, Orientation.HORIZONTAL), NOW);
+
+        match.expire(NOW.plusSeconds(30));
+
+        assertThat(match.players().get(1).x()).isEqualTo(3);
+        assertThat(match.players().get(1).y()).isEqualTo(8);
+        assertThat(match.players().get(1).wallsRemaining()).isEqualTo(10);
+        assertThat(match.walls()).hasSize(1);
+    }
+
+    @Test
+    void 삼십초_정각에만_합법적인_목표방향으로_한번_자동이동한다() {
+        QuoridorMatch match = new QuoridorMatch(List.of(1L, 2L, 3L, 4L), 0, NOW);
+        match.expire(NOW.plusMillis(29999));
+        assertThat(match.version()).isEqualTo(1);
+
+        match.expire(NOW.plusSeconds(30));
+        match.expire(NOW.plusSeconds(30));
+
+        assertThat(match.version()).isEqualTo(2);
+        assertThat(match.players().getFirst().y()).isEqualTo(1);
+        assertThat(match.turnUserId()).isEqualTo(2L);
+        assertThat(match.turnDeadline()).isEqualTo(NOW.plusSeconds(60));
+        assertThat(match.walls()).isEmpty();
+        assertThat(match.players().getFirst().wallsRemaining()).isEqualTo(5);
+    }
+
+    @Test
+    void 직접_행동은_새_마감시간을_만들고_다른_참가자의_기권은_현재_시간을_보존한다() {
+        QuoridorMatch match = new QuoridorMatch(List.of(1L, 2L, 3L, 4L), 0, NOW);
+        match.place(1, new Wall(0, 0, Orientation.HORIZONTAL), NOW.plusSeconds(12));
+        match.forfeit(4, NOW.plusSeconds(20));
+
+        assertThat(match.turnDeadline()).isEqualTo(NOW.plusSeconds(42));
+        match.expire(NOW.plusSeconds(41));
+        assertThat(match.turnUserId()).isEqualTo(2L);
+        match.expire(NOW.plusSeconds(42));
+        assertThat(match.turnUserId()).isEqualTo(3L);
+        assertThat(match.players().get(1).x()).isEqualTo(7);
+    }
+
+    @Test
     void 두_명은_장벽_열_개씩_네_명은_다섯_개씩_나눈다() {
         assertThat(new QuoridorMatch(List.of(1L, 2L), 0).players())
                 .extracting(QuoridorMatch.Player::wallsRemaining).containsExactly(10, 10);

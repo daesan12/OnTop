@@ -1,19 +1,21 @@
-import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
-import { CanvasTexture, Color, ExtrudeGeometry, Matrix4, Path, Shape, SRGBColorSpace, Vector2, Vector3,
+import { CanvasTexture, Color, ExtrudeGeometry, Matrix4, Path, Plane, Shape, SRGBColorSpace, Vector2, Vector3,
   type Group, type InstancedMesh, type MeshBasicMaterial } from 'three'
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
 import { OmokWood } from '../omok/BoardWood'
-import { panelOwnsGameClicks } from '../../world/inputOwnership'
+import { clearRoamingInput, panelOwnsGameClicks, scenePointerOwners } from '../../world/inputOwnership'
 import type { Cell, Quoridor, Wall } from './protocol'
 import { BOARD_SPAN, CELL_PITCH, TILE_SIZE, PLAYER_COLORS, cellPoint, wallPoint, wallDimensions, sameWall } from './presentation'
+import { legalDrop, type HeldPiece } from './drag'
 
 const noRaycast = () => {}
+const blocked = () => panelOwnsGameClicks() || !!document.querySelector('dialog[open],[role="dialog"],.game-hud-menu details[open]')
 export interface BoardPing extends Cell { eventId: string; until: number }
 interface Props {
   state: Quoridor | null; ownId?: string; canAct?: boolean; spectator?: boolean; wallMode?: boolean;
   orientation?: Wall['orientation']; selected?: Wall | null; hover?: Wall | null; pings?: BoardPing[]; layer?: number; labelYaw?: number;
-  onMove?(cell: Cell): void; onSelect?(wall: Wall): void; onHover?(wall: Wall | null): void; onPing?(cell: Cell): void
+  onMove?(cell: Cell): void; onPlace?(wall: Wall): void; onSelect?(wall: Wall): void; onHover?(wall: Wall | null): void; onPing?(cell: Cell): void
 }
 function roundedPath<T extends Shape | Path>(path: T, size: number, radius: number) {
   const h = size / 2
@@ -26,9 +28,24 @@ function roundedPath<T extends Shape | Path>(path: T, size: number, radius: numb
 
 /** 공원과 독립 프리뷰가 공유하는 실제 3D 판. DOM/CSS로 그린 게임판은 사용하지 않는다. */
 export function QuoridorScene({ state, ownId = '', canAct = false, spectator = false, wallMode = false,
-  orientation = 'HORIZONTAL', selected = null, hover = null, pings = [], layer = 0, labelYaw = 0, onMove, onSelect, onHover, onPing }: Props) {
+  orientation = 'HORIZONTAL', selected = null, hover = null, pings = [], layer = 0, labelYaw = 0, onMove, onPlace, onSelect, onHover, onPing }: Props) {
+  const root = useRef<Group>(null)
+  const [held, setHeld] = useState<HeldPiece | null>(null)
+  const heldRef = useRef<HeldPiece | null>(null)
+  const capture = useRef<{ releasePointerCapture(id: number): void; hasPointerCapture(id: number): boolean } | null>(null)
+  const cancelHeld = () => {
+    const prior = heldRef.current; heldRef.current = null; setHeld(null); press.current = null
+    if (prior) { scenePointerOwners.delete(prior.pointerId)
+      if (capture.current?.hasPointerCapture(prior.pointerId)) capture.current.releasePointerCapture(prior.pointerId) }
+    capture.current = null
+  }
   const tiles = useRef<InstancedMesh>(null)
   const canvas = useThree(s => s.gl.domElement)
+  useEffect(() => {
+    if (!canAct && !spectator) return
+    const previous = canvas.style.touchAction; canvas.style.touchAction = 'none'
+    return () => { canvas.style.touchAction = previous }
+  }, [canvas, canAct, spectator])
   const press = useRef<{ version: number; key: string } | null>(null)
   const geometries = useMemo(() => {
     const rim = roundedPath(new Shape(), BOARD_SPAN, .07)
@@ -51,12 +68,56 @@ export function QuoridorScene({ state, ownId = '', canAct = false, spectator = f
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true
     mesh.computeBoundingSphere()
   }, [])
-  useEffect(() => { press.current = null }, [state?.version, wallMode, orientation, canAct, spectator])
+  useEffect(() => { cancelHeld() }, [state?.version, wallMode, orientation, canAct, spectator])
   useEffect(() => {
-    const cancel = () => { press.current = null }
+    if (!held) return
+    const prior = canvas.style.cursor; canvas.style.cursor = 'grabbing'
+    return () => { canvas.style.cursor = prior }
+  }, [!!held, canvas])
+  useFrame(() => { if (heldRef.current && (blocked() || document.hidden)) cancelHeld() })
+  useEffect(() => {
+    const cancel = () => { cancelHeld() }
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape' && heldRef.current) { event.preventDefault(); cancel() } }
     canvas.addEventListener('pointercancel', cancel); window.addEventListener('blur', cancel)
-    return () => { canvas.removeEventListener('pointercancel', cancel); window.removeEventListener('blur', cancel) }
+    window.addEventListener('keydown', escape); document.addEventListener('visibilitychange', cancel)
+    return () => { cancel(); canvas.removeEventListener('pointercancel', cancel); window.removeEventListener('blur', cancel)
+      window.removeEventListener('keydown', escape); document.removeEventListener('visibilitychange', cancel) }
   }, [canvas])
+  const point = (event: ThreeEvent<PointerEvent>) => {
+    if (!root.current) return null
+    root.current.updateWorldMatrix(true, false)
+    return event.ray.clone().applyMatrix4(root.current.matrixWorld.clone().invert())
+      .intersectPlane(new Plane(new Vector3(0, 1, 0), -.034), new Vector3())
+  }
+  const grab = (event: ThreeEvent<PointerEvent>, kind: HeldPiece['kind']) => {
+    event.stopPropagation()
+    if (!state || !canAct || event.button !== 0 || blocked() || heldRef.current) return
+    const p = point(event); if (!p) return
+    press.current = null
+    const next = { kind, version: state.version, pointerId: event.pointerId, x: p.x, z: p.z }
+    heldRef.current = next; setHeld(next)
+    const target = event.target as unknown as { setPointerCapture(id: number): void; releasePointerCapture(id: number): void; hasPointerCapture(id: number): boolean }
+    capture.current = target; target.setPointerCapture(event.pointerId)
+    clearRoamingInput(); scenePointerOwners.set(event.pointerId, 'quoridor')
+  }
+  const follow = (event: ThreeEvent<PointerEvent>) => {
+    const prior = heldRef.current
+    if (!prior || prior.pointerId !== event.pointerId) return
+    event.stopPropagation()
+    const p = point(event); if (!p) return
+    const next = { ...prior, x: p.x, z: p.z }; heldRef.current = next; setHeld(next)
+  }
+  const drop = (event: ThreeEvent<PointerEvent>) => {
+    const prior = heldRef.current
+    if (!prior || prior.pointerId !== event.pointerId) return
+    event.stopPropagation(); follow(event)
+    const target = state && heldRef.current ? legalDrop(heldRef.current, state, orientation) : null
+    const overCanvas = document.elementFromPoint(event.clientX, event.clientY) === canvas
+    cancelHeld()
+    if (!target || !canAct || !overCanvas || blocked()) return
+    if (target.kind === 'move') onMove?.(target)
+    else onPlace?.(target)
+  }
   const mask = 1 << layer
   const begin = (event: ThreeEvent<PointerEvent>, key: string) => {
     if (!state) return
@@ -72,9 +133,11 @@ export function QuoridorScene({ state, ownId = '', canAct = false, spectator = f
     action()
   }
   const walls = state?.walls ?? []
-  const preview = canAct && wallMode ? selected ?? hover : null
+  const preview = canAct && wallMode && !held ? selected ?? hover : null
   const slots = canAct && wallMode ? state?.legalWalls.filter(wall => wall.orientation === orientation) ?? [] : []
-  return <group name="quoridor-3d-board" onPointerMissed={() => { press.current = null }}>
+  const validHeld = held && state ? legalDrop(held, state, orientation) : null
+  return <group ref={root} name="quoridor-3d-board" onPointerMove={follow} onPointerUp={drop} onPointerCancel={cancelHeld}
+    onPointerMissed={() => { press.current = null }}>
     <mesh name="quoridor-tray" geometry={geometries.base} position={[0, -.035, 0]} layers-mask={mask} receiveShadow raycast={noRaycast}>
       <OmokWood color="#523421" detail={.6} strength={.06} mapping="box" />
     </mesh>
@@ -93,7 +156,19 @@ export function QuoridorScene({ state, ownId = '', canAct = false, spectator = f
       <OmokWood color="#d2aa79" detail={.85} strength={.08} />
     </instancedMesh>
     <Coordinates layer={layer} yaw={labelYaw} />
-    {state?.players.map((player, index) => player.active ? <Pawn key={player.userId} cell={player} color={PLAYER_COLORS[index]} own={player.userId === ownId} layer={layer} /> : null)}
+    {state?.players.map((player, index) => player.active ? <group key={player.userId}
+      onPointerDown={player.userId === ownId && canAct && !wallMode ? event => grab(event, 'move') : undefined}>
+      <Pawn cell={player} color={PLAYER_COLORS[index]} own={player.userId === ownId} layer={layer}
+        pickable={player.userId === ownId && canAct && !wallMode}
+        held={player.userId === ownId && held?.kind === 'move' ? held : null} /></group> : null)}
+    {canAct && wallMode ? <group name="quoridor-wall-supply" position={orientation === 'HORIZONTAL' ? [0, .04, .66] : [-.66, .04, 0]} onPointerDown={event => grab(event, 'wall')}>
+      <mesh layers-mask={mask}><boxGeometry args={orientation === 'HORIZONTAL' ? [.28, .12, .065] : [.065,.12,.28]} /><meshBasicMaterial transparent opacity={0} colorWrite={false} depthWrite={false} /></mesh>
+      <Fence wall={{ x: 3, y: 3, orientation }} layer={layer} position={[0, .045, 0]} />
+    </group> : null}
+    {held?.kind === 'wall' ? <Fence wall={{ x: 0, y: 0, orientation }} preview layer={layer}
+      position={[held.x, .19, held.z]} valid={!!validHeld} /> : null}
+    {held && validHeld ? <mesh position={(validHeld.kind === 'move' ? cellPoint(validHeld) : wallPoint(validHeld)).map((v,i) => i === 1 ? .042 : v) as [number,number,number]}
+      rotation={[-Math.PI/2,0,0]} layers-mask={mask} raycast={noRaycast}><ringGeometry args={[.045,.053,40]} /><meshBasicMaterial color="#8fe5ce" toneMapped={false} /></mesh> : null}
     {canAct && !wallMode ? state?.legalMoves.map(cell => <mesh key={`${cell.x}:${cell.y}`} name={`quoridor-move-${cell.x}-${cell.y}`}
       position={cellPoint(cell).map((v, i) => i === 1 ? v + .002 : v) as [number, number, number]} rotation={[-Math.PI / 2, 0, 0]} layers-mask={mask} raycast={noRaycast}>
       <ringGeometry args={[.016, .022, 32]} /><meshBasicMaterial color="#f3d678" toneMapped={false} />
@@ -117,7 +192,7 @@ export function QuoridorScene({ state, ownId = '', canAct = false, spectator = f
   </group>
 }
 
-function Pawn({ cell, color, own, layer }: { cell: Cell; color: string; own: boolean; layer: number }) {
+function Pawn({ cell, color, own, layer, pickable = false, held = null }: { cell: Cell; color: string; own: boolean; layer: number; pickable?: boolean; held?: HeldPiece | null }) {
   const root = useRef<Group>(null), travel = useRef({ from: new Vector3(), to: new Vector3(), elapsed: 1, mounted: false })
   const reduced = useMemo(() => window.matchMedia('(prefers-reduced-motion: reduce)'), [])
   const points = useMemo(() => [new Vector2(0, 0), new Vector2(.039, 0), new Vector2(.043, .006), new Vector2(.04, .014),
@@ -129,9 +204,10 @@ function Pawn({ cell, color, own, layer }: { cell: Cell; color: string; own: boo
     t.from.copy(root.current.position); t.to.set(...p); t.elapsed = 0
     if (!t.mounted || reduced.matches) { root.current.position.copy(t.to); t.from.copy(t.to); t.elapsed = 1 }
     t.mounted = true
-  }, [cell.x, cell.y, reduced])
+  }, [cell.x, cell.y, reduced, !!held])
   useFrame((_, delta) => {
     const t = travel.current
+    if (root.current && held) { root.current.position.set(held.x, .14, held.z); return }
     if (!root.current || t.elapsed >= 1) return
     t.elapsed = Math.min(1, t.elapsed + delta / .24)
     const eased = 1 - (1 - t.elapsed) ** 3
@@ -139,7 +215,7 @@ function Pawn({ cell, color, own, layer }: { cell: Cell; color: string; own: boo
     root.current.position.y += Math.sin(t.elapsed * Math.PI) * .045
   })
   return <group ref={root} name="quoridor-wood-pawn">
-    <mesh layers-mask={1 << layer} castShadow receiveShadow raycast={noRaycast}>
+    <mesh layers-mask={1 << layer} castShadow receiveShadow {...(!pickable ? { raycast: noRaycast } : {})}>
       <latheGeometry args={[points, 32]} /><OmokWood color={color} detail={.18} strength={.02} />
     </mesh>
     {own ? <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, .001, 0]} layers-mask={1 << layer} raycast={noRaycast}>
@@ -148,11 +224,11 @@ function Pawn({ cell, color, own, layer }: { cell: Cell; color: string; own: boo
   </group>
 }
 
-function Fence({ wall, preview = false, layer }: { wall: Wall; preview?: boolean; layer: number }) {
+function Fence({ wall, preview = false, layer, position, valid = true }: { wall: Wall; preview?: boolean; layer: number; position?: [number,number,number]; valid?: boolean }) {
   const geometry = useMemo(() => new RoundedBoxGeometry(...wallDimensions(wall), 3, .003), [wall.orientation])
   useEffect(() => () => geometry.dispose(), [geometry])
-  return <mesh name={preview ? 'quoridor-wall-preview' : 'quoridor-standing-wall'} geometry={geometry} position={wallPoint(wall)} layers-mask={1 << layer} castShadow={!preview} receiveShadow raycast={noRaycast}>
-    {preview ? <meshStandardMaterial color="#f4cf76" transparent opacity={.65} roughness={.45} emissive="#b68d30" emissiveIntensity={.2} depthWrite={false} />
+  return <mesh name={preview ? 'quoridor-wall-preview' : 'quoridor-standing-wall'} geometry={geometry} position={position ?? wallPoint(wall)} layers-mask={1 << layer} castShadow={!preview} receiveShadow raycast={noRaycast}>
+    {preview ? <meshStandardMaterial color={valid ? '#f4cf76' : '#d76b58'} transparent opacity={.8} roughness={.45} emissive={valid ? '#b68d30' : '#ac3424'} emissiveIntensity={.2} depthWrite={false} />
       : <OmokWood color="#d7a757" detail={.3} strength={.035} mapping="box" />}
   </mesh>
 }

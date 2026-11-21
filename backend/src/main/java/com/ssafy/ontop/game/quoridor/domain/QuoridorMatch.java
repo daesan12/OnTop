@@ -8,6 +8,7 @@ import com.ssafy.ontop.game.quoridor.domain.QuoridorBoard.Orientation;
 import com.ssafy.ontop.game.quoridor.domain.QuoridorBoard.Wall;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 
@@ -24,8 +25,13 @@ public final class QuoridorMatch {
     private Long winner;
     private Instant endedAt;
     private String endReason;
+    private Instant turnDeadline;
 
     public QuoridorMatch(List<Long> users, int firstPlayer) {
+        this(users, firstPlayer, Instant.now());
+    }
+
+    public QuoridorMatch(List<Long> users, int firstPlayer, Instant startedAt) {
         if (users == null || !List.of(2, 4).contains(users.size()) || new HashSet<>(users).size() != users.size()
                 || users.stream().anyMatch(user -> user == null || user <= 0)
                 || firstPlayer < 0 || firstPlayer >= users.size()) {
@@ -47,6 +53,7 @@ public final class QuoridorMatch {
         java.util.Arrays.fill(remaining, users.size() == 2 ? 10 : 5);
         java.util.Arrays.fill(active, true);
         turn = firstPlayer;
+        turnDeadline = startedAt.plusSeconds(30);
     }
 
     public void move(long userId, int x, int y, Instant now) {
@@ -60,11 +67,15 @@ public final class QuoridorMatch {
         if (goals.get(actor).reached(destination)) {
             finish(userId, "GOAL_REACHED", now);
         } else {
-            advance();
+            advance(now);
         }
     }
 
     public void place(long userId, Wall wall) {
+        place(userId, wall, Instant.now());
+    }
+
+    public void place(long userId, Wall wall, Instant now) {
         int actor = requireTurn(userId);
         if (remaining[actor] == 0 || !canPlace(wall)) {
             throw new Rejected(Rejection.FORBIDDEN_MOVE);
@@ -72,7 +83,7 @@ public final class QuoridorMatch {
         walls.add(wall);
         remaining[actor]--;
         version++;
-        advance();
+        advance(now);
     }
 
     public boolean forfeit(long userId, Instant now) {
@@ -86,7 +97,7 @@ public final class QuoridorMatch {
         if (survivors.size() == 1) {
             finish(survivors.getFirst(), "LAST_PLAYER_STANDING", now);
         } else if (actor == turn) {
-            advance();
+            advance(now);
         }
         return true;
     }
@@ -108,16 +119,35 @@ public final class QuoridorMatch {
         return actor;
     }
 
-    private void advance() {
+    /** 마감 시 서버가 현재 합법 이동 중 목표까지 가장 가까운 칸을 선택한다. 동률은 y·x 순이다. */
+    public void expire(Instant now) {
+        if (endedAt != null || now.isBefore(turnDeadline)) {
+            return;
+        }
+        Cell destination = legalMoves().stream().min(Comparator
+                .comparingInt((Cell cell) -> QuoridorBoard.distance(cell, goals.get(turn), walls))
+                .thenComparingInt(Cell::y).thenComparingInt(Cell::x)).orElse(null);
+        if (destination == null) {
+            // 말에 둘러싸여 이동 자체가 불가능하면 장벽을 임의로 소비하거나 차례를 넘기지 않는다.
+            turnDeadline = now.plusSeconds(30);
+            version++;
+            return;
+        }
+        move(users.get(turn), destination.x(), destination.y(), now);
+    }
+
+    private void advance(Instant now) {
         do {
             turn = (turn + 1) % users.size();
         } while (!active[turn]);
+        turnDeadline = now.plusSeconds(30);
     }
 
     private void finish(long userId, String reason, Instant now) {
         winner = userId;
         endReason = reason;
         endedAt = now;
+        turnDeadline = null;
     }
 
     public List<Cell> legalMoves() {
@@ -169,6 +199,7 @@ public final class QuoridorMatch {
     public Long winnerUserId() { return winner; }
     public Instant endedAt() { return endedAt; }
     public String endReason() { return endReason; }
+    public Instant turnDeadline() { return turnDeadline; }
 
     public record Player(long userId, int x, int y, Goal goal, int wallsRemaining, boolean active) { }
 }

@@ -63,7 +63,7 @@ public final class QuoridorEngine implements GameEngine {
             }
             return;
         }
-        QuoridorMatch match = new QuoridorMatch(players, random.nextInt(players.size()));
+        QuoridorMatch match = new QuoridorMatch(players, random.nextInt(players.size()), clock.instant());
         router.register(this, gameId, tableId, players);
         games.put(gameId, new Entry(gameId, tableId, match));
         for (long userId : players) {
@@ -75,58 +75,65 @@ public final class QuoridorEngine implements GameEngine {
     public GameActionResult apply(GameActionCommand command) {
         List<Object> notices = new ArrayList<>();
         GameActionResult result;
-        synchronized (this) {
-            Entry entry = player(command.userId(), command.gameId());
-            if (command.actionId() == null || !command.actionId().matches("[A-Za-z0-9-]{1,64}")) {
-                throw new Rejected(Rejection.INVALID_ACTION);
-            }
-            String key = command.userId() + ":" + command.actionId();
-            Receipt receipt = entry.receipts.get(key);
-            if (receipt != null) {
-                if (receipt.expectedVersion() != command.expectedVersion()
-                        || !receipt.input().equals(command.input())) {
-                    throw new Rejected(Rejection.ACTION_ID_CONFLICT);
+        try {
+            synchronized (this) {
+                Entry entry = player(command.userId(), command.gameId());
+                long priorVersion = entry.match.version();
+                entry.match.expire(clock.instant());
+                collect(entry, priorVersion, notices);
+                if (command.actionId() == null || !command.actionId().matches("[A-Za-z0-9-]{1,64}")) {
+                    throw new Rejected(Rejection.INVALID_ACTION);
                 }
-                return receipt.result();
-            }
-            if (entry.match.endedAt() != null) {
-                throw new Rejected(Rejection.GAME_FINISHED);
-            }
-            if (entry.match.version() != command.expectedVersion()) {
-                throw new Rejected(Rejection.STALE_VERSION);
-            }
-            JsonNode input = command.input();
-            if (input == null || !input.isObject() || !input.path("x").isIntegralNumber()
-                    || !input.path("y").isIntegralNumber() || !input.path("x").canConvertToInt()
-                    || !input.path("y").canConvertToInt()) {
-                throw new Rejected(Rejection.INVALID_ACTION);
-            }
-            long before = entry.match.version();
-            int x = input.path("x").intValue();
-            int y = input.path("y").intValue();
-            switch (input.path("kind").asText()) {
-                case "move" -> {
-                    if (input.size() != 3 || x < 0 || x > 8 || y < 0 || y > 8) {
-                        throw new Rejected(Rejection.INVALID_ACTION);
+                String key = command.userId() + ":" + command.actionId();
+                Receipt receipt = entry.receipts.get(key);
+                if (receipt != null) {
+                    if (receipt.expectedVersion() != command.expectedVersion()
+                            || !receipt.input().equals(command.input())) {
+                        throw new Rejected(Rejection.ACTION_ID_CONFLICT);
                     }
-                    entry.match.move(command.userId(), x, y, clock.instant());
+                    return receipt.result();
                 }
-                case "wall" -> {
-                    String orientation = input.path("orientation").asText();
-                    if (input.size() != 4 || x < 0 || x > 7 || y < 0 || y > 7
-                            || !List.of("HORIZONTAL", "VERTICAL").contains(orientation)) {
-                        throw new Rejected(Rejection.INVALID_ACTION);
+                if (entry.match.endedAt() != null) {
+                    throw new Rejected(Rejection.GAME_FINISHED);
+                }
+                if (entry.match.version() != command.expectedVersion()) {
+                    throw new Rejected(Rejection.STALE_VERSION);
+                }
+                JsonNode input = command.input();
+                if (input == null || !input.isObject() || !input.path("x").isIntegralNumber()
+                        || !input.path("y").isIntegralNumber() || !input.path("x").canConvertToInt()
+                        || !input.path("y").canConvertToInt()) {
+                    throw new Rejected(Rejection.INVALID_ACTION);
+                }
+                long before = entry.match.version();
+                int x = input.path("x").intValue();
+                int y = input.path("y").intValue();
+                switch (input.path("kind").asText()) {
+                    case "move" -> {
+                        if (input.size() != 3 || x < 0 || x > 8 || y < 0 || y > 8) {
+                            throw new Rejected(Rejection.INVALID_ACTION);
+                        }
+                        entry.match.move(command.userId(), x, y, clock.instant());
                     }
-                    entry.match.place(command.userId(), new Wall(x, y, Orientation.valueOf(orientation)));
+                    case "wall" -> {
+                        String orientation = input.path("orientation").asText();
+                        if (input.size() != 4 || x < 0 || x > 7 || y < 0 || y > 7
+                                || !List.of("HORIZONTAL", "VERTICAL").contains(orientation)) {
+                            throw new Rejected(Rejection.INVALID_ACTION);
+                        }
+                        entry.match.place(command.userId(), new Wall(x, y, Orientation.valueOf(orientation)),
+                                clock.instant());
+                    }
+                    default -> throw new Rejected(Rejection.INVALID_ACTION);
                 }
-                default -> throw new Rejected(Rejection.INVALID_ACTION);
+                result = new GameActionResult(command.userId(), command.gameId(), command.actionId(), entry.match.version());
+                entry.receipts.put(key, new Receipt(command.expectedVersion(), input.deepCopy(), result));
+                collect(entry, before, notices);
             }
-            result = new GameActionResult(command.userId(), command.gameId(), command.actionId(), entry.match.version());
-            entry.receipts.put(key, new Receipt(command.expectedVersion(), input.deepCopy(), result));
-            collect(entry, before, notices);
+            return result;
+        } finally {
+            notices.forEach(events);
         }
-        notices.forEach(events);
-        return result;
     }
 
     @Override
@@ -205,6 +212,19 @@ public final class QuoridorEngine implements GameEngine {
         return true;
     }
 
+    public void tick() {
+        List<Object> notices = new ArrayList<>();
+        synchronized (this) {
+            Instant now = clock.instant();
+            for (Entry entry : games.values()) {
+                long before = entry.match.version();
+                entry.match.expire(now);
+                collect(entry, before, notices);
+            }
+        }
+        notices.forEach(events);
+    }
+
     private void collect(Entry entry, long before, List<Object> notices) {
         if (before == entry.match.version()) {
             return;
@@ -236,7 +256,8 @@ public final class QuoridorEngine implements GameEngine {
         state.put("gameCode", GAME_CODE).put("boardSize", 9).put("version", match.version())
                 .put("status", match.endedAt() == null ? "PLAYING" : "FINISHED")
                 .put("turnUserId", match.turnUserId() == null ? null : match.turnUserId().toString())
-                .putNull("turnDeadline").put("endReason", match.endReason())
+                .put("turnDeadline", match.turnDeadline() == null ? null : match.turnDeadline().toString())
+                .put("endReason", match.endReason())
                 .put("endedAt", match.endedAt() == null ? null : match.endedAt().toString());
         state.set("winnerUserIds", mapper.valueToTree(match.winnerUserId() == null ? List.of()
                 : List.of(match.winnerUserId().toString())));

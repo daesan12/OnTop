@@ -21,6 +21,53 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class QuoridorEngineTests {
+    @Test
+    void 자동이동만으로_도착하면_한번만_종료하고_마감시간을_제거한다() {
+        Instant[] current = {Instant.parse("2026-11-21T00:00:00Z")};
+        Clock clock = new Clock() {
+            @Override public java.time.ZoneId getZone() { return ZoneOffset.UTC; }
+            @Override public Clock withZone(java.time.ZoneId zone) { return this; }
+            @Override public Instant instant() { return current[0]; }
+        };
+        QuoridorEngine timed = new QuoridorEngine(mapper, clock, events::add, new GameEngineRouter(), new Random(1));
+        timed.create("q", "table", List.of(1L, 2L));
+
+        for (int turn = 0; turn < 20; turn++) {
+            current[0] = current[0].plusSeconds(30);
+            timed.tick();
+        }
+
+        var state = timed.load(99, "q").orElseThrow().publicState();
+        assertThat(state.path("status").asText()).isEqualTo("FINISHED");
+        assertThat(state.path("endReason").asText()).isEqualTo("GOAL_REACHED");
+        assertThat(state.path("turnDeadline").isNull()).isTrue();
+        assertThat(events.stream().filter(GameFinished.class::isInstance)).hasSize(1);
+    }
+    @Test
+    void 마감_입력은_자동이동_후_거절하고_복구와_관전에_같은_새_시간을_보낸다() {
+        Instant[] current = {Instant.parse("2026-11-21T00:00:00Z")};
+        Clock clock = new Clock() {
+            @Override public java.time.ZoneId getZone() { return ZoneOffset.UTC; }
+            @Override public Clock withZone(java.time.ZoneId zone) { return this; }
+            @Override public Instant instant() { return current[0]; }
+        };
+        QuoridorEngine timed = new QuoridorEngine(mapper, clock, events::add, new GameEngineRouter(), new Random(1));
+        timed.create("q", "table", List.of(1L, 2L));
+        long actor = timed.load(1, "q").orElseThrow().publicState().path("turnUserId").asLong();
+        current[0] = current[0].plusSeconds(30);
+
+        assertThatThrownBy(() -> timed.apply(move("late", actor, 1, 4, actor == 1 ? 1 : 7)))
+                .isInstanceOf(Rejected.class).hasMessage("STALE_VERSION");
+        timed.tick();
+        var watched = timed.load(99, "q").orElseThrow();
+
+        assertThat(watched.version()).isEqualTo(2);
+        assertThat(events.stream().filter(GameStateChanged.class::isInstance)).hasSize(1);
+        assertThat(watched.publicState().path("turnDeadline").asText()).isEqualTo("2026-11-21T00:01:00Z");
+        assertThat(timed.load(actor).orElseThrow().state().path("publicState")).isEqualTo(watched.publicState());
+        assertThat(watched.publicState().path("walls")).isEmpty();
+        assertThat(watched.privateState().isEmpty()).isTrue();
+    }
     private final ObjectMapper mapper = new ObjectMapper();
     private final List<Object> events = new ArrayList<>();
     private final Instant now = Instant.parse("2026-11-21T00:00:00Z");

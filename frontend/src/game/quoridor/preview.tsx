@@ -25,7 +25,7 @@ import '../gameHudLayout.css'
 if (!import.meta.env.DEV || !['localhost', '127.0.0.1'].includes(location.hostname)) throw new Error('로컬 입체 보드 검수 전용입니다.')
 const params = new URLSearchParams(location.search), spectator = params.get('role') === 'spectator', count = params.get('players') === '2' ? 2 : 4
 const gameId = 'preview-gilmok', own = spectator ? '505' : '101'
-const board: Quoridor = { gameCode: 'QUORIDOR', boardSize: 9, version: 1, status: 'PLAYING', turnUserId: '101', turnDeadline: null,
+const board: Quoridor = { gameCode: 'QUORIDOR', boardSize: 9, version: 1, status: 'PLAYING', turnUserId: '101', turnDeadline: new Date(Date.now() + 30000).toISOString(),
   players: (count === 4 ? [[4, 0, 'SOUTH'], [8, 4, 'WEST'], [4, 8, 'NORTH'], [0, 4, 'EAST']] : [[4, 0, 'SOUTH'], [4, 8, 'NORTH']])
     .map(([x, y, goal], i) => ({ userId: String((i + 1) * 101), x: Number(x), y: Number(y), goal: goal as Quoridor['players'][number]['goal'], wallsRemaining: count === 4 ? (i === 3 ? 5 : 4) : (i === 0 ? 9 : 8), active: true })),
   walls: [{ x: 2, y: 2, orientation: 'HORIZONTAL' }, { x: 5, y: 2, orientation: 'VERTICAL' }, { x: 6, y: 5, orientation: 'HORIZONTAL' }],
@@ -55,17 +55,24 @@ feed.sync()
 const previewNow = Date.now()
 feed.accept({ type: 'GAME_SPECTATOR_CHAT_MESSAGE', requestId: null, payload: { gameId, eventId: crypto.randomUUID(),
   senderUserId: '505', text: '가운데 길을 막아봐요!', sentAt: previewNow, serverNow: previewNow, expiresAt: previewNow + 3000 } })
-const act = async (input: QuoridorInput) => {
+const act = async (input: QuoridorInput, automatic = false) => {
   const g = useGame.getState().game, state = g?.quoridor
-  if (spectator || !g || !state || state.status !== 'PLAYING' || state.turnUserId !== own) return false
+  if ((spectator && !automatic) || !g || !state || state.status !== 'PLAYING' || state.turnUserId !== '101') return false
   if (input.kind === 'move' && !state.legalMoves.some(p => p.x === input.x && p.y === input.y)) return false
   if (input.kind === 'wall' && !state.legalWalls.some(p => sameWall(p, input))) return false
   const next = structuredClone(state); next.version++; next.turnUserId = '202'
+  next.turnDeadline = null // 첫 행동 검수 후 두 번째 차례는 fixture가 제공하지 않는다.
   if (input.kind === 'move') Object.assign(next.players[0], { x: input.x, y: input.y })
   else { next.walls.push({ x: input.x, y: input.y, orientation: input.orientation }); next.players[0].wallsRemaining-- }
   next.legalMoves = []; next.legalWalls = []
   useGame.setState({ game: { ...g, version: next.version, quoridor: next } }); feed.sync(); return true
 }
+// 서버 자동 이동 자체는 BE 테스트로 검증한다. 이 페이지에서는 첫 차례의 표시·수신 연출만 재현한다.
+window.setInterval(() => {
+  const state = useGame.getState().game?.quoridor
+  if (state?.version === 1 && state.turnDeadline && Date.now() >= Date.parse(state.turnDeadline))
+    void act({ kind: 'move', x: 4, y: 1 }, true)
+}, 200)
 const runtime = { actQuoridor: act, pingOmok: (x: number, y: number) => feed.send('ping', { x, y }),
   sendChat: (text: string) => feed.send('chat', text), sendSpectatorChat: (text: string) => feed.send('chat', text),
   sendTyping: async () => false, checkRecovery: async () => true,
@@ -90,6 +97,8 @@ function PreviewBoard() {
     const project = (position: [number,number,number]) => { const p = new Vector3(position[0], BOARD_Y + position[1], position[2]).project(camera), rect = gl.domElement.getBoundingClientRect()
       return { x: rect.left + (p.x + 1) / 2 * rect.width, y: rect.top + (1 - p.y) / 2 * rect.height } }
     Object.assign(window, { gilmokBoardPreview: { cell: (x: number,y: number) => project(cellPoint({x,y})), wall: (wall: Wall) => {const p = wallPoint(wall);p[1]=.04;return project(p)},
+      pawn: (x: number,y: number) => { const p = cellPoint({x,y});p[1] += .075;return project(p) },
+      supply: () => project(useQuoridorUI.getState().orientation === 'HORIZONTAL' ? [0,.085,.66] : [-.66,.085,0]),
       state: () => useGame.getState().game?.quoridor, ready: () => quoridorCamera.ready,
       view: () => ({ insets: { ...quoridorViewport }, position: camera.position.toArray() }) } })
   }, [camera, gl])
@@ -99,6 +108,7 @@ function PreviewBoard() {
       orientation={c.ui.orientation} selected={c.ui.selected} hover={c.ui.hover} pings={pings}
       labelYaw={quoridorYaw(c.player && c.board ? playerGoal(c.board, own) : undefined)}
       onMove={cell => void act({kind:'move',...cell})} onPing={cell => void runtime.pingOmok(cell.x,cell.y)}
+      onPlace={wall => void act({kind:'wall',...wall})}
       onSelect={selected => useQuoridorUI.setState({selected})} onHover={hover => useQuoridorUI.setState({hover})} /></group>
   </>
 }

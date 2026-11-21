@@ -66,7 +66,7 @@
 
 장벽은 두 칸 길이다. 같은 방향의 부분 중첩과 같은 교차점에서의 가로·세로 교차를 금지한다. 설치 전에 모든 활성 참가자의 목표 끝줄까지 경로를 BFS로 확인한다. 이 경로 검사는 말의 일시적 점유를 제외한다. 이미 설치한 장벽은 회수할 수 없다.
 
-맞은편 끝줄의 아무 칸에 도착하면 즉시 승리한다. 기권한 말은 제거하고 장벽은 보존하며, 한 명만 남으면 그 사람이 승리한다. 제공된 규칙에 없는 턴 제한·시간 초과 자동 이동·패배는 추가하지 않는다. 연결 끊김에는 기존 공통 재접속 유예와 만료 처리를 사용한다.
+맞은편 끝줄의 아무 칸에 도착하면 즉시 승리한다. 기권한 말은 제거하고 장벽은 보존하며, 한 명만 남으면 그 사람이 승리한다. 사용자 추가 지시에 따라 각 차례는 30초이며, 만료 시 서버가 합법적인 말 이동을 자동 실행한다. 목표까지 장벽 우회 거리가 짧은 칸을 우선하고 동률은 y·x 순이다. 시간 초과 패배는 없다. 연결 끊김에는 기존 공통 재접속 유예와 만료 처리를 사용한다.
 
 ## FE/BE 계약
 
@@ -76,7 +76,7 @@
 - 이동: `{ "kind": "move", "x": 4, "y": 1 }`.
 - 장벽: `{ "kind": "wall", "x": 3, "y": 2, "orientation": "HORIZONTAL" }`. 방향은 `HORIZONTAL` 또는 `VERTICAL`.
 - 북서쪽 칸이 `(0,0)`이다. 말 좌표는 0–8, 장벽 좌표는 0–7이며 해당 교차 홈 북서쪽 칸을 뜻한다.
-- 공개 상태: `gameCode`, `boardSize`, `version`, `status`, `players`, `walls`, `legalMoves`, `legalWalls`, `turnUserId`, `turnDeadline: null`, `winnerUserIds`, `endReason`, `endedAt`.
+- 공개 상태: `gameCode`, `boardSize`, `version`, `status`, `players`, `walls`, `legalMoves`, `legalWalls`, `turnUserId`, `turnDeadline` (진행 중 서버 UTC ISO 시각, 종료 후 null), `winnerUserIds`, `endReason`, `endedAt`.
 - 참가자: 문자열 `userId`, `x`, `y`, `goal`, `wallsRemaining`, `active`.
 - `privateState`는 참가자·관전자 모두 `{}`. 합법 수 미리보기는 서버가 계산한 공개 정보다.
 - 같은 사용자·경기·actionId의 같은 입력은 원래 결과를 반환한다. payload나 expectedVersion이 다르면 충돌로 거절한다. 낡은 버전·다른 차례·다른 참가자·잘못된 좌표는 거절한다.
