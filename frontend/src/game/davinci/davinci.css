@@ -84,3 +84,13 @@
  .park-page:has(.davinci-screen[data-tabletop=true]) .park-chat__list { max-height:140px; overflow:auto; }
 }
 @media(prefers-reduced-motion:reduce) { .davinci-screen * { scroll-behavior:auto; transition:none; } }
+
+.table-paper-popup.secret-victory-popup { box-sizing:border-box; width:min(390px,calc(100vw - 32px)); text-align:center; animation:none; }
+.secret-victory-seal { width:min(230px,100%); margin:14px auto 20px; padding:18px 14px; border:7px double #945331; border-radius:12px; color:#854626; transform:rotate(-5deg); animation:secret-stamp-in .55s cubic-bezier(.15,.8,.3,1) both; }
+.secret-victory-seal img { display:block; width:134px; max-width:100%; height:auto; margin:0 auto 6px; }
+.secret-victory-seal strong { display:block; font:700 clamp(32px,8vw,40px)/1.4 'BusanDandiMyeongjo',serif; letter-spacing:.08em; white-space:nowrap; }
+.secret-victory-seal span { display:block; padding-top:6px; border-top:1px solid #94533188; font-size:12px; }
+.secret-victory-winner { margin:0 0 18px; font-size:17px; font-weight:700; overflow-wrap:anywhere; }
+.secret-victory-popup>.paper-primary { width:100%; min-height:42px; }
+@keyframes secret-stamp-in { 0% { opacity:0; transform:scale(1.65) rotate(-13deg); } 55% { opacity:1; transform:scale(.96) rotate(-5deg); } 100% { opacity:1; transform:scale(1) rotate(-5deg); } }
+@media(prefers-reduced-motion:reduce) { .secret-victory-seal { animation:none; } }

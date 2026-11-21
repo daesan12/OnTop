@@ -14,6 +14,7 @@ import { estimatedServerTime } from '../../network/serverEventClock'
 import { openingActive } from './presentation'
 import { DavinciScreen } from './DavinciScreen'
 import { useDavinciPing } from './social'
+import { DavinciVictory } from './DavinciVictory'
 
 /** 통신은 기존 공원 Runtime, 판정은 BE, 이 컴포넌트는 표시만 담당한다. */
 export function DavinciPanel() {
@@ -36,7 +37,7 @@ export function DavinciPanel() {
   const enabled = connected && !worldPending && !uncertain && recovery === 'RESTORED' && !forfeitBlocksInput(game.gameId) && game.version >= awaiting
   const state = game.davinci, myTurn = !spectator && state.turnUserId === own
   const shuffling = openingActive(state, estimatedServerTime())
-  return createPortal(<>
+  const content = <>
     <GameHudClock game="흑백수사" label={shuffling ? '패를 섞고 나누는 중' : state.stage === 'SETUP' ? '내 패를 확인해주세요' : myTurn ? '내 차례' : `${names[state.turnUserId ?? ''] ?? '상대'}님의 차례`}
       remainingMs={state.turnDeadline ? Date.parse(state.turnDeadline) - estimatedServerTime() : null} limitMs={120000} myTurn={myTurn}
       phase={shuffling ? '섞는 중' : state.status === 'FINISHED' ? '종료' : undefined} hint="중앙 패 클릭 · R 무작위 뽑기" />
@@ -56,5 +57,8 @@ export function DavinciPanel() {
     ping={{ tileId: ping?.gameId === game.gameId && ping.basedOnVersion === game.version && ping.until > now ? ping.tileId : null,
       canSend: connected && spectator && game.davinci.status === 'PLAYING' && game.davinci.stage !== 'SETUP',
       send: (userId, tileId) => runtime.pingDavinci?.(userId, tileId) ?? Promise.resolve(false) }}
-  /></>, document.querySelector('.park-page') ?? document.body)
+  /></>
+  return createPortal(spectator && state.status === 'FINISHED'
+    ? <DavinciVictory key={game.gameId} gameId={game.gameId} headline={`${state.winnerUserIds.map(id => names[id]).join(' · ')} 승리`}>{content}</DavinciVictory>
+    : content, document.querySelector('.park-page') ?? document.body)
 }
