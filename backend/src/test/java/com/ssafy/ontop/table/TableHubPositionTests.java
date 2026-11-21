@@ -47,6 +47,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -201,7 +202,7 @@ class TableHubPositionTests {
         String lease = mobilityLease(wallet);
         var entered = new CountDownLatch(1);
         var release = new CountDownLatch(1);
-        when(wallet.charge(eq(101L), eq(lease), eq(1L), eq(2), any(BooleanSupplier.class))).thenAnswer(call -> {
+        when(wallet.charge(eq(101L), eq(lease), eq(1L), eq(1), any(BooleanSupplier.class))).thenAnswer(call -> {
             entered.countDown();
             if (!release.await(4, TimeUnit.SECONDS)) {
                 throw new IllegalStateException("테스트 결제 대기 시간 초과");
@@ -219,7 +220,7 @@ class TableHubPositionTests {
             assertThat(registry.worldState("one").vehicles()).isEmpty();
             release.countDown();
             assertThat(user.awaitResponse(first).at("/payload/status").asText()).isEqualTo("RIDING");
-            assertThat(user.awaitResponse(retry).at("/payload/total").asLong()).isEqualTo(2);
+            assertThat(user.awaitResponse(retry).at("/payload/total").asLong()).isEqualTo(1);
         } finally {
             release.countDown();
         }
@@ -227,9 +228,9 @@ class TableHubPositionTests {
         long mountedVersion = registry.worldState("one").version();
         observer.awaitPublicVehicle("101", "SCOOTER", mountedVersion);
         assertThat(user.request("WORLD_MOBILITY_END", Map.of("leaseId", lease))
-                .at("/payload/total").asLong()).isEqualTo(2);
+                .at("/payload/total").asLong()).isEqualTo(1);
         observer.awaitPublicVehicle("101", "", mountedVersion + 1);
-        verify(wallet).charge(eq(101L), eq(lease), eq(1L), eq(2), any(BooleanSupplier.class));
+        verify(wallet).charge(eq(101L), eq(lease), eq(1L), eq(1), any(BooleanSupplier.class));
         assertThat(registry.worldState("one").vehicles()).isEmpty();
     }
 
@@ -243,7 +244,7 @@ class TableHubPositionTests {
         var entered = new CountDownLatch(1);
         var release = new CountDownLatch(1);
         var authorized = new CompletableFuture<Boolean>();
-        when(wallet.charge(eq(101L), eq(lease), eq(second), eq(2), any(BooleanSupplier.class))).thenAnswer(call -> {
+        when(wallet.charge(eq(101L), eq(lease), eq(second), eq(1), any(BooleanSupplier.class))).thenAnswer(call -> {
             entered.countDown();
             if (!release.await(5, TimeUnit.SECONDS)) {
                 throw new IllegalStateException("테스트 결제 대기 시간 초과");
@@ -254,7 +255,8 @@ class TableHubPositionTests {
         });
         if (second == 2) {
             assertThat(user.request("WORLD_MOBILITY_START", mobilityStart(lease)).at("/payload/total").asLong())
-                    .isEqualTo(2);
+                    .isEqualTo(1);
+            renewMobilityNow();
         } else {
             user.send("WORLD_MOBILITY_START", mobilityStart(lease));
         }
@@ -262,7 +264,7 @@ class TableHubPositionTests {
             assertThat(entered.await(3, TimeUnit.SECONDS)).isTrue();
             var ended = user.request("WORLD_MOBILITY_END", Map.of("leaseId", lease)).path("payload");
             assertThat(ended.path("status").asText()).isEqualTo("ENDED");
-            assertThat(ended.path("total").asLong()).isEqualTo((second - 1) * 2);
+            assertThat(ended.path("total").asLong()).isEqualTo(second - 1);
             assertThat(ended.has("receipt")).isFalse();
             assertThat(registry.worldState("one").vehicles()).isEmpty();
         } finally {
@@ -270,9 +272,9 @@ class TableHubPositionTests {
         }
         assertThat(authorized.get(2, TimeUnit.SECONDS)).isFalse();
         tick(2);
-        verify(wallet).charge(eq(101L), eq(lease), eq(1L), eq(2), any(BooleanSupplier.class));
+        verify(wallet).charge(eq(101L), eq(lease), eq(1L), eq(1), any(BooleanSupplier.class));
         if (second == 2) {
-            verify(wallet).charge(eq(101L), eq(lease), eq(2L), eq(2), any(BooleanSupplier.class));
+            verify(wallet).charge(eq(101L), eq(lease), eq(2L), eq(1), any(BooleanSupplier.class));
         }
         verifyNoMoreInteractions(wallet);
     }
@@ -285,7 +287,7 @@ class TableHubPositionTests {
         String lease = mobilityLease(wallet);
         var authorized = new CompletableFuture<Boolean>();
         var release = new CountDownLatch(1);
-        when(wallet.charge(eq(101L), eq(lease), eq(2L), eq(2), any(BooleanSupplier.class))).thenAnswer(call -> {
+        when(wallet.charge(eq(101L), eq(lease), eq(2L), eq(1), any(BooleanSupplier.class))).thenAnswer(call -> {
             boolean commit = ((BooleanSupplier) call.getArgument(4)).getAsBoolean();
             authorized.complete(commit);
             if (!release.await(5, TimeUnit.SECONDS)) {
@@ -295,6 +297,7 @@ class TableHubPositionTests {
         });
         var started = user.request("WORLD_MOBILITY_START", mobilityStart(lease));
         assertThat(started.at("/payload/receipt").asText()).isEqualTo(lease + ":1");
+        renewMobilityNow();
         String end;
         try {
             assertThat(authorized.get(3, TimeUnit.SECONDS)).isTrue();
@@ -305,10 +308,10 @@ class TableHubPositionTests {
         }
         var ended = user.awaitResponse(end).path("payload");
         assertThat(ended.path("status").asText()).isEqualTo("ENDED");
-        assertThat(ended.path("total").asLong()).isEqualTo(4);
+        assertThat(ended.path("total").asLong()).isEqualTo(2);
         assertThat(ended.path("receipt").asText()).isEqualTo(lease + ":2");
-        verify(wallet).charge(eq(101L), eq(lease), eq(1L), eq(2), any(BooleanSupplier.class));
-        verify(wallet).charge(eq(101L), eq(lease), eq(2L), eq(2), any(BooleanSupplier.class));
+        verify(wallet).charge(eq(101L), eq(lease), eq(1L), eq(1), any(BooleanSupplier.class));
+        verify(wallet).charge(eq(101L), eq(lease), eq(2L), eq(1), any(BooleanSupplier.class));
         verifyNoMoreInteractions(wallet);
     }
 
@@ -318,18 +321,20 @@ class TableHubPositionTests {
         Peer user = peer(101);
         user.request("CHANNEL_JOIN", Map.of("channelId", "one"));
         String lease = mobilityLease(wallet);
-        when(wallet.charge(eq(101L), eq(lease), eq(2L), eq(2), any(BooleanSupplier.class))).thenAnswer(call ->
+        when(wallet.charge(eq(101L), eq(lease), eq(2L), eq(1), any(BooleanSupplier.class))).thenAnswer(call ->
                 ((BooleanSupplier) call.getArgument(4)).getAsBoolean()
                         ? MobilityWallet.Payment.PAID : MobilityWallet.Payment.CANCELLED);
-        when(wallet.charge(eq(101L), eq(lease), eq(3L), eq(2), any(BooleanSupplier.class)))
+        when(wallet.charge(eq(101L), eq(lease), eq(3L), eq(1), any(BooleanSupplier.class)))
                 .thenReturn(MobilityWallet.Payment.INSUFFICIENT);
         assertThat(user.request("WORLD_MOBILITY_START", mobilityStart(lease)).at("/payload/total").asLong())
-                .isEqualTo(2);
+                .isEqualTo(1);
+        renewMobilityNow();
         var renewed = user.awaitMobilityUpdate("RIDING");
-        assertThat(renewed.path("total").asLong()).isEqualTo(4);
+        assertThat(renewed.path("total").asLong()).isEqualTo(2);
         assertThat(renewed.path("receipt").asText()).isEqualTo(lease + ":2");
+        renewMobilityNow();
         var ended = user.awaitMobilityUpdate("INSUFFICIENT");
-        assertThat(ended.path("total").asLong()).isEqualTo(4);
+        assertThat(ended.path("total").asLong()).isEqualTo(2);
         assertThat(ended.has("receipt")).isFalse();
         assertThat(registry.worldState("one").vehicles()).isEmpty();
     }
@@ -356,10 +361,10 @@ class TableHubPositionTests {
                 .containsEntry("kind", "SCOOTER");
         BehaviorEvent released = facilityEvents().getLast();
         assertThat(released.props()).containsEntry("leaseId", lease).containsEntry("endReason", "RELEASED");
-        // 이용 시간은 요금을 낸 초 수이고, 킥보드는 1초에 2냥이다.
+        // 이용 시간은 결제한 구간 기준이며, 킥보드는 10초에 1냥이다.
         long fee = (Long) released.props().get("fee");
-        assertThat(fee).isGreaterThanOrEqualTo(2);
-        assertThat(released.props()).containsEntry("durationMs", fee / 2 * 1000);
+        assertThat(fee).isGreaterThanOrEqualTo(1);
+        assertThat(released.props()).containsEntry("durationMs", fee * 10_000);
     }
 
     @Test
@@ -369,16 +374,17 @@ class TableHubPositionTests {
         Peer user = peer(101);
         user.request("CHANNEL_JOIN", Map.of("channelId", "one"));
         String lease = mobilityLease(wallet);
-        when(wallet.charge(eq(101L), eq(lease), eq(2L), eq(2), any(BooleanSupplier.class)))
+        when(wallet.charge(eq(101L), eq(lease), eq(2L), eq(1), any(BooleanSupplier.class)))
                 .thenReturn(MobilityWallet.Payment.INSUFFICIENT);
 
         user.request("WORLD_MOBILITY_START", mobilityStart(lease));
+        renewMobilityNow();
         user.awaitMobilityUpdate("INSUFFICIENT");
 
         assertThat(facilityEvents()).extracting(BehaviorEvent::type)
                 .containsExactly(BehaviorEventType.FACILITY_USED, BehaviorEventType.FACILITY_RELEASED);
         assertThat(facilityEvents().getLast().props()).containsEntry("endReason", "INSUFFICIENT")
-                .containsEntry("durationMs", 1000L).containsEntry("fee", 2L);
+                .containsEntry("durationMs", 10_000L).containsEntry("fee", 1L);
     }
 
     @Test
@@ -388,7 +394,7 @@ class TableHubPositionTests {
         Peer user = peer(101);
         user.request("CHANNEL_JOIN", Map.of("channelId", "one"));
         String refused = mobilityLease(wallet);
-        when(wallet.charge(eq(101L), eq(refused), eq(1L), eq(2), any(BooleanSupplier.class)))
+        when(wallet.charge(eq(101L), eq(refused), eq(1L), eq(1), any(BooleanSupplier.class)))
                 .thenReturn(MobilityWallet.Payment.INSUFFICIENT);
         assertThat(user.request("WORLD_MOBILITY_START", mobilityStart(refused)).at("/payload/status").asText())
                 .isEqualTo("INSUFFICIENT");
@@ -457,10 +463,52 @@ class TableHubPositionTests {
             ReflectionTestUtils.setField(hub, "rentals", new MobilityRentals(wallet, stations));
         }
         String lease = UUID.randomUUID().toString();
-        when(wallet.charge(eq(101L), eq(lease), eq(1L), eq(2), any(BooleanSupplier.class))).thenAnswer(call ->
+        when(wallet.charge(eq(101L), eq(lease), eq(1L), eq(1), any(BooleanSupplier.class))).thenAnswer(call ->
                 ((BooleanSupplier) call.getArgument(4)).getAsBoolean()
                         ? MobilityWallet.Payment.PAID : MobilityWallet.Payment.CANCELLED);
         return lease;
+    }
+
+    @Test
+    void 자전거는_20초_킥보드는_10초_구간으로_1냥씩_결제한다() throws Exception {
+        hub.configureBehaviorLog(new CapturingLog());
+        var wallet = mock(MobilityWallet.class);
+        Peer user = peer(101);
+        user.request("CHANNEL_JOIN", Map.of("channelId", "one"));
+        for (String vehicle : List.of("BICYCLE", "SCOOTER")) {
+            String lease = mobilityLease(wallet);
+            long before = System.nanoTime();
+            var started = user.request("WORLD_MOBILITY_START", Map.of(
+                    "stationId", "mobility-entry", "vehicle", vehicle, "leaseId", lease));
+            assertThat(started.at("/payload/total").asLong()).isEqualTo(1);
+            synchronized (hub) {
+                Map<?, ?> rides = (Map<?, ?>) ReflectionTestUtils.getField(hub, "mobilityRides");
+                Object ride = rides.get("101");
+                long next = (Long) ReflectionTestUtils.getField(ride, "nextPaymentAt");
+                long interval = TimeUnit.SECONDS.toNanos(vehicle.equals("BICYCLE") ? 20 : 10);
+                assertThat(next).isBetween(before + interval, System.nanoTime() + interval);
+                ReflectionTestUtils.invokeMethod(hub, "advanceRentals");
+            }
+            verify(wallet).charge(eq(101L), eq(lease), eq(1L), eq(1), any(BooleanSupplier.class));
+            verify(wallet, never()).charge(eq(101L), eq(lease), eq(2L), eq(1), any(BooleanSupplier.class));
+            user.request("WORLD_MOBILITY_END", Map.of("leaseId", lease));
+            var leaseEvents = facilityEvents().stream()
+                    .filter(event -> lease.equals(event.props().get("leaseId"))).toList();
+            assertThat(leaseEvents).extracting(BehaviorEvent::type)
+                    .containsExactly(BehaviorEventType.FACILITY_USED, BehaviorEventType.FACILITY_RELEASED);
+            assertThat(leaseEvents.getLast().props()).containsEntry("kind", vehicle)
+                    .containsEntry("endReason", "RELEASED").containsEntry("fee", 1L)
+                    .containsEntry("durationMs", vehicle.equals("BICYCLE") ? 20_000L : 10_000L);
+        }
+    }
+
+    private void renewMobilityNow() {
+        synchronized (hub) {
+            Map<?, ?> rides = (Map<?, ?>) ReflectionTestUtils.getField(hub, "mobilityRides");
+            Object ride = rides.get("101");
+            ReflectionTestUtils.setField(ride, "nextPaymentAt", System.nanoTime() - 1);
+            ReflectionTestUtils.invokeMethod(hub, "advanceRentals");
+        }
     }
 
     private Map<String, String> mobilityStart(String lease) {
