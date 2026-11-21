@@ -1,6 +1,6 @@
 import { BALLOON_RIDE_ENABLED, RENEWAL_DISTANCE_LOD } from '../../src/park/mapSelection'
 import { BalloonWayfindingLights } from '../../src/features/balloon/BalloonWayfinding'
-import { EntranceBuilding } from '../EntrancePavilion'
+import { EntranceAssetsReady, EntranceBuilding } from '../EntrancePavilion'
 import { EntranceLandscape } from '../EntranceLandscape'
 import { RentalPairs } from '../RentalPairs'
 import { CityBackdrop } from '../CityBackdrop'
@@ -10,12 +10,12 @@ import { TableFurniture } from '../../src/features/tables/TableFurniture'
 import { TABLES } from '../../src/park/mapConfig'
 import { STONE_RUMBLE_ANCHOR_ID } from '../../src/game/stone-rumble/entrance'
 import { STONE_RUMBLE_ENABLED } from '../../src/features/tableLobby/model'
-import { lazy, memo, startTransition, Suspense, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
+import { lazy, memo, Suspense, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Object3D, type Group } from 'three'
 import { authoritativePose, avatars, sampleAvatar, useSession } from '../../src/network/worldClient'
 import { secretCorridorContains } from '../horrorPlan'
-import { CAMERA, type QualityPreset } from '../../src/config'
+import type { QualityPreset } from '../../src/config'
 import { renewalMap } from '../../src/park/renewalMap'
 import { viewControls } from '../../src/world/cameraPerspective'
 import { welcomeFlight } from '../../src/features/welcomeTour/flight'
@@ -26,14 +26,16 @@ import { inAnnex } from '../interiorAccess'
 import { interiorVisit, visitScope } from '../interiorEvents'
 import { preloadBungeoppangView } from '../../src/features/bungeoppang/loadBungeoppangView'
 import { preloadJumpRopeView } from '../../src/features/jumpRope/loadJumpRopeView'
-import { preloadGateSurroundings } from './preloadEntranceModels'
-import { ShaderPreparedGroup } from './ShaderPreparedGroup'
+import { useEntryStages } from './useEntryStages'
+import { EntranceFacility, EntrancePartReady, EntranceReadiness } from './EntranceReadiness'
 import { collectJumpViewDrawables } from '../../src/features/jumpmap/preparation'
 import { useJumpmap } from '../../src/features/jumpmap/state'
 import { site } from '../plan'
+import { WinterScene } from '../../src/features/winter/WinterScene'
+import { ParkGachaKiosk } from '../ParkGachaKiosk'
+import { ParkMoleShop } from '../ParkMoleShop'
 
 const HorrorZone = lazy(() => import('../HorrorZone').then(module => ({ default: module.HorrorZone })))
-const WinterScene = lazy(() => import('../../src/features/winter/WinterScene').then(module => ({ default: module.WinterScene })))
 const AnnexDetails = lazy(() => import('../InteriorDetails').then(module => ({ default: module.AnnexDetails })))
 const TableBoards = lazy(() => import('../../src/features/tables/TableBoards'))
 const StoneRumbleEntranceStele = lazy(() => import('../../src/game/stone-rumble/StoneRumbleEntranceStele'))
@@ -53,8 +55,8 @@ const StableScenicGround = memo(ScenicGround)
 const StableEntranceLandscape = memo(EntranceLandscape)
 const StableParkBoundary = memo(ParkBoundary)
 const StableEntranceBuilding = memo(EntranceBuilding)
-const StableGachaKiosk = lazy(() => import('../ParkGachaKiosk').then(module => ({ default: memo(module.ParkGachaKiosk) })))
-const StableMoleShop = lazy(() => import('../ParkMoleShop').then(module => ({ default: memo(module.ParkMoleShop) })))
+const StableGachaKiosk = memo(ParkGachaKiosk)
+const StableMoleShop = memo(ParkMoleShop)
 const StableRentalPairs = memo(RentalPairs)
 const StableEntranceTrees = memo(PreviewTreeBatches)
 const StableBuildings = lazy(() => import('../Buildings').then(module => ({ default: memo(module.Buildings) })))
@@ -71,12 +73,6 @@ const StableTable = memo(function StableTable({ index, boards }: { index: number
 
 function atEntrance(pose = authoritativePose(useSession.getState().sessionId)) {
   return !pose || !!spawn && Math.hypot(pose.x-spawn[0], pose.z-spawn[2]) < 10 && Math.abs(pose.y-spawn[1]) < 2
-}
-
-function GateFacility({ children }: { children: ReactNode }) {
-  return <Suspense fallback={null}>
-    <ShaderPreparedGroup priority={.75}>{children}</ShaderPreparedGroup>
-  </Suspense>
 }
 
 export default function RenewalWorld({ quality, firstFrameAt, onDistantReady, groundMounted, entryPresented }: {
@@ -100,9 +96,8 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady, gr
   const [lakeProgress] = useState(createLakeProgress)
   const [stage, setStage] = useState(() => !atEntrance() || welcomeFlight.active ? finalStage : 0)
   const distantReady = stage > 0
-  const entry = useRef({
-    requestedStage: stage, stableFrames: 0, committedAt: 0,
-  })
+  const entranceReadiness = useMemo(() => new EntranceReadiness(groundMounted), [groundMounted])
+  useEntryStages({ stage, finalStage, firstFrameAt, onStage: setStage })
 
   useLayoutEffect(() => {
     if (distantReady) onDistantReady(true)
@@ -110,41 +105,6 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady, gr
 
   useLayoutEffect(() => () => interiorVisit.reset(), [])
 
-  useLayoutEffect(() => {
-    entry.current.stableFrames = 0
-    entry.current.committedAt = performance.now()
-    if (stage > 0) performance.mark('park-distant-facilities-stage-' + stage)
-    if (stage === finalStage) performance.mark('park-distant-facilities-mounted')
-  }, [stage])
-
-  useFrame((_, delta) => {
-    const pending = entry.current
-    if (stage === finalStage || pending.requestedStage !== stage) return
-    const now = performance.now()
-    if (stage > 0) {
-      // Give rendering time to recover before admitting another batch of facilities.
-      pending.stableFrames = delta <= 1 / 30 ? pending.stableFrames + 1 : 0
-      if (now - pending.committedAt < 120 || (pending.stableFrames < 3 && now - pending.committedAt < 500)) return
-      pending.requestedStage = stage + 1
-      startTransition(() => setStage(stage + 1))
-      return
-    }
-    const pose = authoritativePose(useSession.getState().sessionId)
-    const shownAt = firstFrameAt.current
-    if (shownAt === null) return
-    pending.stableFrames = delta <= 1 / 30 ? pending.stableFrames + 1 : 0
-    const lookedAround = Math.abs(Math.atan2(Math.sin(viewControls.yaw), Math.cos(viewControls.yaw))) > .08
-      || Math.abs(viewControls.pitch - CAMERA.pitch) > .08
-      || Math.abs(viewControls.distance - CAMERA.distance) > .5
-    const settled = pending.stableFrames >= 3 || now - shownAt >= 500
-    const needsDistantView = !!pose && !!spawn && Math.hypot(pose.x - spawn[0], pose.z - spawn[2]) >= 26
-    if (needsDistantView || welcomeFlight.active || lookedAround || settled) {
-      pending.requestedStage = 1
-      performance.mark('park-distant-facilities-start')
-      preloadGateSurroundings()
-      startTransition(() => setStage(1))
-    }
-  }, .6)
   useFrame(() => {
     const needsBakery = bakery && !queuedBakery.current
     const needsJumpRope = jumpRopeShop && !queuedJumpRope.current
@@ -250,32 +210,30 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady, gr
       <LakeStreaming progress={lakeProgress} />
       <StableCityBackdrop distanceLod={RENEWAL_DISTANCE_LOD} />
       <StableScenicGround />
-      {entryPresented && <Suspense fallback={null}><WinterScene low={quality === 'low'}
-        groundReady={stage >= 1} decorationsReady={stage >= 2} sleighReady={stage >= 3} /></Suspense>}
       <Suspense fallback={null}>
-        <StableParkBoundary />
-        <OriginalPlaza />
-        <StableEntranceTrees live />
-        <StableEntranceBuilding id="pavilion" />
-        {/* Include the facilities flanking the spawn in the entrance shader pass. */}
-        <StableEntranceBuilding id="fortune" />
-        <StableRentalPairs area="gate" />
-        <StableEntranceLandscape quality={quality} showFitnessStations={entryPresented && stage >= 1}
-          detailsReady={entryPresented && stage >= 1} />
-        <GroundMounted ready={groundMounted} />
+        <EntranceAssetsReady>
+          <WinterScene low={quality === 'low'} />
+          <StableParkBoundary />
+          <OriginalPlaza />
+          <StableEntranceTrees live />
+          <StableEntranceBuilding id="pavilion" />
+          {/* Include nearby facilities and decorations in the entrance shader pass. */}
+          <StableEntranceBuilding id="fortune" />
+          <StableEntranceBuilding id="lottery" />
+          <EntranceFacility readiness={entranceReadiness} part="gacha"><StableGachaKiosk live /></EntranceFacility>
+          <EntranceFacility readiness={entranceReadiness} part="mole"><StableMoleShop optimizedReady={entryPresented && stage >= 3} /></EntranceFacility>
+          <StableRentalPairs area="gate" />
+          <StableRentalPairs area="nearby" />
+          <StableEntranceLandscape quality={quality} showFitnessStations />
+          <EntrancePartReady readiness={entranceReadiness} part="ground" />
+        </EntranceAssetsReady>
       </Suspense>
       {entryPresented && stage >= 1 && (
         <>
-          <GateFacility><StableEntranceBuilding id="lottery" /></GateFacility>
           <Suspense fallback={null}><RenewalParkAdvertising /></Suspense>
           <Suspense fallback={null}><StableScenicDetails includeGround={false} includeTrees={false} includeLandscape={false} distantReady={stage >= 2} live /></Suspense>
         </>
       )}
-      {entryPresented && stage >= 2 && <>
-        <GateFacility><StableGachaKiosk live /></GateFacility>
-        <GateFacility><StableMoleShop optimizedReady={stage >= 3} /></GateFacility>
-      </>}
-      {entryPresented && stage >= 3 && <GateFacility><StableRentalPairs area="nearby" /></GateFacility>}
       {entryPresented && stage >= 2 && <Suspense fallback={null}><StableBuildings live entrancePavilion={false} entranceDistricts={false} entranceFacilities={false} distantReady={distantReady} upperFacilitiesReady={stage >= 4}
         loadedRentalBatches={stage} /></Suspense>}
       {entryPresented && stage >= 3 && TABLES.map((anchor, index) => <Suspense key={anchor.id} fallback={null}>
@@ -291,13 +249,4 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady, gr
       {loaded && <Suspense fallback={null}><AnnexDetails /></Suspense>}
     </group>
   </group>
-}
-
-function GroundMounted({ ready }: { ready: RefObject<boolean> }) {
-  useLayoutEffect(() => {
-    ready.current = true
-    performance.mark('park-gate-ground-mounted')
-    return () => { ready.current = false }
-  }, [ready])
-  return null
 }
