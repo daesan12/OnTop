@@ -2153,7 +2153,7 @@ public class TableHub {
                 finishRide(ride, receipt);
                 return;
             }
-            ride.nextPaymentAt = System.nanoTime() + MobilityRentals.SECOND;
+            ride.nextPaymentAt = System.nanoTime() + ride.vehicle.billingSeconds() * MobilityRentals.SECOND;
             endFollows(user);
             cancelEmote(user, "ACTIVITY_STARTED");
             publishWorld(channels.setVehicle(user, ride.vehicle), null, null);
@@ -2162,13 +2162,13 @@ public class TableHub {
             ride.logged = true;
             recordMobilityStart(ride);
         } else {
-            ride.nextPaymentAt += MobilityRentals.SECOND;
+            ride.nextPaymentAt += ride.vehicle.billingSeconds() * MobilityRentals.SECOND;
             notifyMobilityRide(ride, Set.of(), "RIDING", receipt);
         }
     }
 
-    // 첫 1초 요금이 커밋돼 실제로 탄 뒤에만 시작을, 그렇게 시작한 탈것만 종료를 남긴다. 시설 이용과 같은
-    // FACILITY_USED·FACILITY_RELEASED를 쓰고 leaseId로 짝을 맞춘다. 이용 시간은 요금을 낸 초 수다.
+    // 첫 구간 요금이 커밋돼 실제로 탄 뒤에만 시작을, 그렇게 시작한 탈것만 종료를 남긴다.
+    // seconds는 기존 결제 키와 호환되는 구간 순번이며, 이용 시간은 결제한 구간의 초 수다.
     private void recordMobilityStart(MobilityRide ride) {
         recordBehavior(BehaviorEventType.FACILITY_USED, ride.owner.accountId(), builder -> mobilityProps(builder, ride));
     }
@@ -2176,7 +2176,7 @@ public class TableHub {
     private void recordMobilityEnd(MobilityRide ride) {
         recordBehavior(BehaviorEventType.FACILITY_RELEASED, ride.owner.accountId(),
                 builder -> mobilityProps(builder, ride).prop("endReason", ride.logReason)
-                        .prop("durationMs", ride.seconds * 1000).prop("fee", ride.total()));
+                        .prop("durationMs", ride.seconds * ride.vehicle.billingSeconds() * 1000).prop("fee", ride.total()));
     }
 
     private static BehaviorEvent.Builder mobilityProps(BehaviorEvent.Builder builder, MobilityRide ride) {
