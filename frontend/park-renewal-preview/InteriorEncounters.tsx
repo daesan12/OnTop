@@ -4,6 +4,7 @@ import { Raycaster, Vector3, type Group, type Light, type Mesh, type Object3D, t
 import { effectsOutput } from '../src/audio/bgm'
 import { playCageDrop, playRopeDrop, playWallCrack, playBehind, playEncounterLunge, playEncounterStaging, playFakeout, playJumpScare, playPounceCrouch, playSprint, playStalkStart, playStalkStep, playStoneStep } from './horrorAudio'
 import { AMBUSHERS, diamond, interiorVisit, type Encounter } from './interiorEvents'
+import { HeartDiamond } from './HeartDiamond'
 import { FALL, FAR_MIN, SIDE, encounterDistance, encounterScale, farStart, flashlight, lungeStop, offGaze, placeInView, stagePlan, standDistance, styleFrame } from './encounterStaging'
 import { strike } from './horrorStrike'
 import { clearRoamingInput, inputState } from '../src/world/inputOwnership'
@@ -138,7 +139,7 @@ function diamondCue() {
 
 export function InteriorEncounters() {
   const objects = useRef<(Group | null)[]>([])
-  const gem = useRef<Mesh>(null)
+  const gem = useRef<Group>(null)
   const previous = useRef<Encounter | undefined>(undefined)
   const hadDiamond = useRef(false)
   const lighting = useRef<{ lights: Light[]; intensity: number[] } | undefined>(undefined)
@@ -481,9 +482,7 @@ export function InteriorEncounters() {
   return <group ref={stage}>
     <pointLight ref={accent} intensity={0} distance={5} decay={2} />
     <Shape at={[x,y-.62,z]} size={[.64,1.04,.64]} color="#5a5750" />
-    <mesh position={[x,y,z]} ref={gem} rotation={[0,0,.14]}>
-      <octahedronGeometry args={[.31,0]} /><meshBasicMaterial color="#99f6ef" />
-    </mesh>
+    <HeartDiamond at={[x,y,z]} reference={gem} />
     {types.map(id => <group name={'interior-event-' + id} key={id} ref={node => {objects.current[id]=node}} visible={false}>
       <group>{encounterModels[id]}</group>
     </group>)}
