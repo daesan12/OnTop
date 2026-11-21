@@ -568,7 +568,7 @@ public class WorldChannelRegistry implements ChannelPresence {
 
         public PublicTable {
             if (tableId == null || tableId.isBlank() || chairCount < 2
-                    || chairCount > ("STONE_RUMBLE".equals(gameCode) ? 8 : 4)) {
+                    || chairCount > ("STONE_RUMBLE".equals(gameCode) ? 8 : "BANG".equals(gameCode) ? 7 : 4)) {
                 throw new IllegalArgumentException("공개 테이블 의자 설정이 올바르지 않습니다.");
             }
         }

@@ -25,7 +25,7 @@ public record GameStartCommand(UUID startAttemptId, String tableId, long tableVe
         }
         participants = List.copyOf(participants);
         com.ssafy.ontop.game.domain.GameAmounts.validate(betAmountPerPlayer, participants.size());
-        int maximumPlayers = "STONE_RUMBLE".equals(gameCode) ? 8 : 4;
+        int maximumPlayers = "STONE_RUMBLE".equals(gameCode) ? 8 : "BANG".equals(gameCode) ? 7 : 4;
         if (tableId == null || tableId.isBlank() || tableVersion < 0 || gameCode == null || gameCode.isBlank()
                 || participants.size() < 2 || participants.size() > maximumPlayers
                 || participants.stream().anyMatch(player -> player.seatNumber() > maximumPlayers)

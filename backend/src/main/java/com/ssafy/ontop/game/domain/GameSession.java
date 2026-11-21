@@ -179,6 +179,7 @@ public class GameSession {
 
     public void recordInvalidFinish(String eventId, byte[] hash, long engineVersion, String reason, Instant endedAt) {
         if (!"ABORTED_NO_PLAYERS".equals(reason)
+                && !("BANG".equals(gameCode) && "NO_ELIGIBLE_WINNERS".equals(reason))
                 && !("STONE_RUMBLE".equals(gameCode) && java.util.Set.of("SIMULATION_LIMIT", "LOADING_TIMEOUT").contains(reason))) {
             throw new IllegalArgumentException("엔진의 무효 종료 사유를 확인하세요.");
         }

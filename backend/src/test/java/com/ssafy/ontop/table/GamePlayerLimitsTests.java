@@ -28,7 +28,7 @@ class GamePlayerLimitsTests {
             }
             assertThat(room.snapshot().allReady()).isFalse();
             room.setReady("user-" + count, true);
-            assertThat(room.snapshot().allReady()).isTrue();
+            assertThat(room.snapshot().allReady()).isEqualTo(count >= game.minimumPlayers());
             assertThat(room.snapshot().capacity()).isEqualTo(game.maximumPlayers());
             assertThat(room.snapshot().seats()).hasSize(game.maximumPlayers());
         }

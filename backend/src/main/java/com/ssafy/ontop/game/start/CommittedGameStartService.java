@@ -1,6 +1,7 @@
 package com.ssafy.ontop.game.start;
 
 import com.ssafy.ontop.game.alkkagi.service.AlkkagiEngine;
+import com.ssafy.ontop.game.bang.service.BangEngine;
 import com.ssafy.ontop.config.RuntimeProfiles;
 import com.ssafy.ontop.game.bridge.service.BridgeEngine;
 import com.ssafy.ontop.game.farkle.service.FarkleEngine;
@@ -37,6 +38,7 @@ public class CommittedGameStartService {
     private final Optional<GameActivationPersistenceService> activations;
     private final AlkkagiEngine alkkagi;
     private StoneRumbleEngine stoneRumble;
+    private BangEngine bang;
     private ServiceOperationService operations = ServiceOperationService.alwaysOpen();
 
     public CommittedGameStartService(GameStartGateway gateway, Optional<OmokEngine> omok,
@@ -107,6 +109,11 @@ public class CommittedGameStartService {
         this.stoneRumble = engine;
     }
 
+    @Autowired(required = false)
+    void configureBang(BangEngine engine) {
+        this.bang = engine;
+    }
+
     public GameStartResult start(GameStartCommand command) {
         ServiceOperationState operation;
         try {
@@ -141,6 +148,7 @@ public class CommittedGameStartService {
                         && command.targetScore() != null;
                 case "DICE_LEDGER" -> ledger.isPresent();
                 case "HALLI_GALLI" -> halligalli.isPresent();
+                case "BANG" -> bang != null && players.size() >= 4 && players.size() <= 7;
                 case "STONE_RUMBLE" -> stoneRumble != null && players.size() >= 2 && players.size() <= 8;
                 default -> false;
             };
@@ -167,6 +175,7 @@ public class CommittedGameStartService {
                         command.targetScore());
                 case "DICE_LEDGER" -> ledger.orElseThrow().create(result.gameSessionId(), command.tableId(), players);
                 case "HALLI_GALLI" -> halligalli.orElseThrow().create(result.gameSessionId(), command.tableId(), players);
+                case "BANG" -> bang.create(result.gameSessionId(), command.tableId(), players);
                 default -> throw new IllegalStateException("경기 실행 설정을 확인해주세요.");
             }
             activations.ifPresent(service -> service.started(command, result.gameSessionId()));
@@ -178,6 +187,13 @@ public class CommittedGameStartService {
         if (command.participants().stream().anyMatch(player -> !player.userId().matches("[1-9][0-9]{0,18}"))) {
             throw new IllegalArgumentException("검증된 내부 계정이 필요합니다.");
         }
-        return command.participants().stream().map(player -> Long.parseLong(player.userId())).toList();
+        var participants = command.participants().stream();
+        if ("BANG".equals(command.gameCode())) {
+            // 기존 1~4번 좌석을 보존한 확장 좌석의 실제 원형 순서다.
+            List<Integer> clockwiseSeats = List.of(1, 5, 3, 7, 2, 6, 4);
+            participants = participants.sorted(java.util.Comparator.comparingInt(
+                    player -> clockwiseSeats.indexOf(player.seatNumber())));
+        }
+        return participants.map(player -> Long.parseLong(player.userId())).toList();
     }
 }

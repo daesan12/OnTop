@@ -24,7 +24,7 @@ public record GameResultView(@JsonIgnore long userId, long version, String gameS
         Objects.requireNonNull(endedAt);
         participants = List.copyOf(participants);
         var ids = new HashSet<String>();
-        if (participants.size() < 2 || participants.size() > ("STONE_RUMBLE".equals(gameCode) ? 8 : 4)
+        if (participants.size() < 2 || participants.size() > ("STONE_RUMBLE".equals(gameCode) ? 8 : "BANG".equals(gameCode) ? 7 : 4)
                 || participants.stream().anyMatch(participant -> !ids.add(participant.userId()))
                 || !ids.contains(Long.toString(userId))
                 || status == Status.FINISHED && participants.stream().anyMatch(p -> p.result() == null)

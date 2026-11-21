@@ -80,6 +80,19 @@ class SpectatorEventProtocolTests {
                 + "\",\"basedOnVersion\":" + version + ",\"x\":" + x + ",\"y\":" + y + "}");
     }
 
+    @Test
+    void 공개_참가자_핑은_기준버전과_대상만_받고_손패_필드는_거부한다() {
+        String payload = "{\"gameId\":\"41\",\"eventId\":\"" + EVENT
+                + "\",\"basedOnVersion\":8,\"targetUserId\":\"101\"}";
+
+        assertThat(protocol.parse(request("GAME_SPECTATOR_PING_SEND", payload)).type())
+                .isEqualTo("GAME_SPECTATOR_PING_SEND");
+        assertThat(code(request("GAME_SPECTATOR_PING_SEND", payload.replace("8,", "-1,"))))
+                .isEqualTo("INVALID_PAYLOAD");
+        assertThat(code(request("GAME_SPECTATOR_PING_SEND", payload.replace("}", ",\"handIndex\":0}"))))
+                .isEqualTo("INVALID_PAYLOAD");
+    }
+
     private String chat(String text) {
         return request("GAME_SPECTATOR_CHAT_SEND", "{\"gameId\":\"41\",\"eventId\":\"" + EVENT + "\",\"text\":"
                 + text + "}");

@@ -8,8 +8,8 @@ public record GameRecoverySnapshot(long userId, String gameId, int participantCo
         Phase phase, JsonNode state) {
 
     public GameRecoverySnapshot {
-        int maximumPlayers = state != null
-                && "STONE_RUMBLE".equals(state.path("publicState").path("gameCode").asText()) ? 8 : 4;
+        String code = state == null ? "" : state.path("publicState").path("gameCode").asText();
+        int maximumPlayers = "STONE_RUMBLE".equals(code) ? 8 : "BANG".equals(code) ? 7 : 4;
         if (userId <= 0 || gameId == null || gameId.isBlank() || participantCount < 2
                 || participantCount > maximumPlayers
                 || version < 0 || state == null || !state.isObject()) {

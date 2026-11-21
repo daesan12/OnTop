@@ -27,7 +27,8 @@ final class VerifiedGameFinish {
                     "DISCONNECT_TIMEOUT", "LOGOUT", "MEMBER_DEACTIVATED", "SIMULATION_INVALID", "SIMULATION_LIMIT"),
             // CARD_COUNT·NO_CARDS_TO_FLIP은 카드 수 공동 1위를 모두 승자로 둔다. 기권 종료도 LAST_PLAYER_STANDING이다.
             "HALLI_GALLI", Set.of("CARD_COUNT", "LAST_PLAYER_STANDING", "NO_CARDS_TO_FLIP"),
-            "STONE_RUMBLE", Set.of("LAST_PLAYER_STANDING", "ALL_FALLEN", "SIMULATION_LIMIT", "LOADING_TIMEOUT"));
+            "STONE_RUMBLE", Set.of("LAST_PLAYER_STANDING", "ALL_FALLEN", "SIMULATION_LIMIT", "LOADING_TIMEOUT"),
+            "BANG", Set.of("LAW_WINS", "OUTLAWS_WIN", "RENEGADE_WINS", "NO_ELIGIBLE_WINNERS"));
 
     private VerifiedGameFinish() { }
 
@@ -39,7 +40,8 @@ final class VerifiedGameFinish {
                 || event.gameCode() == null || event.endReason() == null
                 || !REASONS.getOrDefault(event.gameCode(), Set.of()).contains(event.endReason())
                 || event.participants().size() < 2
-                || event.participants().size() > ("STONE_RUMBLE".equals(event.gameCode()) ? 8 : 4)
+                || event.participants().size() > ("STONE_RUMBLE".equals(event.gameCode()) ? 8 : "BANG".equals(event.gameCode()) ? 7 : 4)
+                || "BANG".equals(event.gameCode()) && event.participants().size() < 4
                 || "ALKKAGI".equals(event.gameCode()) && event.participants().size() != 2
                 || event.participants().stream().map(GameFinished.Participant::userId).distinct().count() != event.participants().size()) {
             throw new IllegalArgumentException("경기 종료 이벤트를 확인하세요.");
@@ -73,9 +75,10 @@ final class VerifiedGameFinish {
                 throw new IllegalArgumentException("돌탑 공동 낙하 판정을 확인하세요.");
             }
         } else if (invalid(event)) {
-            GameFinished.Result expected = "ALKKAGI".equals(event.gameCode())
+            GameFinished.Result expected = "ALKKAGI".equals(event.gameCode()) || "BANG".equals(event.gameCode())
                     ? GameFinished.Result.DRAW : GameFinished.Result.FORFEIT;
-            if (event.participants().stream().anyMatch(p -> p.result() != expected)) {
+            if (event.participants().stream().anyMatch(p -> p.result() != expected
+                    && !("BANG".equals(event.gameCode()) && p.result() == GameFinished.Result.FORFEIT))) {
                 throw new IllegalArgumentException("무효 경기 판정을 확인하세요.");
             }
         } else if (Set.of("BOARD_FULL", "AGREED_DRAW").contains(event.endReason()) || "ALKKAGI".equals(event.gameCode()) && winners == 0
@@ -95,6 +98,7 @@ final class VerifiedGameFinish {
 
     static boolean invalid(GameFinished event) {
         return "STONE_RUMBLE".equals(event.gameCode()) && Set.of("SIMULATION_LIMIT", "LOADING_TIMEOUT").contains(event.endReason())
+                || "BANG".equals(event.gameCode()) && "NO_ELIGIBLE_WINNERS".equals(event.endReason())
                 || "ABORTED_NO_PLAYERS".equals(event.endReason())
                 || "ALKKAGI".equals(event.gameCode())
                     && Set.of("SIMULATION_INVALID", "SIMULATION_LIMIT").contains(event.endReason());

@@ -214,6 +214,11 @@ public final class TableProtocol {
                     && validGameId(payload) && validEventId(payload) && prankUuid(payload.path("attemptId"));
             case "ONECARD_HAND_RESTORE_SEND" -> fields(payload, Set.of("gameId", "eventId", "effectId"))
                     && validGameId(payload) && validEventId(payload) && prankUuid(payload.path("effectId"));
+            case "GAME_SPECTATOR_PING_SEND" -> fields(payload, Set.of("gameId", "eventId", "basedOnVersion", "targetUserId"))
+                    && validGameId(payload) && validEventId(payload)
+                    && payload.path("targetUserId").isTextual() && payload.path("targetUserId").asText().matches("[1-9][0-9]{0,18}")
+                    && payload.path("basedOnVersion").isIntegralNumber() && payload.path("basedOnVersion").canConvertToLong()
+                    && payload.path("basedOnVersion").asLong() >= 0 && payload.path("basedOnVersion").asLong() <= 9_007_199_254_740_991L;
             case "OMOK_SPECTATOR_PING_SEND" -> fields(payload, Set.of("gameId", "eventId", "basedOnVersion", "x", "y"))
                     && validGameId(payload) && validEventId(payload)
                     && payload.path("basedOnVersion").isIntegralNumber()
@@ -378,7 +383,7 @@ public final class TableProtocol {
         if (!fields(payload, keys) || !payload.path("selectedPlayers").isIntegralNumber()
                 || !payload.path("selectedPlayers").canConvertToInt()
                 || payload.path("selectedPlayers").asInt() < 2
-                || payload.path("selectedPlayers").asInt() > ("STONE_RUMBLE".equals(payload.path("gameCode").asText()) ? 8 : 4)
+                || payload.path("selectedPlayers").asInt() > ("STONE_RUMBLE".equals(payload.path("gameCode").asText()) ? 8 : "BANG".equals(payload.path("gameCode").asText()) ? 7 : 4)
                 || !payload.path("expectedVersion").isIntegralNumber() || !payload.path("expectedVersion").canConvertToLong()
                 || payload.path("expectedVersion").asLong() < 0 || payload.path("expectedVersion").asLong() > 9_007_199_254_740_991L) {
             return false;
