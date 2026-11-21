@@ -373,6 +373,23 @@
   margin-top: 24px;
 }
 
+.quoridor-panel .qr-recommendations {
+  border-top: 1px solid #baa171;
+  margin-top: 20px;
+  padding-top: 16px;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.quoridor-panel .qr-recommendations h4 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.quoridor-panel .qr-recommendations p {
+  margin: 8px 0;
+}
+
 .quoridor-panel .qr-chat h4 {
   margin: 0 0 8px;
   font-size: 16px;

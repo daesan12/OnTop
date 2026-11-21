@@ -239,7 +239,8 @@ export class ParkRuntime implements ParkRuntimePort {
     if (game.role === 'SPECTATOR' && (!this.spectator.accepts(game.gameId) || g.watchedGameId !== game.gameId)) return null
     return { key: JSON.stringify([this.generation, s.sessionId, s.roomId, game.gameId, game.role,
       game.role === 'SPECTATOR' ? this.gameWatchRequestId : '']), gameId: game.gameId, version: game.version,
-      role: game.role, canSend: (game.role === 'PLAYER' || !s.tableId) && getAuthSession()?.status === 'AUTHENTICATED' }
+      role: game.role, ...(game.quoridor ? { pingBoardSize: 9 as const } : {}),
+      canSend: (game.role === 'PLAYER' || !s.tableId) && getAuthSession()?.status === 'AUTHENTICATED' }
   }
   private omokEvents = new OmokSpectatorEvents({
     displayName: userId => chatAuthorName(useSession.getState().profiles[userId]),
