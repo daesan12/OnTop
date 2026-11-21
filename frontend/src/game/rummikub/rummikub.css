@@ -78,3 +78,18 @@
 .rummikub-panel:has(.rummi-board-index) .rummi-controls button {min-width:85px;}
 .rummikub-panel:has(.rummi-board-index) .rummi-social {padding:6px 9px;}
 @media(max-width:700px){.rummikub-panel:has(.rummi-board-index){inset:auto 5px 5px 5px;width:auto;max-height:42dvh;}.rummikub-panel:has(.rummi-board-index) .rummi-opponents{display:none;}}
+/* 테이블 위 타일이 주 화면이다. 패널에는 조합 요약과 선택·확정 조작만 둔다. */
+.rummikub-panel:has(.rummi-board-index) {width:min(304px,28vw);}
+.rummikub-panel:has(.rummi-board-index) .rummi-board-index {display:flex;flex-direction:column;flex-wrap:nowrap;gap:5px;padding:8px;}
+.rummikub-panel:has(.rummi-board-index) .rummi-meld {display:flex;flex-direction:row;flex-wrap:wrap;align-items:center;gap:5px;width:100%;}
+.rummikub-panel:has(.rummi-board-index) .rummi-meld-summary {display:flex;align-items:center;gap:8px;flex:1;min-width:140px;text-align:left;background:#254a39;box-shadow:none;}
+.rummikub-panel:has(.rummi-board-index) .rummi-meld-summary:disabled {opacity:1;}
+.rummi-meld-summary b {display:grid;place-items:center;width:21px;height:21px;border-radius:50%;background:#d2b576;color:#183827;}
+.rummi-meld-summary small {margin-left:auto;opacity:.75;}
+.rummi-tile-picker {padding:8px 10px;border-top:1px solid #bda46e44;}
+.rummi-tile-picker summary {cursor:pointer;color:#c9d8cb;font-size:12px;}
+.rummi-picker-row {display:flex;align-items:center;flex-wrap:wrap;gap:4px;padding:8px 0;}
+.rummi-picker-row>span {width:100%;font-size:11px;opacity:.8;}
+.rummikub-panel:has(.rummi-board-index) .rummi-tile-picker .rummi-tile {width:32px;height:43px;}
+.rummi-selection {margin:3px 10px 8px;padding:6px 9px;border-radius:6px;background:#fff0c81a;color:#ffde96;font-size:12px;}
+@media(max-width:700px){.rummikub-panel:has(.rummi-board-index){width:auto;}}
