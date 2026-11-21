@@ -55,6 +55,21 @@ public final class RummikubParkApplication {
     @TestConfiguration(proxyBeanMethods = false)
     @Profile("local & rummikub-park & !db & !dev & !prod & !production")
     public static class Fixture {
+        @Bean
+        @org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(name = "rummikub.scenario", havingValue = "playthrough")
+        static org.springframework.beans.factory.config.BeanPostProcessor playthroughEngine(
+                org.springframework.beans.factory.ObjectProvider<ObjectMapper> mapper,
+                ApplicationEventPublisher events,
+                org.springframework.beans.factory.ObjectProvider<com.ssafy.ontop.game.engine.GameEngineRouter> router) {
+            return new org.springframework.beans.factory.config.BeanPostProcessor() {
+                @Override public Object postProcessBeforeInitialization(Object bean, String name) {
+                    return name.equals("rummikubEngine")
+                            ? new com.ssafy.ontop.game.rummikub.service.RummikubEngine(mapper.getObject(),
+                                    java.time.Clock.systemUTC(), events::publishEvent, router.getObject(),
+                                    new com.ssafy.ontop.game.rummikub.RummikubPlaythroughDeck(), size -> 0) : bean;
+                }
+            };
+        }
         @Bean ActiveMemberLookup rummikubMembers() {
             return (id, sid) -> Set.of(101L,202L,505L).contains(id) && TestLoginSessions.ID.equals(sid)
                 ? Optional.of(new AuthenticatedUser(id, LoginProvider.NAVER, sid)) : Optional.empty();
