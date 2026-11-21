@@ -40,6 +40,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.context.annotation.Profile;
 import org.springframework.context.event.EventListener;
+import org.springframework.core.env.Environment;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 
@@ -101,7 +102,9 @@ public final class StoneRumbleParkApplication {
         @Bean LocalLedger stoneRumbleLedger(ApplicationEventPublisher events) { return new LocalLedger(events); }
         @Bean FilterRegistrationBean<OncePerRequestFilter> stoneRumbleFixtureHttp(AccessJwtService jwt,
                 AccessAuthenticationService auth, ObjectMapper mapper,
-                com.ssafy.ontop.auth.config.AuthTokenProperties properties, LocalLedger localLedger) {
+                com.ssafy.ontop.auth.config.AuthTokenProperties properties, LocalLedger localLedger,
+                Environment environment) {
+            boolean qaFeedbackEnabled = environment.getProperty("ontop.qa-feedback.enabled", Boolean.class, false);
             var codes = new ConcurrentHashMap<String,Long>();
             var registration = new FilterRegistrationBean<OncePerRequestFilter>();
             registration.setOrder(-200);
@@ -111,7 +114,7 @@ public final class StoneRumbleParkApplication {
                     String path = request.getRequestURI();
                     Object body = null;
                     if ((path.equals("/dev/stone-rumble-park/session")
-                            || path.equals("/api/v1/qa/session") && Boolean.getBoolean("ontop.qa-feedback.enabled"))
+                            || path.equals("/api/v1/qa/session") && qaFeedbackEnabled)
                             && request.getMethod().equals("POST")) {
                         String origin=request.getHeader("Origin");
                         if (origin != null && (properties.allowedOrigins() == null || !properties.allowedOrigins().contains(origin))) { response.setStatus(403); return; }
