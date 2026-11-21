@@ -78,7 +78,8 @@ export function BangView({ state, hand, ownId, scope, now, busy, connected, erro
           {global.map((action, i) => <button key={i} data-danger={action.kind === 'take_hit' || action.kind === 'give_up'} disabled={!!lock} onClick={() => onAction(action)}>{actionLabel(action, name)}</button>)}
         </div>
       </div>
-      <div className="bang-own"><strong>{hand ? `나 · ${ROLE_NAME[hand.role]}` : '관전 중'}</strong>{me && <span>생명력 {Math.max(0, me.hp)}/{me.maxHp} · {CHARACTER[me.character][0]} · 사거리 {me.range}</span>}
+      <div className="bang-own" data-ping={pingedUserIds.includes(ownId)}><strong>{hand ? `나 · ${ROLE_NAME[hand.role]}` : '관전 중'}</strong>{me && <span>생명력 {Math.max(0, me.hp)}/{me.maxHp} · {CHARACTER[me.character][0]} · 사거리 {me.range}</span>}
+        {pingedUserIds.includes(ownId) && <span role="status">관전자가 나를 가리켰어요</span>}
         <small>{hand ? ROLE_GOAL[hand.role] : '공개 정보만 표시합니다.'}</small>{me && <small>{CHARACTER[me.character][1]}</small>}{settlement}</div>
     </footer>
   </section>

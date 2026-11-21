@@ -153,13 +153,16 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked, welco
     || !!arcadeScope || moleOpen || plusMinusOpen || rpsOpen || speedMoleOpen || jumpRopeOpen || spotDifferenceOpen || gachaOpen
   const omokFocus = useGame(s => (s.game?.omok?.status === 'PLAYING' || s.game?.alkkagi?.status === 'PLAYING') && !s.lastResult)
   const omokChat = useGame(s => (s.game?.omok?.status === 'PLAYING' || s.game?.alkkagi?.status === 'PLAYING') && !s.lastResult)
-  const bangFocus = useGame(s => !!s.game?.bang)
+  const bangGame = useGame(s => !!s.game?.bang)
+  const bangTerminal = useGame(s => !!s.game?.bang && s.game.role === 'PLAYER'
+    && (s.game.bang.status === 'FINISHED' || !!s.result || !!s.lastResult))
   const stoneOverlay = useGame(s => {
     if (!s.game?.stone && !(s.start?.gameCode === 'STONE_RUMBLE' && ['PLAYING', 'SETTLING'].includes(s.start.phase))) return 'none'
     return s.game?.role === 'PLAYER' && (s.game.stone?.status === 'FINISHED' || s.result || s.lastResult) ? 'result' : 'game'
   })
   const seated = useSession(s => !!s.tableId && s.seatIndex >= 0
     && !!s.tableStates[s.tableId]?.seats.some(seat => seat.userId === s.sessionId))
+  const bangFocus = bangGame && (!bangTerminal || seated)
   // GamePanel의 돌탑 전체 화면/결과가 덮는 동안만 공원 렌더를 멈춘다. 퇴장 후 잔여 결과는 공원을 가리지 않는다.
   const stoneFocus = stoneOverlay === 'game' || stoneOverlay === 'result' && seated
   const session = useSession(useShallow(s=>({ sessionId:s.sessionId,roomId:s.roomId })))
@@ -191,7 +194,7 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked, welco
       '--park-ui-scale': hudScale,
       '--park-edge': `${20 * hudScale}px`,
     } as CSSProperties}>
-      <ParkScene quality={quality} active={!jumpRopeOpen && !stoneFocus} />
+      <ParkScene quality={quality} active={!jumpRopeOpen && !stoneFocus && !bangFocus} />
       <ParkBgm />
       <ParkSfx />
       <RewardCoinFlight />
