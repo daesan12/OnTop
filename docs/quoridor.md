@@ -11,7 +11,7 @@
 - 추천은 승인된 관전자만 1초 간격으로 보낸다. 참가자와 같은 경기 관전자에게 2초 동안 표시하고 새 판 버전·관전 해제에 정리한다. 현재 경기 채팅은 참가자와 관전자가 서로 읽고 보낼 수 있으며 주변 공원 채팅으로 우회하지 않는다.
 - 채팅 전송 중에는 중복 제출을 막고 실패한 입력은 유지한다. 최대 100개 경기 대화를 스크롤로 확인하고, 이전 대화를 읽는 동안 강제로 맨 아래로 이동하지 않는다. 입력 중 공원 키 조작을 막는다.
 - 공통 수정은 `frontend/src/game/omok/spectatorEvents.ts`의 선택적 9칸 경계·좌표 표기와 `SpringParkRuntime.ts`의 해당 경기 범위 설정이다. 기본 오목 15칸 계약은 유지한다. 서버 이벤트는 기존 `GAME_SPECTATOR_CHAT_SEND`와 `OMOK_SPECTATOR_PING_SEND`를 그대로 쓰며 BE production 라우팅은 수정하지 않는다.
-- GameCode는 계속 `QUORIDOR`다. 맵·배치·카메라·시설·인프라·DB 변경과 신규 migration은 없다. V185는 변경하거나 적용하지 않았다.
+- GameCode는 계속 `QUORIDOR`다. 맵·배치·카메라·시설·인프라·DB 변경과 신규 migration은 없다. 당시 V185 초안(현재 V186)은 변경하거나 적용하지 않았다.
 
 검증 결과:
 
@@ -27,7 +27,7 @@
 
 ## 2026-11-21 이름 변경과 실제 테이블 검수 재개
 
-사용자 요청에 따라 공개 게임 이름을 **길목 한 수**로 변경했다. 게임 선택·경기 제목·설명서·전적·오류 안내와 로컬 문서 제목에 적용한다. 기존 정산·복구·저장 계약의 식별자인 `QUORIDOR` 및 소스 경로는 유지한다. 이미 작성한 V185는 변경하지 않으며 이름 변경용 migration을 새로 만들지 않는다.
+사용자 요청에 따라 공개 게임 이름을 **길목 한 수**로 변경했다. 게임 선택·경기 제목·설명서·전적·오류 안내와 로컬 문서 제목에 적용한다. 기존 정산·복구·저장 계약의 식별자인 `QUORIDOR` 및 소스 경로는 유지한다. 당시 V185 초안(현재 V186)의 실행 SQL은 변경하지 않았으며 게임 이름 변경용 migration을 새로 만들지 않았다.
 
 원래 이름이 새겨진 사진 썸네일은 배포 에셋에서 제거하고, 글자·로고·브랜드 각인이 없는 새 목재 보드 썸네일 `frontend/public/art/quoridor/thumbnail.webp`로 교체했다. 사용자 원본 사진은 수정하지 않는다. 새 검수 진입점은 `http://localhost:5275/gilmok-park.html?role=red` 및 `role=green`이다. 이전 로컬 HTML 진입점도 새 표시 이름으로 접근할 수 있다.
 
@@ -42,7 +42,7 @@
 
 공원 접속 검수 중 실행 중인 테스트 JVM이 재컴파일 전 클래스를 참조해 `TableProtocol$Response` 로딩에 실패한 것을 확인했다. 컴파일 완료 후 이 작업의 테스트 JVM만 기존 실행 설정 그대로 재시작했고 health UP을 확인했다. 맵 source/path/require-match 설정은 변경하지 않는다.
 
-재시작 후 실제 Chrome(1366×900)에서 새 `gilmok-park.html?role=red` 진입점을 다시 확인했다. 화면은 렌더링되지만 `mapContractStatus: mismatch`, 공원 입장 중단 안내가 표시되며 room/session은 비어 있다. 따라서 이동·착석·경기 시작 검증은 계속 미완료다. 맵 계약 검사를 우회하지 않았으며 담당자에게 동일한 최신 맵 source/JSON/manifest 정렬과 V185 적용 현황 확인을 요청했다. F1 → 게임 찾아보기 → 길목 한 수를 실제로 클릭해 새 제목·썸네일과 테이블 진입 설명을 확인했다. page error와 개발 오류 overlay는 없었다. 증거는 저장소 밖 `OnTop/output/gilmok-20261121/park-map-blocked.png`, `manual-renamed.png`다.
+재시작 후 실제 Chrome(1366×900)에서 새 `gilmok-park.html?role=red` 진입점을 다시 확인했다. 화면은 렌더링되지만 `mapContractStatus: mismatch`, 공원 입장 중단 안내가 표시되며 room/session은 비어 있다. 따라서 이동·착석·경기 시작 검증은 계속 미완료다. 맵 계약 검사를 우회하지 않았으며 담당자에게 동일한 최신 맵 source/JSON/manifest 정렬과 당시 V185 초안(현재 V186)의 적용 현황 확인을 요청했다. F1 → 게임 찾아보기 → 길목 한 수를 실제로 클릭해 새 제목·썸네일과 테이블 진입 설명을 확인했다. page error와 개발 오류 overlay는 없었다. 증거는 저장소 밖 `OnTop/output/gilmok-20261121/park-map-blocked.png`, `manual-renamed.png`다.
 
 이름 변경과 테이블 진입 설명서 추가 후 FE 관련 5개 파일의 기존 테스트 67개, BE 길목 게임 25개 테스트, 타입 검사와 park-integration Vite 빌드가 통과했다. 기존 Three CJS·큰 chunk 경고는 유지된다.
 
@@ -88,13 +88,21 @@
 
 ## Migration
 
-사용자가 V185를 지정했다. 파일은 `backend/src/main/resources/db/migration/V185__allow_quoridor_game_sessions.sql` 하나다.
+2026-11-22 사용자 지시에 따라 이 작업에서 DB에 적용하지 않은 V185 초안을 V186으로 변경했다. 현재 파일은 `backend/src/main/resources/db/migration/V186__allow_quoridor_game_sessions.sql` 하나다. 실행 SQL은 같으며 파일명과 버전 안내 주석만 바꿨다.
+
+변경 전 최신 `origin/dev` `f3980669e3d6a5c02d2472188a69d149932fbf94`, 원격 참조 276개와 로컬 worktree 246개를 확인했다. dev에는 V182까지 있으며 최초 조사에서 V186은 윷놀이와 충돌했다. 사용자가 윷놀이를 V187로 조정 중이라고 확인한 뒤 진행했고, 윷놀이 로컬 파일의 V187 변경도 확인했다. 최초 확인 당시 윷놀이 원격에는 구 V186이 남아 있었지만, 커밋 전 최종 fetch에서 원격도 V187로 변경된 것을 확인했다. 통합 직전에도 번호를 재확인한다. 열린 MR 조회는 HTTP 404여서 외부 MR·팀 예약 전체와 외부 DB 적용 이력은 확인하지 못했다. 실제 DB는 적용하지 않았다.
+
+번호 변경 검증: 주석을 제외한 실행 SQL이 기존 초안과 동일하고 현재 작업의 전체 DB locations 74개 migration에 중복 버전이 없음을 확인했다. `processResources` 통과 후 빌드 리소스에는 V186만 있고 구 V185 파일은 없다. 최신 dev 통합 회귀는 FE 9개 파일 60개 테스트·타입 검사가 통과했다. DB 적용·repair·초기화는 실행하지 않았다.
+
+최종 재검사(원격 276개 참조·로컬 worktree 247개)에서는 원격 V186 파일이 없고 로컬 V186은 이 작업의 파일 하나뿐이었다. 윷놀이 원격 파일은 V187로 확인했다.
+
+아래 두 문단은 최초 V185 작성 당시의 조사 기록이다.
 
 생성 전 원격 참조 54개와 로컬 worktree 232개를 확인했다. V185는 없었고 다른 로컬 작업에 V183(다빈치 코드), V184(루미큐브)가 있었다. 열린 MR 조회는 HTTP 404로 실패했으며 외부 팀 예약은 확인하지 못했다. 번호를 별도 팀 채널로 전송하지 않았다.
 
 최종 원격 갱신 후에도 dev 기준 커밋은 같았고, 로컬 worktree 235개에서 V185는 이 작업의 파일 하나만 확인했다. GitLab API의 별도 토큰 인증 조회도 HTTP 401로 거절되어 열린 MR 및 Jenkins 연계 빌드 결과를 확인하지 못했다.
 
-V185는 `information_schema.CHECK_CONSTRAINTS`의 현재 `ck_game_sessions_players` 식을 보존하고 길목 한 수 2인·4인 조건을 OR로 추가한다. 먼저 적용된 V183/V184 등의 게임 허용 조건을 과거 V180 정의로 덮지 않는다. 기존 migration은 수정하지 않는다. 기존 제약이 없으면 실패하며 자동 repair·초기화를 하지 않는다.
+현재 V186은 `information_schema.CHECK_CONSTRAINTS`의 현재 `ck_game_sessions_players` 식을 보존하고 길목 한 수 2인·4인 조건을 OR로 추가한다. 먼저 적용된 V183/V184 등의 게임 허용 조건을 과거 V180 정의로 덮지 않는다. 적용된 migration은 수정하지 않는다. 기존 제약이 없으면 실패하며 자동 repair·초기화를 하지 않는다.
 
 실제 DB 적용은 하지 않았다. MySQL 8.4 신규 DB 적용·기존 DB 순차 적용·CHECK 보존·실제 금전 정산 검증은 인프라 담당자 처리와 DB 접근 후 진행해야 한다. 기본 `db` profile은 `DB_MIGRATION_LOCATIONS` 또는 `db/migration`, `dev & db`는 `db/migration,db/minigame`을 사용하지만 실행 환경의 실제 값은 확인하지 못했다.
 
