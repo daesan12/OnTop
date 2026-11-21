@@ -1,4 +1,4 @@
--- 사용자 지정 V184. 병렬 개발 중인 V183의 DAVINCI_CODE 허용 조건도 보존한다.
+-- 사용자 지정 V185. 병렬 개발 중인 V183의 DAVINCI_CODE 허용 조건도 보존한다.
 -- 기존 V180 기준에도 적용 가능하며 DB 적용은 담당 환경의 정식 Flyway 절차를 따른다.
 ALTER TABLE game_sessions
     DROP CHECK ck_game_sessions_players,

@@ -4,8 +4,8 @@
 - FE: `frontend/src/game/rummikub/`, BE: `backend/src/main/java/com/ssafy/ontop/game/rummikub/`.
 - 게임 코드: `RUMMIKUB`, 2~4인, 좌석 순서로 진행. 판돈 예약 이후 기존 시작 서비스에서 엔진 생성.
 - 맵 통합 승인: 2026-11-21 사용자 답변으로 기존 테이블의 선택·플레이 표시·입력 연결 승인. 지형·좌표·충돌·생성 맵·맵 버전 변경 없음.
-- V184: `db/migration/V184__allow_rummikub_game_sessions.sql`. 사용자 지정 번호. V183 다빈치코드 허용 조건 보존.
-- 최신 dev, 현재 원격 브랜치 이력, 로컬 workspace 검색에서 V184는 이 작업 파일만 확인. GitLab 열린 MR API는 401이므로 확인 불가. 별도 팀 예약 확인 불가. 실제 DB 적용은 미실행.
+- V185: `db/migration/V185__allow_rummikub_game_sessions.sql`. 2026-11-22 사용자 지정으로 미적용 V184에서 변경. V183 다빈치코드 허용 조건 보존.
+- 번호 점유 확인: 최신 dev와 원격 브랜치·모든 로컬 worktree를 조사했고 기존 쿼리도 V185 사용을 발견했다. 사용자가 수패마루 V185 / 쿼리도 V186 조정을 명시했으며 다른 작업실 파일은 수정하지 않는다. 열린 MR과 별도 예약 현황은 확인 불가. 실제 DB 적용은 미실행.
 - 다빈치코드와 공통 수정 가능 경로: TableGame, CommittedGameStartService, VerifiedGameFinish, FE protocol/store, GamePanel, tableLobby. 다른 worktree의 미커밋 파일은 수정하지 않음.
 
 ## 규칙과 계약
@@ -305,3 +305,15 @@ Enter 입력 열기·Z 기록 보기 유지, 정렬/접기 전후 초안·개인
 Browser plugin not available이므로 기존 Chrome/Playwright를 사용했다. 각 검증은 성공/실패 시 `finally`에서 브라우저를 즉시 닫으며 최종 임시 프로필의 Chrome 프로세스 잔류 0개·미처리 JavaScript 오류 0개를 확인했다.
 직접 변경은 수패마루 FE 패널/표시·입력에 한정한다. 맵·카메라·충돌·공통 채팅·인프라·BE·DB migration은 변경하지 않았다.
 운영 DB/인증/실재화·모바일 실제 터치·VR·Jenkins 검증 범위는 이전과 동일하다. MR·머지·브랜치 삭제는 보류한다.
+
+## 마이그레이션 V185 재배정 (2026-11-22)
+
+- 최신 `origin/dev` `f3980669e3d6a5c02d2472188a69d149932fbf94`를 작업 브랜치에 충돌 없이 반영했다. 이 기준에 수패마루 V184는 미병합 상태였다.
+- 원격 전체 브랜치와 모든 로컬 worktree의 `backend/src/main/resources/db/**/V*.sql`을 확인해 쿼리도의 V185 점유를 발견했다.
+  사용자가 “수패마루 V185, 쿼리도 V186으로 수정 중”이라고 명시하여 번호 재배정을 확인했다. 쿼리도 파일은 이 작업에서 수정하지 않는다.
+- 이 작업의 DB 미적용 V184 파일을 `db/migration/V185__allow_rummikub_game_sessions.sql`로 옮기고 버전 주석·현재 문서를 갱신했다.
+  주석을 제외한 SQL 실행문이 이전 파일과 동일함을 비교했다. 적용된 DB 이력·체크섬 repair·DB 초기화·인프라 수정은 수행하지 않는다.
+- 기본 `classpath:db/migration`, dev+db의 `db/migration,db/minigame` 및 다른 버전 경로까지 확인했고 현재 저장소의 74개 버전은 중복이 없다.
+  빌드 리소스에서도 이전 수패마루 V184가 남지 않고 V185만 복사된 것을 확인했다. 열린 MR·외부 번호 예약 및 다른 환경의 실제 DB 적용 이력은 확인 불가이다.
+- 검증: 마이그레이션 배치·중복 검사와 수패마루 BE 회귀 35개, 최신 dev 연결부와 수패마루 FE 회귀 34개, TypeScript 검사 통과.
+  실제 MySQL 8.4 적용·기존 DB 순차 적용은 수행하지 않았다. 검증용 브라우저는 열지 않았으며 맵 전수 탐색·이동 수단 주행 테스트도 실행하지 않았다.
