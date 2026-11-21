@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { PerspectiveCamera } from 'three'
 import { boardNodes } from '../../src/game/yutnori/Board'
-import { boardWorldPoint, fitYutCamera, projectYutPoint, YUT_SURFACE_Y, YUT_TOKEN_HEIGHT } from '../../src/game/yutnori/board3dMath'
+import { boardWorldPoint, fitYutCamera, projectYutPoint, yutHudInsets, YUT_SURFACE_Y, YUT_TOKEN_HEIGHT } from '../../src/game/yutnori/board3dMath'
 
 describe('3D 윷판 카메라와 클릭 투영', () => {
   it('같은 29칸을 겹치지 않는 3D 위치에 놓고 출발 칸을 유지한다', () => {
@@ -24,5 +24,23 @@ describe('3D 윷판 카메라와 클릭 투영', () => {
     expect(left.x + right.x).toBeCloseTo(100)
     expect(camera.position.y).toBeGreaterThan(camera.position.z)
     expect(projectYutPoint(camera, 1).y).not.toBe(projectYutPoint(camera, 1, YUT_SURFACE_Y + YUT_TOKEN_HEIGHT).y)
+  })
+  it.each([[1536, 1024], [1440, 960], [1024, 500], [390, 844], [390, 600]])('%ix%i에서 네 팀의 판과 업힌 말이 HUD를 피해 보인다', (width, height) => {
+    const camera = new PerspectiveCamera(), safe = yutHudInsets(width, height, 4)
+    fitYutCamera(camera, width, height, safe)
+    for (const node of boardNodes) {
+      for (const y of [YUT_SURFACE_Y, YUT_SURFACE_Y + 4 * YUT_TOKEN_HEIGHT]) {
+        const p = projectYutPoint(camera, node, y)
+        expect(p.x * width / 100).toBeGreaterThan(safe.left)
+        expect(p.x * width / 100).toBeLessThan(width - safe.right)
+        expect(p.y * height / 100).toBeGreaterThan(safe.top)
+        expect(p.y * height / 100).toBeLessThan(height - safe.bottom)
+      }
+    }
+    // Resize back to desktop must not preserve the portrait view offset.
+    const original = projectYutPoint(camera, 20)
+    fitYutCamera(camera, 390, 844, yutHudInsets(390, 844, 4))
+    fitYutCamera(camera, width, height, safe)
+    expect(projectYutPoint(camera, 20)).toEqual(original)
   })
 })

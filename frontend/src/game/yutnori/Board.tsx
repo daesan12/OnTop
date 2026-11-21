@@ -16,6 +16,7 @@ export function boardPoint(node: number): [number, number] {
 }
 export interface BoardProps {
   state: YutSnapshot['publicState']; selected: number; destinations: YutMove[]
+  focus?: boolean
   onPiece(team: number, piece: number): void; onMove(move: YutMove): void; onPing(node: number): void
 }
 export function Board({ state, selected, destinations, onPiece, onMove, onPing }: BoardProps) {

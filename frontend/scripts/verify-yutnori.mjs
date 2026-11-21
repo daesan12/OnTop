@@ -2,7 +2,7 @@ import { chromium, expect as baseExpect } from '@playwright/test'
 import { mkdir } from 'node:fs/promises'
 import path from 'node:path'
 
-const output = path.resolve('docs/yutnori/qa')
+const output = process.env.YUT_QA_OUTPUT || path.resolve('docs/yutnori/qa')
 const expect = baseExpect.configure({ timeout: 20000 })
 await mkdir(output, { recursive: true })
 let healthy = false
@@ -37,6 +37,7 @@ async function account(role, host) {
   }, { timeout: 20000, intervals: [1000] }).toBe(true)
   await page.waitForTimeout(1200)
   if (!await page.getByRole('heading', { name: '전통놀이 고르기', exact: true }).isVisible()) {
+    if (await page.locator('.yut-game-menu summary').isVisible()) await page.locator('.yut-game-menu summary').click()
     if (await page.getByRole('button', { name: '기권·나가기', exact: true }).isVisible()) {
       await page.getByRole('button', { name: '기권·나가기', exact: true }).click()
       await page.getByRole('button', { name: '기권하고 공원으로', exact: true }).click()
@@ -67,7 +68,7 @@ try {
   await red.getByRole('button', { name: '새 방 만들기', exact: true }).click()
   await red.getByLabel('방 이름', { exact: true }).fill('친구와 함께하는 윷판')
   await red.getByLabel('팀 수', { exact: true }).selectOption('4')
-  await red.screenshot({ path: path.resolve('docs/yutnori/qa-four-teams/settings-four.png') })
+  await red.screenshot({ path: path.join(output, 'settings-four.png') })
   await red.getByLabel('팀 수', { exact: true }).selectOption('2')
   await red.getByRole('button', { name: '방 만들기', exact: true }).click()
   await expect(red.getByRole('heading', { name: '친구와 함께하는 윷판', exact: true })).toBeVisible()
@@ -102,10 +103,20 @@ try {
   await red.screenshot({ path: path.join(output, 'opening-winner.png') })
   await expect(red.locator('.yut-board-3d')).toHaveAttribute('data-ready', 'true')
   await expect(red.locator('.yut-3d-controls [data-node]')).toHaveCount(29)
-  await red.setViewportSize({ width: 1487, height: 1058 })
+  await red.setViewportSize({ width: 1536, height: 1024 })
   await red.screenshot({ path: path.join(output, 'game-concept-native.png') })
   await red.setViewportSize({ width: 1440, height: 960 })
   await red.screenshot({ path: path.join(output, 'game-desktop.png') })
+  // 설명서가 중앙 윷판 입력을 막고 Escape로 원래 메뉴에 포커스를 돌려준다.
+  await red.locator('.yut-game-menu summary').click()
+  await red.getByRole('button', { name: '설명서', exact: true }).click()
+  await expect(red.locator('#yut-overlay-title')).toBeFocused()
+  await expect(red.locator('.yut-match-layout')).toHaveAttribute('inert', '')
+  await red.getByRole('button', { name: '설명서 닫기', exact: true }).scrollIntoViewIfNeeded()
+  await red.screenshot({ path: path.join(output, 'manual.png') })
+  await red.keyboard.press('Escape')
+  await expect(red.locator('.yut-modal-layer')).toHaveCount(0)
+  await expect(red.locator('.yut-game-menu summary')).toBeFocused()
   let moves = 0
   for (let attempt = 0; attempt < 12 && moves < 4; attempt++) {
     const snapshot = (await state(red)).mine
@@ -146,9 +157,16 @@ try {
   await expect(viewer.getByRole('heading', { name: '관전 중', exact: true })).toBeVisible()
   await expect(viewer.getByRole('button', { name: /^윷 던지기/ })).toBeDisabled()
   await viewer.getByRole('button', { name: '1번 칸 핑 보내기', exact: true }).click()
+  await red.locator('.yut-match-history summary').click()
   await expect(red.locator('.yut-match-history')).toContainText('📍 윷판 1번 칸', { timeout: 10000 })
+  if (await red.locator('.yut-game-menu details').isVisible() && !await red.locator('.yut-game-menu details').evaluate(el => el.open)) await red.locator('.yut-game-menu summary').click()
   await red.getByRole('button', { name: '기권·나가기', exact: true }).click()
   await expect(red.getByRole('heading', { name: '나가면 우리 팀이 탈락해요.', exact: true })).toBeVisible()
+  await expect(red.locator('.yut-match-layout')).toHaveAttribute('inert', '')
+  await red.getByRole('button', { name: '계속하기', exact: true }).click()
+  await expect(red.locator('.yut-modal-layer')).toHaveCount(0)
+  await red.locator('.yut-game-menu summary').click()
+  await red.getByRole('button', { name: '기권·나가기', exact: true }).click()
   await red.getByRole('button', { name: '기권하고 공원으로', exact: true }).click()
   await expect(red.locator('.yut-shell')).not.toBeVisible()
   await expect(blue.getByRole('heading', { name: /승리!$/ })).toBeVisible({ timeout: 10000 })
@@ -156,9 +174,11 @@ try {
     await blue.setViewportSize({ width, height })
     const overflow = await blue.locator('.yut-shell').evaluate(element => element.scrollWidth > element.clientWidth + 1)
     expect(overflow).toBe(false)
+    await blue.locator('.yut-mobile-chat').click()
     await blue.getByRole('button', { name: '보내기', exact: true }).scrollIntoViewIfNeeded()
     await expect(blue.getByRole('button', { name: '보내기', exact: true })).toBeInViewport()
     await blue.screenshot({ path: path.join(output, file + '.png') })
+    await blue.locator('.yut-chat-toggle').click()
   }
   await blue.setViewportSize({ width: 1440, height: 960 })
   await blue.screenshot({ path: path.join(output, 'result.png') })

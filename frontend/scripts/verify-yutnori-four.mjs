@@ -2,7 +2,7 @@ import { chromium, expect as baseExpect } from '@playwright/test'
 import { mkdir } from 'node:fs/promises'
 import path from 'node:path'
 
-const output = path.resolve('docs/yutnori/qa-four-teams')
+const output = process.env.YUT_QA_OUTPUT || path.resolve('docs/yutnori/qa-four-teams')
 const expect = baseExpect.configure({ timeout: 20000 })
 await mkdir(output, { recursive: true })
 let healthy = false
@@ -37,6 +37,7 @@ async function account(role, host) {
   }, { timeout: 20000, intervals: [1000] }).toBe(true)
   await page.waitForTimeout(1200)
   if (!await page.getByRole('heading', { name: '전통놀이 고르기', exact: true }).isVisible()) {
+    if (await page.locator('.yut-game-menu summary').isVisible()) await page.locator('.yut-game-menu summary').click()
     if (await page.getByRole('button', { name: '기권·나가기', exact: true }).isVisible()) {
       await page.getByRole('button', { name: '기권·나가기', exact: true }).click()
       await page.getByRole('button', { name: '기권하고 공원으로', exact: true }).click()
@@ -90,8 +91,17 @@ try {
   await expect(host.locator('.yut-board-3d')).toHaveAttribute('data-ready', 'true')
   await expect(host.locator('.yut-3d-controls [data-node]')).toHaveCount(29)
   await expect(host.locator('.yut-match-teams .yut-piece-rack button')).toHaveCount(16)
-  await expect(host.locator('.yut-backdo-key')).toContainText('빽도 · 뒤로 1칸')
+  await expect(host.locator('.yut-throw-caption')).toBeVisible()
   await host.screenshot({path:path.join(output,'game-four.png')})
+  await host.setViewportSize({width:1536,height:1024})
+  await host.screenshot({path:path.join(output,'game-concept-native.png')})
+  for(const [width,height] of [[390,844],[1024,500]]) {
+    await host.setViewportSize({width,height})
+    await expect(host.locator('.yut-opening-row').last()).toBeInViewport()
+    await expect(host.getByRole('button',{name:/^선공 결정 윷 던지기/})).toBeInViewport()
+    await host.screenshot({path:path.join(output,'opening-'+width+'x'+height+'.png')})
+  }
+  await host.setViewportSize({width:1440,height:960})
   const users=['101','202','505','606'], labels=['청팀','홍팀','녹팀','황팀']; let moved=0
   await host.screenshot({path:path.join(output,'opening-four-start.png')})
   for(let attempt=0;attempt<80;attempt++) {
@@ -125,17 +135,21 @@ try {
   for(const [width,height]of [[390,844],[1024,500]]){
     await host.setViewportSize({width,height})
     expect(await host.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
+    await host.locator('.yut-mobile-chat').click()
     await host.getByLabel('전체 채팅 입력',{exact:true}).scrollIntoViewIfNeeded()
     await expect(host.getByLabel('전체 채팅 입력',{exact:true})).toBeInViewport()
     await host.screenshot({path:path.join(output,'four-'+width+'x'+height+'.png')})
+    await host.locator('.yut-chat-toggle').click()
   }
   await host.setViewportSize({width:1440,height:960})
+  if (await host.locator('.yut-game-menu details').isVisible() && !await host.locator('.yut-game-menu details').evaluate(el => el.open)) await host.locator('.yut-game-menu summary').click()
   await host.getByRole('button',{name:'기권·나가기',exact:true}).click()
   await host.getByRole('button',{name:'기권하고 공원으로',exact:true}).click()
   await expect(host.locator('.yut-shell')).not.toBeVisible()
   await expect.poll(async()=>(await state(pages[1])).mine.publicState.eliminatedTeams).toEqual([0])
   expect((await state(pages[1])).mine.publicState.phase).toBe('PLAYING')
   for(const page of pages.slice(1,3)){
+    if (await page.locator('.yut-game-menu details').isVisible() && !await page.locator('.yut-game-menu details').evaluate(el => el.open)) await page.locator('.yut-game-menu summary').click()
     await page.getByRole('button',{name:'기권·나가기',exact:true}).click()
     await page.getByRole('button',{name:'기권하고 공원으로',exact:true}).click()
   }

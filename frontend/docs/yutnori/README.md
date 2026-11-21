@@ -75,9 +75,9 @@ node node_modules/typescript/bin/tsc --noEmit
 
 ## 디자인과 에셋
 
-`concept.png`는 최초 통합 때의 재료·색상 참고 자료다. 현재 인게임은 사용자 요청에 따라 오목처럼 중앙 판과 양쪽의 보조 레일로 개편했다. 기존 한지 원본 `/art/tablet/hanji.webp`, 먹색, 녹색 주 버튼과 둥근 이중 테두리를 재사용한다. 선택 카드는 두더지 선택 UI의 카드 구조, 방 화면은 꼬치왕의 생성·참가 흐름을 따른다. 중앙 판과 말은 실제 Three.js 입체 장면이며, 접근 가능한 네이티브 버튼을 카메라 좌표에 투영하여 조작한다. WebGL 실패 시 기존 SVG 판을 사용한다. 윷면 결과는 네이티브 UI를 유지한다. 장식으로 버튼 글자를 가리지 않는다.
+`concept.png`는 최초 통합 때의 재료·색상 참고 자료다. 현재 인게임은 오목·알까기처럼 화면 전체의 입체 판과 가장자리 HUD로 구성한다. 이전 양쪽 레일 형태의 개편 기록은 아래 이력으로 남긴다. 기존 한지 원본 `/art/tablet/hanji.webp`, 먹색, 녹색 주 버튼과 둥근 이중 테두리를 재사용한다. 선택 카드는 두더지 선택 UI의 카드 구조, 방 화면은 꼬치왕의 생성·참가 흐름을 따른다. 중앙 판과 말은 실제 Three.js 입체 장면이며, 접근 가능한 네이티브 버튼을 카메라 좌표에 투영하여 조작한다. WebGL 실패 시 기존 SVG 판을 사용한다. 윷면 결과는 네이티브 UI를 유지한다. 장식으로 버튼 글자를 가리지 않는다.
 
-Image Gen 내장 도구로 만든 `art/cover.webp`와 `art/board.webp`를 사용한다. 외부 미술품이나 사이트 이미지에 의존하지 않는다. 주요 프롬프트는 다음과 같다.
+Image Gen 내장 도구로 만든 `art/cover.webp`, `art/board.webp`, `art/felt-surface.webp`를 사용한다. 외부 미술품이나 사이트 이미지에 의존하지 않는다. 주요 프롬프트는 다음과 같다.
 
 1. Concept: Korean OnTop multiplayer Yutnori full main screen, hanji ivory, forest green, gold double borders, square 29-node board, native UI controls, four blue/red tokens per team, throw and move controls, recent turns.
 2. Cover: warm miniature 3D carved wooden four yut sticks with one marked backdo, red/blue tokens on ivory mat, Korean pavilion and pine, forest green/gold frame, no text.
@@ -131,3 +131,13 @@ Image Gen 내장 도구로 만든 `art/cover.webp`와 `art/board.webp`를 사용
 - publicState.opening은 팀별 현재 비교 값(-1 대기, -2 낙, 0~15 실제 mask), openingTeams는 비교 중인 후보 팀, openingRound는 차수다. 선공 확정 후 openingFinalists에 마지막 비교 팀을 남기고 openingTeams를 비운다. lastThrow.opening=true는 선공용 결과이며 새 본게임 던지기는 false다. 공통 WS·스키마·V186 변경은 없다.
 - 화면은 현재 대표와 각 팀 결과/재던지기 제외 여부를 표시한다. 선공 확정 비교표는 첫 본게임 던지기까지 유지한다. 선공용 결과에는 뒤로 이동/추가 기회를 안내하지 않는다. 선공 중 재접속·늦은 관전은 확정된 윷면과 남은 비교를 복구한다.
 - 빽도 이름은 유지하고 윷에 새긴 글자만 −로 통일했다. 3D 평면 재질, 네이티브 이동권/복구 결과, 범례와 설명이 같은 표식을 사용한다. 검수 스크립트는 HMR로 버전이 붙은 실제 로드 모듈 URL을 읽어 공원 세션과 입력 상태를 확인한다.
+
+## 오목·알까기형 전체 화면 HUD (2026-11-22)
+
+- 중앙 3D 윷판이 화면의 주인공이고, 큰 외곽 대화상자·헤더·양쪽 종이 패널은 제거했다. 왼쪽 위 한지 시계, 왼쪽 팀별 말/채팅, 오른쪽 위 접힌 메뉴/기록/규칙, 오른쪽 아래 던지기, 아래 이동권을 작은 독립 HUD로 배치한다. 기존 방 생성·참가 화면은 유지한다.
+- 공통 GameHud의 한지/먹색·녹색·금색 재료와 배치를 참고하되, 독립 윷놀이 상태와 native dialog에 맞춰 게임 모듈 내부에서 구현한다. 공원 맵·좌표·입력·공통 카메라·통신·인프라·DB/V186 변경은 없다.
+- Board3D focus는 가장자리 HUD가 차지하는 영역을 제외하고 판·두께·최대 업힌 말이 모두 들어오도록 카메라를 맞춘다. 판 칸과 말의 HTML 클릭 영역도 실제 투영 간격에 맞춘다. 기본 Board3D 독립 검수 모드는 유지한다.
+- 작은 세로 화면에서는 팀 현황을 2열로 줄이고, 선공 비교 중에는 그 자리에 팀별 결과를 표시한다. 낮은 가로 화면의 팀/진행 기록에는 실제 스크롤 영역을 둔다. 채팅은 상단 버튼으로 열고 접으며 전체/팀별 초안을 유지한다. 모든 스크롤바는 숨기고 휠·터치·키보드 스크롤은 유지한다.
+- 설명서와 기권 확인은 판 위 한지 팝업이다. 열린 동안 경기 HUD는 inert이며, 닫으면 메뉴로 포커스를 돌려준다. 게임 컴포넌트를 지우지 않아 마지막 윷면·채팅 초안·현재 연출 상태를 유지한다.
+- 새 펠트 에셋은 내장 Image Gen으로 생성한 균일한 짙은 녹색 탁상 표면을 1024px WebP로 변환한 것이다. 목재 판·말은 기존 실제 Three.js 장면, 한지는 기존 /art/tablet/hanji.webp를 재사용한다. 그림 속의 AI 규칙/글자는 제품에 사용하지 않는다.
+- 독립 실행 검수: FE 5244 실행 후 node scripts/verify-yutnori-hud.mjs. 개발용 tests/fixtures/yutHud.tsx는 4팀/선택/채팅 HUD를 렌더하며 서버 판정은 mock이다. 캡처는 임시 폴더(또는 YUT_QA_OUTPUT)에 저장한다. 실제 서버 흐름은 기존 verify-yutnori.mjs, verify-yutnori-four.mjs로 따로 확인한다. 검증 브라우저는 finally에서 즉시 닫는다.

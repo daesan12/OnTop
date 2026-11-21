@@ -1,14 +1,15 @@
 import { Suspense, Component, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Canvas, useFrame, useLoader, useThree } from '@react-three/fiber'
-import { ACESFilmicToneMapping, CanvasTexture, ExtrudeGeometry, PerspectiveCamera, Shape, SRGBColorSpace, TextureLoader, type Group } from 'three'
+import { ACESFilmicToneMapping, CanvasTexture, ExtrudeGeometry, PerspectiveCamera, RepeatWrapping, Shape, SRGBColorSpace, TextureLoader, type Group } from 'three'
 import { Board, boardJunctions, boardNodes, type BoardProps } from './Board'
 import { teamName } from './contracts'
-import { boardWorldPoint, fitYutCamera, projectYutPoint, YUT_SURFACE_Y, YUT_TEAM_COLORS, YUT_TOKEN_HEIGHT } from './board3dMath'
+import { boardWorldPoint, fitYutCamera, projectYutPoint, yutHudInsets, YUT_SURFACE_Y, YUT_TEAM_COLORS, YUT_TOKEN_HEIGHT } from './board3dMath'
 import boardArt from './art/board.webp'
+import feltArt from './art/felt-surface.webp'
 import './board3d.css'
 
 type Point = { x: number; y: number }
-type Projection = { nodes: Record<number, Point>; pieces: Record<string, Point> }
+type Projection = { nodes: Record<number, Point>; pieces: Record<string, Point>; hitSize: number; height: number }
 
 class BoardBoundary extends Component<{ children: ReactNode; board: BoardProps }, { failed: boolean }> {
   state = { failed: false }
@@ -45,7 +46,7 @@ function BoardCanvas(props: BoardProps) {
     {projection && <div className="yut-3d-controls">
       {boardNodes.map(node => {
         const p = projection.nodes[node], destination = destinations.find(move => move.to === node)
-        return <button key={node} data-node={node} className={`yut-board-node${destination ? ' yut-3d-target' : ''}`} style={{ left: `${p.x}%`, top: `${p.y}%` }}
+        return <button key={node} data-node={node} className={`yut-board-node${destination ? ' yut-3d-target' : ''}`} style={{ left: `${p.x}%`, top: `${p.y}%`, width: projection.hitSize, height: projection.hitSize }}
           aria-label={destination ? `${node}번 칸으로 ${destination.shortcut ? '지름길' : '기본 길'} 이동` : `${node}번 칸 핑 보내기`}
           onClick={() => destination ? onMove(destination) : onPing(node)} />
       })}
@@ -54,8 +55,8 @@ function BoardCanvas(props: BoardProps) {
         const p = projection.pieces[`${team}:${piece}`]
         if (!p) return null
         const count = tokens.filter(at => at === node).length, destination = destinations.find(move => move.to === node)
-        const base = projection.nodes[node], hitY = (base.y + p.y) / 2, hitHeight = 7 + Math.abs(base.y - p.y)
-        return <button key={`${team}:${piece}`} className={`yut-3d-piece-hit yut-team-${team}`} style={{ left: `${p.x}%`, top: `${hitY}%`, height: `${hitHeight}%` }}
+        const base = projection.nodes[node], hitY = (base.y + p.y) / 2, hitHeight = projection.hitSize * 1.25 + Math.abs(base.y - p.y) * projection.height / 100
+        return <button key={`${team}:${piece}`} className={`yut-3d-piece-hit yut-team-${team}`} style={{ left: `${p.x}%`, top: `${hitY}%`, width: projection.hitSize * 1.25, height: hitHeight }}
           aria-label={`${teamName(team)} ${piece + 1}번 말${count > 1 ? ` ${count}개 업힘` : ''}`}
           aria-pressed={team === state.team && tokens[selected] === node}
           onClick={() => destination ? onMove(destination) : onPiece(team, piece)} />
@@ -64,7 +65,7 @@ function BoardCanvas(props: BoardProps) {
   </div>
 }
 
-function TableScene({ state, selected, destinations, onProject, onReady, onLost, reducedMotion }: BoardProps & {
+function TableScene({ state, selected, destinations, focus, onProject, onReady, onLost, reducedMotion }: BoardProps & {
   onProject(value: Projection): void; onReady(): void; onLost(): void; reducedMotion: boolean
 }) {
   const { camera, size, gl, invalidate } = useThree()
@@ -72,7 +73,7 @@ function TableScene({ state, selected, destinations, onProject, onReady, onLost,
   const piecesKey = state.pieces.map(tokens => tokens.join(',')).join(':')
   useLayoutEffect(() => {
     if (!(camera instanceof PerspectiveCamera)) return
-    fitYutCamera(camera, size.width, size.height)
+    fitYutCamera(camera, size.width, size.height, focus ? yutHudInsets(size.width, size.height, state.teamCount) : undefined)
     const nodes = Object.fromEntries(boardNodes.map(node => [node, projectYutPoint(camera, node)]))
     const pieces: Record<string, Point> = {}
     state.pieces.forEach((tokens, team) => tokens.forEach((node, piece) => {
@@ -81,9 +82,10 @@ function TableScene({ state, selected, destinations, onProject, onReady, onLost,
         pieces[`${team}:${piece}`] = projectYutPoint(camera, node, YUT_SURFACE_Y + count * YUT_TOKEN_HEIGHT)
       }
     }))
-    onProject({ nodes, pieces })
+    const spacing = Math.hypot((nodes[1].x - nodes[2].x) * size.width / 100, (nodes[1].y - nodes[2].y) * size.height / 100)
+    onProject({ nodes, pieces, hitSize: Math.max(18, Math.min(48, spacing * .72)), height: size.height })
     invalidate()
-  }, [camera, size.width, size.height, piecesKey, onProject, invalidate])
+  }, [camera, size.width, size.height, piecesKey, onProject, invalidate, focus, state.teamCount])
   useEffect(() => {
     const canvas = gl.domElement
     const lost = (event: Event) => { event.preventDefault(); onLost() }
@@ -97,7 +99,7 @@ function TableScene({ state, selected, destinations, onProject, onReady, onLost,
       shadow-mapSize={[1024, 1024]} shadow-camera-left={-5} shadow-camera-right={5} shadow-camera-top={5} shadow-camera-bottom={-5}
       shadow-bias={-.0004} shadow-normalBias={.025} />
     <directionalLight position={[4, 4, 3]} intensity={.6} color="#dae7ff" />
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -.635, 0]} receiveShadow><planeGeometry args={[30, 30]} /><shadowMaterial transparent opacity={.34} /></mesh>
+    {focus ? <FeltSurface /> : <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -.635, 0]} receiveShadow><planeGeometry args={[30, 30]} /><shadowMaterial transparent opacity={.34} /></mesh>}
     <Slab />
     {[[5, 10], [10, 15], [15, 20], [20, 5], [5, 15], [10, 20]].map(([a, b]) => <Track key={`${a}:${b}`} from={a} to={b} />)}
     {boardNodes.map(node => <Space key={node} node={node} active={destinations.some(move => move.to === node)} />)}
@@ -111,6 +113,18 @@ function TableScene({ state, selected, destinations, onProject, onReady, onLost,
         selected={state.team === team && tokens[selected] === node} target={destinations.some(move => move.to === node)} reducedMotion={reducedMotion} />
     }))}
   </>
+}
+function FeltSurface() {
+  const original = useLoader(TextureLoader, feltArt)
+  const map = useMemo(() => {
+    const texture = original.clone(); texture.colorSpace = SRGBColorSpace
+    texture.wrapS = texture.wrapT = RepeatWrapping; texture.repeat.set(20, 20); texture.anisotropy = 4
+    texture.needsUpdate = true; return texture
+  }, [original])
+  useEffect(() => () => map.dispose(), [map])
+  return <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -.635, 0]} receiveShadow>
+    <planeGeometry args={[100, 100]} /><meshStandardMaterial map={map} roughness={1} />
+  </mesh>
 }
 function Slab() {
   const original = useLoader(TextureLoader, boardArt)
