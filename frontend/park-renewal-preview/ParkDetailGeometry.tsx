@@ -6,6 +6,7 @@ import { ParkAssetLoader } from '../src/world/art/assetLoader'
 import { parkDetailIds, parkDetailMeshes, type ParkDetailId } from './parkDetailMeshes'
 import { LakePart, LakeStage } from './lakeStages'
 import { optimizedGeometryMatchesSource } from './optimizedGeometrySource'
+import { useGeometrySourceVersion } from './geometrySourceReady'
 
 const urls = import.meta.glob<string>('./models/detail-*-optimized.glb', {
   eager: true,
@@ -17,14 +18,16 @@ const profile = new URLSearchParams(window.location.search)
 function DetailGeometry({ id, url, file, pending }: { id: ParkDetailId; url: string; file: string; pending?: Set<() => void> }) {
   const { scene } = useThree()
   const [accepted, setAccepted] = useState<string | null>(null)
+  const sourceVersion = useGeometrySourceVersion(scene)
   useLayoutEffect(() => {
+    if (accepted === file) return
     const sources = parkDetailMeshes(scene, id).map(group => group.source)
     if (!optimizedGeometryMatchesSource(file, sources)) {
       performance.mark('park-detail-geometry-skipped-' + id)
       return
     }
     setAccepted(file)
-  }, [id, file, scene])
+  }, [accepted, id, file, scene, sourceVersion])
   return accepted === file ? <LoadedDetailGeometry id={id} url={url} pending={pending} /> : null
 }
 

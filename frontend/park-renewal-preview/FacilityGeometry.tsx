@@ -4,6 +4,7 @@ import { Mesh } from 'three'
 import type { Object3D } from 'three'
 import { ParkAssetLoader } from '../src/world/art/assetLoader'
 import { optimizedGeometryMatchesSource } from './optimizedGeometrySource'
+import { useGeometrySourceVersion } from './geometrySourceReady'
 
 const geometryUrls = {
   tower: new URL('./models/facility-tower-optimized.glb', import.meta.url).href,
@@ -46,7 +47,10 @@ export function facilityGeometryMeshes(root: Object3D, id: GeometryFacility) {
 export function FacilityGeometry({ id }: { id: GeometryFacility }) {
   const { scene } = useThree()
   const [accepted, setAccepted] = useState<GeometryFacility | null>(null)
+  const sourceVersion = useGeometrySourceVersion(scene)
   useLayoutEffect(() => {
+    // Once replaced, the scene contains optimized geometry rather than sources.
+    if (accepted === id) return
     const root = scene.getObjectByName(facilityGeometryRoot(id))
     const sources = root ? facilityGeometryMeshes(root, id).map(mesh => mesh.geometry) : []
     if (!optimizedGeometryMatchesSource(`facility-${id}-optimized.glb`, sources)) {
@@ -54,7 +58,7 @@ export function FacilityGeometry({ id }: { id: GeometryFacility }) {
       return
     }
     setAccepted(id)
-  }, [id, scene])
+  }, [accepted, id, scene, sourceVersion])
   return accepted === id ? <LoadedFacilityGeometry id={id} /> : null
 }
 

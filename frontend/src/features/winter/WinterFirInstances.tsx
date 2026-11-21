@@ -12,18 +12,21 @@ function FirSector({ parts, geometry, distantGeometry }: {
   parts: Part[]; geometry: BufferGeometry; distantGeometry: BufferGeometry
 }) {
   const root = useRef<Group>(null)
-  const state = useRef({ distant: false, center: new Vector3() })
-  useFrame(({ camera }) => {
+  const state = useRef({ distant: false, center: new Vector3(), elapsed: Infinity })
+  useFrame(({ camera }, delta) => {
+    const current = state.current
+    current.elapsed += delta
+    if (current.elapsed < .65) return
     const mesh = root.current?.children[0] as InstancedMesh | undefined
     if (!mesh?.boundingSphere) return
-    const current = state.current
+    current.elapsed = 0
     current.center.copy(mesh.boundingSphere.center).applyMatrix4(mesh.matrixWorld)
     const threshold = detailedDistance + (current.distant ? -hysteresis : hysteresis)
     current.distant = camera.position.distanceToSquared(current.center) > threshold * threshold
     // Reuse instance matrices and colors. Switching sectors never recreates or
     // reuploads the thousands of tree transforms, nor changes physics geometry.
     mesh.geometry = current.distant ? distantGeometry : geometry
-  }, .65)
+  })
   return <group ref={root}>
     <Instances parts={parts} shadow={false}
       material={<primitive object={parkTreeResources.material} attach="material" dispose={null} />}>
