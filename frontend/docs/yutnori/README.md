@@ -113,3 +113,12 @@ Image Gen 내장 도구로 만든 `art/cover.webp`와 `art/board.webp`를 사용
 - 정지 상태는 demand 렌더링하고 DPR은 최대 1.5로 제한한다. 장면은 윷놀이 모듈 내부에 있으며 공원 맵·카메라·입력, BE·DB·V186, 의존성·인프라 설정은 변경하지 않는다.
 - 독립 검수: FE 실행 후 `node scripts/verify-yutnori-3d.mjs`. 개발 전용 `tests/fixtures/yutBoard3dInteraction.tsx`를 브라우저의 HTML 응답에 연결하여 29칸, 업기, 목적지 클릭, 키보드 선택, 핑, 화면 크기, 강제 WebGL 상실 후 기본 판을 검사한다. 서버 상태를 조작하지 않는 UI fixture다. 캡처는 기본 임시 폴더에 저장하고 `YUT_QA_OUTPUT`으로 위치를 지정할 수 있다.
 - 단위 검사: `node node_modules/vitest/vitest.mjs run --config vitest.local.config.ts tests/local-unit/yutnori.test.ts tests/local-unit/yutnori-3d.test.ts`.
+
+## 3D 윷 던지기와 빽도 결과 (2026-11-22)
+
+- 게임 내부 `YutThrow3D.tsx`·`throwMotion.ts`·`useThrowAnimation.ts`·`yutThrow.css`가 연출을 담당한다. 반원 단면의 윷 4개를 공중 회전 → 착지 → 감쇠 바운스/굴림 → 확정 윗면 순서로 움직인다. 판정은 기존 서버 난수이며 프런트 동작은 그 결과에 맞추는 연출이다. 의존성·공원 맵/공통 카메라/입력·인프라 파일은 변경하지 않는다.
+- 던질 때 중앙에 확대하고 약 1.95초 후 멈춘 결과를 0.85초 더 크게 보여준 뒤 오른쪽 마지막 결과 영역에 남긴다. 붉은 바탕과 흰 ‘빽’ 표식은 첫 윷의 평평한 면에만 있고, mask=1이면 별도 붉은 ‘빽도 · 뒤로 1칸’ 문구를 표시한다. 다른 윷도 함께 평평한 면 위면 그 개수에 따른 정상 이름을 표시한다. 낙이면 ‘낙’과 차례 넘김 안내를 표시한다.
+- 공개 상태의 `lastThrow`는 `{id,userId,team,mask,name,steps,bonus,out,at}`다. 유효한 THROW마다 증가하는 번호와 판정 당시 던진 사람/팀을 보관한다. 이동권 사용·차례 변경, 낙과 빈 판 빽도의 이동권 제거 후에도 유지한다. 기존 개인별 GAME_STATE/인증 REST/재접속/관전 경로를 재사용하며 공통 프로토콜과 DB 스키마는 바꾸지 않는다. 결과 JSON에 필드를 포함하므로 V186 추가 수정은 없다.
+- 새 번호에만 연출을 시작한다. 최초 복구/관전 진입은 확정된 마지막 면을 바로 표시하고 같은 번호의 폴링·채팅 갱신은 재생하지 않는다. 응답 대기 중 결과를 추측하지 않으며 실패하면 기존 오류/재확인 흐름을 유지한다. 큰 연출 중에는 게임 행동만 잠시 막고 채팅은 계속 사용할 수 있다. 동작 감소 설정에서는 바로 결과를 표시하며 WebGL 실패 시 기존 윷면 UI로 전환한다.
+- 독립 검수: 기존 FE 실행 후 `node scripts/verify-yutnori-throw.mjs`. 개발 전용 `tests/fixtures/yutThrow3d.tsx`와 HTML 응답 교체를 사용한다. 실제 서버 결과를 조작하지 않는 별도 UI fixture이며, 캡처 기본 경로는 임시 폴더다. `YUT_QA_OUTPUT`으로 변경할 수 있다. 통합 검수는 `node scripts/verify-yutnori.mjs`를 사용한다.
+- FE 검사에 `tests/local-unit/yutnori-throw.test.ts`를 추가한다. BE는 `YutThrowTests`와 기존 `YutEngineTests`에서 마지막 결과/공개 조회/중복 요청을 검사한다. FE/BE를 함께 갱신해야 새 lastThrow 기반 연출이 동작하며 이전 응답은 기존 이동권 UI로 계속 읽을 수 있다.

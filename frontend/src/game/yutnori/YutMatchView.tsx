@@ -1,7 +1,9 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Board3D } from './Board3D'
 import { StickResult } from './StickResult'
 import { YutChatPanel } from './YutChatPanel'
+import { YutThrow3D } from './YutThrow3D'
+import { useThrowAnimation } from './useThrowAnimation'
 import type { YutClient } from './client'
 import { teamName, type YutMove, type YutRoll, type YutSnapshot } from './contracts'
 
@@ -27,8 +29,18 @@ export function YutMatchView({ client, snapshot, user, busy, pending, myTurn, se
 }) {
   const state = snapshot.publicState
   const finished = state.phase === 'FINISHED'
+  const [requestedFrom, setRequestedFrom] = useState<number | null>(null)
+  const replaying = useThrowAnimation(snapshot.gameId, state.lastThrow)
+  const waiting = requestedFrom !== null && requestedFrom === (state.lastThrow?.id ?? 0)
+  const animating = !finished && !replaying.reducedMotion && (waiting || replaying.rolling)
+  const expanded = !finished && !replaying.reducedMotion && (waiting || replaying.expanded)
+  const actionBusy = busy || expanded
+  const throwYut = async () => {
+    setRequestedFrom(state.lastThrow?.id ?? 0)
+    try { await client.act({ type: 'THROW' }) } finally { setRequestedFrom(null) }
+  }
   const move = (destination: YutMove) => {
-    if (!busy && activeRoll) void client.act({ type: 'MOVE', piece: selected, rollId: activeRoll.id, shortcut: destination.shortcut })
+    if (!actionBusy && activeRoll) void client.act({ type: 'MOVE', piece: selected, rollId: activeRoll.id, shortcut: destination.shortcut })
   }
   return <div className="yut-match-layout">
     <aside tabIndex={0} className="yut-match-left" aria-label="팀 현황과 경기 채팅">
@@ -37,7 +49,7 @@ export function YutMatchView({ client, snapshot, user, busy, pending, myTurn, se
         <h3><span className={`yut-team-dot yut-team-${team}`} />{teamName(team)}<small>{tokens.filter(node => node === 30).length}/{state.pieceCount}{state.eliminatedTeams.includes(team) ? ' 탈락' : ' 완주'}</small></h3>
         <p>{state.players.filter(player => player.team === team).map(player => player.nickname + (player.userId === user ? ' (나)' : '')).join(' · ')}</p>
         <div className="yut-piece-rack">{tokens.map((node, piece) => <button key={piece} className={`yut-token yut-team-${team}`}
-          disabled={!myTurn || team !== state.team || node === 30 || busy} aria-pressed={selected === piece && state.team === team}
+          disabled={!myTurn || team !== state.team || node === 30 || actionBusy} aria-pressed={selected === piece && state.team === team}
           aria-label={`${teamName(team)} ${piece + 1}번 말 선택`} onClick={() => onPiece(piece)}>
           {node === 30 ? '✓' : piece + 1}<small>{state.eliminatedTeams.includes(team) ? '탈락' : node === 0 ? '대기' : node === 30 ? '완주' : '판 위'}</small>
         </button>)}</div>
@@ -45,24 +57,25 @@ export function YutMatchView({ client, snapshot, user, busy, pending, myTurn, se
       <YutChatPanel client={client} snapshot={snapshot} busy={busy} />
     </aside>
     <section className="yut-board-region yut-match-board" aria-label="중앙 윷판">
-      <div className="yut-board-stage"><Board3D state={state} selected={selected} destinations={destinations}
-        onPiece={(team, piece) => { if (myTurn && team === state.team) onPiece(piece) }} onMove={move}
+      <div className="yut-board-stage"><Board3D state={state} selected={selected} destinations={expanded ? [] : destinations}
+        onPiece={(team, piece) => { if (myTurn && !actionBusy && team === state.team) onPiece(piece) }} onMove={move}
         onPing={node => { if (!busy) void client.feedback(`📍 윷판 ${node}번 칸`) }} /></div>
       <p className="yut-board-caption">이동권 → 말 → 도착 칸 · 참먹이에서 한 칸 더 가면 완주</p>
     </section>
     <aside tabIndex={0} className="yut-play-panel" aria-label="윷놀이 조작과 진행 기록">
       <section className="yut-controls">
         {finished ? <><button className="yut-primary yut-throw" disabled={pending} onClick={onLeave}>공원으로 돌아가기</button><p className="yut-help">{state.reason === 'YUT_COMPLETED' ? '승리 팀의 말이 모두 완주했어요.' : '마지막 남은 팀이 승리했어요.'}</p></>
-          : <button className="yut-primary yut-throw" disabled={!myTurn || busy || state.credits < 1 || state.rolls.length >= 32}
-            onClick={() => void client.act({ type: 'THROW' })}>{pending ? '확인 중…' : '윷 던지기'} {state.credits > 0 && `(${state.credits})`}</button>}
+          : <button className="yut-primary yut-throw" disabled={!myTurn || actionBusy || state.credits < 1 || state.rolls.length >= 32}
+            onClick={() => void throwYut()}>{animating ? '굴러가는 중…' : expanded ? '결과 확인 중…' : pending ? '확인 중…' : '윷 던지기'} {state.credits > 0 && `(${state.credits})`}</button>}
+        <YutThrow3D result={state.lastThrow ?? null} animating={animating} expanded={expanded} waiting={waiting && animating} />
         <h3>이동권</h3>
-        <div className="yut-rolls" aria-label="모아 둔 이동권">{state.rolls.length ? state.rolls.map(roll => <button key={roll.id} disabled={!myTurn || busy}
+        <div className="yut-rolls" aria-label="모아 둔 이동권">{state.rolls.length ? state.rolls.map(roll => <button key={roll.id} disabled={!myTurn || actionBusy}
           aria-pressed={activeRoll?.id === roll.id} onClick={() => onRoll(roll.id)}>
           <StickResult mask={roll.mask} /><strong>{roll.name}</strong><small>{roll.steps === -1 ? '뒤로 1칸' : `앞으로 ${roll.steps}칸`}</small>
         </button>) : <p className="yut-help">{finished ? '경기가 끝났어요.' : '윷을 던지면 이동권이 생겨요.'}</p>}</div>
         <p className="yut-selection" aria-live="polite">{!myTurn ? '윷판의 칸을 눌러 위치 핑을 보낼 수 있어요.' : selected < 0 ? '이동할 우리 말을 골라주세요.' : `${teamName(state.team)} ${selected + 1}번 말 선택`}</p>
         {!!destinations.length && <div className="yut-actions">{destinations.filter((value, i, all) => all.findIndex(other => other.to === value.to) === i).map(destination =>
-          <button key={String(destination.shortcut)} disabled={busy} onClick={() => move(destination)}>{destination.to === 30 ? '완주하기' : `${destination.shortcut ? '지름길' : '기본 길'} · ${activeRoll!.steps === -1 ? '뒤로 1칸' : `${activeRoll!.steps}칸 이동`}`}</button>)}</div>}
+          <button key={String(destination.shortcut)} disabled={actionBusy} onClick={() => move(destination)}>{destination.to === 30 ? '완주하기' : `${destination.shortcut ? '지름길' : '기본 길'} · ${activeRoll!.steps === -1 ? '뒤로 1칸' : `${activeRoll!.steps}칸 이동`}`}</button>)}</div>}
         <p className="yut-backdo-key"><span aria-hidden="true">빽</span> 표시된 윷만 배면 위면<br /><strong>빽도 · 뒤로 1칸</strong></p>
       </section>
       <section className="yut-match-history"><h3>최근 진행</h3><ol aria-live="polite">{state.log.slice(-4).map((line, i) => <li key={`${i}:${line}`}>{line}</li>)}</ol></section>

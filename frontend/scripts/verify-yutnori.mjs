@@ -94,6 +94,13 @@ try {
     if (snapshot.publicState.credits > 0 && !snapshot.publicState.rolls.length) {
       await page.getByRole('button', { name: /^윷 던지기/ }).click()
       await expect.poll(async () => (await state(page)).mine.version, { timeout: 10000 }).toBeGreaterThan(version)
+      const thrown = (await state(page)).mine.publicState.lastThrow
+      expect(thrown.id).toBeGreaterThan(0)
+      for (const peer of [red, blue]) {
+        await expect(peer.locator('.yut-throw-view')).toHaveAttribute('data-result-id', String(thrown.id))
+      }
+      await expect(page.locator('.yut-throw-view')).toHaveAttribute('data-expanded', 'false')
+      await expect(page.locator('.yut-throw-view')).toHaveAttribute('data-mask', String(thrown.mask))
     }
     const next = (await state(page)).mine
     if (next.publicState.turnUser !== snapshot.publicState.turnUser || !next.publicState.moves.length) continue
