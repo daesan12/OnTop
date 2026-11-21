@@ -1,4 +1,4 @@
-import {useMemo} from 'react'
+import {useMemo,type ReactNode} from 'react'
 import {useLoader} from '@react-three/fiber'
 import {ParkAssetLoader} from '../src/world/art/assetLoader'
 import {Mesh,type Group} from 'three'
@@ -7,6 +7,15 @@ import {facilityYaw} from './facilityPlacement'
 import {legacyIdsForSite,pavilionIdForSite} from './mapping/identities'
 import {models} from './modelUrls'
 import {facilityGroundY,site} from './plan'
+
+/** Resolve the shared loader cache before constructing procedural entrance art.
+ * Suspense retries must not rebuild/discard snow, trees and sleigh geometry. */
+export function EntranceAssetsReady({children}:{children:ReactNode}) {
+ useLoader(ParkAssetLoader,models.main!)
+ useLoader(ParkAssetLoader,models.fortune!)
+ useLoader(ParkAssetLoader,models.lottery!)
+ return children
+}
 
 export function createGroundedEntranceModel(source: Group) {
  const object = source.clone(true)
