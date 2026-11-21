@@ -3,7 +3,7 @@
 ## 범위와 기준
 
 - 브랜치: `feat/davinci-code`
-- dev 기준: `7118735e864ca2ae435c64ebb77c6cfd1ab0d335` (2026-11-22 fetch 후 merge `3e78cc5f`, 충돌 없음).
+- dev 기준: `f3980669e3d6a5c02d2472188a69d149932fbf94` (2026-11-22 fetch 후 merge `ff2fcff8`, 충돌 없음).
 - 기존 미커밋 작업은 보존하고 별도 `OnTop/davinci-code-20261121` worktree에서 구현했다.
 - 사용자가 기존 테이블 연결을 명시적으로 승인했다. 지형·시설 좌표·맵 생성물·맵 버전은 변경하지 않는다.
 - FE: `frontend/src/game/davinci/`, BE: `backend/src/main/java/com/ssafy/ontop/game/davinci/`.
@@ -43,9 +43,9 @@
 
 ## DB와 활성화
 
-- 사용자가 V183을 지정했다. 파일: `backend/src/main/resources/db/migration/V183__allow_davinci_code_game_sessions.sql`.
+- 2026-11-22 사용자 지정으로 미적용 신규 파일을 V183에서 **V184**로 변경했다. 파일: `backend/src/main/resources/db/migration/V184__allow_davinci_code_game_sessions.sql`.
 - 기존 CHECK의 모든 게임별 인원 조건을 보존하고 `DAVINCI_CODE` 2~4인만 추가한다. 적용된 기존 migration은 수정하지 않는다.
-- 원격 브랜치 및 로컬 worktree 230곳 확인 범위에서 V183 점유는 없었다. 열린 MR 전체·팀 별도 예약·실제 DB 적용 이력은 확인하지 못했다.
+- 최신 dev `f3980669`는 V182까지이며, 원격 브랜치 277개와 로컬 worktree 246곳의 `db/**/V*.sql`을 확인했다. 원격 루미큐브의 기존 V184는 해당 작업실에서 사용자 지정 V185로 이관 중임을 확인했으며 다른 작업실 파일은 수정하지 않았다. 열린 MR 조회는 HTTP 404로 확인 불가이며 별도 예약·실제 DB 적용 이력도 확인하지 못했다. 통합 전 V184 중복을 다시 확인한다.
 - 실제 MySQL 적용은 인프라 담당자가 기존 절차로 처리해야 한다. CI/CD·Jenkins·배포·네트워크·환경 설정 파일은 변경하지 않는다.
 - BE 활성화 속성: `ontop.games.davinci.enabled=true`. FE 배포 빌드 활성화: `VITE_DAVINCI_ENABLED=true`. 개발 모드에서는 선택 가능하다.
 - 담당자 요청문은 채팅에 별도로 공유했다. 인프라 적용 승인이나 배포 승인을 의미하지 않는다.
@@ -186,3 +186,11 @@ pnpm exec tsc --noEmit
 ## 원격 반영
 
 MR·머지·배포는 사용자 명시 요청 전까지 보류한다. 테스트 결과·커밋/푸시·원격 충돌 확인·Jenkins 확인 범위는 작업 완료 시 이 기록과 채팅에 남긴다.
+
+### 마이그레이션 V184 재지정 — 2026-11-22
+
+- 최신 dev f3980669를 merge ff2fcff8로 반영했으며 충돌은 없었다. 신규 마이그레이션 파일명과 버전 주석·현재 적용 안내만 V184로 변경한다. 실행 SQL과 기존 게임 CHECK 조건은 유지한다.
+- 본 작업의 검증은 DB 미연결 메모리 fixture였으므로 V183 SQL을 적용하지 않았다. 공유/운영 DB의 Flyway 이력은 확인하지 못했으며 DB 적용·repair·초기화·인프라 수정은 수행하지 않는다.
+- 기존 UI 검증 기록의 V183 언급은 당시 기록으로 유지한다. 실제 신규 배포 대상 파일은 위 V184 한 개이며, 빌드 산출물에 이전 V183 복사본이 남지 않는지도 확인한다.
+- 검증: 실행 SQL 동일, 소스/배포 JAR의 마이그레이션 74개 중복 없음, JAR 내 V184 1개·기존 흑백수사 V183 0개. BE 20개·bootJar·TypeScript 통과. 최신 dev FE 회귀 21개 통과(병렬 실행에서 geometry 1건의 5초 시간 초과 후 해당 파일 6개를 단독 재실행해 통과). DB 적용은 하지 않았다.
+- 커밋 전 재확인에서도 원격 루미큐브 V184는 남아 있고 로컬 이관 목적지는 V185다. 두 작업 통합 전 원격 V185 이관 반영과 전체 locations의 번호를 재확인해야 한다. 다른 작업실 변경은 보존한다.
