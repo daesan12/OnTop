@@ -257,7 +257,7 @@ export function worldState(value: Record<string, unknown>): WorldState {
     if (table.secretTiles == null) continue
     const view = table.secretTiles
     if (table.gameCode !== 'DAVINCI_CODE' || !record(view) || !text(view.gameId) || !view.gameId.trim()
-      || Object.keys(view).some(key => !['gameId', 'state'].includes(key))) throw new Error('공개 비밀패 상태가 올바르지 않습니다.')
+      || Object.keys(view).some(key => !['gameId', 'state'].includes(key))) throw new Error('공개 흑백수사 상태가 올바르지 않습니다.')
     table.secretTiles = { gameId: view.gameId, state: parseDavinci(view.state) }
   }
   if (value.avatars.some(a => a.tableSeat && a.tableSeat.seatNumber > 4

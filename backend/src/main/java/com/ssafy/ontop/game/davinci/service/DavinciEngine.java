@@ -51,7 +51,7 @@ public final class DavinciEngine implements GameEngine {
         DavinciMatch existing = games.get(gameId);
         if (existing != null) {
             if (!existing.tableId().equals(tableId) || !existing.players().equals(players)) {
-                throw new IllegalStateException("기존 비밀패 경기와 다른 생성 요청입니다.");
+                throw new IllegalStateException("기존 흑백수사 경기와 다른 생성 요청입니다.");
             }
             return;
         }
@@ -252,7 +252,7 @@ public final class DavinciEngine implements GameEngine {
     private void publish(List<Object> notices) {
         for (Object notice : notices) {
             try { events.accept(notice); }
-            catch (RuntimeException exception) { log.error("비밀패 알림 전달 실패", exception); }
+            catch (RuntimeException exception) { log.error("흑백수사 알림 전달 실패", exception); }
         }
     }
 }

@@ -37,7 +37,7 @@ function RulesDialog({ close }: { close(): void }) {
     return () => { element.close(); if (prior instanceof HTMLElement && prior.isConnected) prior.focus() }
   }, [])
   return <dialog ref={dialog} className="davinci-rules" onCancel={event => { event.preventDefault(); close() }} aria-labelledby="davinci-rules-title">
-    <header><h2 id="davinci-rules-title">비밀패 · 게임 방법</h2><button onClick={close} autoFocus aria-label="게임 방법 닫기">닫기</button></header>
+    <header><h2 id="davinci-rules-title">흑백수사 · 게임 방법</h2><button onClick={close} autoFocus aria-label="게임 방법 닫기">닫기</button></header>
     <div><p>2~4명이 검정·흰색 타일 26개로 즐기는 숫자 추리 게임이에요. 상대의 타일을 모두 공개하고 마지막까지 살아남으세요.</p>
       <h3>준비와 정렬</h3><p>2~3인은 4개, 4인은 3개를 받아요. 숫자는 왼쪽에서 오른쪽으로 커지고, 같은 숫자는 검정이 먼저예요. 조커(−)의 위치는 직접 고르며, 한 번 놓인 타일들의 순서는 바꿀 수 없어요.</p>
       <h3>내 차례</h3><ol><li>중앙에서 타일을 하나 뽑고, 표시된 합법 위치에 놓아요. 중앙에 타일이 없으면 바로 추리해요.</li><li>상대의 비공개 타일을 선택하고 0~11 또는 조커를 말해요.</li><li>맞히면 상대 타일이 눕혀 공개돼요. 계속 추리하거나 차례를 마칠 수 있어요.</li></ol>
@@ -71,8 +71,8 @@ export function DavinciScreen({ state, hand, viewerId, names, enabled, busy, err
     : event?.kind === 'DRAW' ? `${name(event.actorUserId)}님이 타일을 뽑았어요.`
       : event?.kind === 'TIMEOUT' ? `${name(event.actorUserId)}님의 시간이 끝나 타일이 공개됐어요.`
         : event?.kind === 'FORFEIT' ? `${name(event.actorUserId)}님이 기권했어요.` : '비밀을 지키고, 숫자의 실마리를 찾아보세요.'
-  return <section className="davinci-screen" data-tabletop={tabletop || undefined} data-opening={shuffling || undefined} aria-label="비밀패 경기">
-    <header className="davinci-header"><div><h1>비밀패</h1><p>숨겨진 숫자를 추리하세요</p></div>
+  return <section className="davinci-screen" data-tabletop={tabletop || undefined} data-opening={shuffling || undefined} aria-label="흑백수사 경기">
+    <header className="davinci-header"><div><h1>흑백수사</h1><p>숨겨진 숫자를 추리하세요</p></div>
       <nav aria-label="경기 메뉴"><button onClick={() => setRules(true)}>게임 방법</button>{topActions}</nav></header>
     <div className="davinci-layout">
       <aside className="davinci-players" aria-label="참가자 현황">{state.players.map(p => <div key={p.userId} data-turn={p.userId === state.turnUserId} data-out={!p.active}>

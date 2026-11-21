@@ -24,7 +24,7 @@ const id = (v: unknown): v is string => typeof v === 'string' && !!v.trim() && v
 const color = (v: unknown): v is TileColor => v === 'BLACK' || v === 'WHITE'
 const value = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v) && v >= -1 && v <= 11
 const date = (v: unknown): v is string => typeof v === 'string' && /Z$/.test(v) && Number.isFinite(Date.parse(v))
-const invalid = (): never => { throw new Error('비밀패 상태를 확인해주세요.') }
+const invalid = (): never => { throw new Error('흑백수사 상태를 확인해주세요.') }
 
 function tile(v: unknown, secret = false): CodeTile {
   if (!record(v) || !id(v.id) || !color(v.color) || typeof v.revealed !== 'boolean'

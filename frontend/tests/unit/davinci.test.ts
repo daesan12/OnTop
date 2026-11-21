@@ -14,7 +14,7 @@ function state(): DavinciState {
 }
 function hand() { return { userId: '101', tiles: [{ ...tile('tile-101'), value: 6 }], validPositions: [], unplacedJokerIds: [], pendingTile: null } }
 
-describe('비밀패 공개·개인 계약', () => {
+describe('흑백수사 공개·개인 계약', () => {
   it('서버 시각에 맞춰 섞기를 시작하고 재접속 시 완료된 연출을 반복하지 않는다', () => {
     const s = { ...state(), stage: 'SETUP' as const, openingStartedAt: '2026-11-21T12:00:00Z' }
     expect(openingActive(s, Date.parse(s.openingStartedAt) + 1200)).toBe(true)

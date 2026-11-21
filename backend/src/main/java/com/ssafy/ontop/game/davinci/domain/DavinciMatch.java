@@ -51,7 +51,7 @@ public final class DavinciMatch {
                 || players.stream().anyMatch(id -> id == null || id <= 0) || deck.size() != 26
                 || deck.stream().map(CodeTile::id).distinct().count() != 26
                 || deck.stream().map(tile -> tile.color() + ":" + tile.value()).distinct().count() != 26) {
-            throw new IllegalArgumentException("비밀패 경기 구성을 확인해주세요.");
+            throw new IllegalArgumentException("흑백수사 경기 구성을 확인해주세요.");
         }
         this.gameId = gameId;
         this.tableId = tableId;

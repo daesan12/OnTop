@@ -147,7 +147,7 @@ function Scene({ state, hand, viewerId, selected, enabled, canPing, pingTileId, 
 
 export function DavinciBoard(props: BoardProps) {
   return <Canvas shadows dpr={[1, 1.5]} camera={{ position: [0, 9.5, 9], fov: 46, near: .1, far: 80 }}
-    gl={{ antialias: true, alpha: false }} aria-label="비밀패 3D 게임판">
+    gl={{ antialias: true, alpha: false }} aria-label="흑백수사 3D 게임판">
     <Scene {...props} />
   </Canvas>
 }
