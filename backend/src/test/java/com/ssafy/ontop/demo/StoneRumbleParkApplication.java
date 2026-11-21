@@ -36,6 +36,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.context.annotation.Profile;
 import org.springframework.context.event.EventListener;
@@ -66,11 +67,17 @@ public final class StoneRumbleParkApplication {
                     "--ontop.world.map.manifest-path=../frontend/generated/park-renewal/manifest.json",
                     "--ontop.world.map.require-match=true"));
         }
+        for (String argument : args) {
+            String key = argument.contains("=") ? argument.substring(0, argument.indexOf('=') + 1) : argument;
+            defaults.removeIf(value -> value.startsWith(key));
+            defaults.add(argument);
+        }
         new SpringApplication(OntopApplication.class, Fixture.class).run(defaults.toArray(String[]::new));
     }
 
     @TestConfiguration(proxyBeanMethods = false)
     @Profile("local & stone-rumble-park & !db & !dev & !prod & !production")
+    @Import(com.ssafy.ontop.game.spotdifference.SpotDifferenceParkFixture.class)
     public static class Fixture {
         @Bean ActiveMemberLookup stoneRumbleMembers() {
             return (id, sid) -> Set.of(101L,202L,303L,404L,505L,606L,707L,808L,999L).contains(id) && TestLoginSessions.ID.equals(sid)
@@ -103,7 +110,9 @@ public final class StoneRumbleParkApplication {
                         FilterChain chain) throws ServletException, IOException {
                     String path = request.getRequestURI();
                     Object body = null;
-                    if (path.equals("/dev/stone-rumble-park/session") && request.getMethod().equals("POST")) {
+                    if ((path.equals("/dev/stone-rumble-park/session")
+                            || path.equals("/api/v1/qa/session") && Boolean.getBoolean("ontop.qa-feedback.enabled"))
+                            && request.getMethod().equals("POST")) {
                         String origin=request.getHeader("Origin");
                         if (origin != null && (properties.allowedOrigins() == null || !properties.allowedOrigins().contains(origin))) { response.setStatus(403); return; }
                         long id = switch(mapper.readTree(request.getInputStream()).path("role").asText()) { case "1" -> 101; case "2" -> 202; case "3" -> 303; case "4" -> 404; case "5" -> 505; case "6" -> 606; case "7" -> 707; case "8" -> 808; case "viewer" -> 999; default -> 0; };
@@ -144,6 +153,10 @@ public final class StoneRumbleParkApplication {
         final Map<String, GameStartCommand> games = new ConcurrentHashMap<>();
         final Map<String, GameResultView> results = new ConcurrentHashMap<>();
         final Map<Long, Long> balances = new ConcurrentHashMap<>();
+
+        public synchronized void creditForQa(long userId, long amount) {
+            balances.compute(userId, (account, balance) -> (balance == null ? 10000L : balance) + amount);
+        }
         final java.util.concurrent.atomic.AtomicLong gameSequence = new java.util.concurrent.atomic.AtomicLong(1_600_000);
         final ApplicationEventPublisher events;
         LocalLedger(ApplicationEventPublisher events) { this.events=events; }
