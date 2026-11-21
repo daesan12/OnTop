@@ -70,7 +70,8 @@ describe('체스 승인 이동 효과음', () => {
   it('체크메이트에는 체크음 대신 마무리음을 내고 무승부·기권·잘못된 승자에는 내지 않는다', () => {
     const a = game({ h5: 'Q', f7: 'p' }, [], 0), b = game({ f7: 'Q' }, ['h5f7'], 1,
       { status: 'FINISHED', endedAt: new Date(NOW).toISOString(), endReason: 'CHECKMATE', winnerUserId: '101', inCheck: true })
-    expect(gameSfx(a, b, '101', NOW)).toEqual(['chess-capture', 'chess-checkmate'])
+    expect(gameSfx(a, b, '101', NOW)).toEqual(['chess-capture', 'chess-checkmate-win'])
+    expect(gameSfx(a, b, '202', NOW)).toEqual(['chess-capture', 'chess-checkmate-lose'])
     expect(gameSfx({ ...a, role: 'SPECTATOR' }, { ...b, role: 'SPECTATOR' }, '505', NOW)).toEqual(['chess-capture', 'chess-checkmate'])
     expect(chessPositionSound(b, { ...b, version: 2 }, NOW)).toBeNull()
     for (const endReason of ['STALEMATE', 'EXPLICIT_LEAVE', 'TIMEOUT'])
@@ -78,8 +79,20 @@ describe('체스 승인 이동 효과음', () => {
     for (const winnerUserId of [null, 'outsider'])
       expect(chessPositionSound(a, { ...b, chess: { ...b.chess, winnerUserId } }, NOW)).toBeNull()
   })
+  it('백흑 색상 대신 서버 승자와 실제 참가 계정으로 승패음을 고른다', () => {
+    const a = game({ d8: 'q' }, [], 0), b = game({ h4: 'q' }, ['d8h4'], 1,
+      { status: 'FINISHED', endedAt: new Date(NOW).toISOString(), endReason: 'CHECKMATE', winnerUserId: '202', inCheck: true })
+    expect(gameSfx(a, b, '202', NOW)).toEqual(['chess-move', 'chess-checkmate-win'])
+    expect(gameSfx(a, b, '101', NOW)).toEqual(['chess-move', 'chess-checkmate-lose'])
+    expect(gameSfx(a, b, 'outsider', NOW)).toEqual(['chess-move'])
+    expect(chessPositionSound(a, b, NOW)).toBeNull()
+    expect(chessPositionSound(a, b, NOW + 1200, '202')).toBeNull()
+    expect(chessPositionSound(b, { ...b, version: 2 }, NOW, '202')).toBeNull()
+    expect(chessPositionSound(null, b, NOW, '202')).toBeNull()
+    expect(gameSfx({ ...a, role: 'SPECTATOR' }, { ...b, role: 'SPECTATOR' }, '202', NOW)).toEqual(['chess-move', 'chess-checkmate'])
+  })
   it('원본 파형은 짧고 유효하며 시작/끝의 클릭 잡음과 피크를 제한한다', () => {
-    for (const rate of [22050, 44100, 48000]) for (const kind of ['chess-move', 'chess-capture', 'chess-check', 'chess-checkmate'] as const) {
+    for (const rate of [22050, 44100, 48000]) for (const kind of Object.keys(CHESS_SOUND_DURATION) as (keyof typeof CHESS_SOUND_DURATION)[]) {
       const data = chessSoundSamples(kind, rate)
       expect(data.length).toBe(Math.ceil(CHESS_SOUND_DURATION[kind] * rate))
       expect([...data].every(Number.isFinite)).toBe(true)
