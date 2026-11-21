@@ -2081,7 +2081,7 @@ public class TableHub {
         var vehicle = VehicleKind.valueOf(payload.path("vehicle").asText());
         if (current != null && current.id.equals(id)
                 && current.station.equals(station) && current.vehicle == vehicle) {
-            if (current.seconds == 0 || current.endStatus != null) {
+            if (current.billingCount == 0 || current.endStatus != null) {
                 rememberMobilityRequest(current.startRequests, request.requestId());
             } else {
                 sendMobility(member, request.requestId(), id, vehicle, "RIDING", current.total(), null);
@@ -2112,7 +2112,7 @@ public class TableHub {
 
     private void submitMobilityPayment(MobilityRide ride, long deadline) {
         ride.paymentDeadline = deadline;
-        ride.payment = rentals.submit(ride.owner.accountId(), ride.id, ride.seconds + 1, ride.vehicle, deadline,
+        ride.payment = rentals.submit(ride.owner.accountId(), ride.id, ride.billingCount + 1, ride.vehicle, deadline,
                 payment -> completeMobilityPayment(ride, payment));
         if (ride.payment == null) {
             endRide(ride.owner.userId(), "FAILED", "FAILED");
@@ -2125,13 +2125,13 @@ public class TableHub {
             return;
         }
         ride.payment = null;
-        boolean first = ride.seconds == 0;
+        boolean first = ride.billingCount == 0;
         boolean paid = payment == MobilityWallet.Payment.PAID
                 || (!first && payment == MobilityWallet.Payment.ALREADY_PAID);
         String receipt = null;
         if (paid) {
-            ride.seconds++;
-            receipt = ride.id + ":" + ride.seconds;
+            ride.billingCount++;
+            receipt = ride.id + ":" + ride.billingCount;
         }
         if (ride.endStatus != null) {
             finishRide(ride, receipt);
@@ -2167,8 +2167,8 @@ public class TableHub {
         }
     }
 
-    // 첫 구간 요금이 커밋돼 실제로 탄 뒤에만 시작을, 그렇게 시작한 탈것만 종료를 남긴다.
-    // seconds는 기존 결제 키와 호환되는 구간 순번이며, 이용 시간은 결제한 구간의 초 수다.
+    // 첫 구간 결제가 확정돼 실제로 탄 뒤에만 시작과 종료를 남긴다.
+    // 탈것 durationMs는 기존 행동 로그·분석 계약의 결제 구간 합이며 실제 탑승 체류 시간과 다르다.
     private void recordMobilityStart(MobilityRide ride) {
         recordBehavior(BehaviorEventType.FACILITY_USED, ride.owner.accountId(), builder -> mobilityProps(builder, ride));
     }
@@ -2176,7 +2176,7 @@ public class TableHub {
     private void recordMobilityEnd(MobilityRide ride) {
         recordBehavior(BehaviorEventType.FACILITY_RELEASED, ride.owner.accountId(),
                 builder -> mobilityProps(builder, ride).prop("endReason", ride.logReason)
-                        .prop("durationMs", ride.seconds * ride.vehicle.billingSeconds() * 1000).prop("fee", ride.total()));
+                        .prop("durationMs", ride.paidDurationMs()).prop("fee", ride.total()));
     }
 
     private static BehaviorEvent.Builder mobilityProps(BehaviorEvent.Builder builder, MobilityRide ride) {
@@ -2209,7 +2209,7 @@ public class TableHub {
         // the decision is included in the final total when the worker reports its result.
         boolean resolved = ride.payment == null || ride.payment.cancel();
         markEnded(ride, status, logReason);
-        if (ride.seconds > 0) {
+        if (ride.billingCount > 0) {
             var world = channels.setVehicle(user, null);
             if (world != null) {
                 publishWorld(world, null, null);
@@ -2258,7 +2258,7 @@ public class TableHub {
                 continue;
             }
             String user = ride.owner.userId();
-            if (!mobilityPositionValid(ride, ride.seconds == 0)) {
+            if (!mobilityPositionValid(ride, ride.billingCount == 0)) {
                 endRide(user, "ENDED", "AUTO_ENDED");
             } else if (ride.payment != null) {
                 if (now - ride.paymentDeadline >= 0) {
@@ -4837,7 +4837,7 @@ public class TableHub {
         private final VehicleKind vehicle;
         private final Set<String> startRequests = new LinkedHashSet<>();
         private final Set<String> endRequests = new LinkedHashSet<>();
-        private long seconds;
+        private long billingCount;
         private long nextPaymentAt;
         private long paymentDeadline;
         private MobilityRentals.Charge payment;
@@ -4854,7 +4854,11 @@ public class TableHub {
         }
 
         private long total() {
-            return seconds * vehicle.rate();
+            return billingCount * vehicle.rate();
+        }
+
+        private long paidDurationMs() {
+            return billingCount * vehicle.billingSeconds() * 1000;
         }
     }
 

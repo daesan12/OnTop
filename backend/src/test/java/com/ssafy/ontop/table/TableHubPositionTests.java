@@ -471,6 +471,7 @@ class TableHubPositionTests {
 
     @Test
     void 자전거는_20초_킥보드는_10초_구간으로_1냥씩_결제한다() throws Exception {
+        hub.configureBehaviorLog(new CapturingLog());
         var wallet = mock(MobilityWallet.class);
         Peer user = peer(101);
         user.request("CHANNEL_JOIN", Map.of("channelId", "one"));
@@ -491,6 +492,13 @@ class TableHubPositionTests {
             verify(wallet).charge(eq(101L), eq(lease), eq(1L), eq(1), any(BooleanSupplier.class));
             verify(wallet, never()).charge(eq(101L), eq(lease), eq(2L), eq(1), any(BooleanSupplier.class));
             user.request("WORLD_MOBILITY_END", Map.of("leaseId", lease));
+            var leaseEvents = facilityEvents().stream()
+                    .filter(event -> lease.equals(event.props().get("leaseId"))).toList();
+            assertThat(leaseEvents).extracting(BehaviorEvent::type)
+                    .containsExactly(BehaviorEventType.FACILITY_USED, BehaviorEventType.FACILITY_RELEASED);
+            assertThat(leaseEvents.getLast().props()).containsEntry("kind", vehicle)
+                    .containsEntry("endReason", "RELEASED").containsEntry("fee", 1L)
+                    .containsEntry("durationMs", vehicle.equals("BICYCLE") ? 20_000L : 10_000L);
         }
     }
 
