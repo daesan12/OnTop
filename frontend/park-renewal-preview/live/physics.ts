@@ -1,6 +1,6 @@
-import { CHRISTMAS_TREE, SNOW_BUILD_ZONES, SNOW_PILES } from '../../src/features/winter/plan'
+import { CHRISTMAS_TREE, SNOW_BUILD_ZONES, SNOW_PILES, WINTER_DECOR } from '../../src/features/winter/plan'
 import { SNOWMAN_JOINT_INSET_RATIO } from '../../src/features/winter/community/snowmanLayout'
-import treeCollision from '../../src/features/winter/community/assets/tree-collision.json'
+import { christmasCollision } from '../../src/features/winter/christmasCollision'
 import { mainPagodaCollision } from '../pagodaCollision'
 import { ShapeUtils, Vector2, type BufferGeometry } from 'three'
 import { createTowerDeck, createTowerRamp, MOVEMENT, OBSERVATION_TOWER, TOWER_DECK_RAIL_SEGMENTS, towerPoint } from '../../src/config'
@@ -211,9 +211,13 @@ export function buildRenewalPhysics(tables: readonly TableAnchor[]) {
     if (b.kind === 'circle') cylinder(id, b.x, b.z, b.radius, b.bottom, b.top)
     else putBox(id, [b.x, (b.bottom + b.top) / 2, b.z], [b.halfX, (b.top - b.bottom) / 2, b.halfZ], Math.atan2(b.sin, b.cos))
   })
-  const treeFloor = groundSurfaceHeight(CHRISTMAS_TREE.x, CHRISTMAS_TREE.z)
-  hulls.push({ id: 'winter-asset-plaza-tree', role: 'solid',
-    vertices: treeCollision.tree.vertices.map((value, i) => value + (i % 3 === 0 ? CHRISTMAS_TREE.x : i % 3 === 1 ? treeFloor : CHRISTMAS_TREE.z)) })
+  for (const decoration of WINTER_DECOR) {
+    const approved = christmasCollision(decoration.kind)
+    if (!approved) continue
+    const floor = groundSurfaceHeight(decoration.x, decoration.z)
+    hulls.push({ id: 'winter-asset-' + decoration.id, role: 'solid',
+      vertices: approved.vertices.map((value, i) => value + (i % 3 === 0 ? decoration.x : i % 3 === 1 ? floor : decoration.z)) })
+  }
   // The authored proxies above retain the visible bench/seat profiles. Service table
   // columns keep the existing no-climb policy and two visible stone seats.
   for (const table of tables) {

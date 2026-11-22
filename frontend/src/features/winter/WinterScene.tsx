@@ -3,6 +3,7 @@ import { SantaBell } from './SantaBell'
 import { SnowBuildingScene } from './community/SnowBuildingScene'
 import { useWinterCommunity } from './community/state'
 import { ChristmasCommunityTree } from './community/ChristmasCommunityTree'
+import { ChristmasAsset } from './ChristmasAssets'
 import { useFrame } from '@react-three/fiber'
 import { BufferAttribute, BufferGeometry, Float32BufferAttribute, Group, InstancedMesh, Object3D, ShaderMaterial, type Points } from 'three'
 import { groundSurfaceHeight } from '../../../park-renewal-preview/groundSurface'
@@ -160,7 +161,8 @@ function HolidayDecorations() {
   return <>{WINTER_DECOR.map(d => <group key={d.id} name={'winter-' + d.id} position={[d.x, groundSurfaceHeight(d.x, d.z), d.z]}>
     {d.kind === 'tree'
       ? <ChristmasCommunityTree fallback={<group scale={12 / 7.68}><HolidayProp kind={d.kind} art={art.get(d.kind)!} /></group>} />
-      : <HolidayProp kind={d.kind} art={art.get(d.kind)!} />}
+      : d.kind === 'gifts' ? <HolidayProp kind={d.kind} art={art.get(d.kind)!} />
+      : <ChristmasAsset id={d.kind} fallback={<HolidayProp kind={d.kind} art={art.get(d.kind)!} />} />}
   </group>)}</>
 }
 
