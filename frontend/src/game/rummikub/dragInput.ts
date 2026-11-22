@@ -6,7 +6,7 @@ import { panelOwnsKeys, scenePointerOwners } from '../../world/inputOwnership'
 import { seatScope, useTableLobby } from '../../features/tableLobby/state'
 import { useGame } from '../store'
 import { canActRummikub } from './actions'
-import { useRummikubDraft, toggleRummikubTile } from './draft'
+import { changeRummikubDraft, useRummikubDraft, toggleRummikubTile } from './draft'
 import { editTiles } from './edit'
 import { tileDropTarget } from './layout'
 import type { Placed, Rummikub, Tile } from './protocol'
@@ -103,7 +103,7 @@ export function useTileDrag(root: RefObject<Group | null>, context: Context) {
       const c = latest.current, ui = useRummikubDraft.getState()
       const result = editTiles(c.state!, c.melds, c.hand, useSession.getState().sessionId, d.ids, target.destination,
         {color:ui.jokerColor,number:ui.jokerNumber}, true)
-      useRummikubDraft.setState({draft:result.melds,selected:[],hint:result.message})
+      changeRummikubDraft(c.state!,result.melds,result.message)
     }
     const cancel = () => { if (drag.current) { clear(); hint('드래그를 취소했습니다. 타일은 원래 자리에 있습니다.') } }
     const key = (e: KeyboardEvent) => { if (e.key === 'Escape' && drag.current) { e.preventDefault(); e.stopPropagation(); cancel() } }

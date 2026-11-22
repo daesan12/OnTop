@@ -141,7 +141,9 @@
 .rummikub-dock[data-collapsed='true'] .rummi-announcement:not([data-important='true']) {display:none;}
 @media(max-width:700px) {
  .rummikub-panel.rummikub-dock[data-collapsed='true'] {grid-template-columns:1fr;grid-template-areas:'head' 'actions' 'message';gap:5px;}
- .rummikub-dock .rummi-sort {flex:1;text-align:center;}
+ .rummikub-dock .rummi-controls {align-items:stretch;}
+ .rummikub-dock .rummi-controls button {flex:1 1 70px;}
+ .rummikub-dock .rummi-sort {flex:1 1 70px;text-align:center;}
  .rummikub-dock .rummi-sort>summary {padding:7px 5px;}
  .rummikub-dock .rummi-sort>summary small {display:none;}
 }

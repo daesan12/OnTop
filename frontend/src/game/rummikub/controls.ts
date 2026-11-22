@@ -1,6 +1,6 @@
 import { useGame } from '../store'
 import { panelOwnsKeys, scenePointerOwners } from '../../world/inputOwnership'
-import { cancelRummikubDraft, recallRummikubTiles, useRummikubDraft } from './draft'
+import { cancelRummikubDraft, recallRummikubTiles, undoRummikubDraft, useRummikubDraft } from './draft'
 import { useSession } from '../../network/worldClient'
 import { canActRummikub } from './actions'
 
@@ -16,12 +16,16 @@ export function installRummikubShortcuts(gameId: string, toggleDock: () => void)
   )
   const down = (event: KeyboardEvent) => {
     const game = useGame.getState().game
+    const undo = event.code === 'KeyZ' && event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey
     if (!game?.rummikub || game.gameId !== gameId || document.hidden || panelOwnsKeys()
       || event.defaultPrevented || event.repeat || event.isComposing || event.keyCode === 229
-      || event.ctrlKey || event.altKey || event.metaKey || event.shiftKey
+      || (!undo && (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey))
       || typing(event.target) || typing(document.activeElement)
       || [...scenePointerOwners.values()].includes('supae-tile')) return
-    if (event.code === 'KeyH') {
+    if (undo) {
+      if (useSession.getState().status === 'connected' && canActRummikub(useSession.getState().sessionId, {kind:'draw'})
+        && undoRummikubDraft(game.rummikub)) { event.preventDefault(); event.stopPropagation() }
+    } else if (event.code === 'KeyH') {
       event.preventDefault(); event.stopPropagation(); toggleDock()
     } else if (game.role === 'PLAYER' && game.rummikubHand?.tiles.length && ['KeyC', 'KeyN'].includes(event.code)) {
       event.preventDefault(); event.stopPropagation()

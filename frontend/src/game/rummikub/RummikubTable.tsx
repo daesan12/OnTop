@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { cancelRummikubDraft, recallRummikubTiles, useRummikubDraft, toggleRummikubTile, sortRummikubTiles } from './draft'
+import { cancelRummikubDraft, changeRummikubDraft, recallRummikubTiles, syncRummikubDraft, undoRummikubDraft, useRummikubDraft, toggleRummikubTile, sortRummikubTiles } from './draft'
 import { COLOR_LABEL, COLORS, physical, validMeld, type Color, type Placed, type Rummikub, type Tile } from './protocol'
 import ontopLogo from '../../assets/entry/ontop-logo.webp'
 import { canRecallTiles, editTiles, type TileDestination } from './edit'
@@ -24,7 +24,7 @@ export function RummikubTable({ state, tiles, own, editable, sending, error, not
   const ui = useRummikubDraft(), draft = ui.source===state ? ui.draft ?? state.melds : state.melds, {selected, sort, jokerColor, jokerNumber} = ui
   const options = useRef<HTMLDetailsElement>(null)
   const selectedJoker = selected.some(id => physical(id)?.color === null)
-  useEffect(() => { useRummikubDraft.setState({source:state,draft:state.melds.map(m=>[...m]),selected:[],hint:''}) }, [state])
+  useEffect(() => { syncRummikubDraft(state) }, [state])
   const setSelected = (selected: string[]) => useRummikubDraft.setState({selected})
   const setSort = arrangeRummikubRack
   const setJokerColor = (jokerColor: Color) => useRummikubDraft.setState({jokerColor})
@@ -37,12 +37,13 @@ export function RummikubTable({ state, tiles, own, editable, sending, error, not
   const dirty = JSON.stringify(draft) !== JSON.stringify(state.melds)
   const valid = added.length > 0 && draft.every(validMeld) && (registered || points >= 30)
   const recallable = canRecallTiles(state, draft, tiles, selected)
+  const undoable = ui.source === state && ui.history.at(-1)?.source === state
   const toggle = toggleRummikubTile
   function move(target: number | null | 'rack') {
     if (target === 'rack') { recallRummikubTiles(state, tiles, own); return }
     const destination: TileDestination = target === null ? {kind:'new'} : {kind:'meld',index:target}
     const result = editTiles(state, draft, tiles, own, selected, destination, {color:jokerColor,number:jokerNumber})
-    useRummikubDraft.setState({draft:result.melds,selected:[],hint:result.message})
+    changeRummikubDraft(state,result.melds,result.message)
   }
   const editor = <>
     <div className={`rummi-board${tabletop ? ' rummi-board-index' : ''}`} aria-label="공개 타일 조합">
@@ -88,7 +89,7 @@ export function RummikubTable({ state, tiles, own, editable, sending, error, not
     <div className="rummi-announcement" data-important={!!error || !!notice || sending} aria-live="polite">
       {error ? <p role="alert">{error}</p> : sending ? <p>서버의 처리 확인을 기다리고 있습니다.</p>
         : notice ? <p>{notice}</p> : editable ? <p>{!registered && `첫 등록 ${points} / 30점 · `}{tabletop
-          ? ui.hint || '드래그 배치 · B 선택 패 회수 · R 이번 턴 취소 · Esc 드래그 취소'
+          ? ui.hint || 'Ctrl+Z 한 단계 되돌리기 · B 선택 패 회수 · R 이번 턴 취소 · Esc 드래그 취소'
           : registered ? '새 조합을 만들거나 공개된 조합을 재구성하세요.' : '내 손패로만 조합을 만드세요.'}</p> : <p>테이블 위 조합을 살펴보세요.</p>}
     </div>
     <footer className="rummi-controls">
@@ -99,9 +100,12 @@ export function RummikubTable({ state, tiles, own, editable, sending, error, not
           <button aria-pressed={sort === 'number'} aria-keyshortcuts="N" onClick={() => setSort('number')}>숫자 정렬 <kbd>N</kbd></button>
           <p>같은 색의 연번은 색상순으로, 같은 숫자의 그룹은 숫자순으로 확인하세요.</p>
           <p>B · 선택한 미확정 내 패 회수 / R · 이번 턴 초안 전체 취소. 확정된 패는 회수할 수 없습니다.</p>
+          <p>Ctrl+Z · 방금 한 동작부터 한 단계씩 되돌립니다. 여러 패를 함께 옮기면 한 단계로 취소합니다. 채팅 입력 중에는 작동하지 않습니다.</p>
         </div></details> : <><button aria-pressed={sort === 'color'} onClick={() => setSort('color')}>색상 정렬</button>
         <button aria-pressed={sort === 'number'} onClick={() => setSort('number')}>숫자 정렬</button></>)}
       {editable && <>{selected.length > 0 && <button className="rummi-recall" disabled={!recallable} title="이번 턴에 내려놓은 내 패만 회수" aria-keyshortcuts={tabletop ? 'B' : undefined} onClick={() => recallRummikubTiles(state,tiles,own)}>선택 패 회수{tabletop && <> <kbd>B</kbd></>}</button>}
+        <button className="rummi-secondary rummi-undo" disabled={!undoable} aria-keyshortcuts={tabletop ? 'Control+Z' : undefined}
+          title="방금 한 동작을 한 단계 되돌립니다. 이번 턴의 최근 100단계까지 가능합니다." onClick={() => undoRummikubDraft(state)}>되돌리기{tabletop && <> <kbd>Ctrl+Z</kbd></>}</button>
         <button className="rummi-secondary" disabled={!dirty} aria-keyshortcuts={tabletop ? 'R' : undefined} title="확정 전 이번 턴 배치를 전부 취소합니다. 제한 시간은 유지됩니다." onClick={() => cancelRummikubDraft(state)}>이번 턴 취소{tabletop && <> <kbd>R</kbd></>}</button>
         <button disabled={dirty || sending} onClick={onDraw}>{state.poolCount ? '타일 뽑기' : '패스'}</button>
         <button className="rummi-primary" disabled={!valid || sending} onClick={() => onPlay(draft)}>턴 확정</button></>}

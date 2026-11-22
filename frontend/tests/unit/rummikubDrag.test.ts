@@ -7,7 +7,7 @@ import { physical, validMeld, type Placed, type Rummikub } from '../../src/game/
 const tile = (color: Placed['color'],number: number): Placed => ({id:`${color}-${number}-0`,color,number})
 const state = (melds: Placed[][],registered = true) => ({melds,players:[{userId:'101',registered}]} as Rummikub)
 const joker = {color:'RED' as const,number:1}
-afterEach(()=>useRummikubDraft.setState({source:null,draft:null,selected:[],hint:'',sort:'color'}))
+afterEach(()=>useRummikubDraft.setState({source:null,draft:null,selected:[],hint:'',sort:'color',history:[]}))
 describe('수패마루 드래그 초안',()=>{
   it('이번 턴에 내려놓은 내 패만 회수하고 기존 공개 패와 섞인 선택은 전부 거절한다',()=>{
     const original=[[tile('BLUE',4),tile('BLUE',5),tile('BLUE',6)]],hand=[tile('BLUE',3),tile('BLUE',7)]
