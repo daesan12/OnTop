@@ -44,6 +44,7 @@ export function balloonCollisionWarning(flight: Flight, input: Input, map: Fligh
   const { x, y, z } = flight.position
   const magnitude = Math.max(1, Math.hypot(input.x, input.z))
   const vx = input.x * 10 / magnitude, vz = input.z * 10 / magnitude
+  // 상승 입력만으로 안전해진 것은 아니므로 현재 3m 위험 구간을 벗어날 때까지 유지한다.
   return [0, .5, 1].some(time => y + Math.min(0, input.lift) * 4 * time
     <= map.floor(x + vx * time, z + vz * time) + 3)
 }
@@ -56,7 +57,7 @@ function safeReturnHeight(flight: Flight, map: FlightMap) {
     const t = i / steps
     height = Math.max(height, map.floor(from.x + (to.x - from.x) * t, from.z + (to.z - from.z) * t) + 4)
   }
-  return height
+  return Math.min(MAX_ALTITUDE, height)
 }
 
 export function createFlight(map: FlightMap): Flight {
@@ -141,7 +142,8 @@ export function stepFlight(flight: Flight, input: Input, dt: number, map: Flight
   }
   if (phase === 'returning') {
     const distance = Math.hypot(dock.x - x, dock.z - z)
-    const returnHeight = sightseeing ? SIGHTSEEING_HEIGHT : flight.returnHeight ?? safeReturnHeight(flight, map)
+    const returnHeight = Math.min(MAX_ALTITUDE,
+      sightseeing ? SIGHTSEEING_HEIGHT : flight.returnHeight ?? safeReturnHeight(flight, map))
     flight = { ...flight, returnHeight, collisionWarning: false }
     if (distance > 0 && y < returnHeight) {
       return { ...flight, position: { x, y: approach(y, returnHeight, (sightseeing ? 2.6 : RETURN_VERTICAL_SPEED) * dt), z } }
