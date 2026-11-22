@@ -4,6 +4,13 @@ export type TileDestination = { kind: 'new' } | { kind: 'meld'; index: number; r
 export type JokerRole = { color: Color; number: number }
 const ordered = (tiles: Placed[]) => [...tiles].sort((a, b) => a.number - b.number || COLORS.indexOf(a.color) - COLORS.indexOf(b.color))
 
+/** Only unsubmitted tiles from this turn's hand can go back to the rack. */
+export function canRecallTiles(state: Rummikub, draft: Placed[][], hand: Tile[], ids: string[]) {
+  const original = new Set(state.melds.flat().map(t => t.id)), placed = new Set(draft.flat().map(t => t.id))
+  const own = new Set(hand.map(t => t.id))
+  return ids.length > 0 && new Set(ids).size === ids.length && ids.every(id => own.has(id) && placed.has(id) && !original.has(id))
+}
+
 /** Buttons and physical dragging edit the same draft. Only the server commits a turn. */
 export function editTiles(state: Rummikub, draft: Placed[][], hand: Tile[], own: string, ids: string[], destination: TileDestination, joker: JokerRole, inferJoker = false): { melds: Placed[][]; message: string } {
   const reject = (message: string) => ({ melds: draft, message })

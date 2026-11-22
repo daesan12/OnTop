@@ -1,12 +1,59 @@
-import { describe, expect, it } from 'vitest'
-import { editTiles } from '../../src/game/rummikub/edit'
+import { afterEach, describe, expect, it } from 'vitest'
+import { canRecallTiles, editTiles } from '../../src/game/rummikub/edit'
+import { cancelRummikubDraft, recallRummikubTiles, useRummikubDraft } from '../../src/game/rummikub/draft'
 import { layoutMelds, tileDropTarget } from '../../src/game/rummikub/layout'
 import { physical, validMeld, type Placed, type Rummikub } from '../../src/game/rummikub/protocol'
 
 const tile = (color: Placed['color'],number: number): Placed => ({id:`${color}-${number}-0`,color,number})
 const state = (melds: Placed[][],registered = true) => ({melds,players:[{userId:'101',registered}]} as Rummikub)
 const joker = {color:'RED' as const,number:1}
+afterEach(()=>useRummikubDraft.setState({source:null,draft:null,selected:[],hint:'',sort:'color'}))
 describe('수패마루 드래그 초안',()=>{
+  it('이번 턴에 내려놓은 내 패만 회수하고 기존 공개 패와 섞인 선택은 전부 거절한다',()=>{
+    const original=[[tile('BLUE',4),tile('BLUE',5),tile('BLUE',6)]],hand=[tile('BLUE',3),tile('BLUE',7)]
+    const s=state(original),draft=[[hand[0]!,...original[0]!,hand[1]!]]
+    expect(canRecallTiles(s,draft,hand,hand.map(t=>t.id))).toBe(true)
+    for(const ids of [[],['BLUE-3-0','BLUE-4-0'],['BLUE-4-0'],['BLUE-3-0','BLUE-3-0'],['RED-1-0']])
+      expect(canRecallTiles(s,draft,hand,ids)).toBe(false)
+    expect(canRecallTiles(s,original,hand,['BLUE-3-0'])).toBe(false)
+    useRummikubDraft.setState({source:s,draft,selected:hand.map(t=>t.id),sort:'number'})
+    expect(recallRummikubTiles(s,hand,'101')).toBe(true)
+    expect(useRummikubDraft.getState()).toMatchObject({draft:original,selected:[],sort:'number'})
+    expect(hand.map(t=>t.id)).toEqual(['BLUE-3-0','BLUE-7-0'])
+    expect(s.melds).toEqual(original)
+  })
+  it('내가 방금 낸 조커는 초안을 취소할 수 있지만 기존 공개 조커는 손패에 넣지 않는다',()=>{
+    const publicJoker={id:'JOKER-0',color:'BLUE' as const,number:6}
+    const original=[[tile('BLUE',4),tile('BLUE',5),publicJoker]],s=state(original)
+    const hand=[physical('JOKER-1')!],draft=[...original,[{id:'JOKER-1',color:'RED' as const,number:1}]]
+    useRummikubDraft.setState({source:s,draft,selected:['JOKER-0']})
+    expect(recallRummikubTiles(s,hand,'101')).toBe(false)
+    expect(useRummikubDraft.getState().draft).toBe(draft)
+    useRummikubDraft.setState({selected:['JOKER-1']})
+    expect(recallRummikubTiles(s,hand,'101')).toBe(true)
+    expect(useRummikubDraft.getState().draft).toEqual(original)
+  })
+  it('턴 전체 취소는 기존 조합과 조커 역할을 복원하고 제한 시간과 정렬은 바꾸지 않는다',()=>{
+    const original=[[tile('RED',10),tile('BLUE',10),{id:'JOKER-0',color:'YELLOW' as const,number:10}]],s=state(original)
+    s.turnDeadline='2099-01-01T00:00:00Z'
+    const edited=[[tile('RED',10),tile('BLUE',10),tile('YELLOW',10)],[{id:'JOKER-0',color:'RED' as const,number:7}]]
+    useRummikubDraft.setState({source:s,draft:edited,selected:['JOKER-0'],sort:'number'})
+    expect(cancelRummikubDraft(s)).toBe(true)
+    expect(useRummikubDraft.getState()).toMatchObject({draft:original,selected:[],sort:'number'})
+    expect(useRummikubDraft.getState().draft).not.toBe(s.melds)
+    expect(s.turnDeadline).toBe('2099-01-01T00:00:00Z')
+  })
+  it('확정된 패와 이전 버전의 선택으로는 현재 초안을 회수하거나 취소할 수 없다',()=>{
+    const original=[[tile('BLUE',4),tile('BLUE',5),tile('BLUE',6)]],s=state(original),hand=[tile('BLUE',3)]
+    const next=state([[hand[0]!,...original[0]!]])
+    useRummikubDraft.setState({source:next,draft:next.melds,selected:['BLUE-3-0']})
+    const before=useRummikubDraft.getState()
+    expect(recallRummikubTiles(s,hand,'101')).toBe(false)
+    expect(cancelRummikubDraft(s)).toBe(false)
+    expect(useRummikubDraft.getState()).toBe(before)
+    expect(recallRummikubTiles(next,[],'101')).toBe(false)
+    expect(useRummikubDraft.getState().draft).toBe(next.melds)
+  })
   it('새 조합과 기존 런의 양쪽 붙이기는 타일을 중복하지 않고 오름차순으로 보존한다',()=>{
     const hand=[tile('BLUE',3),tile('BLUE',4),tile('BLUE',5),tile('BLUE',6)]
     const s=state([],false)
