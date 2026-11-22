@@ -52,3 +52,20 @@ node frontend/scripts/christmas-assets.mjs admit OUTPUT_PACKAGE frontend/src/fea
 ## 향후 배포 인계
 
 현재 요청에 따라 인프라는 수정·적용하지 않았다. 향후 MR·배포가 승인되면 인프라 담당자가 dev의 기존 생성 맵 배포 절차로 위 두 JSON을 같은 디렉터리에 함께 반영하고 앱이 새 맵 버전을 읽는지 확인해야 한다. 기존 `infra/app/compose.generated-map.yaml`의 읽기 전용 마운트와 `WORLD_MAP_REQUIRE_MATCH=true`를 유지하며 FE도 같은 버전으로 게시한다. 배포 후 맵 ID `park`, schema 2, 새 버전 일치와 기존 썰매 탑승·복귀를 확인한다. 현재 서버의 실제 마운트·적용 버전은 확인 필요이며, 이 문서는 인프라 적용 승인이 아니다.
+
+## 후속 수정: 귀여운 루돌프와 명확한 썰매 연결
+
+같은 날 사용자 요청에 따라 기존 루돌프의 얼굴을 넓고 둥글게, 주둥이와 뿔을 짧게, 몸통을 통통하게 다듬었다. 다리 비율도 약간 줄였다. 미세한 면 음영을 남기되 법선의 72%는 부드럽게 보간해 강한 삼각형 경계를 줄였다. 크리스마스 하네스와 크림색 무늬·붉은 코·27개 뼈·0.8초 제자리 달리기는 유지한다. 전체 삼각형 수는 12,320 → 9,304이며 높이는 기존 2.4m를 유지한다. Tripo 추가 요청·크레딧 사용은 없다.
+
+원본 통합 패키지 v1의 `rudolph.glb`(SHA-256 `6fc227349ccea4d36157bb747ccbb5d4e525771d162f03dd560e6a374fc61c3b`)를 입력으로 `frontend/scripts/refine-christmas-rudolph.py`를 실행했다. 원본을 덮어쓰지 않고 별도 패키지 v2를 생성·검증한 후 루돌프와 manifest를 갱신했다. 현재 모델 SHA-256은 `963766066f486ad0e2c4d8daa9d130e44e6d2a00900f2a766b17704e2b3ac28a`다. glTF 재수입 시 생기는 시작 프레임 오프셋을 정규화해 달리기 루프가 잘리지 않게 했다.
+
+```text
+blender -b --python frontend/scripts/refine-christmas-rudolph.py -- ORIGINAL_V1_RUDOLPH_GLB OUTPUT_DIRECTORY
+node frontend/scripts/christmas-assets.mjs verify VERIFIED_V2_PACKAGE
+```
+
+기존 줄이 가늘고 어두우며 썰매 앞 장식에 묻혀 연결을 알아보기 어려웠다. 줄 지름을 2.4cm에서 5.2cm로 늘리고 밝은 크리스마스 붉은색으로 바꿨다. 금속 고리를 키우고 썰매 표면에서 고리까지 이어지는 황동 소켓을 추가했다. 움직이는 하네스 표면에 고리가 붙고 고삐가 그 중심을 정확히 통과한다. 커진 몸통을 줄이 관통하지 않도록 곡선의 옆 여유도 늘렸다.
+
+후속 검증은 앱 TypeScript, 관련 FE 단위 5파일 31건, 프로덕션 빌드와 Chrome 공원 프리뷰에서 수행했다. 정박·비행 각각 16개 줄 연결 지점을 실제 인스턴스 행렬로 측정했고 최대 틈은 0.001mm 미만이었다. 6마리의 독립 뼈 애니메이션, 오류 없는 모델 로딩, 정면·후면의 연결 외관도 확인했다. 기록과 이미지 위치는 저장소 밖 `christmas-rudolph-refine-20261122`다. 실제 WS 탑승·VR 검수와 Jenkins 성공은 별도 미확인이다.
+
+최신 dev 기준과 기존 배치·승강장·항로·충돌·생성 맵 버전은 그대로다. 후속 수정은 외관과 고삐에 한정되므로 BE·인프라·생성 맵 파일을 수정하지 않았다. MR·머지·배포·브랜치 삭제 보류를 유지한다.

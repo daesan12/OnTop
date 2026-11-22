@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { AnimationMixer, Mesh, MeshStandardMaterial, SkinnedMesh, TorusGeometry, Vector3, type Object3D } from 'three'
+import { AnimationMixer, CylinderGeometry, Mesh, MeshStandardMaterial, SkinnedMesh, TorusGeometry, Vector3, type Object3D } from 'three'
 import type { GLTF } from 'three/addons/loaders/GLTFLoader.js'
 import { clone } from 'three/addons/utils/SkeletonUtils.js'
 import { useFrame } from '@react-three/fiber'
@@ -58,7 +58,8 @@ export function createChristmasInstance(gltf: GLTF, id: AssetId) {
   return scene
 }
 
-const ringGeometry = new TorusGeometry(.032, .006, 6, 18)
+const ringGeometry = new TorusGeometry(.055, .011, 8, 20)
+const socketGeometry = new CylinderGeometry(.024, .032, 1, 8)
 const ringMaterial = new MeshStandardMaterial({ color: '#b9954c', metalness: .68, roughness: .4 })
 function ring(name: string) {
   const marker = new Mesh(ringGeometry, ringMaterial)
@@ -99,6 +100,16 @@ export function ChristmasAsset({ id, fallback }: { id: Exclude<AssetId, 'rudolph
       const marker = ring(side < 0 ? 'sleigh-tow-left' : 'sleigh-tow-right')
       vertex.mesh.getVertexPosition(vertex.index, marker.position)
       vertex.mesh.localToWorld(marker.position); root.worldToLocal(marker.position)
+      // A visible brass socket reaches out of the hull, so the rope starts at
+      // the eyelet rather than disappearing inside the sleigh's front trim.
+      const socket = new Mesh(socketGeometry, ringMaterial)
+      const direction = new Vector3(side * .025, .015, .14)
+      socket.position.copy(marker.position).addScaledVector(direction, .5)
+      socket.quaternion.setFromUnitVectors(new Vector3(0, 1, 0), direction.clone().normalize())
+      socket.scale.y = direction.length()
+      socket.raycast = () => {}; socket.name = 'sleigh-tow-socket'
+      marker.position.add(direction)
+      root.add(socket)
       root.add(marker)
     }
     return root

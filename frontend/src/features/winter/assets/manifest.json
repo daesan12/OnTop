@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "package": "ontop-christmas-approved-assets",
   "origin_dev": "3c8240eaf92a493edfea3e69e2aae665c8e32896",
   "provider_calls": 0,
@@ -23,7 +23,7 @@
       "triangles": 142650,
       "dimensions_metres": [
         7.73758339881897,
-        12.0,
+        12,
         7.135380268096924
       ],
       "front_axis": "+Z",
@@ -71,17 +71,29 @@
       "source": "plaza-christmas-natural-20261122/final-assets/Rudolph_ChestHarness_Run.glb",
       "source_sha256": "cc3d45ba346521e01b7ed70bd48b73dc16776c04c03f5fd3da22346e8fcd38a4",
       "provider_task": "d415dcbd-4e13-4e77-9958-16e1be2396bc",
-      "sha256": "6fc227349ccea4d36157bb747ccbb5d4e525771d162f03dd560e6a374fc61c3b",
-      "bytes": 3120540,
+      "sha256": "963766066f486ad0e2c4d8daa9d130e44e6d2a00900f2a766b17704e2b3ac28a",
+      "bytes": 3192424,
       "source_triangles": 12320,
-      "triangles": 12320,
+      "triangles": 9304,
       "dimensions_metres": [
-        1.4794517159461975,
-        2.399999976158142,
-        1.9209397435188293
+        1.406249956444387,
+        2.399902734367192,
+        2.0698241979782313
       ],
       "front_axis": "+Z",
-      "ground_offset": -0.9
+      "ground_offset": -0.9,
+      "refinement": {
+        "input_sha256": "6fc227349ccea4d36157bb747ccbb5d4e525771d162f03dd560e6a374fc61c3b",
+        "script": "scripts/refine-christmas-rudolph.py",
+        "changes": [
+          "broader round face",
+          "shorter muzzle",
+          "compact antlers",
+          "fuller torso",
+          "shorter legs",
+          "gentle faceting"
+        ]
+      }
     },
     {
       "id": "sleigh",

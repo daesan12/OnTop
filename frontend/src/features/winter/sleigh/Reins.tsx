@@ -27,7 +27,7 @@ export function Reins({ team }: { team: RefObject<Group | null> }) {
       const pointAt = (t: number, target: Vector3) => {
         curve.getPoint(t, target); curve.getTangent(t, work.tangent)
         const phase = Math.min(2.999999, t * 3) % 1, slack = Math.sin(Math.PI * phase) ** 2
-        const clearance = .03 * slack + .19 * (729 / 16) * phase ** 4 * (1 - phase) ** 2
+        const clearance = .04 * slack + .28 * (729 / 16) * phase ** 4 * (1 - phase) ** 2
         const length = Math.hypot(work.tangent.x, work.tangent.z) || 1
         target.x += flank * work.tangent.z / length * clearance
         target.z -= flank * work.tangent.x / length * clearance
@@ -46,7 +46,7 @@ export function Reins({ team }: { team: RefObject<Group | null> }) {
     mesh.current.instanceMatrix.needsUpdate = true
   }, -.25)
   return <instancedMesh ref={mesh} name="sleigh-curved-reins" args={[undefined, undefined, 324]} frustumCulled={false} raycast={() => {}}>
-    <cylinderGeometry args={[.012, .012, 1, 6, 1, true]} />
-    <meshStandardMaterial color="#722b34" roughness={.65} />
+    <cylinderGeometry args={[.026, .026, 1, 8, 1, true]} />
+    <meshStandardMaterial color="#ad293b" roughness={.72} />
   </instancedMesh>
 }
