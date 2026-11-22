@@ -63,7 +63,7 @@ JACKPOT 당첨은 1/256, 계산 최대 지급은 8 + 9 = 170냥이다. 배당은
 (`MINIGAME_ENTRY_FEE`, 키 `plus-minus:{userId}:{requestKey}`)·지급 원장(`PLUS_MINUS_PAYOUT`, 키
 `plus-minus:payout:{roundId}`)을 한 트랜잭션에 쓴다. TINYINT 칸 컬럼은 엔티티에 `columnDefinition = "TINYINT"`를 둔다.
 
-## 횟수 제한 해제 후 운영 확인 (MR !667)
+## 횟수 제한 해제 후 운영 확인 (통합 MR !670, 기존 !667)
 
 `countPlays`는 `user_id`와 KST `play_date`로 집계하며, V143에
 `ix_plus_minus_user_date (user_id, play_date)`가 정의되어 있다. 실제 DB 적용과 EXPLAIN은 미확인이다.

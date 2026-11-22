@@ -88,7 +88,7 @@ MySQL 검증은 매번 만든 loopback 전용 `ontop_rps_test_` DB에서만 실�
 공원 맵(`server-map.json`·mapVersion)은 바꾸지 않는다. 게임기는 화면용 3D 모델과 FE 접근 판정만 두며, 충돌·시설 점유와
 주변 관전 방송은 위치가 확정된 뒤 별도 작업으로 맵 변경과 함께 진행한다.
 
-## 횟수 제한 해제 후 운영 확인 (MR !667)
+## 횟수 제한 해제 후 운영 확인 (통합 MR !670, 기존 !667)
 
 `countPlays`는 `user_id`와 KST `play_date`로 집계하며, V136에
 `ix_rps_roulette_user_date (user_id, play_date)`가 정의되어 있다. 실제 DB 적용과 EXPLAIN은 미확인이다.
