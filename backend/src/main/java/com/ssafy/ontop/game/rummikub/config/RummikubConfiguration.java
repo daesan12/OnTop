@@ -21,7 +21,7 @@ import org.springframework.context.annotation.Profile;
 
 @Configuration(proxyBeanMethods = false)
 @Profile(RuntimeProfiles.PRODUCT_FEATURE)
-@ConditionalOnProperty(name = "ontop.games.rummikub.enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(name = "ontop.games.rummikub.enabled", havingValue = "true")
 @Import(GameEngineGateways.class)
 public class RummikubConfiguration {
     @Bean
