@@ -5,6 +5,10 @@ import com.ssafy.ontop.game.action.GameActionCommand;
 import com.ssafy.ontop.game.action.GameActionGateway.Rejected;
 import com.ssafy.ontop.game.action.GameForfeitCommand;
 import com.ssafy.ontop.game.engine.GameEngineRouter;
+import com.ssafy.ontop.game.quoridor.domain.QuoridorBoard.Cell;
+import com.ssafy.ontop.game.quoridor.domain.QuoridorBoard.Orientation;
+import com.ssafy.ontop.game.quoridor.domain.QuoridorBoard.Wall;
+import com.ssafy.ontop.game.quoridor.domain.QuoridorMatch;
 import com.ssafy.ontop.game.reconnect.GameRecoveryGateway;
 import com.ssafy.ontop.game.result.GameFinished;
 import com.ssafy.ontop.game.state.GameStateChanged;
@@ -13,14 +17,42 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class QuoridorEngineTests {
+    @Test
+    void 이동_불가_시간초과는_상태를_한번_알리고_이전_차례의_낡은_입력을_거절한다() {
+        engine.create("q", "table", List.of(1L, 2L, 3L, 4L));
+        var entries = (Map<?, ?>) ReflectionTestUtils.getField(engine, "games");
+        QuoridorMatch match = (QuoridorMatch) ReflectionTestUtils.getField(entries.get("q"), "match");
+        ReflectionTestUtils.setField(match, "turn", 0);
+        ReflectionTestUtils.setField(match, "turnDeadline", now);
+        ReflectionTestUtils.setField(match, "positions", new ArrayList<>(List.of(
+                new Cell(0, 0), new Cell(1, 1), new Cell(0, 2), new Cell(0, 1))));
+        ReflectionTestUtils.setField(match, "walls", new ArrayList<>(List.of(new Wall(0, 0, Orientation.VERTICAL))));
+        ReflectionTestUtils.setField(match, "remaining", new int[]{0, 5, 5, 5});
+
+        engine.tick();
+        engine.tick();
+
+        var watched = engine.load(99, "q").orElseThrow();
+        assertThat(watched.version()).isEqualTo(2);
+        assertThat(watched.publicState().path("turnUserId").asText()).isEqualTo("2");
+        assertThat(watched.publicState().path("turnDeadline").asText()).isEqualTo(now.plusSeconds(30).toString());
+        assertThat(engine.load(1).orElseThrow().state().path("publicState")).isEqualTo(watched.publicState());
+        assertThat(events.stream().filter(GameStateChanged.class::isInstance)).hasSize(1);
+        assertThat(events.stream().filter(GameFinished.class::isInstance)).isEmpty();
+        assertThatThrownBy(() -> engine.apply(move("late", 1, 1, 0, 1)))
+                .isInstanceOf(Rejected.class).hasMessage("STALE_VERSION");
+    }
+
     @Test
     void 자동이동만으로_도착하면_한번만_종료하고_마감시간을_제거한다() {
         Instant[] current = {Instant.parse("2026-11-21T00:00:00Z")};

@@ -128,9 +128,9 @@ public final class QuoridorMatch {
                 .comparingInt((Cell cell) -> QuoridorBoard.distance(cell, goals.get(turn), walls))
                 .thenComparingInt(Cell::y).thenComparingInt(Cell::x)).orElse(null);
         if (destination == null) {
-            // 말에 둘러싸여 이동 자체가 불가능하면 장벽을 임의로 소비하거나 차례를 넘기지 않는다.
-            turnDeadline = now.plusSeconds(30);
+            // 말에 갇혔으면 다음 참가자에게 비켜줄 차례를 준다. 장벽은 임의로 소비하지 않는다.
             version++;
+            advance(now);
             return;
         }
         move(users.get(turn), destination.x(), destination.y(), now);

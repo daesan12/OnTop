@@ -19,27 +19,32 @@ import com.ssafy.ontop.game.result.GameLifecycle;
 import com.ssafy.ontop.game.state.GameStateChanged;
 import com.ssafy.ontop.game.state.GameStateView;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.PriorityQueue;
 import java.util.function.Consumer;
 import java.util.random.RandomGenerator;
 
 /** 공통 라우터·인증·복구·종료 이벤트를 재사용하며 예약금과 잔액은 변경하지 않는다. */
 public final class QuoridorEngine implements GameEngine {
     public static final String GAME_CODE = "QUORIDOR";
+    private static final Duration FINISHED_RETENTION = Duration.ofMinutes(30);
     private final ObjectMapper mapper;
     private final Clock clock;
     private final Consumer<Object> events;
     private final GameEngineRouter router;
     private final RandomGenerator random;
     private final Map<String, Entry> games = new HashMap<>();
+    private final Map<String, Entry> activeGames = new HashMap<>();
+    private final PriorityQueue<Retirement> retirements = new PriorityQueue<>(
+            Comparator.comparing(Retirement::removeAfter));
     private final Map<Long, String> latest = new HashMap<>();
-    private final GameLifecycle lifecycle = new GameLifecycle();
-    private final GameForfeitReceipts forfeits = new GameForfeitReceipts();
 
     public QuoridorEngine(ObjectMapper mapper, Clock clock, Consumer<Object> events, GameEngineRouter router,
             RandomGenerator random) {
@@ -65,7 +70,9 @@ public final class QuoridorEngine implements GameEngine {
         }
         QuoridorMatch match = new QuoridorMatch(players, random.nextInt(players.size()), clock.instant());
         router.register(this, gameId, tableId, players);
-        games.put(gameId, new Entry(gameId, tableId, match));
+        Entry entry = new Entry(gameId, tableId, match);
+        games.put(gameId, entry);
+        activeGames.put(gameId, entry);
         for (long userId : players) {
             latest.put(userId, gameId);
         }
@@ -171,7 +178,7 @@ public final class QuoridorEngine implements GameEngine {
             if (command.actionId() == null || !command.actionId().matches("[A-Za-z0-9-]{1,64}")) {
                 throw new Rejected(Rejection.INVALID_ACTION);
             }
-            GameForfeitResult previous = forfeits.previous(command);
+            GameForfeitResult previous = entry.forfeits.previous(command);
             if (previous != null) {
                 return previous;
             }
@@ -181,7 +188,7 @@ public final class QuoridorEngine implements GameEngine {
             if (!depart(entry, command.userId(), GameDepartureReason.EXPLICIT_LEAVE, clock.instant(), notices)) {
                 throw new Rejected(Rejection.NOT_ACTIVE);
             }
-            result = forfeits.accepted(command, entry.match.version());
+            result = entry.forfeits.accepted(command, entry.match.version());
         }
         notices.forEach(events);
         return result;
@@ -206,7 +213,7 @@ public final class QuoridorEngine implements GameEngine {
         if (!entry.match.forfeit(userId, now)) {
             return false;
         }
-        lifecycle.left(entry.gameId, entry.tableId, GAME_CODE, entry.match.version(), userId, reason, now,
+        entry.lifecycle.left(entry.gameId, entry.tableId, GAME_CODE, entry.match.version(), userId, reason, now,
                 entry.match.users().size(), notices);
         collect(entry, before, notices);
         return true;
@@ -216,13 +223,34 @@ public final class QuoridorEngine implements GameEngine {
         List<Object> notices = new ArrayList<>();
         synchronized (this) {
             Instant now = clock.instant();
-            for (Entry entry : games.values()) {
+            pruneFinished(now);
+            // collect가 종료 경기를 activeGames에서 빼므로 진행 중인 경기만 복사해 순회한다.
+            for (Entry entry : List.copyOf(activeGames.values())) {
                 long before = entry.match.version();
                 entry.match.expire(now);
                 collect(entry, before, notices);
             }
         }
         notices.forEach(events);
+    }
+
+    private void pruneFinished(Instant now) {
+        while (!retirements.isEmpty() && !now.isBefore(retirements.peek().removeAfter())) {
+            Retirement retirement = retirements.remove();
+            Entry entry = games.get(retirement.gameId());
+            if (entry == null) {
+                continue;
+            }
+            if (!router.forgetFinished(this, entry.gameId)) {
+                // 라우터가 아직 점유를 보유하면 보존하고 다음 정리 주기에 다시 확인한다.
+                retirements.add(new Retirement(entry.gameId, now.plusSeconds(30)));
+                continue;
+            }
+            games.remove(entry.gameId);
+            for (long userId : entry.match.users()) {
+                latest.remove(userId, entry.gameId);
+            }
+        }
     }
 
     private void collect(Entry entry, long before, List<Object> notices) {
@@ -232,8 +260,11 @@ public final class QuoridorEngine implements GameEngine {
         notices.add(new GameStateChanged(entry.gameId, entry.match.version()));
         if (entry.match.endedAt() != null && !entry.finished) {
             entry.finished = true;
+            activeGames.remove(entry.gameId);
+            // 종료 이벤트 생성 시점부터 재조회·중복 요청을 허용한다. 유예 만료의 과거 endedAt을 쓰지 않는다.
+            retirements.add(new Retirement(entry.gameId, clock.instant().plus(FINISHED_RETENTION)));
             router.finished(this, entry.gameId);
-            notices.add(lifecycle.finished(entry.gameId, entry.tableId, GAME_CODE, entry.match.version(),
+            notices.add(entry.lifecycle.finished(entry.gameId, entry.tableId, GAME_CODE, entry.match.version(),
                     entry.match.users(), List.of(entry.match.winnerUserId()), entry.match.endReason(),
                     entry.match.endedAt(), notices));
         }
@@ -276,11 +307,15 @@ public final class QuoridorEngine implements GameEngine {
 
     private record Receipt(long expectedVersion, JsonNode input, GameActionResult result) { }
 
+    private record Retirement(String gameId, Instant removeAfter) { }
+
     private static final class Entry {
         private final String gameId;
         private final String tableId;
         private final QuoridorMatch match;
         private final Map<String, Receipt> receipts = new HashMap<>();
+        private final GameLifecycle lifecycle = new GameLifecycle();
+        private final GameForfeitReceipts forfeits = new GameForfeitReceipts();
         private ObjectNode cached;
         private boolean finished;
 

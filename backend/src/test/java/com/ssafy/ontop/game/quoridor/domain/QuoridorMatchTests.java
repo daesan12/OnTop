@@ -1,17 +1,74 @@
 package com.ssafy.ontop.game.quoridor.domain;
 
 import com.ssafy.ontop.game.action.GameActionGateway.Rejected;
+import com.ssafy.ontop.game.quoridor.domain.QuoridorBoard.Cell;
 import com.ssafy.ontop.game.quoridor.domain.QuoridorBoard.Orientation;
 import com.ssafy.ontop.game.quoridor.domain.QuoridorBoard.Wall;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class QuoridorMatchTests {
     private static final Instant NOW = Instant.parse("2026-11-21T00:00:00Z");
+
+    @ParameterizedTest
+    @ValueSource(ints = {0, 5})
+    void 말에_갇힌_턴의_시간이_만료되면_장벽과_말을_보존하고_다음_차례로_넘긴다(int wallStock) {
+        QuoridorMatch match = blockedMatch(wallStock);
+        var players = match.players();
+        var walls = match.walls();
+        assertThat(match.legalMoves()).isEmpty();
+        assertThat(match.players()).allSatisfy(player -> assertThat(QuoridorBoard.hasPath(
+                new Cell(player.x(), player.y()), player.goal(), walls)).isTrue());
+
+        match.expire(NOW.plusMillis(29999));
+        assertThat(match.version()).isEqualTo(1);
+        match.expire(NOW.plusSeconds(30));
+        match.expire(NOW.plusSeconds(30));
+
+        assertThat(match.version()).isEqualTo(2);
+        assertThat(match.turnUserId()).isEqualTo(2L);
+        assertThat(match.turnDeadline()).isEqualTo(NOW.plusSeconds(60));
+        assertThat(match.players()).isEqualTo(players);
+        assertThat(match.walls()).isEqualTo(walls);
+        assertThat(match.endedAt()).isNull();
+        assertThat(match.legalMoves()).isNotEmpty();
+
+        match.expire(NOW.plusSeconds(60));
+
+        assertThat(match.version()).isEqualTo(3);
+        assertThat(match.players().get(1)).isNotEqualTo(players.get(1));
+    }
+
+    @Test
+    void 이동_불가_시간초과는_기권한_참가자를_건너뛴다() {
+        QuoridorMatch match = blockedMatch(0);
+        match.forfeit(2, NOW);
+        assertThat(match.legalMoves()).isEmpty();
+
+        match.expire(NOW.plusSeconds(30));
+
+        assertThat(match.version()).isEqualTo(3);
+        assertThat(match.turnUserId()).isEqualTo(3L);
+        assertThat(match.turnDeadline()).isEqualTo(NOW.plusSeconds(60));
+    }
+
+    private QuoridorMatch blockedMatch(int wallStock) {
+        QuoridorMatch match = new QuoridorMatch(List.of(1L, 2L, 3L, 4L), 0, NOW);
+        // 북서 모서리에서 세로 장벽과 두 말이 직진 점프·양쪽 회피를 막지만 장벽 경로는 남는다.
+        ReflectionTestUtils.setField(match, "positions", new ArrayList<>(List.of(
+                new Cell(0, 0), new Cell(1, 1), new Cell(0, 2), new Cell(0, 1))));
+        ReflectionTestUtils.setField(match, "walls", new ArrayList<>(List.of(new Wall(0, 0, Orientation.VERTICAL))));
+        ReflectionTestUtils.setField(match, "remaining", new int[]{wallStock, 5, 5, 5});
+        return match;
+    }
 
     @Test
     void 자동이동은_장벽을_통과하지_않고_우회하며_장벽을_소비하지_않는다() {
