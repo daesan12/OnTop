@@ -77,3 +77,26 @@ future UI text. Keep ornaments strictly in outermost 6-8% at corners; top center
 inner corner must stay empty for title and close button. Spacious and refined, not busy.
 No text, no letters, no UI controls, no drawn textbox, no watermark, no glow particles.
 Keep all four frame edges fully visible within the image.`
+
+## 공원을 드러내는 크리스마스 카드 배경
+
+`christmas-visit-background.webp`는 built-in image_gen으로 새로 생성했다.
+투명 영역은 이미지에 가짜로 그리지 않고 CSS의 모달 바깥 여백으로 구현했다.
+배경은 카드 내부에만 표시하며 트리 그림·모델·맵에는 사용하지 않는다.
+원본 PNG `exec-965164f1-f23e-4d8b-a8f6-0bad586910e3.png`는 보존하고
+1586×992 WebP quality=88로 인코딩했다.
+
+프롬프트: `Use case: product-mockup / game UI background. A refined warm Christmas
+stationery backdrop, landscape 16:10. Photorealistic tactile materials, warmly lit ivory
+plaster wall and lightly aged honey-colored wood along the very bottom, a few real evergreen
+fir sprigs with deep red velvet ribbons and tiny warm white fairy lights hanging only at
+the upper left and upper right outer edges. Soft warm amber glow and faint out-of-focus
+Christmas lights in the left background. Calm pale warm cream center and right area,
+gentle natural shadows. Like a quiet Christmas living-room corner ready for a tree and
+a letter-writing board, but DO NOT depict a tree, furniture, fireplace, gifts, people,
+text, letters, panels, controls, paper frames or UI. The actual tree and right rectangular
+UI will be placed on top in code. Decorative greenery is subtle and confined to the
+outermost edges, leaving a very large uncluttered main area. Cozy, physical, tasteful,
+no glitter effects or abstract blobs, no generic bright gradient, no vignette, no watermark.
+Full-bleed opaque backdrop; transparency outside the actual centered UI card is handled
+in CSS, not drawn into this image.`
