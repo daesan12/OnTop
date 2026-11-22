@@ -9,11 +9,12 @@ export type CodeStage = 'SETUP' | 'DRAW' | 'PLACE_TILE' | 'GUESS' | 'CONTINUE' |
 export interface CodeEvent { kind: 'DRAW' | 'GUESS' | 'TIMEOUT' | 'FORFEIT'; actorUserId: string; targetUserId: string | null; tileId: string | null; value: number | null; correct: boolean | null }
 export interface DavinciState {
   openingStartedAt?: string
+  placementDeadline?: string | null
   gameCode: 'DAVINCI_CODE'; status: 'PLAYING' | 'FINISHED'; stage: CodeStage; version: number
   turnUserId: string | null; turnDeadline: string | null; endedAt: string | null; endReason: string | null
   players: CodePlayer[]; supply: Pick<CodeTile, 'id' | 'color'>[]; winnerUserIds: string[]; lastEvent: CodeEvent | null
 }
-export interface DavinciHand { userId: string; tiles: CodeTile[]; pendingTile: CodeTile | null; validPositions: number[]; unplacedJokerIds: string[] }
+export interface DavinciHand { userId: string; tiles: CodeTile[]; pendingTile: CodeTile | null; validPositions: number[]; unplacedJokerIds: string[]; selectedPosition?: number | null }
 export type DavinciInput = { kind: 'ready' | 'stop' | 'draw_random' }
   | { kind: 'draw' | 'reveal'; tileId: string }
   | { kind: 'place'; position: number }
@@ -34,6 +35,9 @@ function tile(v: unknown, secret = false): CodeTile {
 
 export function parseDavinci(v: unknown): DavinciState {
   if (record(v) && v.openingStartedAt !== undefined && !date(v.openingStartedAt)) return invalid()
+  if (record(v) && ('selectedPosition' in v || 'validPositions' in v || 'pendingTile' in v)) return invalid()
+  if (record(v) && v.placementDeadline !== undefined && v.placementDeadline !== null
+    && (!date(v.placementDeadline) || v.stage !== 'PLACE_TILE')) return invalid()
   if (!record(v) || v.gameCode !== 'DAVINCI_CODE' || !['PLAYING', 'FINISHED'].includes(String(v.status))
     || !['SETUP', 'DRAW', 'PLACE_TILE', 'GUESS', 'CONTINUE', 'REVEAL', 'FINISHED'].includes(String(v.stage))
     || !integer(v.version) || !Array.isArray(v.players) || v.players.length < 2 || v.players.length > 4
@@ -67,7 +71,9 @@ export function parseDavinci(v: unknown): DavinciState {
       || !(e.correct === null || typeof e.correct === 'boolean')) return invalid()
     lastEvent = e as unknown as CodeEvent
   }
-  return { ...(v.openingStartedAt ? { openingStartedAt: v.openingStartedAt as string } : {}), gameCode: 'DAVINCI_CODE', status: v.status as DavinciState['status'], stage: v.stage as CodeStage, version: v.version,
+  return { ...(v.openingStartedAt ? { openingStartedAt: v.openingStartedAt as string } : {}),
+    ...(v.placementDeadline !== undefined ? { placementDeadline: v.placementDeadline as string | null } : {}),
+    gameCode: 'DAVINCI_CODE', status: v.status as DavinciState['status'], stage: v.stage as CodeStage, version: v.version,
     turnUserId: v.turnUserId as string | null, turnDeadline: v.turnDeadline as string | null,
     endedAt: v.endedAt as string | null, endReason: v.endReason as string | null,
     players, supply, winnerUserIds: v.winnerUserIds as string[], lastEvent }
@@ -83,11 +89,14 @@ export function parseDavinciHand(v: unknown, state: DavinciState, ownId: string,
     || !v.unplacedJokerIds.every(id)) return invalid()
   const tiles = v.tiles.map(t => tile(t, true)), me = state.players.find(p => p.userId === ownId)
   const pendingTile = v.pendingTile === null ? null : tile(v.pendingTile, true)
+  const selectedPosition = v.selectedPosition ?? null
+  if (selectedPosition !== null && (!integer(selectedPosition) || pendingTile === null
+    || !v.validPositions.includes(selectedPosition))) return invalid()
   if (!me || me.tileCount !== tiles.length || new Set(tiles.map(t => t.id)).size !== tiles.length
     || !v.unplacedJokerIds.every(key => tiles.some(t => t.id === key && t.value === -1))
     || (state.stage !== 'SETUP' && me.tiles.some((t, i) => t.id !== tiles[i]?.id || t.color !== tiles[i]?.color
       || t.revealed !== tiles[i]?.revealed || t.revealed && t.value !== tiles[i]?.value))
     || (pendingTile !== null && (state.turnUserId !== ownId || state.stage !== 'PLACE_TILE'
       || tiles.some(t => t.id === pendingTile.id)))) return invalid()
-  return { userId: ownId, tiles, pendingTile, validPositions: v.validPositions as number[], unplacedJokerIds: v.unplacedJokerIds as string[] }
+  return { userId: ownId, tiles, pendingTile, validPositions: v.validPositions as number[], unplacedJokerIds: v.unplacedJokerIds as string[], selectedPosition: selectedPosition as number | null }
 }

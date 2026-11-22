@@ -4753,8 +4753,9 @@ public class TableHub {
                 error = "GAME_ACTION_UNAVAILABLE";
             }
             finishGameAction(sessionId, member, request.requestId(), result, error);
-            if (error == null) {
+            if (error == null && result.version() > command.expectedVersion()) {
                 // 입력자 연결이 끊겨도 확정된 변경은 남은 참가자에게 전달한다.
+                // 공개 버전이 그대로인 개인 입력은 관전자에게 시점을 재방송하지 않는다.
                 gameStateChanged(new GameStateChanged(result.gameId(), result.version()));
             }
         });

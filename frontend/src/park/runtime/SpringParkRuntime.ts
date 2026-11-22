@@ -1872,6 +1872,10 @@ export class ParkRuntime implements ParkRuntimePort {
     try {
       await this.socket.request('GAME_ACTION_SEND', { gameId: game.gameId, actionId: crypto.randomUUID(),
         expectedVersion: game.version, input: { ...input } }, ['GAME_ACTION_RESULT'])
+      // 위치 예약은 공개 버전을 올리지 않는다. 선택 결과는 본인 연결에서만 다시 조회한다.
+      if (input.kind === 'place' && generation === this.generation
+        && useGame.getState().permittedGameId === game.gameId)
+        await this.socket.request('GAME_STATE_CHECK', { gameId: game.gameId }, ['GAME_STATE'])
     } catch (error) {
       if (generation === this.generation && useGame.getState().permittedGameId === game.gameId)
         useGame.setState({ uncertain: !(error instanceof ServerError),

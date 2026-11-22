@@ -4,6 +4,7 @@ import { parseDavinci, parseDavinciHand, tileText, type DavinciState } from '../
 import { acceptDavinciPing, useDavinciPing } from '../../src/game/davinci/social'
 import { openingActive, openingPose } from '../../src/game/davinci/presentation'
 import { worldState } from '../../src/network/protocol'
+import { receiveGame, resetGame, useGame } from '../../src/game/store'
 
 const tile = (id: string) => ({ id, color: 'BLACK' as const, value: null, revealed: false })
 function state(): DavinciState {
@@ -15,6 +16,40 @@ function state(): DavinciState {
 function hand() { return { userId: '101', tiles: [{ ...tile('tile-101'), value: 6 }], validPositions: [], unplacedJokerIds: [], pendingTile: null } }
 
 describe('흑백수사 공개·개인 계약', () => {
+  it('공개 버전이 같은 본인 상태 재조회로도 위치 예약을 갱신한다', () => {
+    resetGame()
+    try {
+      const s = { ...state(), stage: 'PLACE_TILE' as const, placementDeadline: '2026-11-21T12:00:10Z' }
+      const h = { ...hand(), pendingTile: { id: 'drawn', color: 'WHITE' as const, value: -1, revealed: false },
+        validPositions: [0, 1], selectedPosition: null as number | null }
+      useGame.setState({ permittedGameId: 'game', recovery: 'RESTORED' })
+      const send = () => receiveGame({ type: 'GAME_STATE', requestId: 'check', payload: {
+        gameId: 'game', version: s.version, role: 'PLAYER', publicState: s, privateState: h,
+      } }, '101', 'table')
+      send()
+      h.selectedPosition = 1
+      send()
+      expect(useGame.getState().game?.version).toBe(3)
+      expect(useGame.getState().game?.davinciHand?.selectedPosition).toBe(1)
+    } finally { resetGame() }
+  })
+  it('배치 마감만 공개하고 예약 위치는 해당 사용자의 개인 상태에서만 읽는다', () => {
+    const s = { ...state(), stage: 'PLACE_TILE' as const, placementDeadline: '2026-11-21T12:00:10Z' }
+    const pending = { id: 'drawn', color: 'WHITE' as const, value: -1, revealed: false }
+    const own = { ...hand(), pendingTile: pending, validPositions: [0, 1], selectedPosition: 1 }
+    expect(parseDavinci(s).placementDeadline).toBe(s.placementDeadline)
+    expect(parseDavinciHand(own, s, '101', 'PLAYER')?.selectedPosition).toBe(1)
+    expect(() => parseDavinci({ ...s, selectedPosition: 1 })).toThrow()
+    expect(() => parseDavinci({ ...s, pendingTile: pending })).toThrow()
+    expect(() => parseDavinci({ ...s, validPositions: [0, 1] })).toThrow()
+    expect(() => parseDavinci({ ...s, placementDeadline: 'bad' })).toThrow()
+    expect(() => parseDavinci({ ...s, stage: 'GUESS' })).toThrow()
+    expect(() => parseDavinciHand({ ...own, selectedPosition: 2 }, s, '101', 'PLAYER')).toThrow()
+    expect(() => parseDavinciHand({ ...own, pendingTile: null }, s, '101', 'PLAYER')).toThrow()
+    expect(() => parseDavinciHand(own, s, '202', 'PLAYER')).toThrow()
+    expect(() => parseDavinciHand(own, s, '999', 'SPECTATOR')).toThrow()
+    expect(parseDavinciHand({}, s, '999', 'SPECTATOR')).toBeNull()
+  })
   it('서버 시각에 맞춰 섞기를 시작하고 재접속 시 완료된 연출을 반복하지 않는다', () => {
     const s = { ...state(), stage: 'SETUP' as const, openingStartedAt: '2026-11-21T12:00:00Z' }
     expect(openingActive(s, Date.parse(s.openingStartedAt) + 1200)).toBe(true)

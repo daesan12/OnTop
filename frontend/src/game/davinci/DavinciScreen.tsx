@@ -40,9 +40,9 @@ function RulesDialog({ close }: { close(): void }) {
     <header><h2 id="davinci-rules-title">흑백수사 · 게임 방법</h2><button onClick={close} autoFocus aria-label="게임 방법 닫기">닫기</button></header>
     <div><p>2~4명이 검정·흰색 타일 26개로 즐기는 숫자 추리 게임이에요. 상대의 타일을 모두 공개하고 마지막까지 살아남으세요.</p>
       <h3>준비와 정렬</h3><p>2~3인은 4개, 4인은 3개를 받아요. 숫자는 왼쪽에서 오른쪽으로 커지고, 같은 숫자는 검정이 먼저예요. 조커(−)의 위치는 직접 고르며, 한 번 놓인 타일들의 순서는 바꿀 수 없어요.</p>
-      <h3>내 차례</h3><ol><li>중앙 패를 직접 클릭하거나 R 키·무작위 뽑기 버튼으로 하나를 뽑아요. 무작위 선택은 서버가 처리해요. 표시된 합법 위치에 놓고, 중앙이 비면 바로 추리해요.</li><li>상대의 비공개 타일을 선택하고 0~11 또는 조커를 말해요.</li><li>맞히면 상대 타일이 눕혀 공개돼요. 계속 추리하거나 차례를 마칠 수 있어요.</li></ol>
+      <h3>내 차례</h3><ol><li>중앙 패를 직접 클릭하거나 R 키·무작위 뽑기 버튼으로 하나를 뽑아요. 숫자패와 조커 모두 10초 동안 본인만 보는 UI에서 위치를 골라요. 먼저 골라도 10초가 끝날 때 놓고, 미선택이면 합법 위치에 자동 배치해요. 중앙이 비면 바로 추리해요.</li><li>상대의 비공개 타일을 선택하고 0~11 또는 조커를 말해요.</li><li>맞히면 상대 타일이 눕혀 공개돼요. 계속 추리하거나 차례를 마칠 수 있어요.</li></ol>
       <h3>추리에 실패하면</h3><p>첫 추리에 실패하면 이번 턴에 뽑은 타일을 공개해요. 추가 추리에 실패하거나 뽑을 타일이 없었다면, 내 비공개 타일 하나를 골라 공개하고 차례가 끝나요.</p>
-      <h3>탈락과 온라인 진행</h3><p>내 타일이 전부 공개되면 탈락해요. 비공개 타일이 남은 마지막 한 명이 이겨요. 준비·차례 제한은 각각 120초예요. 준비 시간이 끝나면 현재 배치가 확정되고, 차례 시간이 끝나면 서버가 타일 하나를 공개한 뒤 차례를 넘겨요.</p>
+      <h3>탈락과 온라인 진행</h3><p>내 타일이 전부 공개되면 탈락해요. 비공개 타일이 남은 마지막 한 명이 이겨요. 준비·차례 제한은 각각 120초이며, 뽑은 패의 배치 대기 10초는 차례 시간에서 제외해요. 준비 시간이 끝나면 현재 배치가 확정되고, 차례 시간이 끝나면 서버가 타일 하나를 공개한 뒤 차례를 넘겨요.</p>
       <p>관전자는 공개된 정보만 볼 수 있으며, 경기 채팅과 타일 추천 핑을 보낼 수 있어요.</p></div>
     <button className="davinci-primary" onClick={close}>알겠어요</button>
   </dialog>
@@ -92,6 +92,8 @@ export function DavinciScreen({ state, hand, viewerId, names, enabled, busy, err
   const chosen = selected && (selected.userId === viewerId ? hand?.tiles : target?.tiles)?.find(t => t.id === selected.tileId)
   useEffect(() => { const timer = setInterval(() => setNow(estimatedServerTime()), 250); return () => clearInterval(timer) }, [])
   const seconds = state.turnDeadline ? Math.max(0, Math.ceil((Date.parse(state.turnDeadline) - now) / 1000)) : null
+  const placementSeconds = state.placementDeadline ? Math.max(0, Math.ceil((Date.parse(state.placementDeadline) - now) / 1000)) : null
+  const mayChoosePosition = mayAct && (placementSeconds === null || placementSeconds > 0)
   const pick = (userId: string, tileId: string) => { useSecretTileUI.getState().pick(gameId, state.version, userId, tileId); setGuess(null) }
   useEffect(() => setGuess(null), [selected?.tileId, selected?.version])
   const jokerId = hand?.unplacedJokerIds[0]
@@ -145,12 +147,13 @@ export function DavinciScreen({ state, hand, viewerId, names, enabled, busy, err
                 <button className="davinci-primary" aria-label="무작위 패 뽑기" aria-keyshortcuts="R" onClick={() => act({ kind: 'draw_random' })}><span className="davinci-draw-label">무작위 뽑기</span><span className="davinci-draw-short" aria-hidden="true">뽑기</span> <kbd>R</kbd></button>
                 <p>중앙 패를 눌러 직접 선택</p>
               </div>}
-              {state.stage === 'PLACE_TILE' && <><p>뽑은 타일 · <b>{hand?.pendingTile?.color === 'BLACK' ? '검정' : '흰색'} {tileText(hand?.pendingTile?.value ?? null)}</b></p>
-                <select className="davinci-position-select" aria-label={`뽑은 ${hand?.pendingTile?.color === 'BLACK' ? '검정' : '흰색'} ${tileText(hand?.pendingTile?.value ?? null)} 패를 놓을 위치`} value=""
+              {state.stage === 'PLACE_TILE' && <><p>뽑은 패 · <b>{hand?.pendingTile?.color === 'BLACK' ? '검정' : '흰색'} {tileText(hand?.pendingTile?.value ?? null)}</b>
+                {placementSeconds !== null && <span className="davinci-placement-status" role="status"> · {placementSeconds}초 후 배치{hand?.selectedPosition != null ? ' · 위치 선택됨' : ' · 미선택 시 자동'}</span>}</p>
+                <select className="davinci-position-select" aria-label={`뽑은 ${hand?.pendingTile?.color === 'BLACK' ? '검정' : '흰색'} ${tileText(hand?.pendingTile?.value ?? null)} 패를 놓을 위치`} value={hand?.selectedPosition ?? ''} disabled={!mayChoosePosition}
                   onChange={event => { if (event.target.value !== '') act({ kind: 'place', position: Number(event.target.value) }) }}>
                   <option value="" disabled>{hand?.pendingTile?.color === 'BLACK' ? '검정' : '흰색'} {tileText(hand?.pendingTile?.value ?? null)} · 위치</option>
                   {positionOptions.map(position => <option key={position} value={position}>{position === 0 ? '맨 왼쪽' : position === hand?.tiles.length ? '맨 오른쪽' : `${position + 1}번째`}</option>)}</select>
-                <div className="davinci-positions">{positionOptions.map(position => <button key={position} onClick={() => act({ kind: 'place', position })}>{position === 0 ? '맨 왼쪽' : position === hand?.tiles.length ? '맨 오른쪽' : `${position + 1}번째`}</button>)}</div></>}
+                <div className="davinci-positions" aria-label="뽑은 패 배치 위치">{positionOptions.map(position => <button key={position} disabled={!mayChoosePosition} aria-pressed={hand?.selectedPosition === position} onClick={() => act({ kind: 'place', position })}>{position === 0 ? '맨 왼쪽' : position === hand?.tiles.length ? '맨 오른쪽' : `${position + 1}번째`}</button>)}</div></>}
               {['GUESS', 'CONTINUE'].includes(state.stage) && <div className="davinci-guess-controls" data-target-selected={!!chosen && !!target && target.userId !== viewerId && !chosen.revealed}>
                 <p className="davinci-guess-target">{target && target.userId !== viewerId ? `${name(target.userId)} · ${target.tiles.findIndex(t => t.id === selected?.tileId) + 1}번째 ${chosen?.color === 'BLACK' ? '검정' : '흰색'} 패` : '상대 패를 선택하세요.'}</p>
                 <select className="davinci-number-select" aria-label={`${target ? `${name(target.userId)} ${target.tiles.findIndex(t => t.id === selected?.tileId) + 1}번째 패 · ` : ''}추리할 숫자`} value={guess ?? ''}
@@ -163,7 +166,7 @@ export function DavinciScreen({ state, hand, viewerId, names, enabled, busy, err
                 {state.stage === 'CONTINUE' && <button aria-label="여기서 멈추기" onClick={() => act({ kind: 'stop' })}>멈추기</button>}</div></div>}
               {state.stage === 'REVEAL' && <button className="davinci-primary" disabled={!chosen || selected?.userId !== viewerId || chosen.revealed}
                 onClick={() => selected && act({ kind: 'reveal', tileId: selected.tileId })}>선택한 내 타일 공개</button>}
-            </> : state.stage === 'SETUP' ? <p>다른 참가자 준비 중</p> : <p>{busy ? '처리 중…' : !enabled && me?.active ? '경기 상태를 확인해주세요.' : !me || !me.active ? '관전 중' : '상대 차례'}</p>}
+            </> : state.stage === 'SETUP' ? <p>다른 참가자 준비 중</p> : <p>{state.stage === 'PLACE_TILE' && placementSeconds !== null ? `패 배치 중 · ${placementSeconds}초` : busy ? '처리 중…' : !enabled && me?.active ? '경기 상태를 확인해주세요.' : !me || !me.active ? '관전 중' : '상대 차례'}</p>}
         </div>{error && <div className="davinci-error" role="alert"><p>{error}</p><button onClick={recover}>경기 상태 다시 확인</button></div>}
       <div className="davinci-dock-options">
       <details className="davinci-accessible-tiles" aria-label="타일 선택"><summary aria-label="패 목록 · 내 패와 상대 패 선택">패 목록</summary>

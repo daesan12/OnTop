@@ -199,6 +199,8 @@ public final class DavinciEngine implements GameEngine {
                 .put("stage", match.stage().name()).put("version", match.version())
                 .put("turnUserId", match.turnUserId() == null ? null : match.turnUserId().toString())
                 .put("turnDeadline", match.deadline() == null ? null : match.deadline().toString())
+                .put("placementDeadline", match.placementDeadline() == null
+                        ? null : match.placementDeadline().toString())
                 .put("openingStartedAt", match.openingStartedAt().toString())
                 .put("endedAt", match.endedAt() == null ? null : match.endedAt().toString())
                 .put("endReason", match.endedAt() == null ? null : "LAST_PLAYER_STANDING");
@@ -242,6 +244,8 @@ public final class DavinciEngine implements GameEngine {
         }
         data.set("unplacedJokerIds", mapper.valueToTree(match.unplacedJokers(user)));
         data.set("validPositions", mapper.valueToTree(match.validPositions(user)));
+        if (match.selectedPosition(user) == null) { data.putNull("selectedPosition"); }
+        else { data.put("selectedPosition", match.selectedPosition(user)); }
         CodeTile pending = match.pendingTile(user);
         if (pending == null) { data.putNull("pendingTile"); }
         else { data.putObject("pendingTile").put("id", pending.id()).put("color", pending.color().name())

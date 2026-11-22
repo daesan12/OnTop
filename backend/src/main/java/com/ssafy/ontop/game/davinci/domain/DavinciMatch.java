@@ -20,6 +20,7 @@ import java.util.Set;
 public final class DavinciMatch {
     public static final String GAME_CODE = "DAVINCI_CODE";
     public static final Duration TURN_LIMIT = Duration.ofSeconds(120);
+    public static final Duration PLACEMENT_LIMIT = Duration.ofSeconds(10);
     private static final SecureRandom DRAW_RANDOM = new SecureRandom();
     public enum Stage { SETUP, DRAW, PLACE_TILE, GUESS, CONTINUE, REVEAL, FINISHED }
     public record Event(String kind, long actor, Long target, String tileId, Integer value, Boolean correct) { }
@@ -40,6 +41,8 @@ public final class DavinciMatch {
     private int turn;
     private long version;
     private CodeTile pendingTile;
+    private Instant placementDeadline;
+    private Integer selectedPosition;
     private String drawnTileId;
     private int successes;
     private Instant deadline;
@@ -92,10 +95,10 @@ public final class DavinciMatch {
         } else {
             if (players.get(turn) != command.userId()) { throw new Rejected(Rejection.NOT_YOUR_TURN); }
             switch (kind) {
-                case "draw" -> draw(input.path("tileId").asText());
+                case "draw" -> draw(input.path("tileId").asText(), now);
                 case "draw_random" -> {
                     require(stage == Stage.DRAW && !pool.isEmpty());
-                    draw(pool.get(DRAW_RANDOM.nextInt(pool.size())).id());
+                    draw(pool.get(DRAW_RANDOM.nextInt(pool.size())).id(), now);
                 }
                 case "place" -> place(input);
                 case "guess" -> guess(command.userId(), input, now);
@@ -110,7 +113,8 @@ public final class DavinciMatch {
                 default -> throw new Rejected(Rejection.INVALID_ACTION);
             }
         }
-        version++;
+        // 위치 예약 시점은 상대에게 보이지 않도록 공개 버전과 알림을 유지한다.
+        if (!kind.equals("place")) { version++; }
         GameActionResult result = new GameActionResult(command.userId(), gameId, command.actionId(), version);
         receipts.put(receiptId, new Receipt(input, command.expectedVersion(), result));
         return result;
@@ -138,12 +142,16 @@ public final class DavinciMatch {
         } else { throw new Rejected(Rejection.INVALID_ACTION); }
     }
 
-    private void draw(String tileId) {
+    private void draw(String tileId, Instant now) {
         require(stage == Stage.DRAW);
         CodeTile tile = pool.stream().filter(item -> item.id().equals(tileId)).findFirst().orElse(null);
         require(tile != null);
         pool.remove(tile);
         pendingTile = tile;
+        selectedPosition = null;
+        placementDeadline = now.plus(PLACEMENT_LIMIT);
+        // 강제로 기다리는 10초는 원래의 차례 생각 시간에서 제외한다.
+        deadline = deadline.plus(PLACEMENT_LIMIT);
         drawnTileId = tile.id();
         stage = Stage.PLACE_TILE;
         lastEvent = new Event("DRAW", players.get(turn), null, tile.id(), null, null);
@@ -154,9 +162,17 @@ public final class DavinciMatch {
                 && input.path("position").canConvertToInt());
         int position = input.path("position").asInt();
         require(validPositions(players.get(turn)).contains(position));
+        selectedPosition = position;
+    }
+
+    private void insertPendingTile() {
+        List<Integer> positions = validPositions(players.get(turn));
+        int position = selectedPosition == null
+                ? positions.get(DRAW_RANDOM.nextInt(positions.size())) : selectedPosition;
         hands.get(players.get(turn)).add(position, pendingTile);
         pendingTile = null;
-        stage = Stage.GUESS;
+        selectedPosition = null;
+        placementDeadline = null;
     }
 
     private void guess(long user, JsonNode input, Instant now) {
@@ -192,8 +208,7 @@ public final class DavinciMatch {
     public boolean forfeit(long user, Instant now) {
         if (stage == Stage.FINISHED || !active(user)) { return false; }
         if (players.get(turn) == user && pendingTile != null) {
-            hands.get(user).add(validPositions(user).getFirst(), pendingTile);
-            pendingTile = null;
+            insertPendingTile();
         }
         forfeited.add(user);
         hands.get(user).forEach(tile -> revealed.add(tile.id()));
@@ -210,7 +225,13 @@ public final class DavinciMatch {
 
     /** 방치로 경기가 멈추지 않게 준비는 확정하고, 차례 시간초과는 본인 타일 하나를 공개한다. */
     public void expire(Instant now) {
-        if (stage == Stage.FINISHED || now.isBefore(deadline)) { return; }
+        if (stage == Stage.FINISHED) { return; }
+        if (stage == Stage.PLACE_TILE && !now.isBefore(placementDeadline)) {
+            insertPendingTile();
+            stage = Stage.GUESS;
+            version++;
+        }
+        if (now.isBefore(deadline)) { return; }
         if (stage == Stage.SETUP) {
             unplacedJokers.clear();
             ready.addAll(players);
@@ -218,8 +239,7 @@ public final class DavinciMatch {
         } else {
             long user = players.get(turn);
             if (pendingTile != null) {
-                hands.get(user).add(validPositions(user).getFirst(), pendingTile);
-                pendingTile = null;
+                insertPendingTile();
             }
             if (stage == Stage.DRAW && !pool.isEmpty()) {
                 CodeTile tile = pool.removeFirst();
@@ -243,6 +263,8 @@ public final class DavinciMatch {
         successes = 0;
         drawnTileId = null;
         pendingTile = null;
+        placementDeadline = null;
+        selectedPosition = null;
         deadline = now.plus(TURN_LIMIT);
     }
 
@@ -255,13 +277,15 @@ public final class DavinciMatch {
         List<Long> alive = players.stream().filter(this::active).toList();
         if (alive.size() > 1) { return false; }
         if (pendingTile != null) {
-            hands.get(players.get(turn)).add(validPositions(players.get(turn)).getFirst(), pendingTile);
+            insertPendingTile();
         }
         winners = alive;
         stage = Stage.FINISHED;
         endedAt = now;
         deadline = null;
         pendingTile = null;
+        placementDeadline = null;
+        selectedPosition = null;
         return true;
     }
 
@@ -311,6 +335,8 @@ public final class DavinciMatch {
     public long version() { return version; }
     public Long turnUserId() { return stage == Stage.FINISHED || stage == Stage.SETUP ? null : players.get(turn); }
     public CodeTile pendingTile(long user) { return players.get(turn) == user ? pendingTile : null; }
+    public Instant placementDeadline() { return placementDeadline; }
+    public Integer selectedPosition(long user) { return players.get(turn) == user ? selectedPosition : null; }
     public Instant deadline() { return deadline; }
     public Instant endedAt() { return endedAt; }
     public List<Long> winners() { return winners; }

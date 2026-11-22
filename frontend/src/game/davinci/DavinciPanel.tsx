@@ -37,10 +37,13 @@ export function DavinciPanel() {
   const enabled = connected && !worldPending && !uncertain && recovery === 'RESTORED' && !forfeitBlocksInput(game.gameId) && game.version >= awaiting
   const state = game.davinci, myTurn = !spectator && state.turnUserId === own
   const shuffling = openingActive(state, estimatedServerTime())
+  const placing = state.stage === 'PLACE_TILE' && !!state.placementDeadline
   const tools = <>
-    <GameHudClock game="흑백수사" label={shuffling ? '패를 섞고 나누는 중' : state.stage === 'SETUP' ? '내 패를 확인해주세요' : myTurn ? '내 차례' : `${names[state.turnUserId ?? ''] ?? '상대'}님의 차례`}
-      remainingMs={state.turnDeadline ? Date.parse(state.turnDeadline) - estimatedServerTime() : null} limitMs={120000} myTurn={myTurn}
-      phase={shuffling ? '섞는 중' : state.status === 'FINISHED' ? '종료' : undefined} hint="중앙 패 클릭 · R 무작위 뽑기" />
+    <GameHudClock game="흑백수사" label={shuffling ? '패를 섞고 나누는 중' : placing ? '패 배치 대기' : state.stage === 'SETUP' ? '내 패를 확인해주세요' : myTurn ? '내 차례' : `${names[state.turnUserId ?? ''] ?? '상대'}님의 차례`}
+      remainingMs={placing ? Date.parse(state.placementDeadline!) - estimatedServerTime() : state.turnDeadline ? Date.parse(state.turnDeadline) - estimatedServerTime() : null}
+      limitMs={placing ? 10000 : 120000} myTurn={myTurn}
+      phase={shuffling ? '섞는 중' : state.status === 'FINISHED' ? '종료' : undefined}
+      hint={placing ? '선택 여부와 관계없이 10초 후 배치' : state.stage === 'DRAW' ? '중앙 패 클릭 · R 무작위 뽑기' : undefined} />
     <GameHudMenu>
       <button type="button" data-icon="manual" onClick={() => openManual('davinci')}>게임 설명</button>
       <button type="button" data-icon="refresh" onClick={() => { if (!connected) runtime.reconnect(); else void runtime.checkRecovery() }}>경기 상태 확인</button>

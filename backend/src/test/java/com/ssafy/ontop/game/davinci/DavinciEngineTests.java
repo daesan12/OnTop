@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ssafy.ontop.game.action.GameActionCommand;
 import com.ssafy.ontop.game.action.GameActionGateway.Rejected;
 import com.ssafy.ontop.game.action.GameForfeitCommand;
+import com.ssafy.ontop.game.davinci.domain.CodeTile;
 import com.ssafy.ontop.game.davinci.service.DavinciEngine;
 import com.ssafy.ontop.game.davinci.service.DavinciSocial;
 import com.ssafy.ontop.game.engine.GameEngineRouter;
@@ -15,6 +16,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -29,6 +31,132 @@ class DavinciEngineTests {
     private final List<Object> events = new ArrayList<>();
     private DavinciEngine engine = new DavinciEngine(mapper, clock, events::add, new GameEngineRouter(), tiles -> { });
     private List<Long> players = List.of(101L, 202L);
+
+    @Test
+    void 숫자와_조커는_같은_10초_후에만_배치되고_예약_시점은_공개하지_않는다() {
+        for (int value : List.of(7, -1)) {
+            String tileId = createWithPoolValue(value);
+            Instant drawnAt = clock.now;
+            act(101, Map.of("kind", "draw", "tileId", tileId));
+            JsonNode publicBefore = view(202).publicState().deepCopy();
+            var worldBefore = engine.tablePresentations();
+            int count = view(101).privateState().path("tiles").size();
+            JsonNode positions = view(101).privateState().path("validPositions");
+            int position = positions.get(positions.size() - 1).asInt();
+            long version = publicBefore.path("version").asLong();
+            var selection = new GameActionCommand(101, "game", "private-place", version,
+                    mapper.valueToTree(Map.of("kind", "place", "position", position)));
+            events.clear();
+
+            var accepted = engine.apply(selection);
+
+            assertThat(accepted.version()).isEqualTo(version);
+            assertThat(engine.apply(selection)).isEqualTo(accepted);
+            assertThat(view(202).publicState()).isEqualTo(publicBefore);
+            assertThat(engine.tablePresentations()).isEqualTo(worldBefore);
+            assertThat(events).isEmpty();
+            assertThat(state().path("placementDeadline").asText()).isEqualTo(drawnAt.plusSeconds(10).toString());
+            assertThat(view(101).privateState().path("selectedPosition").asInt()).isEqualTo(position);
+            assertThat(engine.load(101).orElseThrow().state().path("privateState").path("selectedPosition").asInt())
+                    .isEqualTo(position);
+            assertThat(view(202).privateState().path("selectedPosition").isNull()).isTrue();
+            assertThat(view(999).privateState().isEmpty()).isTrue();
+            assertThat(publicBefore.has("selectedPosition")).isFalse();
+            assertThatThrownBy(() -> act(101, Map.of("kind", "guess", "targetUserId", "202",
+                    "tileId", publicBefore.path("players").get(1).path("tiles").get(0).path("id").asText(),
+                    "value", 0))).hasMessage("INVALID_ACTION");
+            assertThatThrownBy(() -> act(101, Map.of("kind", "stop"))).hasMessage("INVALID_ACTION");
+
+            clock.now = drawnAt.plusMillis(9999);
+            engine.tick();
+            assertThat(state().path("stage").asText()).isEqualTo("PLACE_TILE");
+            assertThat(view(101).privateState().path("tiles").size()).isEqualTo(count);
+            clock.now = drawnAt.plusSeconds(10);
+            engine.tick();
+            assertThat(state().path("stage").asText()).isEqualTo("GUESS");
+            assertThat(state().path("version").asLong()).isEqualTo(version + 1);
+            assertThat(view(101).privateState().path("tiles").get(position).path("id").asText()).isEqualTo(tileId);
+            assertThat(view(101).privateState().path("selectedPosition").isNull()).isTrue();
+            assertThat(state().path("placementDeadline").isNull()).isTrue();
+        }
+    }
+
+    @Test
+    void 미선택_패도_10초에_합법_위치로_한번만_자동_배치한다() {
+        for (int value : List.of(7, -1)) {
+            String tileId = createWithPoolValue(value);
+            act(101, Map.of("kind", "draw", "tileId", tileId));
+            List<Integer> valid = new ArrayList<>();
+            view(101).privateState().path("validPositions").forEach(p -> valid.add(p.asInt()));
+            int count = view(101).privateState().path("tiles").size();
+            long version = state().path("version").asLong();
+            clock.now = clock.now.plusSeconds(10);
+
+            engine.tick();
+
+            JsonNode tiles = view(101).privateState().path("tiles");
+            assertThat(tiles.size()).isEqualTo(count + 1);
+            int placed = -1;
+            for (int i = 0; i < tiles.size(); i++) {
+                if (tileId.equals(tiles.get(i).path("id").asText())) { placed = i; }
+            }
+            assertThat(valid).contains(placed);
+            assertThat(tiles.get(placed).path("value").asInt()).isEqualTo(value);
+            assertThat(state().path("stage").asText()).isEqualTo("GUESS");
+            engine.tick();
+            assertThat(state().path("version").asLong()).isEqualTo(version + 1);
+        }
+    }
+
+    @Test
+    void 마감_직전에도_10초를_보장하고_늦은_선택은_자동배치를_바꾸지_않는다() {
+        String tileId = createWithPoolValue(-1);
+        clock.now = clock.now.plusSeconds(119);
+        act(101, Map.of("kind", "draw", "tileId", tileId));
+        long version = state().path("version").asLong();
+        clock.now = clock.now.plusMillis(9999);
+        engine.tick();
+        assertThat(state().path("stage").asText()).isEqualTo("PLACE_TILE");
+        clock.now = clock.now.plusMillis(1);
+
+        assertThatThrownBy(() -> engine.apply(new GameActionCommand(101, "game", "late", version,
+                mapper.valueToTree(Map.of("kind", "place", "position", 0))))).hasMessage("STALE_VERSION");
+
+        assertThat(state().path("stage").asText()).isEqualTo("GUESS");
+        assertThat(view(101).privateState().path("tiles").findValuesAsText("id")).containsOnlyOnce(tileId);
+        assertThat(Instant.parse(state().path("turnDeadline").asText())).isEqualTo(clock.now.plusSeconds(1));
+        clock.now = clock.now.plusSeconds(1);
+        engine.tick();
+        assertThat(state().path("turnUserId").asText()).isEqualTo("202");
+    }
+
+    @Test
+    void 배치중_권한과_예약변경을_검사하고_기권_후_예약을_다시_적용하지_않는다() {
+        String tileId = createWithPoolValue(-1);
+        act(101, Map.of("kind", "draw", "tileId", tileId));
+        assertThatThrownBy(() -> act(202, Map.of("kind", "place", "position", 0)))
+                .hasMessage("NOT_YOUR_TURN");
+        assertThatThrownBy(() -> act(999, Map.of("kind", "place", "position", 0)))
+                .hasMessage("ACCESS_DENIED");
+        assertThatThrownBy(() -> act(101, Map.of("kind", "place", "position", 99)))
+                .hasMessage("INVALID_ACTION");
+        var first = new GameActionCommand(101, "game", "first-place", state().path("version").asLong(),
+                mapper.valueToTree(Map.of("kind", "place", "position", 0)));
+        engine.apply(first);
+        act(101, Map.of("kind", "place", "position", 1));
+        engine.apply(first);
+        assertThat(view(101).privateState().path("selectedPosition").asInt()).isEqualTo(1);
+
+        engine.forfeit(new GameForfeitCommand(101, "game", "leave-pending"));
+        long version = state().path("version").asLong();
+        clock.now = clock.now.plusSeconds(10);
+        engine.tick();
+
+        assertThat(state().path("status").asText()).isEqualTo("FINISHED");
+        assertThat(state().path("placementDeadline").isNull()).isTrue();
+        assertThat(state().path("version").asLong()).isEqualTo(version);
+        assertThat(view(101).privateState().path("tiles").findValuesAsText("id")).containsOnlyOnce(tileId);
+    }
 
     @Test
     void 무작위_뽑기는_공급_패_하나만_개인에게_전달하고_중복_요청은_다시_뽑지_않는다() {
@@ -266,7 +394,21 @@ class DavinciEngineTests {
         String tileId = state().path("supply").get(0).path("id").asText();
         act(user, Map.of("kind", "draw", "tileId", tileId));
         act(user, Map.of("kind", "place", "position", view(user).privateState().path("validPositions").get(0).asInt()));
+        clock.now = clock.now.plusSeconds(10);
+        engine.tick();
         return tileId;
+    }
+
+    private String createWithPoolValue(int value) {
+        String[] selected = new String[1];
+        engine = new DavinciEngine(mapper, clock, events::add, new GameEngineRouter(), tiles -> {
+            tiles.sort(Comparator.comparingInt(tile -> tile.value() == -1 ? 1 : 0));
+            selected[0] = tiles.stream().filter(tile -> tile.color() == CodeTile.Color.WHITE && tile.value() == value)
+                    .findFirst().orElseThrow().id();
+        });
+        engine.create("game", "table", players);
+        readyAll();
+        return selected[0];
     }
 
     private JsonNode firstHidden(long user, String excluded) {
