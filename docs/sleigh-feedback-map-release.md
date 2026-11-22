@@ -6,10 +6,10 @@
 
 - 기준 dev: `90389d8947057a0897b6462a86b282d0e5986392`.
 - 이전 mapVersion: `bb13a432887f01ad46677d03810be2931b26c4c2df25b2b2130253615f833742`.
-- 이번 mapVersion: `79683f52eb9c84fef46efc11021640114d7236742019270a48839c645e4c6ccd`.
+- 이번 mapVersion: `555d91d94b80d9c3069759ccf1f2eedc86b03920963d206115e0a1a86a7731c5`.
 - 생성: frontend에서 `node scripts/generate-renewal-park.mjs`.
 - 산출물: `frontend/generated/park-renewal/server-map.json`, `manifest.json`, `park-bindings.json`.
-  12m 트리·크리스마스 에셋·트리 편지와 함께 재생성한 버전이다. 구 !665의 단독 맵을 재사용하지 않는다.
+  12m 트리·크리스마스 에셋·트리 편지와 !673 출입구 지면 보강을 함께 재생성한 버전이다. 구 !665의 단독 맵을 재사용하지 않는다.
 
 ## 읽기 전용으로 확인한 배포 경로
 

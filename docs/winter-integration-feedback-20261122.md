@@ -1,4 +1,4 @@
-# 겨울 통합: QA 8·10·11
+# 겨울 통합: QA 8·10·11과 공포맵 출입구 !673
 
 ## 기준과 보존 범위
 
@@ -31,11 +31,11 @@
   별도 팀 예약과 실제 DB 적용 이력은 직접 확인하지 못했으므로 배포 담당자가 충돌/이력을 재확인해야 한다.
 - 오락실 countPlays에 쓰는 ix_plus_minus_user_date와 ix_rps_roulette_user_date는 각각 V143/V136에 있다.
   실제 적용·EXPLAIN·운영 호출 제한/이상 거래 알림은 미확인이다.
-- 최종 mapVersion 79683f52eb9c84fef46efc11021640114d7236742019270a48839c645e4c6ccd.
-  11번 f0691040의 생성 맵 대비 항로 표본과 관련 해시만 달라진다. 트리·충돌·장식 좌표는 유지한다.
+- 최종 mapVersion 555d91d94b80d9c3069759ccf1f2eedc86b03920963d206115e0a1a86a7731c5.
+  11번 f0691040 대비 항로 표본과 !673의 출입구 지면 충돌/절개 목록이 바뀐다. 트리·장식 좌표는 유지한다.
   최종 산출물 server-map.json·manifest.json·park-bindings.json은 같은 커밋으로 사용해야 한다.
 
-## 검증과 남은 배포 확인
+## 8·10·11 최초 통합 검증과 남은 배포 확인
 
 - TypeScript --noEmit과 FE 11개 파일 63개 테스트 통과. sleigh·plusMinus·rpsRoulette·winterCommunity·winter·
   winterMotion·christmasAssets·christmasAssetLifecycle·parkVisualPreservation·horrorRules·horrorDressing을 실행했다.
@@ -60,8 +60,43 @@
 
 ## MR와 담당자 인계
 
-검증·푸시 후 !670의 제목/설명을 8·10·11 통합 범위로 갱신하고 !665·!667은 대체됨으로 닫는다.
+!670을 통합 MR로 유지한다. !665·!667은 대체 안내 후 닫았고 !673도 동일하게 통합해 정리한다.
 기존 브랜치는 최종 dev 병합과 Jenkins 성공까지 보존한다. 머지·자동 머지하지 않는다.
 인프라 요청은 이 채팅에 작성하며 외부 메시지를 보내지 않는다. 담당자에게 요구하는 사항은
 같은 커밋 FE/BE 맵 반영·맵 경로/마커 확인·V183 사전 검증·오락실 호출 제한/모니터링 확인·
 배포 후 채널 입장/썰매/트리/오락실 검수·동일 버전 롤백이다.
+
+## !673 추가 통합 (2026-11-22)
+
+- 소스 fix/secret-entrance-ground-support@95d8cb7cee81f3b12dedbdb4bc8fbb8c03f9c6b9의 세 커밋을
+  공유 이력을 보존해 병합한다. 최신 dev 90389d89를 이미 포함한 ea07ecef가 이번 시작 기준이다.
+- 공포맵 문턱 양옆의 표시 지면 삼각형을 지지 충돌로 추가하고 계단 아래 방 위의 불필요한 절개를 없앤다.
+  기존 출입 좌표·출구 잠금/3층 방문/해제/복귀 조건·BE 프로토콜·DB·V183은 유지한다.
+- 출구 낮은 외부 구역의 3인칭 목표/보간 후 카메라가 언덕 뒤로 넘어가지 않도록 제한한다. 옷장 시점은 제외한다.
+- live/physics.ts는 자동 병합됐고 생성 JSON 두 파일만 충돌했다. 기존 트리/썰매 소스와 출입구 보강을
+  합친 뒤 재생성했다. ea07ecef의 생성 맵 대비 meshes 41→42, secretTerrainCuts 88→16과 해시만 달라진다.
+  썰매 운행 표본과 트리/겨울 모델·편지 UI·오락실 소스는 바뀌지 않았다.
+- 최종 mapVersion 555d91d94b80d9c3069759ccf1f2eedc86b03920963d206115e0a1a86a7731c5. 기존 단독 !673의 0a4f4e0a… 또는 이전 통합 79683f52… 산출물을 재사용하지 않는다.
+- FE 13개 파일 80개와 기본/테스트 TypeScript 검사를 통과했다. secretEntranceSupport·secretExitCamera·
+  horrorUpperRoute·horrorMaze·horrorRules·generatedMovementPrediction·parkVisualPreservation·sleigh·
+  winterCommunity·christmasAssets·christmasAssetLifecycle·plusMinus·rpsRoulette를 실행했다.
+- BE 5개 클래스 17개, skipped=0. TEST_RENEWAL_MAP_DIR로 최신 통합 맵을 지정해 실제 InteriorAccessTests 3개와
+  SleighFacility·WinterCommunityPhysics·WinterSnowPickupPhysics·PagodaThrowLanding 회귀를 확인했다.
+- 리뉴얼 활성화 park-integration 빌드 통과. Chrome 1440×900의 실제 공원 FE에서 기존 검수 fixture와
+  Java WorldPhysics를 연결해 3층 방문 전 출구 거절/버튼 비활성 → 3층 방문 후 해제 → 출구 조작 →
+  (-60.2,-88) 공원 복귀 → 이동을 검증했다. 강제 위치 복구 없음, pageerror 0개, Vite 오류 오버레이 없음.
+  실제 CameraRig의 최종 카메라 x=-58.6이며 캐릭터와 주변 공원이 보였다. Playwright 테스트 1개 통과.
+- 인증·REST/WS는 로컬 fixture, 물리/출입 조건은 실제 Java다. 운영 인증·DB·운영 서버·VR·Jenkins 성공은 미확인이다.
+  맵 전수 탐색·자전거/킥보드 주행 테스트는 추가하거나 실행하지 않았다.
+
+### 인프라 요청의 true 설정 구분
+
+- 맵 변경 작업이라는 운영 분류는 true로 처리하도록 담당자에게 요청한다. 현재 저장소의 CI 판정은 0/1이므로
+  PARK_MAP_CHANGED=1과 TEST_PARK_MAP=1이 기대되며 문자열 true를 그 플래그에 넣는 방식으로 안내하지 않는다.
+- 실제 리뉴얼 FE 빌드 선택값 VITE_PARK_RENEWAL_ENABLED=true와 BE 맵 검증 WORLD_MAP_REQUIRE_MATCH=true를
+  담당자가 확인/유지하고, 같은 최종 커밋의 FE 및 리뉴얼 server-map/manifest를 함께 배포해야 한다.
+- CI·Jenkins·배포 설정/환경 파일은 읽기 전용으로 확인했으며 직접 변경하거나 임시 우회하지 않는다.
+
+- !673 통합 후에도 같은 FE에서 12m 트리 49→50 점등·작성·동일 UUID 재시도·4개 화면 크기, 썰매 HUD/복귀,
+  두 오락실의 기존 제한 초과 플레이를 재검증했다. 앱 오류 0개. 맵 재생성 3개 파일과 FE 빌드 맵/바인딩이 동일하다.
+  전용 Chrome·Java helper·서버 5547/5548은 종료하고 잔류 여부를 확인했다.
