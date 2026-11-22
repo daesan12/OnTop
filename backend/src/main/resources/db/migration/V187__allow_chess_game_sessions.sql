@@ -1,5 +1,5 @@
 -- 체스는 기존 예약·종료·정산 저장 경로를 사용하는 2인 게임이다.
--- V187 등 앞선 migration이 추가한 게임/정원을 보존하고 체스 조건만 확장한다.
+-- 앞선 migration이 추가한 게임/정원을 보존하고 체스 조건만 확장한다.
 SET @ontop_chess_previous_players_check = (
     SELECT CHECK_CLAUSE
     FROM information_schema.CHECK_CONSTRAINTS
