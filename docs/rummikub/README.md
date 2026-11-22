@@ -430,3 +430,7 @@ Browser plugin not available이므로 기존 Chrome/Playwright의 두 독립 계
 1536×1024와 390×844 화면으로 확인했다. 초기 검수 스크립트의 좌석·로비 열기·필수 입력 순서를 보완한 뒤 통과했다.
 스크립트·상태·화면은 저장소 밖 `OnTop/qa-supae-feedback-20261122/`에 보관한다.
 성공/타임아웃 모두 finally에서 브라우저를 닫았으며 해당 Chrome과 FE 5544 / BE 19464 잔류는 0개다.
+
+푸시 전 새로 반영된 `origin/dev`의 `f7457e306e33c554cf60ecc3b6abdf24f89bbdaf`(겨울 API 문서/Swagger 계약)을
+충돌 없이 merge했다. FE·게임 규칙·맵에는 추가 변경이 없었고 통합 후 BE 52개를 다시 통과했다.
+기존 MR !676에 피드백 커밋을 푸시하며 머지·배포·브랜치 삭제는 진행하지 않는다.
