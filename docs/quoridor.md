@@ -167,3 +167,5 @@ Image Gen 기본 도구 사용. 컨셉 프롬프트는 전체 4인 게임 화면
 Browser plugin이 없어 설치된 Chrome/Playwright로 실제 TabletLobby 컴포넌트를 1536×1024에서 독립 렌더링했다. 로컬 검수 URL은 `http://localhost:5275/__tablet_feedback`이며 운영 경로가 아닌 테스트에서만 응답하는 페이지와 메모리 준비 포트를 사용했다. 원카드와 주사위 장부 각각 3인 선택 → 길목 한 수 전환 → 2인 선택·3인 버튼 없음·준비 안내 없음·설정 버튼 활성 → `playerCount: 2` 전달을 확인했다. 스톤 럼블은 기존 `park-renewal-integration` 개발 모드에서 2~8인 버튼과 3인 설정을 확인했다. 제목·실제 본문·오류 overlay 없음·페이지 오류 및 경고 없음과 스크린샷을 확인했다. 최초 임시 fixture의 React prebundle import 오류와 비활성 스톤 럼블 모드 선택은 fixture를 바로잡아 재실행했고 제품 코드를 우회하지 않았다. 이 검증은 공원 투영 카메라·실제 서버·모바일 검증을 대신하지 않는다.
 
 검증 브라우저는 성공/실패 모두 finally에서 즉시 종료했고 소유한 Chrome 4개 PID의 잔존 0개와 임시 FE 5275 종료를 확인했다. 증거·임시 스크립트·build는 저장소 밖 `OnTop/output/quoridor-feedback-20261122`에 보관했다. 기존 Three CJS·큰 chunk·Java 사용 중단/unchecked 경고는 남는다. Jenkins 결과는 인증 조회 제한으로 별도 확인이 필요하다.
+
+푸시 전 재확인에서 dev가 겨울 API 명세 수정 `f7457e306e33c554cf60ecc3b6abdf24f89bbdaf`으로 진행되어 추가 반영했다. 변경 7개 파일은 겨울 API controller·보안 테스트·문서이며 이번 게임 수정과 겹치지 않고 충돌 없이 통합됐다. 이 통합은 FE 파일을 바꾸지 않아 FE 검증은 동일 트리를 기준으로 유지하며 BE 38개 회귀도 다시 통과했다.
