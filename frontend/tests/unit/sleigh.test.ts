@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { SLEIGH_DOCK, SLEIGH_LAP_MS, SLEIGH_ROUTE, sleighPose } from '../../src/features/winter/sleigh/route'
+import { SLEIGH_DOCK, SLEIGH_LAP_MS, SLEIGH_ROUTE, sleighPose, sleighTravelProgress } from '../../src/features/winter/sleigh/route'
 import { createSleighArt } from '../../src/features/winter/sleigh/art'
 import { parseFacilityDefinition } from '../../src/features/facilities/protocol'
 import { createSleighClock } from '../../src/features/winter/sleigh/flightClock'
@@ -97,7 +97,7 @@ describe('루돌프 썰매', () => {
     })
     expect(speeds[0]).toBeLessThan(1)
     expect(speeds.at(-1)).toBeLessThan(1)
-    expect(Math.max(...speeds)).toBeGreaterThan(25)
+    expect(Math.max(...speeds)).toBeGreaterThan(18)
     expect(Math.max(...speeds)).toBeLessThan(35)
   })
   it('무료 시설 형식과 좌석 수를 검증한다', () => {
@@ -120,4 +120,22 @@ describe('루돌프 썰매', () => {
       expect(triangles).toBeLessThan(8000)
     }
   })
+})
+
+it('출발과 도착의 긴 저속 구간만 줄이고 40초 동안 단조롭게 이동한다',()=>{
+  const legacy=(t:number)=>t*t*(3-2*t)
+  for(const t of [.025,.05,.1]){
+    expect(sleighTravelProgress(t)).toBeGreaterThan(legacy(t))
+    expect(sleighTravelProgress(1-t)).toBeLessThan(legacy(1-t))
+  }
+  let before=0
+  for(let frame=0;frame<=400;frame++){
+    const progress=sleighTravelProgress(frame/400)
+    expect(progress).toBeGreaterThanOrEqual(before)
+    expect(progress).toBeLessThanOrEqual(1)
+    before=progress
+  }
+  expect(sleighTravelProgress(0)).toBe(0)
+  expect(sleighTravelProgress(1)).toBe(1)
+  expect(SLEIGH_LAP_MS).toBe(40000)
 })
