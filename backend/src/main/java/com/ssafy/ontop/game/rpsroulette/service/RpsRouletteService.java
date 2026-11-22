@@ -22,7 +22,7 @@ import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * 참가비를 거는 1인 미니게임. START에서 참가비와 하루 판 수를 확정하고, 공개된 손은 이탈해도 결과를 적용한다.
+ * 참가비를 거는 1인 미니게임. START에서 참가비와 플레이 기록을 확정하고, 공개된 손은 이탈해도 결과를 적용한다.
  * 판정 엔진과 분리해 공통 지갑·원장만 사용하며, 배당은 미니게임 공통 하루 상한에 합산하지 않는다.
  */
 public class RpsRouletteService {
@@ -80,9 +80,6 @@ public class RpsRouletteService {
                 throw new RpsRouletteException(409, "RPS_ROUND_IN_PROGRESS", "진행 중인 판을 먼저 끝내 주세요.");
             }
             LocalDate today = LocalDate.ofInstant(now, RpsRouletteRules.KST);
-            if (repository.countPlays(userId, today) >= RpsRouletteRules.DAILY_PLAYS) {
-                throw new RpsRouletteException(409, "RPS_DAILY_LIMIT", "오늘 15판을 모두 했어요. 내일 다시 만나요.");
-            }
             if (wallet.balance() - wallet.reserved() < fee) {
                 throw new RpsRouletteException(409, "INSUFFICIENT_COINS", "엽전이 부족해요. 참가비를 확인해 주세요.");
             }

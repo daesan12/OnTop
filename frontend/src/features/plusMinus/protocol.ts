@@ -6,7 +6,7 @@ export const FIRST_REEL = [7, 0, 3, 1, 5, 2, 0, 4, 1, 2, 8, 0, 3, 1, 6, 2] as co
 export const OPERATOR_REEL = ['+', '-', '+', '-', '+', '-', '+', '-'] as const
 export const SECOND_REEL = [JACKPOT, 1, 4, 0, 2, 9, 1, 3, 2, 6, 0, 1, 5, 2, 8, 3] as const
 export const FEE = 30
-export const DAILY_PLAYS = 10
+export const DAILY_PLAYS = 0 // 0 means unlimited.
 
 export type Operator = '+' | '-'
 export type Outcome = 'LOST' | 'PAID' | 'JACKPOT'
@@ -45,7 +45,7 @@ export function parsePlusMinusState(value: unknown): PlusMinusState {
   if (!record(value) || !record(value.rules)) return invalid()
   const r = value.rules
   const rules: PlusMinusRules = {
-    fee: int(r.fee, 1), dailyPlays: int(r.dailyPlays, 1), firstReel: reel(r.firstReel, 0),
+    fee: int(r.fee, 1), dailyPlays: int(r.dailyPlays), firstReel: reel(r.firstReel, 0),
     operatorReel: Array.isArray(r.operatorReel) && r.operatorReel.length > 0 ? r.operatorReel.map(operator) : invalid(),
     secondReel: reel(r.secondReel, JACKPOT), pointPayout: int(r.pointPayout, 1), jackpotFirst: int(r.jackpotFirst),
     jackpotPayout: int(r.jackpotPayout, 1),

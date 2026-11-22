@@ -105,7 +105,8 @@ function RpsRouletteDialog() {
     void refreshRpsRoulette()
   }, [refreshFor])
 
-  const playsLeft = (data?.rules.dailyPlays ?? DAILY_PLAYS) - (data?.playedToday ?? 0)
+  const dailyPlays = data?.rules.dailyPlays ?? DAILY_PLAYS
+  const playsLeft = dailyPlays === 0 ? Infinity : dailyPlays - (data?.playedToday ?? 0)
   const idle = !live && !spinning && !revealing
   const inputOpen = live && !revealing && !busy && serverNow < deadline
   const canHand = inputOpen && round!.phase === 'DUEL'
@@ -180,7 +181,7 @@ function RpsRouletteDialog() {
                 <i aria-hidden="true" />{label}
               </li>)}
           </ol>
-          <span className="rps-roulette-plays">판 {Math.max(0, playsLeft)}/{data?.rules.dailyPlays ?? DAILY_PLAYS}</span>
+          <span className="rps-roulette-plays">{dailyPlays === 0 ? '횟수 무제한' : `판 ${Math.max(0, playsLeft)}/${dailyPlays}`}</span>
         </div>
         <div className="rps-roulette-led-row">
           <span className="rps-roulette-led-label">시간</span>
