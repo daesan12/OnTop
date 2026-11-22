@@ -50,7 +50,7 @@ class StoneRumbleMatchTests {
         assertThat(match.snapshot().players().getFirst().x()).isGreaterThan(before + 5);
         assertThat(match.snapshot().phase()).isEqualTo("RUNNING");
         assertThat(match.snapshot().tiles().stream().filter(StoneRumbleMatch.TileView::stepped))
-                .allSatisfy(tile -> assertThat(tile.breakAt()).isEqualTo(5400)).isNotEmpty();
+                .allSatisfy(tile -> assertThat(tile.breakAt()).isEqualTo(6200)).isNotEmpty();
         match.control("101", 0, 0, 1, 0, false, true);
         assertThat(match.snapshot().pigeons()).hasSize(1);
     }
@@ -140,17 +140,17 @@ class StoneRumbleMatchTests {
 
         match.advance(3000);
         assertThat(match.snapshot().tiles().stream().filter(StoneRumbleMatch.TileView::stepped)).hasSize(2);
-        match.advance(4180);
+        match.advance(4980);
         assertThat(match.snapshot().players().getFirst().y()).isEqualTo(24);
         assertThat(match.snapshot().tiles().stream().filter(t -> t.floor() == 2 && t.q() == -2 && t.r() == 0)
-                .findFirst().orElseThrow().breakAt()).isEqualTo(4200);
-        match.advance(4240);
+                .findFirst().orElseThrow().breakAt()).isEqualTo(5000);
+        match.advance(5040);
         assertThat(match.snapshot().players().getFirst().y()).isLessThan(24);
-        match.advance(5600);
+        match.advance(6400);
         assertThat(match.snapshot().players().getFirst().floor()).isEqualTo(1);
-        match.advance(8000);
-        assertThat(match.snapshot().players().getFirst().floor()).isZero();
         match.advance(10000);
+        assertThat(match.snapshot().players().getFirst().floor()).isZero();
+        match.advance(13400);
 
         assertThat(match.snapshot().status()).isEqualTo("FINISHED");
         assertThat(match.snapshot().endReason()).isEqualTo("ALL_FALLEN");
@@ -166,7 +166,7 @@ class StoneRumbleMatchTests {
         long fallStartedAt = -1;
         double lastAliveHeight = 0;
 
-        for (long time = 3020; time <= 11000 && !match.finished(); time += 20) {
+        for (long time = 3020; time <= 15000 && !match.finished(); time += 20) {
             match.advance(time);
             var own = match.snapshot().players().getFirst();
             if (own.floor() == 0 && own.y() < 0 && fallStartedAt < 0) {
@@ -309,7 +309,7 @@ class StoneRumbleMatchTests {
         match.advance(3000);
         int[][] route = {{0, 1}, {-1, 0}, {0, -1}, {1, 0}};
         boolean firedBelowFirstFloor = false;
-        for (long time = 3020; time <= 11000 && match.snapshot().players().getFirst().alive(); time += 20) {
+        for (long time = 3020; time <= 15000 && match.snapshot().players().getFirst().alive(); time += 20) {
             int phase = (int) ((time - 3000) / 2000) % 4;
             int[] first = route[phase], second = route[(phase + 3) % 4];
             match.control("202", first[0], first[1], 1, 0, false, false);
@@ -391,7 +391,7 @@ class StoneRumbleMatchTests {
                 match.control("101", 0, 0, 1, 0, true, false);
                 baseline.control("101", 0, 0, 1, 0, true, false);
             }
-            long startedAt = jumping ? 3100 : 4500;
+            long startedAt = jumping ? 3100 : 5300;
             match.advance(startedAt);
             baseline.advance(startedAt);
             var before = match.snapshot().players().getFirst();

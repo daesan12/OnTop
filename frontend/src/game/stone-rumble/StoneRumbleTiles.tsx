@@ -1,9 +1,10 @@
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { BoxGeometry, Color, DynamicDrawUsage, InstancedBufferAttribute, Object3D, type InstancedMesh, type MeshBasicMaterial } from 'three'
-import { STONE_FLOOR_COLORS, STONE_FLOOR_HEIGHTS, STONE_OUTER_WARNING_SECONDS, STONE_TILE_SIZE } from './layout'
+import { STONE_FLOOR_COLORS, STONE_FLOOR_HEIGHTS, STONE_OUTER_WARNING_SECONDS, STONE_STEP_DELAY, STONE_TILE_SIZE } from './layout'
 import type { StoneTile } from './protocol'
 import { stoneTileEpoch, updateStoneTileMarks } from './tileBuffers'
+import { StoneRenderClock } from './motion'
 
 // 얇은 돌판의 측면·깎인 돌 테두리·투명 중앙을 같은 메시로 그린다. 층당 한 draw call.
 const STONE_DEPTH = .48
@@ -30,7 +31,7 @@ function tileSurface(material: MeshBasicMaterial, clock: { value: number }) {
         float fallen = max(0.0, -remaining);
         transformed *= 1.0 - step(0.65, fallen);
         transformed.z -= fallen * fallen * 15.0;
-        vStoneMark = vec2(mix((1.0 - step(${STONE_OUTER_WARNING_SECONDS.toFixed(1)}, remaining)) * 2.0, 1.0, stoneMark.x), clamp(remaining / 1.2, 0.0, 1.0));
+        vStoneMark = vec2(mix((1.0 - step(${STONE_OUTER_WARNING_SECONDS.toFixed(1)}, remaining)) * 2.0, 1.0, stoneMark.x), clamp(remaining / ${(STONE_STEP_DELAY / 1000).toFixed(1)}, 0.0, 1.0));
         vStoneSide = 1.0 - abs(normal.z);`)
     shader.fragmentShader = shader.fragmentShader.replace('#include <common>', `#include <common>
       uniform vec3 stoneInk;
@@ -51,7 +52,7 @@ function tileSurface(material: MeshBasicMaterial, clock: { value: number }) {
         float innerBevel = smoothstep(0.090 - aa, 0.112 + aa, edge);
         float marked = step(0.5, vStoneMark.x);
         float stepped = marked * (1.0 - step(1.5, vStoneMark.x));
-        diffuseColor.rgb = mix(diffuseColor.rgb, mix(stoneWarning, mix(stoneStepped, stoneUrgent, 1.0 - step(1.0 / 3.0, vStoneMark.y)), stepped), marked);
+        diffuseColor.rgb = mix(diffuseColor.rgb, mix(stoneWarning, mix(stoneStepped, stoneUrgent, 1.0 - step(${(400 / STONE_STEP_DELAY).toFixed(3)}, vStoneMark.y)), stepped), marked);
         float inset = mix(0.35, 0.13, clamp(vStoneMark.y, 0.0, 1.0));
         float countdownLine = stepped * (1.0 - smoothstep(0.009 - aa, 0.009 + aa, abs(edge - inset)));
         vec2 nearest = min(vStoneUv, 1.0 - vStoneUv);
@@ -69,7 +70,7 @@ function tileSurface(material: MeshBasicMaterial, clock: { value: number }) {
           diffuseColor.a = outlineAlpha;
         }`)
   }
-  surface.customProgramCacheKey = () => 'stone-chiseled-frame-v5-uniform-time'
+  surface.customProgramCacheKey = () => 'stone-chiseled-frame-v6-two-second-grace'
   return surface
 }
 function TileLayer({ tiles, material, time, hidden, current, floor }: {
@@ -77,9 +78,10 @@ function TileLayer({ tiles, material, time, hidden, current, floor }: {
 }) {
   const stones = useRef<InstancedMesh>(null)
   const transform = useMemo(() => new Object3D(), []), color = useMemo(() => new Color(), [])
-  // 실제 서버 시각은 epoch ms다. float32에서 1.2초 경고/낙하를 잃지 않도록 같은 기준점을 뺀다.
+  // 실제 서버 시각은 epoch ms다. float32에서 짧은 경고/낙하를 잃지 않도록 같은 기준점을 뺀다.
   const epoch = stoneTileEpoch(time)
   const clock = useMemo(() => ({ value: 0 }), [])
+  const renderClock = useMemo(() => new StoneRenderClock(), [])
   const surface = useMemo(() => tileSurface(material, clock), [material, clock])
   const { panel, marks } = useMemo(() => {
     const panel = new BoxGeometry(STONE_TILE_SIZE - .1, STONE_TILE_SIZE - .1, STONE_DEPTH)
@@ -105,7 +107,9 @@ function TileLayer({ tiles, material, time, hidden, current, floor }: {
   useLayoutEffect(() => { updateStoneTileMarks(marks, tiles, epoch) }, [marks, tiles, epoch])
   useFrame(() => {
     surface.opacity = current ? .46 : .11
-    clock.value = (time - epoch) / 1000
+    // Use the avatar's render timeline for the falling stones too. Stop at the
+    // latest authoritative time when packets pause instead of predicting a break.
+    clock.value = (renderClock.sample(time, performance.now()) - epoch) / 1000
   })
   return <group visible={!hidden} userData={{ prepareWhenHidden: true }}>
     <instancedMesh ref={stones} args={[panel, surface, tiles.length]} renderOrder={floor + 10} userData={{ stoneTile: true }} frustumCulled={false} dispose={null} />
