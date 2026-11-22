@@ -88,6 +88,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -195,7 +196,8 @@ public class TableHub {
     private final WorldEmoteService emotes;
     private final com.ssafy.ontop.world.winter.SnowballService snowballs =
             new com.ssafy.ontop.world.winter.SnowballService();
-    private final Set<String> winterRollers = new HashSet<>();
+    // 현재 접근은 허브 잠금으로 직렬화한다. 외부 갱신 경로가 늘어도 세트의 개별 접근은 안전하게 유지한다.
+    private final Set<String> winterRollers = ConcurrentHashMap.newKeySet();
     private final WorldProximity proximity;
     private final WorldFacilityService facilities;
     private final PreparedParkMap preparedPark;
@@ -3152,6 +3154,7 @@ public class TableHub {
             com.ssafy.ontop.world.winter.community.WinterCommunity.BuildingState state) {
         if (stopped) { return; }
         var next = state.balls().stream().flatMap(ball -> ball.pushing().stream()).collect(java.util.stream.Collectors.toSet());
+        // 채널별 제거/추가는 복합 변경이므로 동시 세트와 별개로 이 메서드의 허브 잠금을 유지한다.
         winterRollers.removeIf(user -> channel.equals(channels.channelOf(user)) && !next.contains(user));
         winterRollers.addAll(next);
         String message = protocol.encode(null, "WORLD_WINTER_COMMUNITY", state);
