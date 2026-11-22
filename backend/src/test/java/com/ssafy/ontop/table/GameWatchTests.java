@@ -2,6 +2,7 @@ package com.ssafy.ontop.table;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ssafy.ontop.auth.security.TestLoginSessions;
 import com.ssafy.ontop.auth.websocket.VerifiedWebSocketUser;
 import com.ssafy.ontop.game.reconnect.GameReconnectService;
@@ -82,6 +83,71 @@ class GameWatchTests {
         verify(states, times(2)).load(202, "game-1");
         send(watcher, "again", "GAME_UNWATCH", Map.of());
         assertThat(code(watcher.next())).isEqualTo("GAME_NOT_WATCHING");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"supply", "wrong-player", "missing"})
+    void 잘못된_흑백수사_타일핑은_오류로_중단하고_방송과_이벤트영수증을_만들지않는다(String invalid)
+            throws Exception {
+        createHub();
+        Peer watcher = peer(505L);
+        Peer observer = peer(606L);
+        Peer player = peer(101L);
+        Peer unrelated = peer(707L);
+        when(reconnect.canControlGame(101, player.id, "game-1")).thenReturn(true);
+        var board = mapper.createObjectNode().put("gameCode", "DAVINCI_CODE").put("status", "PLAYING");
+        var players = board.putArray("players");
+        players.addObject().put("userId", "101").putArray("tiles").addObject().put("id", "tile-a");
+        players.addObject().put("userId", "202").putArray("tiles").addObject().put("id", "tile-b");
+        board.putArray("supply").addObject().put("id", "supply-tile");
+        for (long user : new long[] {505, 606}) {
+            when(states.load(user, "game-1")).thenReturn(Optional.of(new GameStateView(user, "game-1", 8,
+                    GameStateView.Role.SPECTATOR, board, mapper.createObjectNode(), "table-1")));
+        }
+        watch(watcher, "watch", "game-1");
+        assertState(watcher.next(), "watch", 8);
+        watch(observer, "observe", "game-1");
+        assertState(observer.next(), "observe", 8);
+        String eventId = UUID.randomUUID().toString();
+        String target = invalid.equals("wrong-player") ? "202" : "101";
+        String tile = invalid.equals("supply") ? "supply-tile" : invalid.equals("missing") ? "missing" : "tile-a";
+
+        send(watcher, "invalid", "DAVINCI_SPECTATOR_PING_SEND", Map.of("gameId", "game-1", "eventId", eventId,
+                "basedOnVersion", 8, "targetUserId", target, "tileId", tile));
+
+        JsonNode error = watcher.next();
+        assertThat(error.path("type").asText()).isEqualTo("ERROR");
+        assertThat(error.path("requestId").asText()).isEqualTo("invalid");
+        assertThat(code(error)).isEqualTo("DAVINCI_SPECTATOR_PING_INVALID_TARGET");
+        for (Peer recipient : new Peer[] {watcher, observer, player, unrelated}) {
+            assertThat(recipient.messages.poll(100, TimeUnit.MILLISECONDS)).isNull();
+        }
+
+        // 같은 eventId를 유효한 대상으로 즉시 재시도해 영수증·빈도 제한이 소비되지 않았음을 확인한다.
+        var valid = Map.of("gameId", "game-1", "eventId", eventId, "basedOnVersion", 8,
+                "targetUserId", "101", "tileId", "tile-a");
+        send(watcher, "valid", "DAVINCI_SPECTATOR_PING_SEND", valid);
+        JsonNode accepted = watcher.next();
+        assertThat(accepted.path("type").asText()).isEqualTo("DAVINCI_SPECTATOR_PING");
+        assertThat(accepted.path("requestId").asText()).isEqualTo("valid");
+        for (Peer recipient : new Peer[] {observer, player}) {
+            JsonNode notice = recipient.next();
+            assertThat(notice.path("type").asText()).isEqualTo("DAVINCI_SPECTATOR_PING");
+            assertThat(notice.path("requestId").isNull()).isTrue();
+            assertThat(notice.path("payload")).isEqualTo(accepted.path("payload"));
+        }
+        send(watcher, "duplicate", "DAVINCI_SPECTATOR_PING_SEND", valid);
+        JsonNode duplicate = watcher.next();
+        assertThat(duplicate.path("type").asText()).isEqualTo("DAVINCI_SPECTATOR_PING");
+        ObjectNode repeated = duplicate.path("payload").deepCopy();
+        ObjectNode original = accepted.path("payload").deepCopy();
+        // 응답 시각 serverNow는 갱신되지만 이벤트 발행·만료 시각은 원래 값을 유지한다.
+        repeated.remove("serverNow");
+        original.remove("serverNow");
+        assertThat(repeated).isEqualTo(original);
+        for (Peer recipient : new Peer[] {observer, player, unrelated}) {
+            assertThat(recipient.messages.poll(100, TimeUnit.MILLISECONDS)).isNull();
+        }
     }
 
     @Test
