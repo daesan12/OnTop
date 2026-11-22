@@ -4,7 +4,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -54,7 +56,8 @@ class WinterCommunityMySqlTests {
                     "친구", "STOCKING", at));
             var second = executor.submit(() -> store.postTree(actor, operation, "응원합니다", false,
                     "친구", "STOCKING", at));
-            assertThat(first.get().message().id()).isEqualTo(second.get().message().id());
+            assertThat(first.get(10, TimeUnit.SECONDS).message().id())
+                    .isEqualTo(second.get(10, TimeUnit.SECONDS).message().id());
         }
         var lit = store.treeStatus();
         assertThat(lit.count()).isEqualTo(50);
@@ -65,11 +68,32 @@ class WinterCommunityMySqlTests {
         assertThatThrownBy(() -> store.postTree("e".repeat(64), UUID.randomUUID().toString(), "장식 오류",
                 true, null, "UNKNOWN", at)).isInstanceOf(DataAccessException.class);
         assertThat(store.treeStatus()).isEqualTo(lit);
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var start = new CountDownLatch(1);
+            var first = executor.submit(() -> {
+                start.await();
+                return store.postTree("c".repeat(64), UUID.randomUUID().toString(),
+                        "첫 번째 새 편지", true, null, "BELL", at.plusSeconds(1));
+            });
+            var second = executor.submit(() -> {
+                start.await();
+                return store.postTree("d".repeat(64), UUID.randomUUID().toString(),
+                        "두 번째 새 편지", true, null, "GIFT", at.plusSeconds(2));
+            });
+            start.countDown();
+            assertThat(first.get(10, TimeUnit.SECONDS).message().id())
+                    .isNotEqualTo(second.get(10, TimeUnit.SECONDS).message().id());
+        }
+        var afterConcurrentPosts = store.treeStatus();
+        assertThat(afterConcurrentPosts.count()).isEqualTo(52);
+        assertThat(afterConcurrentPosts.revision()).isEqualTo(lit.revision() + 2);
+        assertThat(afterConcurrentPosts.litAt()).isEqualTo(lit.litAt());
+        assertThat(afterConcurrentPosts.ornaments()).hasSize(50);
         var man = new WinterCommunity.Snowman(UUID.randomUUID().toString(), "channel-a", "우리 눈사람",
                 16, 0, 43, 0, .8, .6, .4, "TOP_HAT", "BLUE", "WINK", at.toString());
         store.saveSnowman(actor, UUID.randomUUID().toString(), "a".repeat(64), man);
         var reopened = new JdbcWinterCommunityStore(jdbc, new DataSourceTransactionManager(source));
-        assertThat(reopened.treeStatus()).isEqualTo(lit);
+        assertThat(reopened.treeStatus()).isEqualTo(afterConcurrentPosts);
         assertThat(reopened.actorSalt()).containsExactly(store.actorSalt());
         assertThat(reopened.snowmen("channel-a")).containsExactly(man);
         assertThat(reopened.snowmen("channel-b")).isEmpty();

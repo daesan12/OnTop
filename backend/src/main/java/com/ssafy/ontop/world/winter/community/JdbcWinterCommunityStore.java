@@ -128,9 +128,11 @@ public final class JdbcWinterCommunityStore implements WinterCommunityStore {
                 statement.setObject(7, utc(now));
                 return statement;
             }, keys);
-            long count = status().count() + 1;
-            jdbc.update("UPDATE winter_community_board SET message_count=?,lit_at=COALESCE(lit_at,?),revision=revision+1 WHERE id=1",
-                    count, count >= WinterCommunity.TREE_TARGET ? utc(now) : null);
+            // MySQL은 대입을 왼쪽부터 평가한다. 증가 전 개수로 최초 점등을 결정한 뒤 원자적으로 증가시킨다.
+            jdbc.update("UPDATE winter_community_board SET "
+                            + "lit_at=COALESCE(lit_at,CASE WHEN message_count+1>=? THEN ? ELSE NULL END),"
+                            + "message_count=message_count+1,revision=revision+1 WHERE id=1",
+                    WinterCommunity.TREE_TARGET, utc(now));
             long id = Objects.requireNonNull(keys.getKey()).longValue();
             return new WinterCommunity.TreeReceipt(status(),
                     new WinterCommunity.TreeMessage(id, text, anonymous, anonymous ? null : nickname, ornament, now.toString()),

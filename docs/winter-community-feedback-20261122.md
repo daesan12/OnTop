@@ -40,9 +40,9 @@ NPC·썰매를 유지하며, 기존 트리에 편지 장식과 누적 점등만 
   전체 편지는 12개씩 조회하고, 실제 트리에는 최근 50개 편지의 장식을 기존 72개
   Memo_Anchor에 중복 없이 표시한다. 광원을 추가하지 않는다.
 - 기존 `feat/christmas-tripo-assets@6f31c87539253064ed4c9e95943d509d7bf397b2`의
-  12m 트리와 같은 작업의 원본 장식을 재사용한다. 별도 1.8배 확대·선물 이동은 취소했다.
-  최신 dev에는 아직 이전 절차형 트리가 있어 해당 12m 모델과 일치하는 트리 충돌만 이관했다.
-  최신 dev의 원복에 따라 실행 시 기존 7.8m 절차형 트리와 기존 물리를 보존한다.
+  원본 장식을 재사용한다. 별도 1.8배 확대·선물 이동은 취소했다.
+  !669 병합 뒤 최신 dev에 반영된 에셋 원복까지 통합했으며, 실행 시 기존 7.8m 절차형
+  트리와 기존 물리를 보존한다. 이 MR을 위해 12m 트리 충돌을 다시 적용하지 않는다.
   보관 중인 12m GLB는 실행 경로에서 사용하지 않는다. 장식 원본은 동일한 기존 소스를 사용한다.
 - 모델·미리보기의 출처·이용 조건·SHA-256은 community/assets/manifest.json에 기록한다.
   `node scripts/verify-winter-community-assets.mjs`로 11개 파일과 GLB 5개의 해시,
@@ -82,6 +82,24 @@ WS는 `WORLD_WINTER_TREE`(개수·점등·장식 종류와 ID), `WORLD_WINTER_CO
 
 ## 검증과 미확인 범위
 
+- MR 동시성/쿼리 피드백 반영: 기존 receive·월드 틱·disconnect·외부 갱신은 같은 TableHub
+  모니터로 직렬화되어 있었다. winterRollers를 ConcurrentHashMap.newKeySet()으로 보강하고
+  채널별 removeIf/addAll의 복합 변경을 보호하는 기존 synchronized를 유지했다.
+  두 워커가 각각 80회 갱신/눈싸움 준비 요청을 보내는 테스트, 다른 채널 갱신 시 제한 유지,
+  연결 해제/재입장 시 제한 정리를 추가했다.
+- JdbcWinterCommunityStore.postTree는 보드 행 락·중복 요청·15초 대기 검증을 유지한다.
+  message_count/revision을 SQL에서 원자 증가시키고 최초 lit_at을 함께 설정한다.
+  MySQL의 왼쪽부터 대입하는 순서를 고려해 점등을 먼저 계산하며 기존 lit_at은 보존한다.
+  근거: https://dev.mysql.com/doc/refman/8.4/en/update.html
+  새 편지의 최근 장식 JOIN 조회는 2회에서 최종 영수증 1회로 줄였다. JDBC 호출 단위 테스트
+  3개로 호출 횟수·중복 재시도의 쓰기 없음·오류/대기 시 조회 없음을 확인했다.
+- 관련 BE 7개 클래스 40개 테스트 통과. 실제 MySQL 테스트는 두 개의 서로 다른 편지를
+  동시에 등록해 50→52 증가·revision 증가·최초 점등 시각 유지·최근 장식 50개를 검사하도록
+  보강했으며 테스트 컴파일만 확인했다. 전용 MySQL 8.4 DB 연결 미제공으로 실행은 보류한다.
+- 최신 origin/dev 29526531 포함 확인 후 generate-renewal-park.mjs를 다시 실행했다.
+  server-map.json·manifest.json·park-bindings.json은 재생성 전후 바이트 해시가 모두 같고
+  mapVersion은 f9128971fbb691cce358d7a144ec5934acf741996451c4421517bfbc2104a329이다.
+  맵 산출물·스키마·인프라 설정을 이번 피드백 수정에서 변경하지 않았다.
 - 최종 투명 트리/녹색 크리스마스 패널 수정 후 FE 32개·타입 검사·프로덕션 빌드 통과.
   최신 공원을 실제 렌더링한 API/runtime fixture에서 4개 크기의 선택/작성/이름 선택/
   저장/50개 갱신/동일 UUID 재시도/Tab 순환/Escape 복귀를 검증했다. 선택 화면과
