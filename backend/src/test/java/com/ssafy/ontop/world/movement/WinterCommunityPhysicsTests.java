@@ -13,7 +13,7 @@ class WinterCommunityPhysicsTests {
         var scene = PreparedParkMap.load(directory.resolve("server-map.json"), directory.resolve("manifest.json"),
                 Set.of("channel-1")).createScene();
         try (var physics = new WorldPhysics(scene, false, () -> 0, true)) {
-            assertThat(physics.winterTree().path("height").asDouble()).isEqualTo(12);
+            assertThat(physics.winterTree().path("height").asDouble()).isEqualTo(7.8);
             assertThat(scene.data.path("winterSnowman").path("jointInsetRatio").asDouble()).isEqualTo(.45);
             var ground = physics.winterSurface(16, 43, .8);
             assertThat(ground.buildingZone()).isTrue(); assertThat(ground.clear()).isTrue();

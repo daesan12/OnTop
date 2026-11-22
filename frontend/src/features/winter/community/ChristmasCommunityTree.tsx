@@ -8,9 +8,10 @@ import { TREE_ORNAMENTS, treeOrnamentSlots, type TreeOrnamentKind } from './orna
 
 const treeUrl = new URL('./assets/tree.glb', import.meta.url).href
 const requests = new Map<string, Promise<GLTF>>()
-function useModel(url: string) {
+function useModel(url: string | null) {
   const [loaded, setLoaded] = useState<{ url: string; gltf: GLTF }>()
   useEffect(() => {
+    if (!url) return
     let live = true
     let request = requests.get(url)
     if (!request) { request = new ParkAssetLoader().loadAsync(url); requests.set(url, request) }
@@ -40,10 +41,10 @@ function Ornament({ kind, position }: { kind: TreeOrnamentKind; position: Vector
   </group> : null
 }
 
-/** 기존 승인된 12m 모델과 Memo_Anchor를 그대로 사용한다. 광원 추가 없이 발광 재질만 점등한다. */
-export function ChristmasCommunityTree({ fallback }: { fallback: ReactNode }) {
+/** 최신 dev의 절차형 트리 원복을 유지하면서 편지 장식만 추가한다. */
+export function ChristmasCommunityTree({ fallback, procedural = false }: { fallback: ReactNode; procedural?: boolean }) {
   const invalidate = useThree(state => state.invalidate)
-  const gltf = useModel(treeUrl), status = useWinterCommunity(s => s.tree)
+  const gltf = useModel(procedural ? null : treeUrl), status = useWinterCommunity(s => s.tree)
   const model = useMemo(() => {
     if (!gltf) return undefined
     const root = gltf.scene.clone(true), lights: MeshStandardMaterial[] = []
@@ -72,11 +73,20 @@ export function ChristmasCommunityTree({ fallback }: { fallback: ReactNode }) {
   }, [model, status?.lit, invalidate])
   useEffect(() => () => { model?.lights.forEach(material => material.dispose()) }, [model])
   const ornaments = useMemo(() => treeOrnamentSlots(status?.ornaments ?? []).flatMap(item => {
+    if (procedural) {
+      const slot = Number(item.anchor.slice(-3)) - 1, row = Math.floor(slot / 12)
+      const y = .8 + row * .9, radius = Math.max(.3, 2.5 * (1 - y / 6.8)) + .12
+      const angle = (slot % 12) * Math.PI / 6 + row * .83
+      return [{ ...item, position: new Vector3(Math.sin(angle) * radius, y, Math.cos(angle) * radius) }]
+    }
     const anchor: Object3D | undefined = model?.root.getObjectByName(item.anchor)
     if (!anchor || !model) return []
     const position = model.root.worldToLocal(anchor.getWorldPosition(new Vector3()))
     return [{ ...item, position }]
-  }), [model, status?.ornaments])
+  }), [model, status?.ornaments, procedural])
+  if (procedural) return <group name="winter-tree-community-display">{fallback}
+    {ornaments.map(item => <Ornament key={item.id} kind={item.ornament} position={item.position} />)}
+  </group>
   return model ? <group name="winter-tree-community-display"><primitive object={model.root} dispose={null} />
     {ornaments.map(item => <Ornament key={item.id} kind={item.ornament} position={item.position} />)}
   </group> : <>{fallback}</>

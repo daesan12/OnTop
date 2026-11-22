@@ -9,8 +9,6 @@ import { sleighElapsed } from './controller'
 import { reindeerGallop } from './gallop'
 import { sleighChassisPose, sleighTeamPose } from './formation'
 import { Reins } from './Reins'
-import { ChristmasAsset, ChristmasRudolph } from '../ChristmasAssets'
-import { createReinAnchors } from './reinAnchors'
 
 function Art({ art }: { art: ReturnType<typeof createSleighArt> }) {
   return <>{Object.entries(art).map(([finish, geometry]) => <mesh key={finish} geometry={geometry as BufferGeometry}
@@ -20,7 +18,6 @@ function Art({ art }: { art: ReturnType<typeof createSleighArt> }) {
 }
 export function SleighScene() {
   const root = useRef<Group>(null), deer = useRef<Group>(null)
-  const anchors = useMemo(createReinAnchors, [])
   const art = useMemo(() => ({ sleigh: createSleighArt(), deer: createSleighArt(true),
     upper: createReindeerLegArt(), lower: createReindeerLegArt(true) }), [])
   const frame = useMemo(() => ({ inverse: new Quaternion(), orientation: new Quaternion(),
@@ -46,8 +43,7 @@ export function SleighScene() {
       frame.orientation.setFromEuler(frame.angles.set(lease ? path.pitch + stride.pitch : 0,
         base.yaw + (lease ? path.yaw : 0), lease ? path.bank : 0, 'YXZ'))
       animal.quaternion.copy(frame.inverse).multiply(frame.orientation)
-      animal.userData.elapsed = elapsed; animal.userData.moving = !!lease
-      animal.traverse(node => {
+      animal.children.forEach(node => {
         if (node.userData.leg === undefined) return
         const leg = reindeerGallop(elapsed, index, node.userData.leg)
         node.rotation.x = lease ? leg.hip : -.12
@@ -56,11 +52,10 @@ export function SleighScene() {
     })
   }, -.5)
   return <group ref={root} name="winter-sleigh" position={[SLEIGH_DOCK.x, SLEIGH_DOCK.y, SLEIGH_DOCK.z]} rotation={[0, SLEIGH_DOCK.yaw, 0]}>
-    <ChristmasAsset id="sleigh" anchors={anchors.tow} fallback={<Art art={art.sleigh} />} />
-    <Reins team={deer} anchors={anchors} />
+    <Art art={art.sleigh} />
+    <Reins team={deer} />
     <group ref={deer} name="sleigh-reindeer-team">{[3.4, 5.9, 8.4].flatMap((z, row) => [-.85, .85].map((x, side) =>
       <group key={row + '-' + side} position={[x, 0, z]} name={row === 2 && side === 0 ? 'rudolph' : 'reindeer'}>
-        <ChristmasRudolph index={row * 2 + side} anchors={anchors.harness[row * 2 + side]!} fallback={<>
         <Art art={art.deer} />
         {[-.43, .44].flatMap((legZ, front) => [-.21, .21].map((legX, side) =>
           <group key={front + '-' + side} name="reindeer-leg" position={[legX, .18, legZ]} userData={{ leg: front * 2 + side }}>
@@ -69,7 +64,6 @@ export function SleighScene() {
           </group>))}
         {row === 2 && side === 0 && <mesh position={[0, .97, 1.15]} raycast={() => {}}><icosahedronGeometry args={[.105, 1]} />
           <meshStandardMaterial color="#f1333e" emissive="#ed2135" emissiveIntensity={1.4} toneMapped={false} /></mesh>}
-        </>} />
       </group>))}</group>
   </group>
 }
