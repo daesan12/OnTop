@@ -63,6 +63,17 @@ JACKPOT 당첨은 1/256, 계산 최대 지급은 8 + 9 = 170냥이다. 배당은
 (`MINIGAME_ENTRY_FEE`, 키 `plus-minus:{userId}:{requestKey}`)·지급 원장(`PLUS_MINUS_PAYOUT`, 키
 `plus-minus:payout:{roundId}`)을 한 트랜잭션에 쓴다. TINYINT 칸 컬럼은 엔티티에 `columnDefinition = "TINYINT"`를 둔다.
 
-## 범위 밖
+## 횟수 제한 해제 후 운영 확인 (MR !667)
+
+`countPlays`는 `user_id`와 KST `play_date`로 집계하며, V143에
+`ix_plus_minus_user_date (user_id, play_date)`가 정의되어 있다. 실제 DB 적용과 EXPLAIN은 미확인이다.
+캐시는 트랜잭션 롤백·여러 서버의 집계 일관성 검토 없이 추가하지 않는다.
+
+요청 키 멱등성과 지갑 잠금은 중복 결제를 막지만 호출 빈도를 제한하지 않는다.
+`/api/v1/minigames/plus-minus/status` 및 `/rounds`에 적용된 사용자·IP별 호출 제한과
+이상 거래 알림은 인프라·운영 담당자 확인이 필요하다. 전용 애플리케이션 레이트 리밋은 현재 없다.
+일일 보상 상한이나 판 수 제한을 임의로 다시 도입하지 않으며, 운영 정책이 준비됐다고 보장하지 않는다.
+
+## 후속 범위
 
 주변 관전 방송과 효과음은 후속 작업이다. 오락기 3D 정면 판은 아직 가위바위보 룰렛 그림이다.

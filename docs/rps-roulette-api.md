@@ -88,7 +88,19 @@ MySQL 검증은 매번 만든 loopback 전용 `ontop_rps_test_` DB에서만 실�
 공원 맵(`server-map.json`·mapVersion)은 바꾸지 않는다. 게임기는 화면용 3D 모델과 FE 접근 판정만 두며, 충돌·시설 점유와
 주변 관전 방송은 위치가 확정된 뒤 별도 작업으로 맵 변경과 함께 진행한다.
 
-## 검증
+## 횟수 제한 해제 후 운영 확인 (MR !667)
+
+`countPlays`는 `user_id`와 KST `play_date`로 집계하며, V136에
+`ix_rps_roulette_user_date (user_id, play_date)`가 정의되어 있다. 실제 DB 적용과 EXPLAIN은 미확인이다.
+캐시는 트랜잭션 롤백·여러 서버의 집계 일관성 검토 없이 추가하지 않는다.
+
+요청 키·행동 순번 검증과 지갑 잠금은 중복 정산을 막지만 호출 빈도를 제한하지 않는다.
+`/api/v1/minigames/rps-roulette` 아래의 `/status`, `/rounds`,
+`/rounds/{roundId}/hands`, `/rounds/{roundId}/challenge`, `/rounds/{roundId}/stop`에
+적용된 사용자·IP별 호출 제한과 이상 거래 알림은 인프라·운영 담당자 확인이 필요하다.
+전용 애플리케이션 레이트 리밋은 현재 없으며, 운영 정책이 준비됐다고 보장하지 않는다.
+
+## 테스트 범위
 
 - `RpsRouletteRulesTests`: 칸 구성, 승패, 지급액, 커밋
 - `RpsRouletteServiceTests`: START 차감, 같은 키, 꽝·비김·지급·2차 도전, 마감 자동 처리, 정리 작업, 지난 순번, 기존 제한을 넘는 반복 시작, 잔액
