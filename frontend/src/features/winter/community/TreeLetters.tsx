@@ -121,14 +121,12 @@ export function TreeLetters() {
   }
   return <>
     <main className="winter-tree-visit" aria-label="크리스마스 트리 꾸미기">
-      <figure className="winter-tree-illustration"><img src={treeIllustration} alt="별과 전구, 양말과 선물로 장식된 크리스마스 트리"/>
-        <figcaption><strong>마음 한 장, 빛 한 점</strong><span>우리의 겨울을 함께 장식해요.</span></figcaption>
-      </figure>
+      <figure className="winter-tree-illustration"><img src={treeIllustration} alt="별과 전구, 양말과 선물로 장식된 크리스마스 트리"/></figure>
       <section className="winter-tree-panel">
-        <header className="winter-tree-heading"><h2>우리의 크리스마스 트리</h2><p>장식 하나를 골라 편지를 남겨주세요.</p></header>
+        <header className="winter-tree-heading"><h2>크리스마스 트리</h2><p>장식 하나에 마음 한 줄을 담아 걸어보세요.</p></header>
         <section className="winter-tree-count" aria-label="함께 모은 편지">
-          <div><span>함께 모은 편지</span><strong>{status?.count ?? '…'}<small>개</small></strong></div>
-          <p>{status?.lit ? <>우리의 마음이 모여<br/><b>트리가 환하게 빛나고 있어요.</b></> : <><b>{TREE_TARGET}개의 편지</b>가 모이면<br/>별과 전구가 빛나요.</>}</p>
+          <div><span>함께 모은 편지</span><strong>{status?.count ?? '…'}<small> / {TREE_TARGET}</small></strong></div>
+          <p>{status?.lit ? <b>마음이 모여 별과 전구가 빛나고 있어요.</b> : <><b>{TREE_TARGET}개의 편지</b>가 모이면 별과 전구가 빛나요.</>}</p>
           <progress aria-label="트리 점등까지 모은 편지" max={TREE_TARGET} value={Math.min(status?.count ?? 0, TREE_TARGET)}/>
         </section>
         <nav ref={tabs} className="winter-tree-tabs" aria-label="트리 편지 메뉴">
@@ -138,7 +136,7 @@ export function TreeLetters() {
         <div className="winter-tree-panel__body">
           {!!notice && <p role="status">{notice}</p>}{!composing && !!error && <p role="alert">{error}</p>}
           {view === 'decorate' ? <section className="winter-tree-selection" aria-labelledby="winter-choose-title">
-            <div className="winter-tree-section-title"><h3 id="winter-choose-title">트리에 걸 장식</h3><p>선택하면 편지 작성창이 열려요.</p></div>
+            <div className="winter-tree-section-title"><h3 id="winter-choose-title">트리에 걸 장식을 골라주세요</h3><p>누르면 편지를 쓸 수 있어요.</p></div>
             <div className="winter-tree-ornaments">{TREE_ORNAMENTS.map(item => {
               const count = status?.ornaments.filter(placed => placed.ornament === item.id).length ?? 0
               return <button key={item.id} type="button" disabled={!status || busy || locked && ornament !== item.id} onClick={event => choose(item.id, event.currentTarget)}>

@@ -78,25 +78,30 @@ inner corner must stay empty for title and close button. Spacious and refined, n
 No text, no letters, no UI controls, no drawn textbox, no watermark, no glow particles.
 Keep all four frame edges fully visible within the image.`
 
-## 공원을 드러내는 크리스마스 카드 배경
+## 오른쪽 크리스마스 패널
 
-`christmas-visit-background.webp`는 built-in image_gen으로 새로 생성했다.
-투명 영역은 이미지에 가짜로 그리지 않고 CSS의 모달 바깥 여백으로 구현했다.
-배경은 카드 내부에만 표시하며 트리 그림·모델·맵에는 사용하지 않는다.
-원본 PNG `exec-965164f1-f23e-4d8b-a8f6-0bad586910e3.png`는 보존하고
-1586×992 WebP quality=88로 인코딩했다.
+사용자가 첨부한 세 번째 참고 이미지의 짙은 녹색·솔가지·리본·금색 테두리를 바탕으로
+built-in image_gen에서 배경만 새로 만들었다. 글·장식·버튼은 모두 네이티브 DOM이다.
+`christmas-evergreen-panel.webp`는 1000×1200 WebP quality=90/alphaQuality=100이며
+프레임 바깥의 원본 투명도를 보존한다. 왼쪽 트리 그림과 크리스마스 편지지는 수정하지 않았다.
+큰 베이지색 벽/목재 배경은 취소되어 해당 이미지 파일과 실행 참조를 제거했다.
 
-프롬프트: `Use case: product-mockup / game UI background. A refined warm Christmas
-stationery backdrop, landscape 16:10. Photorealistic tactile materials, warmly lit ivory
-plaster wall and lightly aged honey-colored wood along the very bottom, a few real evergreen
-fir sprigs with deep red velvet ribbons and tiny warm white fairy lights hanging only at
-the upper left and upper right outer edges. Soft warm amber glow and faint out-of-focus
-Christmas lights in the left background. Calm pale warm cream center and right area,
-gentle natural shadows. Like a quiet Christmas living-room corner ready for a tree and
-a letter-writing board, but DO NOT depict a tree, furniture, fireplace, gifts, people,
-text, letters, panels, controls, paper frames or UI. The actual tree and right rectangular
-UI will be placed on top in code. Decorative greenery is subtle and confined to the
-outermost edges, leaving a very large uncluttered main area. Cozy, physical, tasteful,
-no glitter effects or abstract blobs, no generic bright gradient, no vignette, no watermark.
-Full-bleed opaque backdrop; transparency outside the actual centered UI card is handled
-in CSS, not drawn into this image.`
+편집 원본: 사용자 첨부 `codex-clipboard-85516890-8946-4def-9cb0-49d45e622cdf.png`.
+생성 원본 PNG: `exec-866a54f2-75c5-4a35-9d67-1e6104847d93.png` (generated_images에 보존).
+
+프롬프트: `Create ONLY a polished background frame asset for a Christmas game UI, using
+this image as a visual reference for its deep evergreen green, warm antique gold, realistic
+fir branches, velvet red ribbons and tiny warm fairy lights. Portrait rectangle 4:5. REMOVE
+EVERY text, number, dividing line, progress bar, tab, icon, ornament choice, button, and all
+UI content. The whole central 84% width and 88% height must be completely empty rich dark
+evergreen with extremely subtle natural color depth: NO canvas weave, no paper grain,
+no visible paint texture, no chalkboard, no plaster, no wooden tabletop, no cream panel.
+It is a clean festive evergreen inset surrounded by real fir sprigs confined to the
+outermost 5-7% edge, tiny restrained warm lights and two small crimson velvet bows at the
+upper corners. Thin antique gold outline, gently rounded corners, no large hanging objects.
+Keep the beautiful border MUCH slimmer and less crowded than the reference so all future
+native UI controls will be readable. Photo-realistic physical branch/ribbon materials
+matching existing photorealistic Christmas stocking, glass bauble, brass bell and gift
+images. Genuinely transparent outside the framed panel silhouette; interior green is opaque.
+Straight-on, no perspective. No text, no letters, no symbols, no watermarks. This is a
+project-bound background asset, not a complete UI mockup.`
