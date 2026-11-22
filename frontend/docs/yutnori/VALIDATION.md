@@ -152,3 +152,14 @@
 - 최신 클래스의 실제 loopback 서버를 이번 검증에만 실행하여 기존 전체 2팀 스크립트 exit 0: 현재 맵/channel-1 인증 진입 → E 카드 → 방 생성/참가 → 대표 직접 선공/재접속 → 3D 던지기·말 이동 → 전체 채팅·관전/핑 → 새 설명서/기권 취소·확정 → 승리·공원 복귀/짧은 WASD 이동을 확인했다. 페이지 오류는 없었다. 회원·프로필·지갑 fixture와 실제 소켓/경기 판정을 구분하며 운영 DB/OAuth·V187 적용·헤드셋 검증은 하지 않았다.
 - 실제 게임 캡처는 yutnori-start-review-20261122/actual, 대기 및 도/개/모 UI 모의 상태는 final/entry-*이다. 1536×1024, 1440×960, 390×844, 1024×500에서 네이티브 화면/클릭·스크롤 접근을 확인했고 모든 Playwright 브라우저는 성공/실패 모두 finally에서 닫았다. 자신이 띄운 FE PID 54356과 BE PID 32844를 명령행으로 재확인해 종료했고 다른 서버·브라우저는 건드리지 않았다.
 - 푸시 직전 최신 dev가 여전히 90389d89이며 이력에 포함됨을 재확인했다. 뱅 원격은 V188__allow_bang_game_sessions.sql로 변경되어 이전 번호 조율도 원격에서 확인했다. 윷놀이 V187 파일/SQL은 이번에 수정하지 않았다. MR·dev 병합은 요청 전까지 보류하고 브랜치를 유지한다.
+
+## 미적용 윷놀이 migration V189 재지정 (2026-11-22)
+
+- 사용자가 윷놀이 V189·체스 V187로 재조율한다고 지정했다. 시작 전 fetch가 sandbox DNS 제한으로 실패하여 명시적 전체 브랜치/MR refspec으로 재확인했다. 최신 dev=0880bb2c6c90973e9dfb8c013a6199a9221b87b1의 크리스마스 트리/겨울 편지·공포맵 출구 지면/카메라 영향을 안내하고 ‘최신 dev 반영 후 V189 변경’ 승인을 받았다. 인프라 설정 변경 및 맵 배포·DB 적용은 이 작업에서 수행하지 않는다.
+- 7f3b2b95에서 최신 dev를 통합했다. SpringParkRuntime의 공통 HTTP 요청 검사 1개 파일(정의/조건 두 구간)에 충돌이 있어 윷놀이 yutRequest와 겨울 편지 winterCommunityRequest를 모두 유지했다. 다른 자동 병합 파일의 Yut 진입 연결도 보존했다. 공유 브랜치 이력은 초기화/강제 푸시하지 않았다.
+- 원격/MR 참조 313개의 DB tree 28종과 로컬 DB 경로 265개를 검색했다. 원격은 체스 V189, 뱅 V188, 윷놀이 V187이었고 로컬 체스는 이미 V187이었다. 사용자가 먼저 명시한 교환 계획을 따라 윷놀이만 V189로 바꿨다. 체스/뱅 파일은 수정하지 않았다. 별도 예약과 MR open/closed 상태는 확인 불가이며 MR 통합 전에 원격 번호를 다시 확인한다.
+- 변경 파일: backend/src/main/resources/db/migration/V189__create_yutnori_results.sql, 무료 YUTNORI 종료 기록 migration 1개의 V187→V189 이름 변경. 기존 공유 DB 미적용 확인을 따르며 SQL SHA256=252DBAC576A0F6E7AD48FFBA10A704DF19C0C12FC253A949ED9EDA263F39B892 및 CHECK(-1/0/1/2/3)를 보존했다. 같은 내용임을 확인한 이전 V187 빌드 복사본만 정리했다. V183 등 적용 여부가 다른 기존 migration 및 DB/Flyway 설정은 수정하지 않았다.
+- application-db.yml의 기본 DB_MIGRATION_LOCATIONS 및 dev+db의 db/migration,db/minigame을 읽기 전용으로 확인했다. 현재 db 하위 SQL 75개에 버전 중복이 없다. Gradle processResources --offline --no-daemon 성공, V189 빌드 복사본이 소스와 같은 SHA256이며 이전 V187 윷 복사본은 없는 것을 확인했다. 실제 MySQL 8.4 신규/순차 적용과 운영 프로필·환경변수는 미확인이다.
+- FE 소스 TypeScript, 최신 dev 관련 겨울 편지·출입구 지면/카메라·썰매/에셋·공통 runtime 기존 테스트 60개 통과. 충돌 해결 회귀 1개를 기존 tableLobbyRuntime 테스트에 추가하여 두 기능의 실제 requestJSON 허용 경로 5개가 fetch로 전달되고 잘못된 메서드/경로/페이지 값 4개는 전달 전에 거절됨을 확인했다. 새 파일명 확인만 반복하는 단위 테스트는 추가하지 않았다.
+- 푸시 전 최신 dev는 여전히 0880bb2c이며 작업 이력에 포함됐다. 로컬 체스는 V187이지만 원격 체스는 아직 V189여서 사용자 조율의 원격 반영 확인은 대기다. 이 번호 교환을 알고 윷놀이를 V189로 진행하되 MR 통합 직전에 체스 V187 반영을 재확인한다. 뱅 원격 V188은 확인했다. 이번 작업은 검증 브라우저나 앱 서버를 새로 실행하지 않았고 게임 화면/UI·게임 규칙의 변경은 없다.
+- 최종 BE 관련 단위 테스트 40 개 통과(실패 0): WinterCommunityService/JdbcWinterCommunityStore(mock JDBC)/WinterCommunityPhysics/TableHubWinterCommunity/TableHubSkewerEntry/YutRules. 실제 MySQL migration 적용이나 맵 배포는 실행하지 않았다. 공통 요청 경계 회귀 커밋은 963f24ff다. MR·dev 병합은 보류하고 브랜치를 유지한다.
