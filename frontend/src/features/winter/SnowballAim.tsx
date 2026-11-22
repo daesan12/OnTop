@@ -33,7 +33,7 @@ export function SnowballAim() {
     if (!root.current || !dots.current || !target.current || !ground.current) return
     const motion = winterMotion(s.sessionId, estimatedServerTime())
     const allowed = s.status === 'connected' && s.mapCompatible && own && winterSceneryVisible() && !panelOwnsKeys()
-      && useWinter.getState().players[s.sessionId]?.snowballs === 1 && !own.carry && !own.vehicle
+      && (useWinter.getState().players[s.sessionId]?.snowballs ?? 0) > 0 && !own.carry && !own.vehicle
       && carryPlayerAvailable(s.sessionId, own) && !facilityMovementBlocked(s.sessionId) && motion?.kind !== 'gather'
     const scope = allowed ? s.sessionId + '/' + s.roomId : ''
     if (state.scope !== scope) {

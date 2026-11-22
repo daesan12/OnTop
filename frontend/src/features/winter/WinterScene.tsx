@@ -1,4 +1,5 @@
 import { memo, useEffect, useMemo, useRef } from 'react'
+import { SantaBell } from './SantaBell'
 import { useFrame } from '@react-three/fiber'
 import { BufferAttribute, BufferGeometry, Float32BufferAttribute, Group, InstancedMesh, Object3D, ShaderMaterial, type Points } from 'three'
 import { groundSurfaceHeight } from '../../../park-renewal-preview/groundSurface'
@@ -14,7 +15,7 @@ import { createChristmasTreeArt } from './christmasTreeArt'
 import { winterProtectedSurfaces } from './protectedSurfaces'
 import { snowballHands } from './SnowballHand'
 import { snowballPoint } from './trajectory'
-import { winterSceneryVisible } from './presentation'
+import { winterRoofSnowVisible, winterSceneryVisible } from './presentation'
 
 function decoration(kind: typeof WINTER_DECOR[number]['kind']) {
   return kind === 'tree' ? createChristmasTreeArt() : createHolidayArt(kind)
@@ -164,7 +165,8 @@ export const WinterScene = memo(function WinterScene({ low = false, groundReady 
   useFrame(() => { if (group.current) group.current.visible = winterSceneryVisible() })
   return <group ref={group} name="winter-park">
     {sleighReady && <SleighScene />}
-    <RoofSnow visible={winterSceneryVisible} protectedAreas={winterProtectedSurfaces} />
+    <SantaBell />
+    <RoofSnow visible={winterRoofSnowVisible} protectedAreas={winterProtectedSurfaces} />
     <Snowfall low={low} />
     <Snowballs />
     <SnowballAim />

@@ -2837,9 +2837,31 @@ public class TableHub {
     }
 
     private void advanceWinter() {
-        for (String user : snowballs.expire(System.nanoTime())) {
+        long now = System.nanoTime();
+        var changedChannels = new java.util.LinkedHashSet<String>();
+        for (String user : snowballs.expire(now)) {
             var world = channels.winterFreeze(user, false);
-            if (world != null) { publishWorld(world, null, null); publishWinter(world.channelId(), null, null); }
+            if (world != null) {
+                publishWorld(world, null, null);
+                changedChannels.add(world.channelId());
+            }
+        }
+        var impacts = snowballs.arrive(now, java.time.Instant.now(), this::snowballTargets);
+        for (var impact : impacts) {
+            if (!impact.hitUserId().isEmpty() && snowballs.frozen(impact.hitUserId(), now)) {
+                var frozen = channels.winterFreeze(impact.hitUserId(), true);
+                if (frozen != null) { publishWorld(frozen, null, null); }
+            }
+            changedChannels.add(impact.channelId());
+        }
+        // 같은 틱의 상태를 모두 확정한 뒤 채널당 한 번 보내고, 개별 탄착 이벤트는 보존한다.
+        changedChannels.forEach(channel -> publishWinter(channel, null, null));
+        for (var impact : impacts) {
+            for (Member target : members.values()) {
+                if (channels.isInChannel(target.userId(), impact.channelId())) {
+                    target.peer().offer(protocol.encode(null, "WORLD_SNOWBALL_IMPACT", impact));
+                }
+            }
         }
     }
 
@@ -2861,7 +2883,7 @@ public class TableHub {
                 if (!channels.snowPileInReach(user, request.payload().path("pileId").asText())) {
                     fail(request, "SNOW_PILE_OUT_OF_RANGE", "바닥의 눈더미 가까이에서 주워주세요.");
                 }
-                snowballs.pickup(channel, user, System.nanoTime());
+                snowballs.pickup(request.requestId(), channel, user, System.nanoTime());
             } else if (request.type().equals("WORLD_SNOWBALL_ESCAPE")) {
                 snowballs.escape(request.requestId(), channel, user, request.payload().path("freezeId").asText(),
                         request.payload().path("key").asText(), System.nanoTime());
@@ -2901,13 +2923,7 @@ public class TableHub {
             }
             return;
         }
-        var targets = members.values().stream()
-                .filter(target -> channels.isInChannel(target.userId(), channel))
-                .filter(target -> !carryBusy(target.userId()) && channels.carryState(target.userId()) == null
-                        && !mobilityRides.containsKey(target.userId()))
-                .map(target -> new com.ssafy.ontop.world.winter.SnowballService.Target(
-                        target.userId(), channels.positionOf(target.userId())))
-                .filter(target -> target.position() != null && !target.position().swimming()).toList();
+        var targets = snowballTargets(channel);
         com.ssafy.ontop.world.winter.SnowballService.Event event;
         try {
             if (request.type().equals("WORLD_SNOWBALL_AIM")) {
@@ -2923,10 +2939,6 @@ public class TableHub {
             fail(request, failure.code(), failure.getMessage());
             return;
         }
-        if (!event.hitUserId().isEmpty() && snowballs.frozen(event.hitUserId(), System.nanoTime())) {
-            var frozen = channels.winterFreeze(event.hitUserId(), true);
-            if (frozen != null) { publishWorld(frozen, null, null); }
-        }
         publishWinter(channel, null, null);
         for (Member target : members.values()) {
             if (channels.isInChannel(target.userId(), channel)) {
@@ -2934,6 +2946,16 @@ public class TableHub {
                         "WORLD_SNOWBALL_EVENT", event));
             }
         }
+    }
+
+    private java.util.List<com.ssafy.ontop.world.winter.SnowballService.Target> snowballTargets(String channel) {
+        return members.values().stream()
+                .filter(target -> channels.isInChannel(target.userId(), channel))
+                .filter(target -> !carryBusy(target.userId()) && channels.carryState(target.userId()) == null
+                        && !mobilityRides.containsKey(target.userId()))
+                .map(target -> new com.ssafy.ontop.world.winter.SnowballService.Target(
+                        target.userId(), channels.positionOf(target.userId())))
+                .filter(target -> target.position() != null && !target.position().swimming()).toList();
     }
 
     private void sendEmote(Member member, Request request) {
