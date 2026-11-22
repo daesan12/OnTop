@@ -55,7 +55,10 @@ const bodies: Record<JumpTheme, string> = {
 /** Subdivide long visual triangles once at mount, so the top can dent between
  * corners. Keep source models, vertex colours, UVs and collider data untouched. */
 export function landingGeometry(source: BufferGeometry, theme: JumpTheme) {
-  const geometry = theme === 'gate' ? source.clone() : new TessellateModifier(.45, 3).modify(source)
+  // Creature reactions are affine scales/translations. Extra triangles cannot
+  // improve that deformation, but are drawn on every visible moving platform.
+  const geometry = theme === 'gate' || theme === 'mole' || theme === 'pigeon'
+    ? source.clone() : new TessellateModifier(.45, 3).modify(source)
   geometry.userData.jumpSource = source.uuid
   geometry.computeBoundingBox()
   geometry.computeBoundingSphere()
