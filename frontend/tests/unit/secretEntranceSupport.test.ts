@@ -71,4 +71,28 @@ describe('비밀 출입구 주변 지면 지지', () => {
       }
     } finally { simulation.dispose() }
   })
+
+  it('공포맵 출구 복귀 지점과 양옆을 걸어도 지하로 떨어지지 않는다', async () => {
+    vi.stubGlobal('location', { hostname: 'localhost', search: '' })
+    vi.stubEnv('MODE', 'park-renewal-integration')
+    vi.stubEnv('DEV', true)
+    vi.stubGlobal('fetch', async () => ({ ok: true, json: async () => artifact }))
+    vi.resetModules()
+    const { createPredictionPhysics } = await import('../../src/network/predictionPhysics')
+    const simulation = await createPredictionPhysics('PARK_V1')
+    const stop = { dx: 0, dz: 0, run: false, jump: false }
+    const exit = HORROR_PORTALS[1]
+    try {
+      for (const x of [-58.65, -59.4, -60.2, -61.2]) for (const z of [-89.8, -88, -86.2]) {
+        for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          simulation.reset({ x, y: exit.floor + 1, z, yaw: 0 }, 0, false)
+          for (let frame = 0; frame < 30; frame++) simulation.step(stop, 1 / 60)
+          for (let frame = 0; frame < 15; frame++) {
+            simulation.step({ ...stop, dx: dx!, dz: dz! }, 1 / 60)
+            expect(simulation.pose().y, `${x},${z} 방향 ${dx},${dz}`).toBeGreaterThan(exit.floor + .25)
+          }
+        }
+      }
+    } finally { simulation.dispose() }
+  })
 })
