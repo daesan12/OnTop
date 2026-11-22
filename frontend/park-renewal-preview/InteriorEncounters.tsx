@@ -4,6 +4,8 @@ import { Raycaster, Vector3, type Group, type Light, type Mesh, type Object3D, t
 import { effectsOutput } from '../src/audio/bgm'
 import { playCageDrop, playRopeDrop, playWallCrack, playBehind, playEncounterLunge, playEncounterStaging, playFakeout, playJumpScare, playPounceCrouch, playSprint, playStalkStart, playStalkStep, playStoneStep } from './horrorAudio'
 import { AMBUSHERS, diamond, interiorVisit, type Encounter } from './interiorEvents'
+import { DiamondPendant } from './DiamondPendant'
+import { DiamondDisplayCase } from './DiamondDisplayCase'
 import { FALL, FAR_MIN, SIDE, encounterDistance, encounterScale, farStart, flashlight, lungeStop, offGaze, placeInView, stagePlan, standDistance, styleFrame } from './encounterStaging'
 import { strike } from './horrorStrike'
 import { clearRoamingInput, inputState } from '../src/world/inputOwnership'
@@ -138,12 +140,13 @@ function diamondCue() {
 
 export function InteriorEncounters() {
   const objects = useRef<(Group | null)[]>([])
-  const gem = useRef<Mesh>(null)
+  const gem = useRef<Group>(null)
   const previous = useRef<Encounter | undefined>(undefined)
   const hadDiamond = useRef(false)
   const lighting = useRef<{ lights: Light[]; intensity: number[] } | undefined>(undefined)
   const stage = useRef<Group>(null)
   const viewer = useRef(new Vector3())
+  // 공포 이벤트 대상의 보조광이며, 펜던트 전시 높이를 따라가는 조명이 아니다.
   const accent = useRef<PointLight>(null)
   // Where the creature stands, which way it rushes (towards the viewer) and how far away it started.
   const placed = useRef({ x: 0, y: 0, z: 0, dx: 0, dz: 0, start: 3, seed: 0, shown: false, rushed: false, away: 0, step: 0, held: false, pan: 0, far: 9, ox: 0, oz: 0,
@@ -295,7 +298,6 @@ export function InteriorEncounters() {
       if (interiorVisit.added && !hadDiamond.current) diamondCue()
       hadDiamond.current = interiorVisit.added
       gem.current.visible = !interiorVisit.added
-      gem.current.rotation.y += dt
     }
     if (!active || active.presentedAt === undefined) return
     const group = objects.current[active.id]
@@ -481,9 +483,8 @@ export function InteriorEncounters() {
   return <group ref={stage}>
     <pointLight ref={accent} intensity={0} distance={5} decay={2} />
     <Shape at={[x,y-.62,z]} size={[.64,1.04,.64]} color="#5a5750" />
-    <mesh position={[x,y,z]} ref={gem} rotation={[0,0,.14]}>
-      <octahedronGeometry args={[.31,0]} /><meshBasicMaterial color="#99f6ef" />
-    </mesh>
+    <DiamondDisplayCase at={[x,y-.1,z]} />
+    <DiamondPendant at={[x,y+.32,z]} reference={gem} />
     {types.map(id => <group name={'interior-event-' + id} key={id} ref={node => {objects.current[id]=node}} visible={false}>
       <group>{encounterModels[id]}</group>
     </group>)}
