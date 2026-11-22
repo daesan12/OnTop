@@ -11,6 +11,8 @@ import type { Point3 } from '../../src/map/park/interactionData'
 import { BOUNDARY_LENGTH, GATE, boundaryAtDistance, WALL_RUNS } from '../boundaryPlan'
 import { fountainAccessHeight } from '../fountainAccessSurface'
 import { groundSurfaceHeight } from '../groundSurface'
+import { parkGround } from '../groundGeometry'
+import { secretEntranceTerrain } from '../secretEntranceTerrain'
 import { HILLSIDE_RAIL_HEIGHTS, MONUMENT_STAIR_RAIL } from '../guardDimensions'
 import { hillsideGuardRuns, ascentFenceRuns } from '../guardLayout'
 import { JUMP_FENCE_HEIGHT, jumpFenceRuns } from '../jumpFencePlan'
@@ -72,11 +74,10 @@ function heightfield() {
     vertices.push(x, quantize(y), z)
     if (row && col) {
       const a = (row - 1) * side + col - 1
-      // Keep the height lookup grid intact. Only remove the cliff triangles that
-      // slope across the two portals; the masonry still defines their edges.
-      const underStair = x > -2 && x <= 2 && z > -48 && z <= -39
-      if (SECRET_ENTRANCES_OPEN && (underStair || HORROR_PORTALS.some(p => x === p.x + (p.outward > 0 ? 1 : 0)
-        && z > p.z - p.width / 2 && z - 1 < p.z + p.width / 2))) {
+      // Keep the lookup grid intact; replace only the artificial cliff slopes.
+      // The stair terrain is above the annex ceiling and must remain supported.
+      if (SECRET_ENTRANCES_OPEN && HORROR_PORTALS.some(p => x === p.x + (p.outward > 0 ? 1 : 0)
+        && z > p.z - p.width / 2 && z - 1 < p.z + p.width / 2)) {
         secretTerrainCuts.push(indices.length / 3, indices.length / 3 + 1)
       }
       indices.push(a, a + side, a + 1, a + 1, a + side, a + side + 1)
@@ -88,6 +89,7 @@ function heightfield() {
 export function buildRenewalPhysics(tables: readonly TableAnchor[]) {
   const { terrain, secretTerrainCuts } = heightfield()
   const meshes: RenewalMesh[] = [terrain], boxes: PhysicalBox[] = [], hulls: PhysicalHull[] = []
+  if (SECRET_ENTRANCES_OPEN) meshes.push(secretEntranceTerrain([parkGround.grass, parkGround.paving]))
   const putBox = (id: string, center: Point3, half: Point3, yaw = 0) => boxes.push({ id, center, half, yaw, role: 'solid' })
   const rail = (id: string, a: Point3, b: Point3, thickness: number, height: number, overlap = .015) => {
     const dx = b[0] - a[0], dz = b[2] - a[2], length = Math.hypot(dx, dz)
