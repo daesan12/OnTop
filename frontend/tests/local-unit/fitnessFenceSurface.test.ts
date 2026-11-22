@@ -3,6 +3,26 @@ import {buildFitnessFence} from '../../park-renewal-preview/fitnessFenceGeometry
 import {FITNESS_FENCE,fitnessFenceSegments} from '../../park-renewal-preview/motionPlan'
 import {heightAt} from '../../park-renewal-preview/plan'
 
+it('현재 울타리 선분은 네 출입구 사이에서 같은 방향으로 끊김 없이 이어진다',()=>{
+ const segments=fitnessFenceSegments(),key=(point:readonly number[])=>point.map(value=>value.toFixed(6)).join(',')
+ const degree=new Map<string,number>()
+ for(const {a,z} of segments)for(const point of [a,z])degree.set(key(point),(degree.get(key(point))??0)+1)
+ let runs=0
+ for(let i=0;i<segments.length;i++){
+  const segment=segments[i]!,previous=segments[i-1]
+  if(!previous||key(previous.z)!==key(segment.a)){
+   // 연결점인데 순서/방향이 바뀌었다면 출입구로 오인하지 않고 실패한다.
+   expect(degree.get(key(segment.a))).toBe(1)
+   if(previous)expect(degree.get(key(previous.z))).toBe(1)
+   runs++
+  }
+ }
+ expect(degree.get(key(segments.at(-1)!.z))).toBe(1)
+ expect(runs).toBe(4)
+ expect([...degree.values()].filter(count=>count===1)).toHaveLength(8)
+ expect([...degree.values()].every(count=>count===1||count===2)).toBe(true)
+})
+
 it('운동장 울타리 기둥과 덮개에 동일한 삼각형을 중복 생성하지 않는다',()=>{
  const art=buildFitnessFence()
  try{
