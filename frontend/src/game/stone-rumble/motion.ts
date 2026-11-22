@@ -39,9 +39,11 @@ export class StonePositionBuffer {
     if (!latest || serverTime !== latest.at) {
       if (latest && (serverTime < latest.at || serverTime - latest.at > 500)) this.samples = []
       this.samples.push({ x: position.x, y: position.y, z: position.z, at: serverTime })
-      if (this.samples.length > 12) this.samples.shift()
     }
     const time = this.clock.sample(serverTime, now)
+    // 패킷 밀도와 무관하게 표시 시각 앞뒤의 샘플과 500ms 여유를 보존한다.
+    // 정리 경계 직전 샘플도 남겨 내삽 시작점을 잃지 않는다.
+    while (this.samples.length > 2 && this.samples[1]!.at < time - 500) this.samples.shift()
     let from = this.samples[0]!, to = from
     for (const sample of this.samples) {
       to = sample

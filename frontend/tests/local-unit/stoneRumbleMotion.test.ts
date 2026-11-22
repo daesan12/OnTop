@@ -61,6 +61,22 @@ it('재접속과 관전 대상 변경은 이전 플레이어의 궤적을 섞지
   expect(target).toEqual({ x: 10, y: 0, z: 20 })
 })
 
+it('촘촘한 패킷이 몰려도 120ms 전 내삽 시작점을 조기에 버리지 않는다', () => {
+  const buffer = new StonePositionBuffer(), target = { x: 0, y: 0, z: 0 }
+  // 렌더 프레임 사이에 촘촘한 상태가 몰리는 경우도 시간 범위로 보존한다.
+  for (let elapsed = 0; elapsed <= 2000; elapsed += 5) {
+    buffer.sample({ x: elapsed / 1000, y: 24 - elapsed / 1000, z: 2 }, 1000 + elapsed, elapsed, target)
+    if (elapsed >= 120) {
+      expect(target.x).toBeCloseTo((elapsed - 120) / 1000, 6)
+      expect(target.y).toBeCloseTo(24 - (elapsed - 120) / 1000, 6)
+    }
+  }
+  for (const now of [2005, 2030, 2060, 2100, 2500]) {
+    buffer.sample({ x: 2, y: 22, z: 2 }, 3000, now, target)
+    expect(target.x).toBeCloseTo(Math.min(2, (now - 120) / 1000), 6)
+  }
+})
+
 it('늦은 패킷과 일시 정지 후에도 낙하·발판 표시 시각이 역행하지 않는다', () => {
   const clock = new StoneRenderClock()
   expect(clock.sample(1000, 0)).toBe(880)

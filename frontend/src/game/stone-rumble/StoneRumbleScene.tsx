@@ -315,6 +315,7 @@ function Stage({ state, ownId, viewId, input, fire, feedback, localOnly, control
     const control = controls.current
     const newGame = previousGame.current !== state.gameId
     if (newGame || previousView.current !== viewId) followedPosition.reset()
+    // 탈락/대상 부재 중에는 마지막 초점을 유지하고 새 생존 대상을 받은 뒤 이동한다.
     if (player?.alive || !cameraReady.current) {
       const x = player?.alive ? player.x : 0, y = player?.alive ? player.y : 24, z = player?.alive ? player.z : 0
       if (player?.alive) followedPosition.sample(player, state.serverTime, performance.now(), desiredFocus)
