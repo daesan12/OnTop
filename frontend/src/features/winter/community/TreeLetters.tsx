@@ -3,7 +3,14 @@ import { postTree, treePage } from './api'
 import { useWinterCommunity, type TreeMessage } from './state'
 import { TREE_ORNAMENTS, TREE_TARGET, type TreeOrnamentKind } from './ornaments'
 import treeIllustration from './ui-art/tree-illustration.webp'
+import stocking from './ui-art/stocking-photo.webp'
+import bauble from './ui-art/bauble-photo.webp'
+import bell from './ui-art/bell-photo.webp'
+import gift from './ui-art/gift-photo.webp'
 import './treeVisit.css'
+
+// Selection photographs belong to this 2D screen; the park keeps its existing models and previews.
+const ornamentPhotos: Record<TreeOrnamentKind, string> = { STOCKING: stocking, BAUBLE: bauble, BELL: bell, GIFT: gift }
 
 const errorMessage = (error: unknown) => error instanceof Error ? error.message : '연결을 확인한 뒤 다시 시도해주세요.'
 const rejected = (error: unknown) => !!error && typeof error === 'object' && 'status' in error
@@ -33,19 +40,20 @@ function LetterComposer({ ornament, text, anonymous, busy, locked, error, onText
       } else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus() }
     }}>
     <header className="winter-letter-dialog__header">
-      <img src={ornament.image} alt=""/><div><small>트리에 걸 장식 · {ornament.name}</small><h2>장식에 마음을 담아요</h2></div>
+      <div><small>크리스마스 트리 편지</small><h2>편지 한 장 남기기</h2></div>
       <button type="button" aria-label="편지 작성 닫기" disabled={busy} onClick={onClose}>×</button>
     </header>
     <form onSubmit={event => { event.preventDefault(); onSend() }}>
-      <p>고마웠던 순간도, 앞으로의 응원도 좋아요.<br/>이 장식과 함께 우리의 트리에 걸어둘게요.</p>
+      <div className="winter-letter-dialog__ornament"><img src={ornamentPhotos[ornament.id]} alt=""/><span>{ornament.name}에 걸 편지</span></div>
       <label htmlFor="winter-letter">나누고 싶은 이야기</label>
       <textarea ref={area} id="winter-letter" autoFocus value={text} maxLength={300} disabled={busy || locked}
         onChange={event => onText(event.target.value)} placeholder="함께해서 고마웠어. 앞으로도 늘 응원할게!" rows={5}/>
-      <small className="winter-letter-dialog__counter">{[...text].length} / 300자 · 편지는 모든 채널에 공개돼요.</small>
+      <small className="winter-letter-dialog__counter">{[...text].length} / 300자</small>
       <fieldset disabled={busy || locked}><legend>편지에 표시할 이름</legend>
         <label><input type="radio" name="winter-name" checked={anonymous} onChange={() => onAnonymous(true)}/> 익명</label>
         <label><input type="radio" name="winter-name" checked={!anonymous} onChange={() => onAnonymous(false)}/> 내 닉네임</label>
       </fieldset>
+      <p className="winter-letter-dialog__public">작성한 편지는 모든 채널에서 볼 수 있어요.</p>
       {!!error && <p role="alert">{error}</p>}
       <button type="submit" className="winter-letter-dialog__send" disabled={busy || !text.trim()}>
         {busy ? '편지를 확인하는 중…' : locked ? '다시 확인하기' : '트리에 편지 걸기'}
@@ -117,7 +125,7 @@ export function TreeLetters() {
         <figcaption><strong>마음 한 장, 빛 한 점</strong><span>우리의 겨울을 함께 장식해요.</span></figcaption>
       </figure>
       <section className="winter-tree-panel">
-        <header className="winter-tree-heading"><h2>트리에 마음을 걸어요</h2><p>장식을 고르고, 전하고 싶은 이야기를 담아주세요.</p></header>
+        <header className="winter-tree-heading"><h2>우리의 크리스마스 트리</h2><p>장식 하나를 골라 편지를 남겨주세요.</p></header>
         <section className="winter-tree-count" aria-label="함께 모은 편지">
           <div><span>함께 모은 편지</span><strong>{status?.count ?? '…'}<small>개</small></strong></div>
           <p>{status?.lit ? <>우리의 마음이 모여<br/><b>트리가 환하게 빛나고 있어요.</b></> : <><b>{TREE_TARGET}개의 편지</b>가 모이면<br/>별과 전구가 빛나요.</>}</p>
@@ -130,17 +138,17 @@ export function TreeLetters() {
         <div className="winter-tree-panel__body">
           {!!notice && <p role="status">{notice}</p>}{!composing && !!error && <p role="alert">{error}</p>}
           {view === 'decorate' ? <section className="winter-tree-selection" aria-labelledby="winter-choose-title">
-            <div className="winter-tree-section-title"><h3 id="winter-choose-title">어떤 장식을 걸어볼까요?</h3><p>장식을 누르면 편지를 쓸 수 있어요.</p></div>
+            <div className="winter-tree-section-title"><h3 id="winter-choose-title">트리에 걸 장식</h3><p>선택하면 편지 작성창이 열려요.</p></div>
             <div className="winter-tree-ornaments">{TREE_ORNAMENTS.map(item => {
               const count = status?.ornaments.filter(placed => placed.ornament === item.id).length ?? 0
               return <button key={item.id} type="button" disabled={!status || busy || locked && ornament !== item.id} onClick={event => choose(item.id, event.currentTarget)}>
-                <img src={item.image} alt=""/><span><strong>{item.name}</strong><small>트리에 {count}개 걸려 있어요</small></span><span className="winter-tree-ornaments__write">편지 쓰기 ↗</span>
+                <img src={ornamentPhotos[item.id]} alt=""/><span><strong>{item.name}</strong><small>트리에 {count}개 걸려 있어요</small></span>
               </button>
             })}</div>
             <small className="winter-tree-selection__hint">장식별 개수는 현재 트리에 보이는 최근 50개의 편지 기준이에요.</small>
           </section> : <section className="winter-tree-letters" aria-label="우리의 겨울 편지">
             <div className="winter-tree-section-title"><h3>우리의 겨울 편지</h3><button type="button" disabled={loading} onClick={() => void load()}>새로 읽기</button></div>
-            {letters.map(letter => <article key={letter.id}><img src={TREE_ORNAMENTS.find(item => item.id === letter.ornament)?.image} alt=""/>
+            {letters.map(letter => <article key={letter.id}><img src={ornamentPhotos[letter.ornament]} alt=""/>
               <p>{letter.text}</p><small>{letter.anonymous ? '익명의 친구' : letter.nickname} · {new Date(letter.createdAt).toLocaleDateString('ko-KR')}</small>
             </article>)}
             {!loading && !letters.length && <p>아직 첫 번째 편지를 기다리고 있어요.</p>}

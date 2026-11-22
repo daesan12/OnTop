@@ -21,3 +21,36 @@
 
 검수에서는 트리 그림의 비율·선명도와 왼쪽 그림/오른쪽 정보 배치, 장식 카드 클릭,
 팝업의 초기 포커스·Tab 순환·Escape 복귀·저장, 작은 화면 내부 스크롤을 확인한다.
+
+## 실사 소재감의 장식 선택 이미지
+
+사용자 요청으로 2D 선택 화면에만 사용하는 `stocking-photo.webp`, `bauble-photo.webp`,
+`bell-photo.webp`, `gift-photo.webp`를 built-in image_gen으로 각각 생성했다.
+기존 트리 그림, 공원 GLB와 모델 미리보기, 배치·충돌·맵 버전은 변경하지 않았다.
+원본의 투명도를 유지해 긴 변 512px, WebP quality=90/alphaQuality=100으로 인코딩했다.
+편지 작성창의 종이 배경은 기존 `features/notes/art/notes-paper.webp`를 재사용한다.
+
+공통 프롬프트: `Use case: product-mockup. Game UI ornament selector asset.
+Photorealistic premium product photography, soft warm studio key light from upper left,
+tactile physical materials, clear recognisable silhouette at thumbnail size. Isolated one
+object centered fully in square frame, three-quarter angle, occupies about 80% of frame.
+Genuinely transparent background, no surface or backdrop, no fake transparency checkerboard,
+no scenery, no text, no logo, no frame. Cohesive Christmas red / antique gold / ivory palette.
+Not cartoon, not plastic low-poly, not vector clipart. Save project-bound asset.`
+
+각 이미지의 피사체 프롬프트:
+
+- Stocking: `A single red knitted Christmas stocking ornament with thick ivory wool cuff,
+  red hanging loop, visible wool fibers and realistic cable knit stitches. Slight natural lean.`
+- Bauble: `A single deep red glass Christmas bauble ornament, small antique brass cap and
+  fine hanging loop. Real translucent blown glass, subtle reflections and surface imperfections.`
+- Bell: `A single small antique golden brass Christmas bell ornament, red velvet bow and a
+  small hanging loop, visible bell opening and clapper. Real brushed brass patina and woven velvet.`
+- Gift: `A single small Christmas present ornament: neatly wrapped matte ivory paper cubical
+  box tied with a deep crimson velvet ribbon and natural bow. Real paper folds and ribbon texture.`
+
+원본 PNG는 같은 generated_images 세션에 보존했다:
+stocking `exec-695a3a51-3292-46f7-b46f-4010a521bfd4.png`,
+bauble `exec-14f6485c-07be-4a15-bef9-0c880e0a3d54.png`,
+bell `exec-fd7f1c11-7326-4549-b53d-9fea039dbdea.png`,
+gift `exec-e9295d4d-c9e4-4f10-948d-80be5a092b48.png`.
