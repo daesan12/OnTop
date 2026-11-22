@@ -1,0 +1,122 @@
+.table-paper-backdrop:has(.winter-tree-popup) {
+  padding: 10px;
+  background: radial-gradient(ellipse at 50% 30%, #123a35dc, #071d20ee 75%);
+  backdrop-filter: blur(7px);
+}
+.winter-tree-popup.table-paper-popup {
+  width: min(760px, calc((100dvh - 20px) * .8));
+  height: calc(100dvh - 20px);
+  max-width: calc(100vw - 20px);
+  max-height: 950px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  overflow: visible;
+  font-family: BusanDandiMyeongjo, 'Malgun Gothic', serif;
+  color: #fff3d0;
+}
+.winter-tree-popup > .paper-caption { position: absolute; width: 1px; height: 1px; clip-path: inset(50%); overflow: hidden; }
+.winter-tree-popup.table-paper-popup > .paper-close {
+  z-index: 4; top: 12px; right: 4px; width: 40px; min-height: 40px;
+  border: 1px solid #c8ac70; border-radius: 50%; background: #163d35; color: #ffedbd;
+}
+.winter-tree-popup > .winter-tree-visit { position: relative; display: block; flex-shrink: 0; height: 100%; padding: 0; overflow: visible; }
+.winter-tree-frame {
+  position: absolute; inset: 0; pointer-events: none;
+  background: url('./ui-art/tree-frame.webp') center / 100% 100% no-repeat;
+  filter: drop-shadow(0 12px 22px #020d0ca0);
+}
+.winter-tree-visit[data-lit=true] .winter-tree-frame { filter: drop-shadow(0 0 15px #e9c15d35) drop-shadow(0 12px 22px #020d0ca0); }
+.winter-tree-paper { position: absolute; top: 26%; left: 18%; right: 18%; bottom: 20%; min-width: 0; }
+.winter-tree-paper__content { height: 100%; overflow: auto; overscroll-behavior: contain; scrollbar-width: none; padding: 4px 5px 8px; box-sizing: border-box; }
+.winter-tree-paper__content::-webkit-scrollbar, .winter-letter-wall article p::-webkit-scrollbar { display: none; }
+.winter-tree-popup .winter-community__intro { margin: 0 0 13px; }
+.winter-tree-popup.table-paper-popup h2 { margin: 0 0 7px; color: #ffe7a5; font-size: 30px; line-height: 1.3; letter-spacing: .03em; text-shadow: 0 2px 3px #041f16; }
+.winter-tree-popup .winter-community__intro p { margin: 0 0 10px; color: #e6e6c7; font-size: 13px; line-height: 1.6; }
+.winter-tree-count { display: grid; gap: 4px; width: 82%; margin: auto; font-size: 12px; color: #e3d4a6; }
+.winter-tree-count strong { font-size: 20px; color: #ffe5a0; margin-left: 5px; }
+.winter-tree-popup .winter-tree-count small { color: #d7d9b9; font-size: 11px; }
+.winter-tree-count progress { width: 100%; height: 4px; border: 0; border-radius: 6px; overflow: hidden; appearance: none; accent-color: #d5b65c; background: #ffffff1c; }
+.winter-tree-count progress::-webkit-progress-bar { background: #ffffff1c; }
+.winter-tree-count progress::-webkit-progress-value { background: linear-gradient(90deg, #b18b3f, #f9dda0); border-radius: 6px; }
+.winter-tree-popup .winter-community__tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 13px 0 18px; }
+.winter-tree-popup .winter-community__tabs button { min-height: 36px; padding: 5px 0; border: 0; border-radius: 0; border-bottom: 1px solid #c6b47255; background: transparent; color: #b9c9af; font-size: 13px; }
+.winter-tree-popup .winter-community__tabs [aria-current=page] { border-bottom: 2px solid #e3c374; background: transparent; color: #ffe7a9; }
+.winter-tree-popup h3 { font-size: 16px; color: #fae6b6; text-align: center; line-height: 1.5; }
+.winter-tree-popup .winter-community__choose { gap: 15px; }
+.winter-tree-popup .winter-community__ornaments { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; align-items: start; padding: 4px 0 3px; }
+.winter-tree-popup .winter-community__ornaments button {
+  position: relative; display: grid; justify-items: center; gap: 5px; min-width: 0;
+  padding: 20px 2px 8px; border: 1px solid transparent; border-radius: 48% 48% 12px 12px;
+  background: transparent; color: #f7e5bc; transition: transform .18s, background .18s;
+}
+.winter-tree-popup .winter-community__ornaments button::before { content: ''; position: absolute; top: 0; left: 50%; height: 23px; width: 1px; background: #d8b964; }
+.winter-tree-popup .winter-community__ornaments button:hover { transform: translateY(-3px); background: #fff1b50a; }
+.winter-tree-popup .winter-community__ornaments button[aria-pressed=true] { border-color: #e5c578; background: radial-gradient(ellipse at 50% 35%, #f7d57535, #edd88c08 75%); box-shadow: 0 0 12px #ffe1a51a; }
+.winter-tree-popup .winter-community__ornaments img { width: 100%; height: 73px; max-height: none; aspect-ratio: auto; object-fit: contain; border-radius: 0; filter: drop-shadow(0 5px 3px #02160b80); }
+.winter-tree-popup .winter-community__ornaments span { font-size: 12px; word-break: keep-all; }
+.winter-tree-popup .winter-community__ornaments small { font-size: 10px; color: #c8d1b2; }
+.winter-tree-popup .winter-community__primary {
+  min-height: 45px; padding: 10px 12px; border: 3px double #e0bc72; border-radius: 6px;
+  background: linear-gradient(#ad3e43, #81242d); color: #fff0c4; font-size: 16px;
+  box-shadow: 0 4px 0 #421c2270, inset 0 1px 0 #ffebe91c;
+}
+.winter-tree-popup button:disabled { opacity: .55; }
+.winter-tree-popup .winter-community__chosen { padding: 5px 9px; gap: 9px; border: 1px solid #adba8566; border-radius: 8px; background: #061e1680; }
+.winter-tree-popup .winter-community__chosen img { width: 42px; height: 42px; }
+.winter-tree-popup .winter-community__chosen strong { color: #fff0c4; font-size: 14px; }
+.winter-tree-popup .winter-community__chosen button, .winter-tree-popup .winter-community__list-title button { min-height: 32px; padding: 5px 9px; border: 1px solid #c4b37580; border-radius: 5px; background: transparent; color: #e9d8aa; font-size: 11px; }
+.winter-tree-popup form { gap: 9px; }
+.winter-tree-visit--write .winter-community__intro { margin-bottom: 0; }
+.winter-tree-visit--write .winter-community__intro > p,
+.winter-tree-visit--write .winter-tree-count,
+.winter-tree-visit--write form > h3 { display: none; }
+.winter-tree-visit--write .winter-community__tabs { margin-top: 9px; margin-bottom: 12px; }
+.winter-tree-popup .winter-tree-visit--write .winter-letter-sheet textarea { height: 96px; min-height: 96px; }
+.winter-tree-popup form > label, .winter-tree-popup legend, .winter-tree-popup fieldset label { color: #eee7c9; font-size: 13px; }
+.winter-tree-popup form > small, .winter-tree-popup .winter-community__chosen small { color: #bfcbb1; font-size: 11px; }
+.winter-letter-sheet { border: 1px solid #d1b876; border-radius: 7px; background: #fff8e8; box-shadow: 0 4px 8px #06170d40; }
+.winter-tree-popup .winter-letter-sheet textarea { display: block; min-height: 110px; max-height: 180px; padding: 12px; border: 0; border-radius: 7px; background: transparent; color: #504b35; font: 15px/1.65 BusanDandiMyeongjo, 'Malgun Gothic', serif; }
+.winter-letter-sheet > span { display: block; text-align: right; padding: 0 12px 8px; color: #9c865b; font-size: 10px; }
+.winter-tree-popup fieldset { gap: 14px; }
+.winter-tree-popup legend { margin-bottom: 5px; }
+.winter-tree-popup input[type=radio] { accent-color: #b74042; }
+.winter-tree-popup [role=status] { padding: 9px; border: 1px solid #dbbb6a66; border-radius: 6px; background: #ecdf9b12; color: #f5dfaa; font-size: 13px; }
+.winter-tree-popup [role=alert] { color: #ffb6ae; font-size: 13px; }
+.winter-tree-popup .winter-community__list-title h3 { font-size: 16px; }
+.winter-letter-wall { display: grid; gap: 11px; margin: 14px 0; }
+.winter-tree-popup .winter-letter-wall article { position: relative; padding: 14px 13px 11px 54px; margin: 0; border: 1px solid #d8c17e; border-radius: 4px 10px 4px 4px; background: #fff3d6; color: #4d4939; box-shadow: 1px 3px 5px #03180f66; }
+.winter-letter-wall article > img { position: absolute; left: 5px; top: 12px; width: 40px; height: 40px; object-fit: contain; }
+.winter-letter-wall article p { max-height: 140px; overflow: auto; scrollbar-width: none; font-size: 14px; margin: 6px 0; }
+.winter-tree-popup .winter-letter-wall article small { font-size: 11px; color: #817455; }
+.winter-letter-empty { text-align: center; padding: 16px 0; color: #d2d8ba; font-size: 14px; }
+.winter-letter-empty > span { font-size: 35px; color: #e6c784; }
+.winter-letter-compose { width: 100%; margin: 8px 0 12px; }
+.winter-tree-popup .winter-community__letters > button:not(.winter-letter-compose) { color: #e6d6aa; border: 1px solid #c7b172; background: transparent; font-size: 12px; }
+.winter-tree-popup :focus-visible { outline: 3px solid #ffe299; outline-offset: 3px; }
+@media (max-width: 600px) {
+  .winter-tree-popup.table-paper-popup { width: min(440px, calc(100vw - 12px)); max-width: calc(100vw - 12px); height: calc(100dvh - 16px); max-height: 880px; }
+  .winter-tree-frame { background-image: url('./ui-art/tree-frame-mobile.webp'); }
+  .winter-tree-paper { top: 20%; left: 12%; right: 12%; bottom: 15%; }
+  .winter-tree-popup.table-paper-popup h2 { font-size: 26px; }
+  .winter-tree-popup .winter-community__intro p { font-size: 12px; }
+  .winter-tree-count { width: 96%; }
+  .winter-tree-popup .winter-community__tabs { gap: 6px; margin-bottom: 12px; }
+  .winter-tree-popup .winter-community__tabs button { font-size: 12px; }
+  .winter-tree-popup .winter-community__ornaments { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px 14px; }
+  .winter-tree-popup .winter-community__ornaments img { height: 63px; }
+  .winter-tree-popup .winter-community__ornaments button { padding-top: 16px; }
+  .winter-tree-popup .winter-community__ornaments button::before { height: 18px; }
+  .winter-tree-popup .winter-community__choose { gap: 9px; }
+  .winter-tree-popup h3 { font-size: 14px; }
+}
+@media (max-height: 550px) and (min-width: 601px) {
+  .winter-tree-popup.table-paper-popup { width: 560px; height: calc(100dvh - 16px); max-height: calc(100dvh - 16px); overflow: auto; scrollbar-width: none; }
+  .winter-tree-popup.table-paper-popup::-webkit-scrollbar { display: none; }
+  .winter-tree-popup > .winter-tree-visit { height: 700px; }
+  .winter-tree-popup.table-paper-popup > .paper-close { position: sticky; top: 7px; margin: 7px 7px -47px auto; }
+  .winter-tree-paper { top: 23%; left: 16%; right: 16%; bottom: 19%; }
+}
+@media (prefers-reduced-motion: reduce) { .winter-tree-popup .winter-community__ornaments button { transition: none; } }

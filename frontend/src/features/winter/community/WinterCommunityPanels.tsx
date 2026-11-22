@@ -1,32 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
-import { Canvas } from '@react-three/fiber'
 import { PaperPopup } from '../../tableLobby/PaperPopup'
 import { focusParkCanvas } from '../../../world/inputOwnership'
 import { assembleSnowman, postTree, treePage, type Assembly } from './api'
 import { closeWinterCommunity, useWinterCommunityPanel } from './panelState'
 import { useWinterCommunity, type TreeMessage } from './state'
 import './community.css'
+import './treeLetters.css'
 import { snowmanLayout } from './snowmanLayout'
 import { TREE_ORNAMENTS, TREE_TARGET, type TreeOrnamentKind } from './ornaments'
-import { ChristmasCommunityTree } from './ChristmasCommunityTree'
 
 const message = (error: unknown) => error instanceof Error ? error.message : '연결을 확인한 뒤 다시 시도해주세요.'
 const rejected = (error: unknown) => !!error && typeof error === 'object' && 'status' in error && typeof error.status === 'number' && error.status >= 400 && error.status < 500
-function TreeLetterArt({ lit, ornament }: { lit: boolean; ornament: TreeOrnamentKind | null }) {
-  const selected = TREE_ORNAMENTS.find(item => item.id === ornament)
-  return <aside className="winter-tree-art" data-lit={lit} aria-label="우리의 크리스마스 트리">
-    <div className="winter-tree-art__model" aria-hidden="true">
-      <Canvas frameloop="demand" dpr={[1, 1.5]} camera={{ position: [15, 8, 23], fov: 34 }}
-        gl={{ alpha: true, antialias: true }} onCreated={({ camera }) => camera.lookAt(0, 5.8, 0)}>
-        <ambientLight intensity={1.8}/><directionalLight position={[8,15,10]} intensity={3}/>
-        <ChristmasCommunityTree fallback={null}/>
-      </Canvas>
-    </div>
-    <div className="winter-tree-art__caption"><p>마음 한 장, 빛 한 점</p><small>{lit ? '우리가 함께 밝힌 크리스마스' : '우리의 겨울을 함께 장식해요.'}</small>
-      {selected && <div className="winter-tree-art__selection"><img src={selected.image} alt=""/><span>내가 고른 장식<strong>{selected.name}</strong></span></div>}
-    </div>
-  </aside>
-}
 function TreeLetters() {
   const status = useWinterCommunity(s => s.tree)
   const [letters, setLetters] = useState<TreeMessage[]>([]), [cursor, setCursor] = useState<number | null>(null)
@@ -71,8 +55,8 @@ function TreeLetters() {
     }
     finally { if (mounted.current) setBusy(false) }
   }
-  return <div className={`winter-community__body winter-tree-visit winter-tree-visit--${step}`}>
-    <TreeLetterArt lit={!!status?.lit} ornament={ornament}/>
+  return <div className={`winter-community__body winter-tree-visit winter-tree-visit--${step}`} data-lit={!!status?.lit}>
+    <div className="winter-tree-frame" aria-hidden="true"/>
     <div className="winter-tree-paper"><div className="winter-tree-paper__content">
     <div className="winter-community__intro"><h2>크리스마스 트리</h2><p>장식 하나에 마음 한 줄을 담아 걸어보세요.</p><div className="winter-tree-count"><span>함께 모은 편지 <strong>{status?.count ?? '…'}</strong> / {TREE_TARGET}</span><progress aria-label="트리 점등까지 모은 편지" max={TREE_TARGET} value={Math.min(status?.count ?? 0, TREE_TARGET)}/><small>{status?.lit ? '모두의 마음이 모여 트리가 빛나고 있어요.' : `${TREE_TARGET}개가 모이면 별과 전구가 빛나요`}</small></div></div>
     <nav className="winter-community__tabs" aria-label="트리 편지 메뉴">
