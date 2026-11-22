@@ -1,8 +1,41 @@
 import { afterEach, expect, it, vi } from 'vitest'
 import { BoxGeometry, Group, Mesh, MeshBasicMaterial, MeshStandardMaterial, PerspectiveCamera, PointLight, Scene, Texture, Vector4, type WebGLRenderer } from 'three'
-import { prepareObjectTextures, prepareScene, warmSceneGeometry, waitForScenePrograms } from '../../src/world/prepareScene'
+import { prepareObjectTextures, prepareScene, prepareVisibleScenePrograms, warmSceneGeometry, waitForScenePrograms } from '../../src/world/prepareScene'
 
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks() })
+
+it('skips nullish materials and array entries while still uploading valid shared maps once', async () => {
+  vi.useFakeTimers()
+  const scene = new Scene(), texture = new Texture(), material = new MeshBasicMaterial({ map: texture })
+  scene.add(new Group(), Object.assign(new Group(), { material: null }),
+    Object.assign(new Group(), { material: undefined }),
+    Object.assign(new Group(), { material: [null, material, undefined, material] }))
+  const initTexture = vi.fn(), renderer = { initTexture } as unknown as WebGLRenderer
+  const pending = prepareObjectTextures(renderer, scene, () => true)
+  await vi.runAllTimersAsync()
+  await expect(pending).resolves.toBeUndefined()
+  expect(initTexture.mock.calls).toEqual([[texture]])
+  texture.dispose(); material.dispose()
+})
+
+it('includes opted-in off-camera entrance meshes but respects visibility and camera layers', async () => {
+  const scene = new Scene(), camera = new PerspectiveCamera(60, 1, .1, 100)
+  const geometry = new BoxGeometry(), material = new MeshBasicMaterial()
+  const inside = new Mesh(geometry, material); inside.position.z = -5
+  const outside = inside.clone(); outside.position.x = 1000
+  const opted = outside.clone(); opted.userData.prepareEntranceProgram = true
+  const hidden = opted.clone(); hidden.visible = false
+  const otherLayer = opted.clone(); otherLayer.layers.set(1)
+  scene.add(inside, outside, opted, hidden, otherLayer)
+  const selected: unknown[] = []
+  const renderer = { compile: (objects: Group) => objects.traverse(object => selected.push(object)),
+    getContext: () => ({ getExtension: () => null, isContextLost: () => false }),
+  } as unknown as WebGLRenderer
+  await prepareVisibleScenePrograms(renderer, scene, camera, () => true)
+  expect(selected).toEqual([inside, opted])
+  expect(opted.parent).toBe(scene)
+  geometry.dispose(); material.dispose()
+})
 
 it('uploads streamed textures between display frames and skips remaining uploads after disposal', async () => {
   const frames: FrameRequestCallback[] = []

@@ -9,10 +9,13 @@ interface PreparationView { position: readonly [number, number, number]; target:
 export async function prepareObjectTextures(renderer: WebGLRenderer, root: Object3D, live: () => boolean) {
   const textures = new Set<Texture>()
   root.traverse(object => {
-    if (!('material' in object)) return
+    if (!('material' in object) || !object.material) return
     const materials = Array.isArray(object.material) ? object.material : [object.material]
-    for (const material of materials as Material[]) for (const value of Object.values(material)) {
-      if (value instanceof Texture && !(value instanceof VideoTexture)) textures.add(value)
+    for (const material of materials as Material[]) {
+      if (!material) continue
+      for (const value of Object.values(material)) {
+        if (value instanceof Texture && !(value instanceof VideoTexture)) textures.add(value)
+      }
     }
   })
   for (const texture of textures) {

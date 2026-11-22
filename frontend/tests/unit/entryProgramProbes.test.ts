@@ -18,9 +18,9 @@ it('warms private variants without adding visible objects or mutating shared mat
   expect(source.side).toBe(DoubleSide)
   expect(probes.objects[0]!.material.transparent).toBe(true)
   expect(probes.objects[2]!.material.side).toBe(DoubleSide)
-  const fitness = probes.objects[3] as InstancedMesh
-  expect(fitness.isInstancedMesh).toBe(true)
-  expect(fitness.instanceColor).toBeNull()
+  const fitness = probes.objects[3]!
+  expect(fitness).toBeInstanceOf(InstancedMesh)
+  expect(fitness).toHaveProperty('instanceColor', null)
   expect((fitness.material as MeshLambertMaterial).vertexColors).toBe(false)
   const selected: unknown[] = []
   const renderer = { compile: (objects: Scene) => objects.traverse(object => selected.push(object)),

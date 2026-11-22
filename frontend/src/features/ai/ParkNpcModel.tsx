@@ -39,13 +39,13 @@ export function ResidentModel({kind,speed,seated=false,airborne=false,talking=fa
     const actor=preparing=instantiateResident(source,kind)
     performance.mark('park-resident-clone-end-'+kind)
     const {gl,camera,scene}=renderer()
-    if(gl.extensions?.has('KHR_parallel_shader_compile')) {
-     await Promise.all([
-      waitForScenePrograms(gl,()=>active,gl.compileAsync(actor.root,camera,scene)),
-      prepareObjectTextures(gl,actor.root,()=>active),
-     ])
-     if(!active)return
-    }
+    // Texture uploads and the program wait also apply without parallel linking.
+    // Three's compileAsync and our wait both retain their non-KHR fallback.
+    await Promise.all([
+     waitForScenePrograms(gl,()=>active,gl.compileAsync(actor.root,camera,scene)),
+     prepareObjectTextures(gl,actor.root,()=>active),
+    ])
+    if(!active)return
     preparing=undefined
     instance.current=actor;root.add(actor.root);root.userData.loaded=true;root.userData.loadError=false
    } catch(error) {
