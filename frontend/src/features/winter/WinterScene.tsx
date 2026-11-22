@@ -1,5 +1,8 @@
 import { memo, useEffect, useMemo, useRef } from 'react'
 import { SantaBell } from './SantaBell'
+import { SnowBuildingScene } from './community/SnowBuildingScene'
+import { useWinterCommunity } from './community/state'
+import { ChristmasCommunityTree } from './community/ChristmasCommunityTree'
 import { useFrame } from '@react-three/fiber'
 import { BufferAttribute, BufferGeometry, Float32BufferAttribute, Group, InstancedMesh, Object3D, ShaderMaterial, type Points } from 'three'
 import { groundSurfaceHeight } from '../../../park-renewal-preview/groundSurface'
@@ -22,14 +25,15 @@ function decoration(kind: typeof WINTER_DECOR[number]['kind']) {
 }
 
 function HolidayProp({ art, kind }: { art: ReturnType<typeof createHolidayArt>; kind: string }) {
+  const lit = useWinterCommunity(s => kind === 'tree' && !!s.tree?.lit)
   return <group name={'winter-art-' + kind}>{Object.entries(art).map(([finish, geometry]) =>
-    <mesh key={finish} geometry={geometry} dispose={null} castShadow receiveShadow raycast={() => {}}>
+    <mesh key={finish} name={'winter-' + kind + '-' + finish} geometry={geometry} dispose={null} castShadow receiveShadow raycast={() => {}}>
       <meshStandardMaterial vertexColors roughness={finish === 'gold' ? .34 : .74}
         metalness={finish === 'gold' ? .48 : 0} side={2}
-        emissive={finish === 'glow' ? '#ffc775' : '#000000'} emissiveIntensity={finish === 'glow' ? .9 : 0}
-        toneMapped={finish !== 'glow'} />
+        emissive={finish === 'glow' || finish === 'star' && lit ? '#ffe5a0' : '#000000'} emissiveIntensity={finish === 'glow' ? lit ? 4 : .9 : finish === 'star' && lit ? 3 : 0}
+        toneMapped={finish !== 'glow' && !(finish === 'star' && lit)} />
     </mesh>,
-  )}</group>
+  )}{lit && <mesh name="winter-tree-star-halo" position={[0, 7.2, 0]} raycast={() => {}}><sphereGeometry args={[.65, 16, 10]} /><meshBasicMaterial color="#ffdf82" transparent opacity={.12} depthWrite={false} /></mesh>}</group>
 }
 
 function Snowfall({ low }: { low: boolean }) {
@@ -154,7 +158,9 @@ function HolidayDecorations() {
   const art = useMemo(() => new Map([...new Set(WINTER_DECOR.map(d => d.kind))].map(kind => [kind, decoration(kind)])), [])
   useEffect(() => () => { for (const value of art.values()) for (const g of Object.values(value)) g?.dispose() }, [art])
   return <>{WINTER_DECOR.map(d => <group key={d.id} name={'winter-' + d.id} position={[d.x, groundSurfaceHeight(d.x, d.z), d.z]}>
-    <HolidayProp kind={d.kind} art={art.get(d.kind)!} />
+    {d.kind === 'tree'
+      ? <ChristmasCommunityTree fallback={<group scale={12 / 7.68}><HolidayProp kind={d.kind} art={art.get(d.kind)!} /></group>} />
+      : <HolidayProp kind={d.kind} art={art.get(d.kind)!} />}
   </group>)}</>
 }
 
@@ -169,6 +175,7 @@ export const WinterScene = memo(function WinterScene({ low = false, groundReady 
     <RoofSnow visible={winterRoofSnowVisible} protectedAreas={winterProtectedSurfaces} />
     <Snowfall low={low} />
     <Snowballs />
+    <SnowBuildingScene />
     <SnowballAim />
     {groundReady && <GroundSnow />}
     <WinterActors />

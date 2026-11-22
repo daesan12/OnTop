@@ -74,7 +74,8 @@ export function createChristmasTreeArt() {
     star.push(0, centreY, .14, ...a, ...c, 0, centreY, -.14, ...c, ...a)
   }
   const topper = new BufferGeometry().setAttribute('position', new Float32BufferAttribute(star, 3))
-  topper.computeVertexNormals(); add(topper, '#e9dfbf', [0, 0, 0], [1, 1, 1], [0, 0, 0], 'gold')
+  topper.computeVertexNormals()
+  topper.setAttribute('color', new Float32BufferAttribute(Array.from({ length: star.length }, (_, i) => i % 3 === 2 ? .57 : .94), 3))
   add(new CylinderGeometry(.032, .032, .35, 10), '#cbb676', [0, 6.88, 0], [1, 1, 1], [0, 0, 0], 'gold')
-  return b.finish()
+  return { ...b.finish(), star: topper }
 }

@@ -23,6 +23,8 @@ import { boatAngleAt, boatPose } from '../../park-renewal-preview/assetSizing'
 import { useFacilityState } from '../features/facilities/state'
 import { estimatedServerTime } from './serverEventClock'
 import { horrorState } from '../../park-renewal-preview/horrorPlan'
+import { useWinterCommunity, type Snowman } from '../features/winter/community/state'
+import { snowmanLayout } from '../features/winter/community/snowmanLayout'
 
 /** How long Rapier may keep a grounded state the server does not support before falling. */
 const EDGE_GLIDE_SECONDS = .15
@@ -37,6 +39,21 @@ class PredictionPhysics implements PredictionSimulation {
   private chairCounts:ReadonlyMap<string,number>=new Map()
   private readonly furniture=sharedPhysics?.boxes.filter(b=>/^table-\d+-(top|chair-[0-7])$/.test(b.id)) ?? []
   private readonly world = new RAPIER.World({ x: 0, y: 0, z: 0 })
+  private snowmen: Snowman[] | undefined
+  private snowmanBodies: RAPIER.Collider[] = []
+  private syncSnowmen() {
+    const next = useWinterCommunity.getState().building?.snowmen
+    if (next === this.snowmen) return
+    this.snowmen = next
+    for (const body of this.snowmanBodies) this.world.removeCollider(body, true)
+    this.snowmanBodies = []
+    for (const man of next ?? []) {
+      const { baseY, middleY, headY } = snowmanLayout(man.baseRadius, man.middleRadius, man.headRadius)
+      for (const [radius, y] of [[man.baseRadius, baseY], [man.middleRadius, middleY], [man.headRadius, headY]] as const) {
+        this.snowmanBodies.push(this.world.createCollider(RAPIER.ColliderDesc.ball(radius).setTranslation(man.x, man.groundY + y, man.z)))
+      }
+    }
+  }
   private readonly body
   private readonly collider
   private readonly controller
@@ -56,6 +73,7 @@ class PredictionPhysics implements PredictionSimulation {
   }
   private readonly secretDoors: RAPIER.Collider[] = []
   private syncSecretDoors() {
+    this.syncSnowmen()
     for (const door of this.secretDoors) {
       if (door.isEnabled() === horrorState.open) door.setEnabled(!horrorState.open)
     }

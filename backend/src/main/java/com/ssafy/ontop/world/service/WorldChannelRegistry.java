@@ -414,6 +414,31 @@ public class WorldChannelRegistry implements ChannelPresence {
         return movement == null ? null : movement.position();
     }
 
+    public synchronized WorldPhysics.WinterSurface winterSurface(String channel, double x, double z, double radius) {
+        var room = rooms.get(channel);
+        return room == null || room.physics == null ? new WorldPhysics.WinterSurface(0, false, false, "")
+                : room.physics.winterSurface(x, z, radius);
+    }
+
+    public synchronized java.util.List<Avatar> winterAvatars(String channel) {
+        var room = rooms.get(channel);
+        return room == null ? java.util.List.of() : room.worldState().avatars();
+    }
+
+    public synchronized com.fasterxml.jackson.databind.JsonNode winterTree(String channel) {
+        var room = rooms.get(channel);
+        return room == null || room.physics == null ? com.fasterxml.jackson.databind.node.MissingNode.getInstance()
+                : room.physics.winterTree();
+    }
+
+    public synchronized void installWinterSnowman(com.ssafy.ontop.world.winter.community.WinterCommunity.Snowman snowman) {
+        var room = rooms.get(snowman.channelId());
+        if (room != null && room.physics != null) {
+            room.physics.installSnowman(snowman.id(), snowman.x(), snowman.groundY(), snowman.z(),
+                    snowman.baseRadius(), snowman.middleRadius(), snowman.headRadius());
+        }
+    }
+
     public synchronized boolean snowPileInReach(String userId, String pileId) {
         Room room = rooms.get(membership.get(userId));
         return room != null && room.physics != null && room.physics.snowPileInReach(userId, pileId);

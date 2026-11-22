@@ -1,4 +1,6 @@
-import { SNOW_PILES } from '../../src/features/winter/plan'
+import { CHRISTMAS_TREE, SNOW_BUILD_ZONES, SNOW_PILES } from '../../src/features/winter/plan'
+import { SNOWMAN_JOINT_INSET_RATIO } from '../../src/features/winter/community/snowmanLayout'
+import treeCollision from '../../src/features/winter/community/assets/tree-collision.json'
 import { mainPagodaCollision } from '../pagodaCollision'
 import { ShapeUtils, Vector2, type BufferGeometry } from 'three'
 import { createTowerDeck, createTowerRamp, MOVEMENT, OBSERVATION_TOWER, TOWER_DECK_RAIL_SEGMENTS, towerPoint } from '../../src/config'
@@ -209,6 +211,9 @@ export function buildRenewalPhysics(tables: readonly TableAnchor[]) {
     if (b.kind === 'circle') cylinder(id, b.x, b.z, b.radius, b.bottom, b.top)
     else putBox(id, [b.x, (b.bottom + b.top) / 2, b.z], [b.halfX, (b.top - b.bottom) / 2, b.halfZ], Math.atan2(b.sin, b.cos))
   })
+  const treeFloor = groundSurfaceHeight(CHRISTMAS_TREE.x, CHRISTMAS_TREE.z)
+  hulls.push({ id: 'winter-asset-plaza-tree', role: 'solid',
+    vertices: treeCollision.tree.vertices.map((value, i) => value + (i % 3 === 0 ? CHRISTMAS_TREE.x : i % 3 === 1 ? treeFloor : CHRISTMAS_TREE.z)) })
   // The authored proxies above retain the visible bench/seat profiles. Service table
   // columns keep the existing no-climb policy and two visible stone seats.
   for (const table of tables) {
@@ -425,7 +430,11 @@ export function buildRenewalPhysics(tables: readonly TableAnchor[]) {
   const spawnY = groundSurfaceHeight(...RENEWAL_SPAWN) + MOVEMENT.halfHeight + MOVEMENT.radius + MOVEMENT.offset + groundClearance
   // The enlarged benches need more clearance under the tuned jump's stronger gravity.
   const physics = { ...basePhysics,
-    winterSnowPiles: SNOW_PILES.map(p => ({ ...p, y: groundSurfaceHeight(p.x, p.z) })), boxes, hulls, meshes, fountainPolicy, steppingStones: [], pavilionTunedJumpSpeed: 9.8,
+    winterSnowPiles: SNOW_PILES.map(p => ({ ...p, y: groundSurfaceHeight(p.x, p.z) })),
+    winterBuildZones: SNOW_BUILD_ZONES.map(p => ({ ...p, y: groundSurfaceHeight(p.x, p.z) })),
+    winterTree: { ...CHRISTMAS_TREE, y: groundSurfaceHeight(CHRISTMAS_TREE.x, CHRISTMAS_TREE.z) },
+    winterSnowman: { jointInsetRatio: SNOWMAN_JOINT_INSET_RATIO },
+    boxes, hulls, meshes, fountainPolicy, steppingStones: [], pavilionTunedJumpSpeed: 9.8,
     secretCorridor: { x0: HORROR.x0, x1: HORROR.x1, z0: HORROR.z0, z1: HORROR.z1, floor: HORROR.floor, ceiling: HORROR.ceiling },
     secretTerrainCuts, duckBoat: BOAT_ROUTE,
     interiorAccess: { routes: interiorAccess, annex, upperArrival, entrancesOpen: SECRET_ENTRANCES_OPEN,

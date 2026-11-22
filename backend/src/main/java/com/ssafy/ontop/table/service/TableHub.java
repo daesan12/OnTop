@@ -195,6 +195,7 @@ public class TableHub {
     private final WorldEmoteService emotes;
     private final com.ssafy.ontop.world.winter.SnowballService snowballs =
             new com.ssafy.ontop.world.winter.SnowballService();
+    private final Set<String> winterRollers = new HashSet<>();
     private final WorldProximity proximity;
     private final WorldFacilityService facilities;
     private final PreparedParkMap preparedPark;
@@ -2866,6 +2867,7 @@ public class TableHub {
     }
 
     private void clearWinter(String user) {
+        winterRollers.remove(user);
         String channel = channels.channelOf(user);
         snowballs.disconnected(user);
         channels.winterFreeze(user, false);
@@ -2877,6 +2879,7 @@ public class TableHub {
         if (channel == null) { fail(request, "NOT_IN_CHANNEL", "먼저 공원에 입장해주세요."); }
         try {
             if (request.type().equals("WORLD_SNOWBALL_PICKUP")) {
+                if (winterRollers.contains(user)) { fail(request, "SNOWBALL_ACTIVITY_CONFLICT", "굴리던 눈을 놓고 주워주세요."); }
                 if (carryBusy(user) || channels.carryState(user) != null || mobilityRides.containsKey(user)) {
                     fail(request, "SNOWBALL_ACTIVITY_CONFLICT", "다른 활동을 마친 뒤 눈을 주워주세요.");
                 }
@@ -2900,6 +2903,7 @@ public class TableHub {
 
     private void throwSnowball(Member member, Request request) {
         String user = member.userId(), channel = channels.channelOf(user);
+        if (winterRollers.contains(user)) { fail(request, "SNOWBALL_ACTIVITY_CONFLICT", "굴리던 눈을 놓고 던져주세요."); }
         var origin = channels.positionOf(user);
         if (channel == null || origin == null) {
             fail(request, "NOT_IN_CHANNEL", "먼저 공원에 입장해주세요.");
@@ -3089,6 +3093,80 @@ public class TableHub {
     }
 
     private record WorldPublishTiming(long totalNanos, long encodeNanos, long queueNanos, int recipients) { }
+
+    public synchronized com.ssafy.ontop.world.winter.community.WinterCommunity.Player winterPlayer(long user, String channel) {
+        String identity = Long.toString(user);
+        Member member = members.values().stream().filter(value -> value.userId().equals(identity) && isMapReady(value))
+                .findFirst().orElse(null);
+        if (stopped || member == null || !isMapReady(member) || channel == null || !channel.equals(channels.channelOf(identity))) {
+            throw new com.ssafy.ontop.world.winter.community.WinterCommunityException(403, "WINTER_NOT_IN_CHANNEL", "공원 채널에 다시 입장해주세요.");
+        }
+        return winterPlayers(channel).stream().filter(player -> player.userId().equals(identity)).findFirst()
+                .orElseThrow(() -> new com.ssafy.ontop.world.winter.community.WinterCommunityException(403,
+                        "WINTER_NOT_IN_CHANNEL", "공원 위치를 다시 확인해주세요."));
+    }
+
+    public synchronized java.util.List<com.ssafy.ontop.world.winter.community.WinterCommunity.Player> winterPlayers(String channel) {
+        if (stopped) { return java.util.List.of(); }
+        var result = new java.util.ArrayList<com.ssafy.ontop.world.winter.community.WinterCommunity.Player>();
+        for (var avatar : channels.winterAvatars(channel)) {
+            Member member = members.values().stream().filter(value -> value.userId().equals(avatar.userId()) && isMapReady(value))
+                    .findFirst().orElse(null);
+            if (member == null || !isMapReady(member)) { continue; }
+            var p = avatar.position();
+            var ground = channels.winterSurface(channel, p.x(), p.z(), .28);
+            boolean free = avatar.tableSeat() == null && avatar.activity() == null && avatar.carry() == null
+                    && !Boolean.TRUE.equals(avatar.vrActive()) && !p.swimming()
+                    && facilities.current(avatar.userId()) == null && !mobilityRides.containsKey(avatar.userId())
+                    && !emotes.isActive(avatar.userId()) && aiPracticeChatGame(avatar.userId()).isEmpty()
+                    && follows.activeStates().stream().flatMap(state -> state.links().stream())
+                        .noneMatch(link -> link.followerId().equals(avatar.userId()) || link.targetId().equals(avatar.userId()))
+                    && !snowballs.frozen(avatar.userId(), System.nanoTime())
+                    && Math.abs(p.y() - ground.groundY() - .76) < .65;
+            result.add(new com.ssafy.ontop.world.winter.community.WinterCommunity.Player(avatar.userId(),
+                    avatar.nickname(), p.x(), p.y(), p.z(), p.yaw(), free,
+                    Boolean.TRUE.equals(avatar.interactionBusy()), ground.pileId()));
+        }
+        return java.util.List.copyOf(result);
+    }
+
+    public synchronized com.ssafy.ontop.world.winter.community.WinterCommunity.Surface winterSurface(String channel,
+            double x, double z, double radius) {
+        var value = channels.winterSurface(channel, x, z, radius);
+        return new com.ssafy.ontop.world.winter.community.WinterCommunity.Surface(value.groundY(), value.clear(), value.buildingZone());
+    }
+
+    public synchronized void requireWinterTree(com.ssafy.ontop.world.winter.community.WinterCommunity.Player player, String channel) {
+        var tree = channels.winterTree(channel);
+        if (!tree.isObject() || Math.hypot(player.x() - tree.path("x").asDouble(), player.z() - tree.path("z").asDouble())
+                > tree.path("radius").asDouble() + 3.2 || Math.abs(player.y() - tree.path("y").asDouble() - .76) > .8) {
+            throw new com.ssafy.ontop.world.winter.community.WinterCommunityException(403, "WINTER_TREE_OUT_OF_RANGE", "광장 트리 가까이에서 편지를 확인해주세요.");
+        }
+    }
+
+    public synchronized void installWinterSnowman(com.ssafy.ontop.world.winter.community.WinterCommunity.Snowman snowman) {
+        channels.installWinterSnowman(snowman);
+    }
+
+    public synchronized void winterCommunityChanged(String channel,
+            com.ssafy.ontop.world.winter.community.WinterCommunity.BuildingState state) {
+        if (stopped) { return; }
+        var next = state.balls().stream().flatMap(ball -> ball.pushing().stream()).collect(java.util.stream.Collectors.toSet());
+        winterRollers.removeIf(user -> channel.equals(channels.channelOf(user)) && !next.contains(user));
+        winterRollers.addAll(next);
+        String message = protocol.encode(null, "WORLD_WINTER_COMMUNITY", state);
+        for (Member member : members.values()) {
+            if (isMapReady(member) && channel.equals(channels.channelOf(member.userId()))) { member.peer().offer(message); }
+        }
+    }
+
+    public synchronized void winterTreeChanged(Object state) {
+        if (stopped) { return; }
+        String message = protocol.encode(null, "WORLD_WINTER_TREE", state);
+        for (Member member : members.values()) {
+            if (isMapReady(member) && channels.channelOf(member.userId()) != null) { member.peer().offer(message); }
+        }
+    }
 
     /** 공개 게시판 변경 번호만 모든 입장 채널에 전파한다. 본문·작성자 정보는 포함하지 않는다. */
     public synchronized void notesChanged(long revision) {
