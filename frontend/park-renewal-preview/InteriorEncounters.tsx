@@ -146,6 +146,7 @@ export function InteriorEncounters() {
   const lighting = useRef<{ lights: Light[]; intensity: number[] } | undefined>(undefined)
   const stage = useRef<Group>(null)
   const viewer = useRef(new Vector3())
+  // 공포 이벤트 대상의 보조광이며, 펜던트 전시 높이를 따라가는 조명이 아니다.
   const accent = useRef<PointLight>(null)
   // Where the creature stands, which way it rushes (towards the viewer) and how far away it started.
   const placed = useRef({ x: 0, y: 0, z: 0, dx: 0, dz: 0, start: 3, seed: 0, shown: false, rushed: false, away: 0, step: 0, held: false, pan: 0, far: 9, ox: 0, oz: 0,

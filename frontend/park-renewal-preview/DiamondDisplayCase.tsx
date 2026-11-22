@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'react'
-import { CylinderGeometry, SphereGeometry, TorusGeometry } from 'three'
+import { CylinderGeometry, FrontSide, SphereGeometry, TorusGeometry } from 'three'
 import { PropBuilder } from '../src/world/art/propGeometry'
 
 /** A small weathered display case on the existing stone plinth. */
@@ -28,8 +28,9 @@ export function DiamondDisplayCase({ at }: { at: readonly [number, number, numbe
     </mesh>)}
     <mesh name="diamond-case-glass" position={[0, .565, 0]} renderOrder={2}>
       <cylinderGeometry args={[.535, .535, 1.06, 48, 1, true]} />
+      {/* 전시함 바깥에서 보는 얇은 유리: 뒷면까지 알파 합성해 막이 겹치는 현상을 줄인다. */}
       <meshPhysicalMaterial color="#bedcd2" transparent opacity={.12} roughness={.1} metalness={.05}
-        clearcoat={1} clearcoatRoughness={.08} side={2} depthWrite={false} />
+        clearcoat={1} clearcoatRoughness={.08} side={FrontSide} depthWrite={false} />
     </mesh>
   </group>
 }
