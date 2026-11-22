@@ -1,5 +1,6 @@
 import { nearbyParkNpcs } from '../ai/parkNpcInteraction'
 import { openParkDialogue } from '../ai/parkDialogueState'
+import { parkDialogues } from '../ai/parkDialogue'
 import { SLEIGH_ID } from '../winter/sleigh/constants'
 import { boardSleigh } from '../winter/sleigh/boarding'
 import { winterFrozen } from '../winter/state'
@@ -117,7 +118,7 @@ export function getParkInteraction(preferredGuide?: typeof STONE_RUMBLE_GUIDE_ID
   const choices: ParkInteraction[] = []
   for (const npc of nearbyParkNpcs(p.current, session.roomId)) {
     const distance = Math.hypot(p.current.x - npc.x, p.current.z - npc.z)
-    choices.push({ kind: 'park-npc', id: npc.id, label: `${npc.name}${npc.speaker === 'santa' || npc.speaker === 'hansu' ? '와' : '과'} 대화`, available: true, occupied: false, distance,
+    choices.push({ kind: 'park-npc', id: npc.id, label: parkDialogues[npc.speaker].interactionLabel, available: true, occupied: false, distance,
       score: interactionScore(distance, { x: npc.x, y: npc.y + 1, z: npc.z }) })
   }
   if(canReachJokeJudge(p.current)){const distance=Math.hypot(p.current.x-jokeJudgePosition.x,p.current.z-jokeJudgePosition.z);choices.push({kind:'joke-judge',id:'joke-judge',label:'김부장과 대화',occupied:false,available:true,distance,score:interactionScore(distance,{...jokeJudgePosition,y:jokeJudgePosition.y+1.5})})}

@@ -1,5 +1,6 @@
 export const parkDialogues = {
   snowman: {
+    interactionLabel: '눈사람과 대화',
     name: '눈사람', portrait: '/art/npc-portraits/snowman/welcome.webp',
     portraits: [
       { src: '/art/npc-portraits/snowman/welcome.webp', alt: '반갑게 웃으며 인사하는 눈사람' },
@@ -15,6 +16,7 @@ export const parkDialogues = {
     ],
   },
   santa: {
+    interactionLabel: '산타와 대화',
     name: '산타', portrait: '/art/npc-portraits/santa/encouragement.webp',
     portraits: [
       { src: '/art/npc-portraits/santa/encouragement.webp', alt: '따뜻한 미소로 한 학기의 수고를 격려하는 산타' },
@@ -30,16 +32,19 @@ export const parkDialogues = {
     ],
   },
   elder: {
+    interactionLabel: '박영감과 대화',
     name: '박영감', portrait: '/art/npc-portraits/park-elder.webp',
     lines: ['허허, 공원에 잘 왔구먼. 나와 오목 한 판 두겠나? 한 수씩 천천히 생각하며 두면 재미가 쏠쏠하다네.',
       '가까운 테이블에 앉아 오목을 고른 뒤 ‘주민과 두기’에서 박영감을 찾아 주게. 엽전을 걸지 않는 연습 대국이니 편하게 오게나.'],
   },
   hansu: {
+    interactionLabel: '윤한수와 대화',
     name: '윤한수', portrait: '/art/npc-portraits/yoon-hansu.webp',
     lines: ['안녕하세요, 윤한수입니다. 괜찮으시면 저와 오목 한 판 두실래요? 서로의 한 수를 읽어 가는 재미가 있거든요.',
       '테이블에서 오목을 선택하고 ‘주민과 두기’에서 저를 골라 주세요. 부담 없이 연습하면서 함께 좋은 수를 찾아봐요.'],
   },
   child: {
+    interactionLabel: '강잼민과 대화',
     name: '강잼민', portrait: '/art/npc-portraits/kang-jaemmin.webp',
     lines: ['안녕! 나 강잼민이야. 나랑 오목 한 판 둘래? 나 작다고 봐주면 안 돼! 멋진 한 수 보여 줄게.',
       '테이블에 앉아서 오목, 그다음 ‘주민과 두기’에서 강잼민을 골라 줘. 준비되면 같이 시작하자!'],

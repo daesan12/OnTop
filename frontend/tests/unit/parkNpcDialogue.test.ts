@@ -28,6 +28,25 @@ it('계정·채널별 대화 범위를 기록하고 닫을 때 제거한다', ()
   closeParkDialogue()
   expect(useParkDialogue.getState().speaker).toBeNull()
 })
+it('닫힌 대화창을 다시 닫아도 구독자에게 상태 변경을 발행하지 않는다', () => {
+  closeParkDialogue()
+  let changes = 0
+  const unsubscribe = useParkDialogue.subscribe(() => changes++)
+  try {
+    closeParkDialogue()
+    expect(changes).toBe(0)
+    openParkDialogue('snowman', '101:channel-1')
+    closeParkDialogue()
+    expect(changes).toBe(2)
+    closeParkDialogue()
+    expect(changes).toBe(2)
+  } finally { unsubscribe() }
+})
+it('모든 NPC가 조사까지 포함한 상호작용 문구를 데이터로 제공한다', () => {
+  expect(Object.values(parkDialogues).map(story => story.interactionLabel)).toEqual([
+    '눈사람과 대화', '산타와 대화', '박영감과 대화', '윤한수와 대화', '강잼민과 대화',
+  ])
+})
 it('관전 벤치에서는 눈을 유지하고 일반 보드·개인 요리 화면에서는 숨긴다', () => {
   const session = { tableId: '', focusedAnchorId: 'table-5', benchId: 'pavilion-bench' }
   const game = { game: {}, watchedGameId: 'match' }, lobby = { joiningAnchorId: '', spectatorRequested: true }

@@ -44,7 +44,9 @@ export function ParkNpcDialogue() {
   const dialogue = useParkDialogue()
   const scope = useSession(s => `${s.sessionId}:${s.roomId}`), connected = useSession(s => s.status === 'connected')
   const seated = useSession(s => !!(s.tableId || s.benchId))
-  useEffect(() => { if (!connected || seated || scope !== dialogue.scope) closeParkDialogue() }, [connected, seated, scope, dialogue.scope])
+  useEffect(() => {
+    if (dialogue.speaker && (!connected || seated || scope !== dialogue.scope)) closeParkDialogue()
+  }, [connected, seated, scope, dialogue.scope, dialogue.speaker])
   return dialogue.speaker && connected && !seated && scope === dialogue.scope
     ? <Conversation key={`${scope}:${dialogue.speaker}`} speaker={dialogue.speaker} /> : null
 }
