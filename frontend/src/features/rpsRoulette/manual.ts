@@ -5,7 +5,7 @@ export const rpsRouletteManual: GameManual = {
   id: 'rps-roulette', status: 'available', category: 'minigame', title: '가위바위보 룰렛', subtitle: '이기면 돌리고, 더 걸면 두 배',
   keywords: '가위바위보 룰렛 게임기 오락기 엽전 배수 도전 대박 붕어빵',
   players: '1명', goal: '기계를 이기고 룰렛으로 엽전 받기',
-  timing: '대결 5초 · 선택 10초 · 하루 15판',
+  timing: '대결 5초 · 선택 10초 · 횟수 제한 없음',
   summary: '붕어빵 가게 옆 게임기에서 참가비를 넣고 기계와 가위바위보를 해요. 이기면 룰렛이 돌아 참가비 × 칸 × 배수만큼 엽전을 받아요.',
   flow: [
     { title: '참가비 고르고 START', body: '10·20·30냥 중 하나를 고르고 START를 눌러요. 이때 참가비와 오늘 판 수가 함께 빠져요.' },
@@ -19,7 +19,7 @@ export const rpsRouletteManual: GameManual = {
     '비기면 엽전 없이 바로 다시 대결해요.',
     '시간 안에 누르지 않으면 서버가 무작위 손을 대신 내고, 선택 시간이 지나면 지금 배수로 자동으로 멈춰요.',
     '손이 공개된 판은 창을 닫거나 나가도 결과가 적용돼요.',
-    '배당은 보상이 아니라서 미니게임 하루 1000냥 한도와 따로예요. 대신 하루 15판까지 할 수 있어요.',
+    '배당은 보상이 아니라서 미니게임 하루 1000냥 한도와 따로예요. 플레이 횟수 제한은 없어요.',
   ],
   sections: [
     { id: 'rps-machine', title: '게임기 살펴보기', figure: { caption: '가운데 LED에는 기계가 낸 손 하나만 떠요.', render: RpsMachineFigure },

@@ -1,4 +1,5 @@
-import { acceptSnowballWindup, acceptSnowball, acceptWinterState, resetWinter, winterFrozen } from '../features/winter/state'
+import { acceptSnowballWindup, acceptSnowball, acceptSnowballImpact, acceptWinterState, resetWinter, winterFrozen } from '../features/winter/state'
+import { acceptWinterTree, resetWinterCommunity } from '../features/winter/community/state'
 import { filterChat } from '../features/chat/filterChat'
 import { setHorrorOpen } from '../../park-renewal-preview/horrorPlan'
 import { create } from 'zustand'
@@ -250,6 +251,7 @@ export function resetWorld(status: Session['status'] = 'idle', error = '') {
   clearRoamingInput()
   avatars.clear()
   resetWinter()
+  resetWinterCommunity()
   worldPoses.clear()
   worldTableSeats.clear()
   channelVersion = worldVersion = -1
@@ -283,6 +285,7 @@ export function clearChannel(keepFeedbackDraft = false, keepNotesDraft = false) 
   clearRoamingInput()
   avatars.clear()
   resetWinter()
+  resetWinterCommunity()
   worldPoses.clear()
   worldTableSeats.clear()
   channelVersion = worldVersion = -1
@@ -884,6 +887,11 @@ export function receive(message: Envelope, expectedMapVersion: string = EXPECTED
       if (emoteTimeline.cancelEvent(cancellation, estimatedServerTime())) stopAvatarEmote(cancellation.userId)
       break
     }
+    case 'WORLD_WINTER_TREE': {
+      if (state.status !== 'connected' || !state.mapCompatible) return
+      acceptWinterTree(p)
+      return
+    }
     case 'WORLD_SNOWBALL_STATE': {
       if (state.status !== 'connected' || !state.mapCompatible) return
       const wasFrozen = winterFrozen(state.sessionId, estimatedServerTime())
@@ -898,6 +906,10 @@ export function receive(message: Envelope, expectedMapVersion: string = EXPECTED
     }
     case 'WORLD_SNOWBALL_EVENT': {
       if (state.status === 'connected' && state.mapCompatible) acceptSnowball(p, state.roomId, state.sessionId, estimatedServerTime())
+      break
+    }
+    case 'WORLD_SNOWBALL_IMPACT': {
+      if (state.status === 'connected' && state.mapCompatible) acceptSnowballImpact(p, state.roomId, state.sessionId, estimatedServerTime())
       break
     }
     case 'WORLD_EMOTE_EVENT': {

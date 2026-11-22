@@ -2837,9 +2837,31 @@ public class TableHub {
     }
 
     private void advanceWinter() {
-        for (String user : snowballs.expire(System.nanoTime())) {
+        long now = System.nanoTime();
+        var changedChannels = new java.util.LinkedHashSet<String>();
+        for (String user : snowballs.expire(now)) {
             var world = channels.winterFreeze(user, false);
-            if (world != null) { publishWorld(world, null, null); publishWinter(world.channelId(), null, null); }
+            if (world != null) {
+                publishWorld(world, null, null);
+                changedChannels.add(world.channelId());
+            }
+        }
+        var impacts = snowballs.arrive(now, java.time.Instant.now(), this::snowballTargets);
+        for (var impact : impacts) {
+            if (!impact.hitUserId().isEmpty() && snowballs.frozen(impact.hitUserId(), now)) {
+                var frozen = channels.winterFreeze(impact.hitUserId(), true);
+                if (frozen != null) { publishWorld(frozen, null, null); }
+            }
+            changedChannels.add(impact.channelId());
+        }
+        // 같은 틱의 상태를 모두 확정한 뒤 채널당 한 번 보내고, 개별 탄착 이벤트는 보존한다.
+        changedChannels.forEach(channel -> publishWinter(channel, null, null));
+        for (var impact : impacts) {
+            for (Member target : members.values()) {
+                if (channels.isInChannel(target.userId(), impact.channelId())) {
+                    target.peer().offer(protocol.encode(null, "WORLD_SNOWBALL_IMPACT", impact));
+                }
+            }
         }
     }
 
@@ -2861,7 +2883,7 @@ public class TableHub {
                 if (!channels.snowPileInReach(user, request.payload().path("pileId").asText())) {
                     fail(request, "SNOW_PILE_OUT_OF_RANGE", "바닥의 눈더미 가까이에서 주워주세요.");
                 }
-                snowballs.pickup(channel, user, System.nanoTime());
+                snowballs.pickup(request.requestId(), channel, user, System.nanoTime());
             } else if (request.type().equals("WORLD_SNOWBALL_ESCAPE")) {
                 snowballs.escape(request.requestId(), channel, user, request.payload().path("freezeId").asText(),
                         request.payload().path("key").asText(), System.nanoTime());
@@ -2901,13 +2923,7 @@ public class TableHub {
             }
             return;
         }
-        var targets = members.values().stream()
-                .filter(target -> channels.isInChannel(target.userId(), channel))
-                .filter(target -> !carryBusy(target.userId()) && channels.carryState(target.userId()) == null
-                        && !mobilityRides.containsKey(target.userId()))
-                .map(target -> new com.ssafy.ontop.world.winter.SnowballService.Target(
-                        target.userId(), channels.positionOf(target.userId())))
-                .filter(target -> target.position() != null && !target.position().swimming()).toList();
+        var targets = snowballTargets(channel);
         com.ssafy.ontop.world.winter.SnowballService.Event event;
         try {
             if (request.type().equals("WORLD_SNOWBALL_AIM")) {
@@ -2923,10 +2939,6 @@ public class TableHub {
             fail(request, failure.code(), failure.getMessage());
             return;
         }
-        if (!event.hitUserId().isEmpty() && snowballs.frozen(event.hitUserId(), System.nanoTime())) {
-            var frozen = channels.winterFreeze(event.hitUserId(), true);
-            if (frozen != null) { publishWorld(frozen, null, null); }
-        }
         publishWinter(channel, null, null);
         for (Member target : members.values()) {
             if (channels.isInChannel(target.userId(), channel)) {
@@ -2934,6 +2946,16 @@ public class TableHub {
                         "WORLD_SNOWBALL_EVENT", event));
             }
         }
+    }
+
+    private java.util.List<com.ssafy.ontop.world.winter.SnowballService.Target> snowballTargets(String channel) {
+        return members.values().stream()
+                .filter(target -> channels.isInChannel(target.userId(), channel))
+                .filter(target -> !carryBusy(target.userId()) && channels.carryState(target.userId()) == null
+                        && !mobilityRides.containsKey(target.userId()))
+                .map(target -> new com.ssafy.ontop.world.winter.SnowballService.Target(
+                        target.userId(), channels.positionOf(target.userId())))
+                .filter(target -> target.position() != null && !target.position().swimming()).toList();
     }
 
     private void sendEmote(Member member, Request request) {
@@ -3067,6 +3089,57 @@ public class TableHub {
     }
 
     private record WorldPublishTiming(long totalNanos, long encodeNanos, long queueNanos, int recipients) { }
+
+    public synchronized com.ssafy.ontop.world.winter.community.WinterCommunity.Player winterPlayer(long user, String channel) {
+        String identity = Long.toString(user);
+        Member member = members.values().stream().filter(value -> value.userId().equals(identity) && isMapReady(value))
+                .findFirst().orElse(null);
+        if (stopped || member == null || !isMapReady(member) || channel == null || !channel.equals(channels.channelOf(identity))) {
+            throw new com.ssafy.ontop.world.winter.community.WinterCommunityException(403, "WINTER_NOT_IN_CHANNEL", "공원 채널에 다시 입장해주세요.");
+        }
+        return winterPlayers(channel).stream().filter(player -> player.userId().equals(identity)).findFirst()
+                .orElseThrow(() -> new com.ssafy.ontop.world.winter.community.WinterCommunityException(403,
+                        "WINTER_NOT_IN_CHANNEL", "공원 위치를 다시 확인해주세요."));
+    }
+
+    public synchronized java.util.List<com.ssafy.ontop.world.winter.community.WinterCommunity.Player> winterPlayers(String channel) {
+        if (stopped) { return java.util.List.of(); }
+        var result = new java.util.ArrayList<com.ssafy.ontop.world.winter.community.WinterCommunity.Player>();
+        for (var avatar : channels.winterAvatars(channel)) {
+            Member member = members.values().stream().filter(value -> value.userId().equals(avatar.userId()) && isMapReady(value))
+                    .findFirst().orElse(null);
+            if (member == null || !isMapReady(member)) { continue; }
+            var p = avatar.position();
+            double groundY = channels.winterGround(channel, p.x(), p.z());
+            boolean free = avatar.tableSeat() == null && avatar.activity() == null && avatar.carry() == null
+                    && !Boolean.TRUE.equals(avatar.vrActive()) && !p.swimming()
+                    && facilities.current(avatar.userId()) == null && !mobilityRides.containsKey(avatar.userId())
+                    && !emotes.isActive(avatar.userId()) && aiPracticeChatGame(avatar.userId()).isEmpty()
+                    && follows.activeStates().stream().flatMap(state -> state.links().stream())
+                        .noneMatch(link -> link.followerId().equals(avatar.userId()) || link.targetId().equals(avatar.userId()))
+                    && !snowballs.frozen(avatar.userId(), System.nanoTime())
+                    && Math.abs(p.y() - groundY - .76) < .65;
+            result.add(new com.ssafy.ontop.world.winter.community.WinterCommunity.Player(avatar.userId(),
+                    avatar.nickname(), p.x(), p.y(), p.z(), free));
+        }
+        return java.util.List.copyOf(result);
+    }
+
+    public synchronized void requireWinterTree(com.ssafy.ontop.world.winter.community.WinterCommunity.Player player, String channel) {
+        var tree = channels.winterTree(channel);
+        if (!tree.isObject() || Math.hypot(player.x() - tree.path("x").asDouble(), player.z() - tree.path("z").asDouble())
+                > tree.path("radius").asDouble() + 3.2 || Math.abs(player.y() - tree.path("y").asDouble() - .76) > .8) {
+            throw new com.ssafy.ontop.world.winter.community.WinterCommunityException(403, "WINTER_TREE_OUT_OF_RANGE", "광장 트리 가까이에서 편지를 확인해주세요.");
+        }
+    }
+
+    public synchronized void winterTreeChanged(Object state) {
+        if (stopped) { return; }
+        String message = protocol.encode(null, "WORLD_WINTER_TREE", state);
+        for (Member member : members.values()) {
+            if (isMapReady(member) && channels.channelOf(member.userId()) != null) { member.peer().offer(message); }
+        }
+    }
 
     /** 공개 게시판 변경 번호만 모든 입장 채널에 전파한다. 본문·작성자 정보는 포함하지 않는다. */
     public synchronized void notesChanged(long revision) {

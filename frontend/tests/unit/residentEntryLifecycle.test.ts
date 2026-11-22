@@ -32,7 +32,11 @@ afterEach(async () => {
 async function renderer() {
   let state!: RootState
   const root = createRoot({ width: 100, height: 100 } as HTMLCanvasElement)
-  await root.configure({ gl: { render: vi.fn(), setSize: vi.fn(), setPixelRatio: vi.fn(), xr: { isPresenting: false } } as unknown as THREE.WebGLRenderer,
+  await root.configure({ gl: { render: vi.fn(), setSize: vi.fn(), setPixelRatio: vi.fn(),
+    xr: { isPresenting: false, addEventListener: vi.fn(), removeEventListener: vi.fn() },
+    compileAsync: vi.fn(() => Promise.resolve()), initTexture: vi.fn(),
+    getContext: () => ({ isContextLost: () => false, getExtension: () => null }),
+  } as unknown as THREE.WebGLRenderer,
     size: { width: 100, height: 100, top: 0, left: 0 }, frameloop: 'never', dpr: 1, onCreated: value => { state = value } })
   cleanups.push(async () => { await act(async () => root.unmount()) })
   return { get state() { return state }, async mount(children: ReactNode) { await act(async () => { root.render(children) }) },
@@ -42,6 +46,59 @@ const resident = () => h(ResidentModel, { kind: 'CHILD', speed: { current: 0 } }
 const advance = (ms: number) => act(async () => { await vi.advanceTimersByTimeAsync(ms) })
 
 describe('주민의 첫 화면 이후 로딩', () => {
+  it.each([false, true])('병렬 확장 %s: 셰이더 준비 중 모델 부착을 막고 퇴장 시 자원을 한 번만 해제한다', async parallel => {
+    const view = await renderer(), release = vi.fn(), dispose = vi.fn()
+    const actor = { root: new THREE.Group(), update: vi.fn(), dispose }
+    let finish!: () => void
+    await view.mount(null)
+    Object.assign(view.state.gl, { extensions: { has: () => parallel },
+      compileAsync: () => new Promise<void>(resolve => { finish = resolve }),
+      getContext: () => ({ isContextLost: () => false, getExtension: () => null }),
+    })
+    assets.acquire.mockReturnValue({ ready: Promise.resolve({}), release })
+    vi.mocked(instantiateResident).mockReturnValue(actor as unknown as ReturnType<typeof instantiateResident>)
+    await view.mount(resident()); await view.tick(.01)
+    await vi.waitFor(() => expect(instantiateResident).toHaveBeenCalledOnce())
+    expect(view.state.scene.getObjectByName('detailed-npc-CHILD')!.children).toHaveLength(0)
+    await view.mount(null)
+    expect(dispose).toHaveBeenCalledOnce(); expect(release).toHaveBeenCalledOnce()
+    await act(async () => { finish(); await new Promise(resolve => setTimeout(resolve, 20)) })
+    expect(dispose).toHaveBeenCalledOnce(); expect(release).toHaveBeenCalledOnce()
+    expect(actor.root.parent).toBeNull()
+  })
+
+  it('병렬 확장이 없어도 프레임별 텍스처 업로드와 프로그램 준비를 마친 뒤 원본 주민을 표시한다', async () => {
+    const view = await renderer(), release = vi.fn(), dispose = vi.fn()
+    await view.mount(null)
+    vi.useFakeTimers()
+    const frames: FrameRequestCallback[] = []
+    vi.stubGlobal('requestAnimationFrame', (frame: FrameRequestCallback) => { frames.push(frame); return frames.length })
+    const map = new THREE.Texture(), normalMap = new THREE.Texture(), geometry = new THREE.BoxGeometry()
+    const material = new THREE.MeshStandardMaterial({ map, normalMap }), root = new THREE.Group()
+    root.add(new THREE.Mesh(geometry, material))
+    const actor = { root, update: vi.fn(), dispose }
+    const program = { getUniforms: vi.fn(), getAttributes: vi.fn() }, compileAsync = vi.fn(() => Promise.resolve())
+    const initTexture = vi.fn()
+    Object.assign(view.state.gl, { extensions: { has: () => false }, compileAsync, initTexture, info: { programs: [program] } })
+    assets.acquire.mockReturnValue({ ready: Promise.resolve({}), release })
+    vi.mocked(instantiateResident).mockReturnValue(actor as unknown as ReturnType<typeof instantiateResident>)
+    try {
+      await view.mount(resident()); await view.tick(.01); await advance(20)
+      const host = view.state.scene.getObjectByName('detailed-npc-CHILD')!
+      expect(compileAsync).toHaveBeenCalledOnce()
+      expect(program.getUniforms).toHaveBeenCalledOnce(); expect(program.getAttributes).toHaveBeenCalledOnce()
+      expect(initTexture).not.toHaveBeenCalled(); expect(host.children).toHaveLength(0)
+      await act(async () => { frames.shift()!(0) })
+      expect(initTexture.mock.calls).toEqual([[map]]); expect(host.children).toHaveLength(0)
+      await act(async () => { frames.shift()!(16) })
+      expect(initTexture.mock.calls).toEqual([[map], [normalMap]])
+      expect(host.children).toEqual([root]); expect(host.userData.loaded).toBe(true)
+      await view.mount(null)
+      expect(dispose).toHaveBeenCalledOnce(); expect(release).toHaveBeenCalledOnce()
+    } finally {
+      vi.unstubAllGlobals(); map.dispose(); normalMap.dispose(); material.dispose(); geometry.dispose()
+    }
+  })
   it('첫 화면 전에는 요청하지 않고 실제 모델이 준비될 때 한 번만 표시한다', async () => {
     const view = await renderer()
     let finish!: (source: never) => void
@@ -58,6 +115,7 @@ describe('주민의 첫 화면 이후 로딩', () => {
     await view.tick(.02)
     await vi.waitFor(() => expect(assets.acquire).toHaveBeenCalledOnce())
     await act(async () => { finish({} as never) })
+    await vi.waitFor(() => expect(view.state.scene.getObjectByName('detailed-npc-CHILD')!.userData.loaded).toBe(true))
     expect(instantiateResident).toHaveBeenCalledOnce()
     expect(view.state.scene.getObjectByName('resident-placeholder')).toBeUndefined()
     expect(view.state.scene.getObjectByName('detailed-npc-CHILD')!.children).toEqual([actor.root])
@@ -123,6 +181,7 @@ describe('주민의 첫 화면 이후 로딩', () => {
     expect(host.userData).toMatchObject({ loadError: false, loadAttempts: 2 })
     expect(host.children).toHaveLength(0)
     await act(async () => { finish({}) })
+    await advance(20)
     expect(host.userData).toMatchObject({ loaded: true, loadError: false, loadAttempts: 2 })
     expect(host.children).toEqual([actor.root])
     expect(view.state.scene.getObjectByName('resident-placeholder')).toBeUndefined()
@@ -184,7 +243,7 @@ describe('주민의 첫 화면 이후 로딩', () => {
     assets.acquire.mockImplementation(asset => ({ ready: asset.id === 'child' ? Promise.reject(Error('offline')) : Promise.resolve({}), release }))
     vi.mocked(instantiateResident).mockReturnValue(actor as unknown as ReturnType<typeof instantiateResident>)
     await view.mount(h('group', null, resident(), h(ResidentModel, { kind: 'ELDER', speed: { current: 0 } })))
-    await view.tick(.01); await advance(10)
+    await view.tick(.01); await advance(30)
     expect(assets.acquire).toHaveBeenCalledTimes(2)
     expect(view.state.scene.getObjectByName('detailed-npc-ELDER')!.userData.loaded).toBe(true)
     expect(view.state.scene.getObjectByName('detailed-npc-CHILD')!.children).toHaveLength(0)

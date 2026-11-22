@@ -243,13 +243,12 @@ class RpsRouletteServiceTests {
     }
 
     @Test
-    void 하루_15판을_모두_하면_시작하지_않는다() {
-        repository.extraPlays = 15;
-
-        assertThatThrownBy(() -> service.start(USER, "round-1", 10))
-                .isInstanceOfSatisfying(RpsRouletteException.class,
-                        error -> assertThat(error.code()).isEqualTo("RPS_DAILY_LIMIT"));
-        assertThat(wallet.balance()).isEqualTo(100);
+    void 예전_일일_횟수를_넘겨도_새_판을_시작할_수_있다() {
+        repository.extraPlays = 115;
+        var response = service.start(USER, "unlimited", 10);
+        assertThat(response.round().id()).isNotNull();
+        assertThat(response.rules().dailyPlays()).isZero();
+        assertThat(wallet.balance()).isEqualTo(90);
     }
 
     @Test

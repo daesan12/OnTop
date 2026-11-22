@@ -1,4 +1,22 @@
 {
+  "creatureLandingReview20261122": {
+    "referenceCommit": "d492e8719603c6cf458cc2f2544668683278b7b1",
+    "mergeRequest": "!663",
+    "reason": "사용자가 승인하고 dev에 병합한 두더지·비둘기 착지 발판의 정점 최적화 소스만 검토하여 반영한다. 보호 파일 200개와 기존 해시 비교 검사는 유지하며 다른 199개 기준 해시·런타임·생성 맵·인프라는 수정하지 않는다.",
+    "reviewedFiles": [
+      { "file": "src/features/jumpmap/landingMotion.ts", "commit": "873c8130d7fa31ed3fbfacf8be4a29efda9aaae7", "reason": "두더지·비둘기의 착지 변형은 스케일·이동이므로 테셀레이션 대신 원본 geometry를 복제한다. 원본 정점 좌표·인덱스·모델·재질·배치·충돌과 다른 테마의 착지 계산은 유지한다." }
+    ],
+    "verification": "parkVisualPreservation.test.ts와 creatureLandingGeometry.test.ts에서 외관 보존 기준 및 두 테마의 원본 정점·인덱스 유지와 정점 감소를 검증한다."
+  },
+  "entryPerformanceReview20261122": {
+    "referenceCommit": "00ceb33f801fece2d2092da3f718bae00eb870d8",
+    "previousReferenceCommit": "f3980669e3d6a5c02d2472188a69d149932fbf94",
+    "reason": "사용자가 승인한 공원 진입·초반 이동 준비 최적화 MR !658의 소스 변경 2개를 검토하여 기록한다. 보호 파일 200개와 기존 해시 비교 검사는 유지하며 런타임·맵·인프라는 수정하지 않는다.",
+    "reviewedFiles": [
+      { "file": "src/world/art/assetLoader.ts", "commit": "6e2ee8e2", "reason": "기존 MeshoptDecoder를 단일 worker로 실행하도록 준비 경로만 추가했다. GLTF 로더·모델 URL·모델 데이터·재질·배치·디코딩 결과는 유지한다." },
+      { "file": "src/world/art/StonePagoda.tsx", "commit": "b9fdad68", "reason": "prebuildStaticSurfaces에 선택적인 scale 목록을 받고 기존 캐시 생성 함수를 그대로 호출한다. 기본 scale 목록·돌탑 생성식·지오메트리·재질·좌표·충돌은 유지한다." }
+    ]
+  },
   "winterTreesReview20261120": {
     "referenceCommit": "9c8069c8f5dd08e14ab9d8161fa4f7af13b9f8d4",
     "reviewedFiles": [
@@ -78,7 +96,7 @@
     "src/world/art/advertisementMedia.ts": "3acf2fa86db5705d2c4b66127cfab2dedc6f628f6563a235d7a7f32d0c1d7622",
     "src/world/art/advertisementPoster.ts": "bab905be3ebb74fa8c57cdccae9c3e18ea47b21b56d05fd872fff5f8c84da139",
     "src/world/art/AdvertisementScreen.tsx": "81186d63a32d9f19d1d561e3b35f3298a8d1d67478e319d10240f6e9f7aec315",
-    "src/world/art/assetLoader.ts": "bf8509f93768e70538415aa9dac0067e21f2d75e76568d1e81caef6cd3b7ffb4",
+    "src/world/art/assetLoader.ts": "5572e3d2c6355cc0b99bd975da28d31bf2b8a977e36ecf35b2365f1db40ca7da",
     "src/world/art/bakedProps.ts": "a638b9b0d0f8a9e4ac1deca029eef1b2f3b147cf8010e39ff43064774d76ebe9",
     "src/world/art/BeveledBox.tsx": "06efc22a6ba311427a536a68edb6e88dd47c5e45d40448b96363a13f8d6e7006",
     "src/world/art/boundaryGeometry.ts": "35a2970a050b0a17cea0db82f243e406f660589437c649b38ce89041100cb7b6",
@@ -154,7 +172,7 @@
     "src/world/art/StaticPropLod.tsx": "67cccee47c1f73ef3ff1c6b8ad3d10315aa8896883605ab8605e5aa8d4105530",
     "src/world/art/staticSurface.ts": "73eb900e210bccd7b5272a4f86b7b5bc16de4af86a6ccff591a09eb3580b2364",
     "src/world/art/SteppingStones.tsx": "fe07a54d25bc6974e6ad94d922ceab35356d1aeff3e65858eb6903e993b483c2",
-    "src/world/art/StonePagoda.tsx": "4d71d0ecd82cb9606d2286319ddb4915624a8bc17aeaf5f7d642e7b8cd93e06e",
+    "src/world/art/StonePagoda.tsx": "8d184ca7af99dda9fcee4cf47eb9ae38aa3aabd9c31478e963a3541eae54f600",
     "src/world/art/SurfaceMaterial.tsx": "cfd88cbcc2922ca0028f5c449c51d2005e4cc59d3ce66d22b6788e7637e41eae",
     "src/world/art/TelescopeModel.tsx": "1566939042f19f0a24d9abf14377d8179bf417064d39ff20dd8b4d15366ebbcd",
     "src/world/art/TraditionalMailbox.tsx": "8bc48b057f2020866a316c6d380cd293e2032a948880d9760e9d8730dc95c654",
@@ -219,7 +237,7 @@
     "src/world/simpleEnvironmentPalette.ts": "3039ebd2e4dce1370c0c3afdbb3b243e7a3a7b0f25793e5fac5303a77337495a",
     "src/world/ParkSun.tsx": "6883abd22154871f276332132f5121f1107b29269305a60ddce61af3806d68d6",
     "src/world/NightLighting.tsx": "a5d7e50e5aaa182cfb4b419dc682a3bbaec1dcc0c9a804b522dcd45b53c16df4",
-    "src/features/jumpmap/landingMotion.ts": "fadea8bfddd41b094c74fe7f7423e3a6726fe9a931ca6ab80f66d09de2365d1b",
+    "src/features/jumpmap/landingMotion.ts": "b4b5f27275a08c248109d9b4a73e6ea06ebea9368b72ae95756f269b05ea5169",
     "src/world/art/LuckyFacilities.tsx": "cf1f198fea3e3e0130bdf3b94c96d44c014174e352ba0645240ce41a511b77d4",
     "src/world/art/luckyFacilityGeometry.ts": "5c69f18ff9ee9564325e16d8738b6bdebcda6148f114911a595cec0b51cd816b",
     "src/layout-preview/stairFlightGeometry.ts": "73060545b54ff9e5cc27df141bdd5fb0f7912f971f5d821f74dad865aa2bab2d",

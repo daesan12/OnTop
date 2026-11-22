@@ -6,7 +6,8 @@ import java.util.List;
 /** 더하기 빼기 아케이드의 서버 고정 규칙. 칸마다 확률이 같아 릴에 보이는 칸 비율이 곧 확률이다. */
 public final class PlusMinusRules {
     public static final int FEE = 30;
-    public static final int DAILY_PLAYS = 10;
+    /** API의 0은 횟수 무제한을 의미한다. 일별 기록은 계속 집계한다. */
+    public static final int DAILY_PLAYS = 0;
     public static final ZoneId KST = ZoneId.of("Asia/Seoul");
     public static final int POINT_PAYOUT = 10;
     public static final int JACKPOT_FIRST = 7;

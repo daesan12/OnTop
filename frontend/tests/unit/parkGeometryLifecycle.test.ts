@@ -87,14 +87,27 @@ describe('공원 geometry 마운트와 프레임 수명주기', () => {
     expect(view.state.scene.getObjectByName('stage-0')).toBeDefined()
     firstFrameAt.current = 10; now = 100
     await act(async () => view.tick(.1))
+    expect(view.state.scene.getObjectByName('stage-0')).toBeDefined()
+    // The slow first frame does not admit scenery. Three steady frames do.
+    for (const time of [116, 132]) {
+      now = time
+      await act(async () => view.tick(time / 1000))
+      expect(view.state.scene.getObjectByName('stage-0')).toBeDefined()
+    }
+    now = 148
+    await act(async () => view.tick(.148))
     expect(view.state.scene.getObjectByName('stage-1')).toBeDefined()
-    now = 200
-    await act(async () => view.tick(.2))
-    expect(view.state.scene.getObjectByName('stage-1')).toBeDefined()
-    now = 300
-    await act(async () => view.tick(.3))
+    // A committed stage must still render before the next batch, and keep its 64ms gap.
+    for (const time of [164, 196]) {
+      now = time
+      await act(async () => view.tick(time / 1000))
+      expect(view.state.scene.getObjectByName('stage-1')).toBeDefined()
+    }
+    now = 212
+    await act(async () => view.tick(.212))
     expect(view.state.scene.getObjectByName('stage-2')).toBeDefined()
-    expect(view.render).toHaveBeenCalledTimes(4)
+    expect(view.render).toHaveBeenCalledTimes(8)
+    expect(view.state.internal.priority).toBe(0)
   })
 
   it('시설이 각각 늦게 준비되어도 입구 장식은 유지하고 모든 시설 커밋 후 첫 화면을 허용한다', async () => {

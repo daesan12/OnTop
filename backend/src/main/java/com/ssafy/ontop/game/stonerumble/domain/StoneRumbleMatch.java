@@ -10,7 +10,7 @@ import java.util.Set;
 /** 서버 고정 시간 간격으로 판정한다. 클라이언트는 좌표·명중·승패를 제출하지 않는다. */
 public final class StoneRumbleMatch {
     public static final double TILE_SIZE = 2.6;
-    public static final long STEP_DELAY = 1200;
+    public static final long STEP_DELAY = 2000;
     public static final long PIGEON_COOLDOWN = 1500;
     public static final long DROP_DURATION = 1200;
     public static final long COUNTDOWN_DURATION = 3000;

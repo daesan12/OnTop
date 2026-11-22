@@ -13,8 +13,8 @@ export function useEntryStages({ stage, finalStage, firstFrameAt, onStage }: {
   }, [stage, finalStage])
 
   // Scheduling batches does not own rendering or require a render priority.
-  useFrame(() => {
-    const next = entry.current.next(stage, firstFrameAt.current !== null, performance.now())
+  useFrame((_, delta) => {
+    const next = entry.current.next(stage, firstFrameAt.current !== null, performance.now(), delta)
     if (next === stage) return
     if (next === 1) performance.mark('park-distant-facilities-start')
     onStage(next)

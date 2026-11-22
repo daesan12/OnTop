@@ -44,7 +44,7 @@ import org.springframework.web.bind.annotation.RestController;
     @ApiResponse(responseCode = "400", description = "RPS_INVALID_REQUEST"),
     @ApiResponse(responseCode = "401", description = "인증된 활성 회원 필요"),
     @ApiResponse(responseCode = "403", description = "허용되지 않은 출처 또는 권한"),
-    @ApiResponse(responseCode = "409", description = "WALLET_NOT_READY / INSUFFICIENT_COINS / RPS_DAILY_LIMIT / "
+    @ApiResponse(responseCode = "409", description = "WALLET_NOT_READY / INSUFFICIENT_COINS / "
             + "RPS_ROUND_IN_PROGRESS / RPS_INVALID_PHASE / IDEMPOTENCY_KEY_CONFLICT"),
     @ApiResponse(responseCode = "503", description = "RPS_UNAVAILABLE")
 })
@@ -69,7 +69,7 @@ public class RpsRouletteController {
     @PostMapping("/rounds")
     @NewActivity
     @Operation(operationId = "startRpsRouletteRound", summary = "가위바위보 룰렛 START",
-            description = "참가비(10/20/30냥)와 하루 판 수를 차감하고 첫 대결의 기계 손 커밋을 발급합니다. "
+            description = "횟수 제한 없이 참가비(10/20/30냥)를 차감하고 첫 대결의 기계 손 커밋을 발급합니다. "
                     + "Idempotency-Key를 재사용하면 같은 판을 반환하며 다시 차감하지 않습니다.")
     @Parameter(name = "Idempotency-Key", in = ParameterIn.HEADER, required = true,
             schema = @Schema(type = "string", minLength = 1, maxLength = 64, pattern = "^[A-Za-z0-9_-]{1,64}$"))
