@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -31,6 +32,88 @@ class DavinciEngineTests {
     private final List<Object> events = new ArrayList<>();
     private DavinciEngine engine = new DavinciEngine(mapper, clock, events::add, new GameEngineRouter(), tiles -> { });
     private List<Long> players = List.of(101L, 202L);
+
+    @Test
+    void 종료기록은_10분간_복구와_중복기권을_보존하고_만료시_라우터까지_정리한다() {
+        GameEngineRouter router = new GameEngineRouter();
+        engine = new DavinciEngine(mapper, clock, events::add, router, tiles -> { });
+        engine.create("game", "table", players);
+        readyAll();
+        String tile = state().path("supply").get(0).path("id").asText();
+        var draw = new GameActionCommand(101, "game", "retained-draw", state().path("version").asLong(),
+                mapper.valueToTree(Map.of("kind", "draw", "tileId", tile)));
+        var receipt = engine.apply(draw);
+        var leave = new GameForfeitCommand(101, "game", "leave");
+        var departed = engine.forfeit(leave);
+        Instant finished = clock.now;
+        JsonNode finalState = state().deepCopy();
+
+        clock.now = finished.plusMillis(599999);
+        assertThat(router.load(101).orElseThrow().phase().name()).isEqualTo("FINISHED");
+        assertThat(view(999).publicState()).isEqualTo(finalState);
+        assertThat(engine.apply(draw)).isEqualTo(receipt);
+        assertThat(engine.forfeit(leave).version()).isEqualTo(departed.version());
+        engine.create("game", "table", players);
+        assertThat(engine.tablePresentations()).isEmpty();
+        assertThat((Map<?, ?>) ReflectionTestUtils.getField(engine, "activeGames")).isEmpty();
+
+        clock.now = finished.plusSeconds(600);
+        // 라우터가 읽는 도중 엔진 tick이 만료시켜도 불일치 예외 없이 빈 상태로 복구한다.
+        assertThat(router.load(101)).isEmpty();
+        assertThat(router.load(999, "game")).isEmpty();
+        assertThat(engine.load(101, "game")).isEmpty();
+        assertThatThrownBy(() -> engine.forfeit(leave)).hasMessage("ACCESS_DENIED");
+        assertThat(events.stream().filter(GameFinished.class::isInstance)).hasSize(1);
+        assertThat((Map<?, ?>) ReflectionTestUtils.getField(engine, "games")).isEmpty();
+        assertThat((Map<?, ?>) ReflectionTestUtils.getField(engine, "latest")).isEmpty();
+        assertThat((java.util.Collection<?>) ReflectionTestUtils.getField(engine, "retiredGames")).isEmpty();
+    }
+
+    @Test
+    void 이전경기가_만료되어도_같은_테이블과_참가자의_다음경기_복구와_기권은_보존한다() {
+        GameEngineRouter router = new GameEngineRouter();
+        engine = new DavinciEngine(mapper, clock, events::add, router, tiles -> { });
+        engine.create("game", "table", players);
+        engine.forfeit(new GameForfeitCommand(101, "game", "leave"));
+        Instant finished = clock.now;
+        clock.now = clock.now.plusSeconds(1);
+        engine.create("next", "table", players);
+
+        clock.now = finished.plusSeconds(600);
+        engine.tick();
+
+        assertThat(engine.load(101, "game")).isEmpty();
+        assertThat(router.load(101).orElseThrow().gameId()).isEqualTo("next");
+        assertThat(router.load(202).orElseThrow().gameId()).isEqualTo("next");
+        assertThat(engine.tablePresentations().get("table").path("gameId").asText()).isEqualTo("next");
+        assertThat(engine.forfeit(new GameForfeitCommand(101, "next", "leave")).duplicate()).isFalse();
+        assertThat(engine.load(202, "next").orElseThrow().publicState().path("winnerUserIds").get(0).asText())
+                .isEqualTo("202");
+        assertThat(events.stream().filter(GameFinished.class::isInstance)).hasSize(2);
+    }
+
+    @Test
+    void 누적된_종료경기는_반복틱과_공원투영에서_제외되고_만료하면_모두_해제된다() {
+        for (int i = 0; i < 100; i++) {
+            String game = "finished-" + i;
+            engine.create(game, "table", players);
+            engine.forfeit(new GameForfeitCommand(101, game, "leave"));
+        }
+        int noticeCount = events.size();
+
+        for (int i = 0; i < 10; i++) { engine.tick(); }
+
+        assertThat(engine.tablePresentations()).isEmpty();
+        assertThat((Map<?, ?>) ReflectionTestUtils.getField(engine, "activeGames")).isEmpty();
+        assertThat((Map<?, ?>) ReflectionTestUtils.getField(engine, "games")).hasSize(100);
+        assertThat(events).hasSize(noticeCount);
+        clock.now = clock.now.plusSeconds(600);
+        engine.tick();
+        assertThat((Map<?, ?>) ReflectionTestUtils.getField(engine, "games")).isEmpty();
+        assertThat((Map<?, ?>) ReflectionTestUtils.getField(engine, "latest")).isEmpty();
+        assertThat((java.util.Collection<?>) ReflectionTestUtils.getField(engine, "retiredGames")).isEmpty();
+        assertThat(events).hasSize(noticeCount);
+    }
 
     @Test
     void 숫자와_조커는_같은_10초_후에만_배치되고_예약_시점은_공개하지_않는다() {
