@@ -47,8 +47,8 @@ export function WinterHud() {
   const act = (throwing = false) => {
     const session = useSession.getState(), own = avatars.get(session.sessionId)
     if (!winterSceneryVisible() || !ready || cooldown || gathering || windingUp || frozen || panelOwnsKeys() || !own || own.carry || session.pending) return
-    if (!throwing && pileId) {
-      if (snowballs < MAX_SNOWBALLS) void parkRuntime.pickupSnowball?.(pileId).then(() => focusParkCanvas())
+    if (!throwing && pileId && snowballs < MAX_SNOWBALLS) {
+      void parkRuntime.pickupSnowball?.(pileId).then(() => focusParkCanvas())
       return
     }
     if (!snowballs) return
@@ -88,8 +88,8 @@ export function WinterHud() {
       <CarryEscapeHint action="얼음 깨기" onPress={key => { pressEscape(key); focusParkCanvas() }} />
       <small>A·D 반복 입력 · {player?.escapePresses ?? 0} / {CARRY_ESCAPE_PRESSES}</small>
     </div> : <>
-      <div className="winter-hud__actions"><button type="button" aria-keyshortcuts="Q" disabled={!ready || cooldown || gathering || windingUp || (pileId ? snowballs >= MAX_SNOWBALLS : !snowballs)} onClick={() => act()}>
-        <kbd>Q</kbd> {gathering ? '눈 모아 뭉치는 중…' : windingUp ? '던지는 중…' : cooldown ? '다음 동작 준비 중…' : pileId ? snowballs >= MAX_SNOWBALLS ? '눈덩이를 가득 모았어요' : '눈 줍기 · 뭉치기' : '눈덩이 던지기'}
+      <div className="winter-hud__actions"><button type="button" aria-keyshortcuts="Q" disabled={!ready || cooldown || gathering || windingUp || (!pileId && !snowballs)} onClick={() => act()}>
+        <kbd>Q</kbd> {gathering ? '눈 모아 뭉치는 중…' : windingUp ? '던지는 중…' : cooldown ? '다음 동작 준비 중…' : pileId && snowballs < MAX_SNOWBALLS ? '눈 줍기 · 뭉치기' : '눈덩이 던지기'}
       </button>
       {!!pileId && <button type="button" aria-keyshortcuts="R" disabled={!ready || cooldown || gathering || windingUp || !snowballs} onClick={() => act(true)}><kbd>R</kbd> 눈덩이 던지기</button>}</div>
       <small className="winter-hud__stock" role="status">눈덩이 {snowballs} / {MAX_SNOWBALLS}</small>

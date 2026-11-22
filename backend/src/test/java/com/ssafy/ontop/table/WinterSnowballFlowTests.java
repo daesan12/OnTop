@@ -177,6 +177,28 @@ class WinterSnowballFlowTests {
                     .noneMatch(n -> n.asText().equals(second.userId));
         }
     }
+    @Test
+    void 입력이_없어도_탄착을_공유하고_비행중_작은_이동과_회피를_현재_위치로_구분한다() throws Exception {
+        try (var first = client("naver", "a"); var second = client("ssafy", "a"); var other = client("303", "b")) {
+            for (int i = 0; i < 2; i++) {
+                place(first, 88); place(second, 80);
+                first.request("WORLD_SNOWBALL_PICKUP", Map.of("pileId", "snow-entry"));
+                var aim = first.request("WORLD_SNOWBALL_AIM", Map.of("yaw", Math.PI));
+                assertThat(aim.at("/payload/hitUserId").asText()).isEqualTo(second.userId);
+                var shot = first.request("WORLD_SNOWBALL_THROW", Map.of("yaw", Math.PI));
+                // 비행 도중 150ms 뒤 대상 위치가 갱신되는 경우. 네트워크 에뮬레이터는 아니다.
+                Thread.sleep(150);
+                place(second, i == 0 ? 79.6 : 79.1);
+                String expected = i == 0 ? second.userId : "";
+                // 추가 요청 없이 서버의 주기 틱만으로 두 클라이언트 모두 탄착을 받는다.
+                awaitImpact(first, shot, expected);
+                awaitImpact(second, shot, expected);
+                other.assertNoMessage(m -> m.path("type").asText().equals("WORLD_SNOWBALL_IMPACT"));
+                if (i == 0) { Thread.sleep(950); }
+            }
+        }
+    }
+
     private void awaitImpact(ScenarioClient client, JsonNode shot, String expectedUser) throws Exception {
         var impact = client.await(m -> m.path("type").asText().equals("WORLD_SNOWBALL_IMPACT")
                 && m.at("/payload/shotId").asText().equals(shot.at("/payload/shotId").asText()));

@@ -134,6 +134,41 @@ class SnowballServiceTests {
         return service.state("park").players().stream().filter(p -> p.userId().equals("self")).findFirst().orElseThrow().snowballs();
     }
 
+    @Test
+    void 지연된_틱은_도착한_눈을_일괄_처리하고_채널별_위치조회와_버전갱신은_한번만_한다() {
+        for (String user : List.of("self", "second", "third")) {
+            pickup("park", user, 0);
+            service.create(user, "park", user, origin, 0, targets, yaw -> 16, 0, Instant.EPOCH);
+        }
+        pickup("other", "other-self", 0);
+        service.create("other-shot", "other", "other-self", origin, 0,
+                List.of(new SnowballService.Target("other-victim", new Position(0, 0, .84, 10, 0))),
+                yaw -> 16, 0, Instant.EPOCH);
+        long before = service.state("park").version(), otherBefore = service.state("other").version();
+        var calls = new java.util.HashMap<String, Integer>();
+        var impacts = service.arrive(60_000_000_000L, Instant.EPOCH.plusSeconds(60), channel -> {
+            calls.merge(channel, 1, Integer::sum);
+            return channel.equals("park") ? targets
+                    : List.of(new SnowballService.Target("other-victim", new Position(0, 0, .84, 10, 0)));
+        });
+        assertThat(impacts).hasSize(4);
+        assertThat(impacts).allSatisfy(impact -> assertThat(impact.hitUserId()).isNotEmpty());
+        assertThat(calls).containsEntry("park", 1).containsEntry("other", 1);
+        assertThat(service.state("park").version()).isEqualTo(before + 1);
+        assertThat(service.state("other").version()).isEqualTo(otherBefore + 1);
+        assertThat(service.frozen("near", 60_000_000_000L)).isTrue();
+        assertThat(service.arrive(61_000_000_000L, Instant.EPOCH.plusSeconds(61), channel -> {
+            throw new AssertionError("처리된 비행이 남아 있어서는 안 된다");
+        })).isEmpty();
+    }
+
+    @Test
+    void 송신자_연결이_끊기면_남은_비행을_정리한다() {
+        service.create("flight", "park", "self", origin, 0, targets, yaw -> 16, 0, Instant.EPOCH);
+        service.disconnected("self");
+        assertThat(service.arrive(1_000_000_000L, Instant.EPOCH.plusSeconds(1), channel -> targets)).isEmpty();
+    }
+
     private void 세번_맞힌다() {
         for (int i = 0; i < 3; i++) {
             pickup("park", "self", i * 1_000_000_000L);

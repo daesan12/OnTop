@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -121,6 +122,8 @@ public final class SnowballService {
     /** 발사 시에는 탄약만 소비하고, 비행이 끝난 틱에 현재 대상 위치를 다시 확인한다. */
     public List<Impact> arrive(long now, Instant at, Function<String, Collection<Target>> targets) {
         var impacts = new ArrayList<Impact>();
+        var changedChannels = new LinkedHashSet<String>();
+        var positions = new HashMap<String, Collection<Target>>();
         var iterator = flights.iterator();
         while (iterator.hasNext()) {
             Flight flight = iterator.next();
@@ -131,7 +134,7 @@ public final class SnowballService {
             String hit = "";
             if (victim != null && players.get(event.hitUserId()) == victim
                     && !frozen(event.hitUserId(), now) && victim.immuneUntil <= now) {
-                Position position = targets.apply(event.channelId()).stream()
+                Position position = positions.computeIfAbsent(event.channelId(), targets).stream()
                         .filter(target -> target.userId().equals(event.hitUserId()))
                         .map(Target::position).findFirst().orElse(null);
                 if (position != null && Math.hypot(position.x() - event.endX(), position.z() - event.endZ()) < .65
@@ -145,11 +148,12 @@ public final class SnowballService {
                         victim.frozenUntilNanos = now + FREEZE_SECONDS * 1_000_000_000L;
                         victim.lastKey = ""; victim.presses = 0; victim.escapeRequests.clear();
                     }
-                    changed(event.channelId());
+                    changedChannels.add(event.channelId());
                 }
             }
             impacts.add(new Impact(event.shotId(), event.channelId(), event.userId(), hit, at.toString()));
         }
+        changedChannels.forEach(this::changed);
         return List.copyOf(impacts);
     }
 

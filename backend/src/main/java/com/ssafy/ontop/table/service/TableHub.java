@@ -2838,16 +2838,25 @@ public class TableHub {
 
     private void advanceWinter() {
         long now = System.nanoTime();
+        var changedChannels = new java.util.LinkedHashSet<String>();
         for (String user : snowballs.expire(now)) {
             var world = channels.winterFreeze(user, false);
-            if (world != null) { publishWorld(world, null, null); publishWinter(world.channelId(), null, null); }
+            if (world != null) {
+                publishWorld(world, null, null);
+                changedChannels.add(world.channelId());
+            }
         }
-        for (var impact : snowballs.arrive(now, java.time.Instant.now(), this::snowballTargets)) {
+        var impacts = snowballs.arrive(now, java.time.Instant.now(), this::snowballTargets);
+        for (var impact : impacts) {
             if (!impact.hitUserId().isEmpty() && snowballs.frozen(impact.hitUserId(), now)) {
                 var frozen = channels.winterFreeze(impact.hitUserId(), true);
                 if (frozen != null) { publishWorld(frozen, null, null); }
             }
-            publishWinter(impact.channelId(), null, null);
+            changedChannels.add(impact.channelId());
+        }
+        // 같은 틱의 상태를 모두 확정한 뒤 채널당 한 번 보내고, 개별 탄착 이벤트는 보존한다.
+        changedChannels.forEach(channel -> publishWinter(channel, null, null));
+        for (var impact : impacts) {
             for (Member target : members.values()) {
                 if (channels.isInChannel(target.userId(), impact.channelId())) {
                     target.peer().offer(protocol.encode(null, "WORLD_SNOWBALL_IMPACT", impact));
