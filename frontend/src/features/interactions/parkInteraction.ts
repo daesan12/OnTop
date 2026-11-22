@@ -1,4 +1,7 @@
 import { nearbyParkNpcs } from '../ai/parkNpcInteraction'
+import { CHRISTMAS_TREE } from '../winter/plan'
+import { openWinterCommunity } from '../winter/community/panelState'
+import { renewalGroundHeight } from '../../park/renewalMap'
 import { openParkDialogue } from '../ai/parkDialogueState'
 import { parkDialogues } from '../ai/parkDialogue'
 import { SLEIGH_ID } from '../winter/sleigh/constants'
@@ -95,7 +98,7 @@ const recreationLabels: Record<RenewalRecreationId, string> = {
 }
 
 export interface ParkInteraction {
-  kind: 'park-npc' | 'sleigh' | 'bench' | 'table' | 'fitness' | 'telescope' | 'boat' | 'balloon' | 'feedback' | 'notes' | 'bungeoppang' | 'rps-roulette' | 'renewal-game' | 'spot-difference' | 'construction' | 'gacha' | 'ranking-board' | 'vr' | 'jumpmap-guide' | 'stone-rumble-guide' | 'avatar-pickup' | 'avatar-throw' | 'joke-judge' | 'interior-item' | 'interior-access' | 'advertisement'
+  kind: 'winter-tree' | 'park-npc' | 'sleigh' | 'bench' | 'table' | 'fitness' | 'telescope' | 'boat' | 'balloon' | 'feedback' | 'notes' | 'bungeoppang' | 'rps-roulette' | 'renewal-game' | 'spot-difference' | 'construction' | 'gacha' | 'ranking-board' | 'vr' | 'jumpmap-guide' | 'stone-rumble-guide' | 'avatar-pickup' | 'avatar-throw' | 'joke-judge' | 'interior-item' | 'interior-access' | 'advertisement'
   id: string
   label: string
   seat?: 0 | 1
@@ -116,6 +119,11 @@ export function getParkInteraction(preferredGuide?: typeof STONE_RUMBLE_GUIDE_ID
     || p.fitnessId || p.telescopeId || p.swimming || session.pending || benches.pending || fitness.pending
     || useTelescopeState.getState().pending || tableBusy() || useGame.getState().watchedGameId || useDisplayGame.getState().localPractice || panelOwnsKeys()) return null
   const choices: ParkInteraction[] = []
+  if (RENEWAL_PARK_ENABLED && !p.carry && Math.abs(p.current.y - renewalGroundHeight(p.current.x, p.current.z) - .76) < .8) {
+    const tree = CHRISTMAS_TREE, distance = Math.hypot(p.current.x - tree.x, p.current.z - tree.z)
+    if (distance <= tree.radius + 3.2) choices.push({ kind: 'winter-tree', id: tree.id, label: '트리에 편지 걸기', available: true, occupied: false,
+      distance: Math.max(0, distance - tree.radius), score: interactionScore(Math.max(0, distance - tree.radius), { x: tree.x, y: renewalGroundHeight(tree.x, tree.z) + 2, z: tree.z }) })
+  }
   for (const npc of nearbyParkNpcs(p.current, session.roomId)) {
     const distance = Math.hypot(p.current.x - npc.x, p.current.z - npc.z)
     choices.push({ kind: 'park-npc', id: npc.id, label: parkDialogues[npc.speaker].interactionLabel, available: true, occupied: false, distance,
@@ -305,6 +313,7 @@ export function interactWithPark(expectedId?: string): boolean {
     const { sessionId, roomId } = useSession.getState(), pose = avatars.get(sessionId)?.current
     return !!pose && interiorVisit.addDiamond(visitScope(sessionId, roomId), pose)
   }
+  if (target.kind === 'winter-tree') return openWinterCommunity('tree')
   if (target.kind === 'avatar-pickup' || target.kind === 'avatar-throw') interactWithAvatar(target.kind, target.id)
   else if (target.kind === 'stone-rumble-guide') openStoneRumbleGuide(stoneRumbleGuideScope(useSession.getState()))
   else if (target.kind === 'jumpmap-guide') openJumpmapGuide(jumpmapGuideScope(useSession.getState()))

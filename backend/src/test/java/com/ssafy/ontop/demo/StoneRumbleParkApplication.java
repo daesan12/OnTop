@@ -78,7 +78,7 @@ public final class StoneRumbleParkApplication {
 
     @TestConfiguration(proxyBeanMethods = false)
     @Profile("local & stone-rumble-park & !db & !dev & !prod & !production")
-    @Import(com.ssafy.ontop.game.spotdifference.SpotDifferenceParkFixture.class)
+    @Import({com.ssafy.ontop.game.spotdifference.SpotDifferenceParkFixture.class, WinterCommunityParkQa.class})
     public static class Fixture {
         @Bean ActiveMemberLookup stoneRumbleMembers() {
             return (id, sid) -> Set.of(101L,202L,303L,404L,505L,606L,707L,808L,999L).contains(id) && TestLoginSessions.ID.equals(sid)

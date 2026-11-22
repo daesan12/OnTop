@@ -2,9 +2,9 @@ import { EDGES, NODES, SITES, TABLES, footprintDistance, inLake, insidePark } fr
 import { isPlantingGround, onLand } from '../../../park-renewal-preview/groundPlan'
 import { FOREST_TRAILS } from '../../../park-renewal-preview/landscapePlan'
 
-/** 통행로·게임 진입점 바깥의 고정 겨울 장식. 충돌과 렌더링이 같은 배치를 사용한다. */
+/** 고정 배치. radius는 기존 눈 줍기 여유를 유지하며 승인 모델의 충돌은 christmasCollision에서 읽는다. */
 export const WINTER_DECOR = [
-  { id: 'plaza-tree', kind: 'tree', x: 0, z: 38, radius: 2.5, height: 7.8 },
+  { id: 'plaza-tree', kind: 'tree', x: 0, z: 38, radius: 2.5, height: 12 },
   { id: 'santa', kind: 'santa', x: 4, z: 42, radius: 1, height: 2.8 },
   { id: 'entry-snowman', kind: 'snowman', x: -5, z: 98, radius: .85, height: 3.1 },
   { id: 'plaza-snowman', kind: 'snowman', x: 0, z: 48, radius: .85, height: 3.1 },
@@ -66,3 +66,4 @@ for (let x = -91; x <= 91; x += 14) for (let z = -91; z <= 91; z += 14) {
 }
 export const SNOW_PILES: readonly SnowPile[] = snowPiles
 export const SANTA = WINTER_DECOR[1]!
+export const CHRISTMAS_TREE = WINTER_DECOR[0]!

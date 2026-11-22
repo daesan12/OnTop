@@ -11,7 +11,8 @@ import java.util.List;
 /** 가위바위보 룰렛의 서버 고정 규칙. 확률은 칸 구성 그대로이며 판정은 입력과 무관하게 균등하다. */
 public final class RpsRouletteRules {
     public static final List<Integer> FEES = List.of(10, 20, 30);
-    public static final int DAILY_PLAYS = 15;
+    /** API의 0은 횟수 무제한을 의미한다. 일별 기록은 계속 집계한다. */
+    public static final int DAILY_PLAYS = 0;
     public static final ZoneId KST = ZoneId.of("Asia/Seoul");
     public static final Duration DUEL_LIMIT = Duration.ofSeconds(5);
     public static final Duration DECIDE_LIMIT = Duration.ofSeconds(10);

@@ -414,6 +414,22 @@ public class WorldChannelRegistry implements ChannelPresence {
         return movement == null ? null : movement.position();
     }
 
+    public synchronized double winterGround(String channel, double x, double z) {
+        var room = rooms.get(channel);
+        return room == null || room.physics == null ? Double.NaN : room.physics.winterGround(x, z);
+    }
+
+    public synchronized java.util.List<Avatar> winterAvatars(String channel) {
+        var room = rooms.get(channel);
+        return room == null ? java.util.List.of() : room.worldState().avatars();
+    }
+
+    public synchronized com.fasterxml.jackson.databind.JsonNode winterTree(String channel) {
+        var room = rooms.get(channel);
+        return room == null || room.physics == null ? com.fasterxml.jackson.databind.node.MissingNode.getInstance()
+                : room.physics.winterTree();
+    }
+
     public synchronized boolean snowPileInReach(String userId, String pileId) {
         Room room = rooms.get(membership.get(userId));
         return room != null && room.physics != null && room.physics.snowPileInReach(userId, pileId);
