@@ -5,7 +5,7 @@ import './stone-loading.css'
 const tips = [
   {
     kind: 'tiles', title: '밟은 돌에서는 멈추지 마세요',
-    copy: '발판을 밟으면 황토색으로 변해요. 약 1.2초 뒤 무너지니 다음 돌로 이동하세요.',
+    copy: '발판을 밟으면 황토색으로 변해요. 약 2초 뒤 무너지니 다음 돌로 이동하세요.',
     detail: '발판이 꺼져도 아래층에 착지하면 계속 생존할 수 있어요.',
     alt: '황토색 발판이 무너지기 전에 다음 석재 발판으로 옮겨 가는 캐릭터와 아래에 이어진 두 개 층',
     controls: [{ key: 'WASD', label: '이동' }, { key: 'Space', label: '점프' }],

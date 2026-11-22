@@ -5,8 +5,11 @@
 .winter-hud .winter-frozen{display:flex;flex-direction:column;align-items:center;gap:3px;color:#e4f5ff}
 .winter-hud .winter-frozen strong{font-size:14px}
 .park-page .park-interaction:has(.winter-frozen)>button[aria-keyshortcuts='E']{display:none}
-.park-page .park-interaction:has(.winter-hud){padding:4px 6px;gap:4px;border-radius:10px}
-.park-page .park-interaction .winter-hud>button[aria-keyshortcuts='Q']{display:flex;align-items:center;gap:6px;min-height:40px;max-width:100%;padding:8px 12px;border:0;background:transparent;font-size:15px;line-height:20px}
-.park-page .park-interaction .winter-hud>button[aria-keyshortcuts='Q'] kbd{flex-shrink:0;min-width:22px;margin-right:0}
-@media(max-width:900px){.park-page .park-interaction:has(.winter-hud){bottom:210px}}
-@media(max-height:540px){.park-page .park-interaction:has(.winter-hud){bottom:76px}.winter-hud>small,.winter-hud>span{display:none}}
+.park-page .park-interaction:has(.winter-hud){left:auto;right:calc(var(--park-edge,20px) + 100px);transform:none;z-index:46;box-sizing:border-box;padding:6px 8px;gap:4px;border-radius:10px;max-height:calc(100dvh - 240px);overflow:auto;scrollbar-width:none;overscroll-behavior:contain}
+.park-interaction:has(.winter-hud)::-webkit-scrollbar{display:none}
+.winter-hud__actions{display:flex;justify-content:center;flex-wrap:wrap;gap:4px;max-width:100%}
+.park-page .park-interaction .winter-hud__actions>button{display:flex;align-items:center;justify-content:center;gap:5px;min-height:36px;max-width:100%;padding:6px 8px;border:0;background:transparent;font-size:13px;line-height:18px}
+.park-page .park-interaction .winter-hud__actions kbd{flex-shrink:0;min-width:20px;margin-right:0}
+@media(max-width:900px){.park-page .park-interaction:has(.winter-hud){left:12px;right:86px;top:180px;bottom:auto;max-width:none;max-height:max(110px,calc(100dvh - 410px))}}
+@media(max-height:540px) and (min-width:701px){.park-page .park-interaction:has(.winter-hud){left:auto;right:96px;top:auto;bottom:64px;max-width:280px;max-height:calc(100dvh - 150px)}}
+@media(max-height:540px) and (max-width:700px){.park-page .park-interaction:has(.winter-hud){top:164px;max-height:calc(100dvh - 210px)}}

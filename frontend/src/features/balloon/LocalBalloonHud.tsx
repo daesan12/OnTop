@@ -165,6 +165,7 @@ export default function LocalBalloonHud() {
   const seconds = useLocalBalloon(s => Math.ceil(s.flight?.seconds ?? 0))
   const paymentError = useLocalBalloon(s => s.paymentError)
   const boundary = useLocalBalloon(s => s.flight?.atBoundary)
+  const collisionWarning = useLocalBalloon(s => s.flight?.collisionWarning)
   const landing = useLocalBalloon(s => s.flight?.landing)
   const reason = useLocalBalloon(s => s.flight?.returnReason)
   const fade = useLocalBalloon(localBalloonFade)
@@ -225,6 +226,9 @@ export default function LocalBalloonHud() {
   const time = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
 
   return <>
+    {collisionWarning && <div className="park-balloon-collision-warning" role="status">
+      <strong>충돌 주의</strong><span>지면이나 건물이 가까워요. 상승하거나 방향을 바꿔 주세요.</span>
+    </div>}
     <aside className="park-balloon-hud" data-phase={phase} data-direction-seat={directing || undefined} aria-label="열기구 운항"
       onClick={event => {
         if (event.detail > 0 && event.target instanceof Element && event.target.closest('button')) focusParkCanvas('localBalloon')

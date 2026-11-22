@@ -1,9 +1,9 @@
-import { Mesh, MeshLambertMaterial, type BufferGeometry, type Object3D } from 'three'
+import { BufferGeometry, Mesh, MeshLambertMaterial, type Object3D } from 'three'
 
 const buildings = /^(facility-(pavilion|fortune|lottery|bread|pigeon|cafe|dock|gacha|mole|arcade|vr|folk|shooting|fishing-shop|rest-\d+)|paired-rental-.+)$/
 const roofs = new Set(['garden-stone-pagoda', 'jump-course-entrance-pagoda', 'balloon-station-model', 'forty-metre-tower'])
 export interface SnowProtectedArea { x: number; z: number; radius: number; topY: number }
-type BuildRoof = (root: Object3D, protectedAreas: readonly SnowProtectedArea[]) => BufferGeometry
+type BuildRoof = (root: Object3D, protectedAreas: readonly SnowProtectedArea[]) => BufferGeometry | Generator<void, BufferGeometry>
 
 /** 최초 한 번 수집한 뒤 추가·제거된 하위 트리만 관찰한다. 적설 자체의 변경은 무시한다. */
 export class RoofSnowCache {
@@ -13,12 +13,17 @@ export class RoofSnowCache {
   private readonly meshes = new Map<Mesh, BufferGeometry>()
   private readonly material = new MeshLambertMaterial({ color: '#edf5f1', polygonOffset: true, polygonOffsetFactor: -1 })
   private shown = true
+  private pending?: { root: Object3D; steps: Generator<void, BufferGeometry> }
+  get busy() { return !!this.pending }
   constructor(scene: Object3D, private protectedAreas: readonly SnowProtectedArea[], private readonly build: BuildRoof) {
     this.attach(scene)
   }
   private invalidate = (node: Object3D) => {
     for (let parent: Object3D | null = node; parent; parent = parent.parent) {
-      if (this.roots.has(parent)) this.dirty.add(parent)
+      if (this.roots.has(parent)) {
+        this.dirty.add(parent)
+        if (this.pending?.root === parent) this.pending = undefined
+      }
     }
   }
   private added = (event: { child: Object3D; target: Object3D }) => {
@@ -49,11 +54,13 @@ export class RoofSnowCache {
     node.removeEventListener('childremoved', this.removed)
     for (const child of [...node.children]) this.detach(child)
     const snow = this.roots.get(node)
+    if (this.pending?.root === node) this.pending = undefined
     this.roots.delete(node); this.dirty.delete(node)
     snow?.removeFromParent(); snow?.geometry.dispose()
   }
   protect(areas: readonly SnowProtectedArea[]) {
     this.protectedAreas = areas
+    this.pending = undefined
     for (const root of this.roots.keys()) this.dirty.add(root)
   }
   show(visible: boolean) {
@@ -67,19 +74,36 @@ export class RoofSnowCache {
     for (const [mesh, geometry] of this.meshes) if (mesh.geometry !== geometry) {
       this.meshes.set(mesh, mesh.geometry); this.invalidate(mesh)
     }
-    for (const root of this.dirty) {
-      this.dirty.delete(root)
-      const geometry = this.build(root, this.protectedAreas), previous = this.roots.get(root)
+    const install = (root: Object3D, geometry: BufferGeometry) => {
+      const previous = this.roots.get(root)
       previous?.removeFromParent(); previous?.geometry.dispose()
       const snow = new Mesh(geometry, this.material)
       snow.name = 'winter-roof-snow'; snow.userData.winterSnow = true; snow.receiveShadow = true
       snow.visible = this.shown; snow.raycast = () => {}
       root.add(snow); this.roots.set(root, snow)
-      return true
     }
+    if (!this.pending) for (const root of this.dirty) {
+      this.dirty.delete(root)
+      const built = this.build(root, this.protectedAreas)
+      if (built instanceof BufferGeometry) { install(root, built); return true }
+      this.pending = { root, steps: built }
+      break
+    }
+    const task = this.pending
+    if (!task) return false
+    const deadline = performance.now() + 2
+    do {
+      const result = task.steps.next()
+      if (result.done) {
+        this.pending = undefined
+        install(task.root, result.value)
+        return true
+      }
+    } while (performance.now() < deadline)
     return false
   }
   dispose() {
+    this.pending = undefined
     for (const node of this.nodes) {
       node.removeEventListener('childadded', this.added)
       node.removeEventListener('childremoved', this.removed)

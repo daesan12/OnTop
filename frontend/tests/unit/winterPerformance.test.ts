@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { localSnowballAim, localSnowballDistance, PreparedSnowballAim } from '../../src/features/winter/localAim'
 import { RoofSnowCache } from '../../src/features/winter/RoofSnowCache'
-import { snowRoofGeometry } from '../../src/features/winter/roofSnow'
+import { snowRoofGeometry, snowRoofGeometrySteps } from '../../src/features/winter/roofSnow'
 import { parkDetailMeshes } from '../../park-renewal-preview/parkDetailMeshes'
 import { facilityGeometryMeshes } from '../../park-renewal-preview/FacilityGeometry'
 import catalog from '../../park-renewal-preview/models/geometry-catalog.json'
@@ -16,6 +16,26 @@ const origin = { x: 0, y: 1, z: 0 }
 const aim = localSnowballAim('park', 'self', origin, 0, 16, [])
 
 describe('겨울 미리보기 비용과 수명', () => {
+  it('나눠 만든 적설은 원본과 같은 지오메트리를 만들고 제거된 지붕 작업은 붙이지 않는다', () => {
+    const scene = new Group(), roof = new Group(), material = new MeshBasicMaterial()
+    roof.name = 'facility-pavilion'
+    const source = new BoxGeometry(4, 4, 4, 40, 1, 40), mesh = new Mesh(source, material)
+    mesh.position.y = 2; roof.add(mesh); scene.add(roof)
+    const original = snowRoofGeometry(roof), steps = snowRoofGeometrySteps(roof)
+    let result = steps.next(), yields = 0
+    while (!result.done) { yields++; result = steps.next() }
+    expect(yields).toBeGreaterThan(1)
+    for (const name of ['position', 'normal'])
+      expect(result.value.getAttribute(name).array).toEqual(original.getAttribute(name).array)
+    const cache = new RoofSnowCache(scene, [], snowRoofGeometrySteps)
+    const time = vi.spyOn(performance, 'now')
+    let now = 0; time.mockImplementation(() => now += 3)
+    cache.processOne(); expect(cache.busy).toBe(true)
+    scene.remove(roof); expect(cache.busy).toBe(false)
+    expect(cache.processOne()).toBe(false)
+    expect(roof.getObjectByName('winter-roof-snow')).toBeUndefined()
+    time.mockRestore(); cache.dispose(); original.dispose(); result.value.dispose(); source.dispose(); material.dispose()
+  })
   it('요청 전 호환 카탈로그는 현재 GLB와 일치하고 다른 렌더 프로필을 거른다', () => {
     for (const [file, entry] of Object.entries(catalog)) {
       const bytes = readFileSync(new URL('../../park-renewal-preview/models/' + file, import.meta.url))
