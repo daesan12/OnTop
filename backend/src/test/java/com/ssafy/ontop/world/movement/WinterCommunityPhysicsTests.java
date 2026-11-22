@@ -16,7 +16,7 @@ class WinterCommunityPhysicsTests {
                 Set.of("channel-1")).createScene();
         try (var physics = new WorldPhysics(scene, false, () -> 0, true)) {
             var tree = physics.winterTree();
-            assertThat(tree.path("height").asDouble()).isEqualTo(7.8);
+            assertThat(tree.path("height").asDouble()).isEqualTo(12);
             assertThat(physics.winterGround(tree.path("x").asDouble(), tree.path("z").asDouble()))
                     .isCloseTo(tree.path("y").asDouble(), within(0.000001));
         }

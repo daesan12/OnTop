@@ -2,6 +2,7 @@ import { memo, useEffect, useMemo, useRef } from 'react'
 import { SantaBell } from './SantaBell'
 import { useWinterCommunity } from './community/state'
 import { ChristmasCommunityTree } from './community/ChristmasCommunityTree'
+import { ChristmasAsset } from './ChristmasAssets'
 import { useFrame } from '@react-three/fiber'
 import { BufferAttribute, BufferGeometry, Float32BufferAttribute, Group, InstancedMesh, Object3D, ShaderMaterial, type Points } from 'three'
 import { groundSurfaceHeight } from '../../../park-renewal-preview/groundSurface'
@@ -158,8 +159,9 @@ function HolidayDecorations() {
   useEffect(() => () => { for (const value of art.values()) for (const g of Object.values(value)) g?.dispose() }, [art])
   return <>{WINTER_DECOR.map(d => <group key={d.id} name={'winter-' + d.id} position={[d.x, groundSurfaceHeight(d.x, d.z), d.z]}>
     {d.kind === 'tree'
-      ? <ChristmasCommunityTree procedural fallback={<HolidayProp kind={d.kind} art={art.get(d.kind)!} />} />
-      : <HolidayProp kind={d.kind} art={art.get(d.kind)!} />}
+      ? <ChristmasCommunityTree fallback={<group scale={12 / 7.68}><HolidayProp kind={d.kind} art={art.get(d.kind)!} /></group>} />
+      : d.kind === 'gifts' ? <HolidayProp kind={d.kind} art={art.get(d.kind)!} />
+      : <ChristmasAsset id={d.kind} fallback={<HolidayProp kind={d.kind} art={art.get(d.kind)!} />} />}
   </group>)}</>
 }
 

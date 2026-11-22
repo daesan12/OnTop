@@ -41,7 +41,7 @@ function Ornament({ kind, position }: { kind: TreeOrnamentKind; position: Vector
   </group> : null
 }
 
-/** 최신 dev의 절차형 트리 원복을 유지하면서 편지 장식만 추가한다. */
+/** 승인된 12m 트리에 기존 편지 장식과 50개 점등 상태를 연결한다. */
 export function ChristmasCommunityTree({ fallback, procedural = false }: { fallback: ReactNode; procedural?: boolean }) {
   const invalidate = useThree(state => state.invalidate)
   const gltf = useModel(procedural ? null : treeUrl), status = useWinterCommunity(s => s.tree)
