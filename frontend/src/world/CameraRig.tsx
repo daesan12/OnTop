@@ -29,7 +29,7 @@ import { avatars, sampleAvatar, useSession,estimatedServerTime } from '../networ
 import {activeParkDebris} from '../features/parkDebris/state'
 import { cameraOcclusion, CameraOcclusionFader } from './cameraOcclusion'
 import { installRoamingInput, viewControls } from './input'
-import { constrainMonumentStairCamera, constrainRoamingCamera } from './cameraCollision'
+import { constrainMonumentStairCamera, constrainRoamingCamera, constrainSecretExitCamera } from './cameraCollision'
 import { seatScope, seatedLook, resetSeatedLook, useTableLobby, SEATED_LOOK } from '../features/tableLobby/state'
 import { useDiceUI, diceCamera, holdBustCamera } from '../game/farkle/controls'
 import { DICE_CAMERA, DICE_SPECTATOR_CAMERA, diceFocusActive, diceSpectatorCameraPose } from '../game/farkle/camera'
@@ -635,7 +635,10 @@ export function CameraRig() {
         }
       }
       state.look.copy(center)
-      if (RENEWAL_PARK_ENABLED) constrainMonumentStairCamera(state.desired, state.look)
+      if (RENEWAL_PARK_ENABLED) {
+        constrainMonumentStairCamera(state.desired, state.look)
+        if (!wardrobeView.active) constrainSecretExitCamera(state.desired, state.look)
+      }
       // Keep the requested upward angle when the ground prevents the orbit from lowering.
       if (orbitY < 0 && !wardrobeView.active) state.look.y += Math.max(0, state.desired.y - orbitHeight)
     }
@@ -663,8 +666,10 @@ export function CameraRig() {
     }
     if (!firstPerson && !seated && !watchedAnchor) constrainRoamingCamera(camera.position)
     // Position smoothing can cross a stair edge even when the desired orbit is clear.
-    if (RENEWAL_PARK_ENABLED && !firstPerson && !temporaryView && !watchedAnchor && !smoothingBoard)
+    if (RENEWAL_PARK_ENABLED && !firstPerson && !temporaryView && !watchedAnchor && !smoothingBoard) {
       constrainMonumentStairCamera(camera.position, state.look)
+      if (!wardrobeView.active) constrainSecretExitCamera(camera.position, state.look)
+    }
     if (!smoothingBoard) {
       if (performance.now() < bungeoppangView.returningUntil) {
         state.rotation.copy(camera.quaternion)
