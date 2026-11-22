@@ -620,11 +620,14 @@ export function receive(message: Envelope, expectedMapVersion: string = EXPECTED
         : state.publicTables && Object.keys(state.publicTables).length === next.tables.length
           && next.tables.every(table => state.publicTables?.[table.tableId]?.anchorId === (table.anchorId ?? null)
             && state.publicTables?.[table.tableId]?.chairCount === table.chairCount
-            && state.publicTables?.[table.tableId]?.gameCode === table.gameCode)
+            && state.publicTables?.[table.tableId]?.gameCode === table.gameCode
+            && state.publicTables?.[table.tableId]?.secretTiles?.gameId === table.secretTiles?.gameId
+            && state.publicTables?.[table.tableId]?.secretTiles?.state.version === table.secretTiles?.state.version)
           ? state.publicTables
           : Object.fromEntries(next.tables.map(table => [table.tableId, {
             tableId: table.tableId, anchorId: table.anchorId ?? null, chairCount: table.chairCount,
             ...(table.gameCode !== undefined ? { gameCode: table.gameCode } : {}),
+            ...(table.secretTiles !== undefined ? { secretTiles: table.secretTiles } : {}),
           }]))
       const present = new Set(ids)
       for (const id of Object.keys(equipment)) {

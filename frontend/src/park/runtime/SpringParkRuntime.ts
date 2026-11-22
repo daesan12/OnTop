@@ -66,6 +66,8 @@ import type { LedgerInput, LedgerPingTarget } from '../../game/ledger/protocol'
 import { LedgerPingEvents } from '../../game/ledger/pings'
 import { canFlipHalli, canLeaveEliminatedHalli, canRingHalli, classifyHalliError, halliNotice, markHalliRing } from '../../game/halligalli/actions'
 import type { HalliInput } from '../../game/halligalli/protocol'
+import { forfeitBlocksInput } from '../../game/forfeit'
+import { acceptDavinciPing } from '../../game/davinci/social'
 import { loadParkBindings } from './deployment'
 import type { ParkRuntimePort } from './contracts'
 import { benchBusy } from '../../features/interactions/benchState'
@@ -253,6 +255,22 @@ export class ParkRuntime implements ParkRuntimePort {
   })
   sendSpectatorChat = (text: string) => this.omokEvents.send('chat', text)
   pingLedger = (target: LedgerPingTarget) => this.ledgerPings.send(target)
+  private davinciPingAt = 0
+  private davinciPingSending = false
+  pingDavinci = async (targetUserId: string, tileId: string): Promise<boolean> => {
+    const game = useGame.getState().game, scope = this.gameEventScope()
+    if (!game?.davinci || !scope?.canSend || scope.role !== 'SPECTATOR' || this.davinciPingSending
+      || Date.now() - this.davinciPingAt < 1000
+      || !game.davinci.players.find(p => p.userId === targetUserId)?.tiles.some(t => t.id === tileId)) return false
+    this.davinciPingSending = true
+    try {
+      await this.socket.request('DAVINCI_SPECTATOR_PING_SEND', { gameId: game.gameId, eventId: crypto.randomUUID(),
+        basedOnVersion: game.version, targetUserId, tileId }, ['DAVINCI_SPECTATOR_PING'])
+      this.davinciPingAt = Date.now()
+      return true
+    } catch { return false }
+    finally { this.davinciPingSending = false }
+  }
   private oneCardScope = (): PrankScope | null => {
       const s = useSession.getState(), state = useGame.getState(), game = state.game
       if (!this.active || !this.socket.connected || s.status !== 'connected' || !s.mapCompatible || !s.roomId
@@ -471,7 +489,7 @@ export class ParkRuntime implements ParkRuntimePort {
     const profileRequest = ((method === 'PATCH' || method === 'DELETE') && path === '/api/v1/users/me')
       || (method === 'GET' && /^\/api\/v1\/users\/nickname-availability\?nickname=[^&#]+$/.test(path))
     const historyRequest = method === 'GET' && (path === '/api/v1/users/me/game-stats'
-      || /^\/api\/v1\/users\/me\/games\?size=20(?:&cursor=[1-9]\d{0,18})?(?:&gameCode=(?:OMOK|DICE|ONE_CARD|LIAR_BRIDGE|DICE_LEDGER|HALLI_GALLI))?$/.test(path))
+      || /^\/api\/v1\/users\/me\/games\?size=20(?:&cursor=[1-9]\d{0,18})?(?:&gameCode=(?:OMOK|DICE|ONE_CARD|LIAR_BRIDGE|DICE_LEDGER|HALLI_GALLI|DAVINCI_CODE))?$/.test(path))
     const minigameRequest = /^\/api\/v1\/minigames\/sessions(?:\?rulesVersion=v[45]|\/\d+(?:\?(?:(?:includeSource|includeProgress)=true|deliveryKey=[A-Za-z0-9_-]{1,64})(?:&(?:(?:includeSource|includeProgress)=true|deliveryKey=[A-Za-z0-9_-]{1,64}))*|\/(?:complete|abandon|deliveries))?)?$/.test(path)
       || method === 'POST' && /^\/api\/v1\/minigames\/sessions\/\d+\/manual-pause$/.test(path)
     const rankingRequest = BUNGEOPPANG_RANKINGS_ENABLED && method === 'GET'
@@ -799,6 +817,11 @@ export class ParkRuntime implements ParkRuntimePort {
       return
     }
     if (this.ledgerPings.accept(message)) return
+    if (message.type === 'DAVINCI_SPECTATOR_PING') {
+      const game = useGame.getState().game
+      if (game?.davinci && this.gameEventScope()) acceptDavinciPing(message, game.gameId, game.davinci)
+      return
+    }
     if (this.omokEvents.accept(message)) return
     if (this.worldTime.ownsError(message) || message.type === 'WORLD_TIME_STATE') return
     if (message.type === 'ERROR' && message.requestId && this.forfeitRequests.has(message.requestId)
@@ -1486,7 +1509,7 @@ export class ParkRuntime implements ParkRuntimePort {
   setReady = (ready: boolean) =>
     this.action(async () => {
       const s = useSession.getState()
-      if (tableBusy() || !['OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE', 'DICE_LEDGER', 'ALKKAGI', 'HALLI_GALLI', 'STONE_RUMBLE'].includes(s.tableStates[s.tableId]?.gameCode ?? ''))
+      if (tableBusy() || !['OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE', 'DICE_LEDGER', 'ALKKAGI', 'HALLI_GALLI', 'DAVINCI_CODE', 'STONE_RUMBLE'].includes(s.tableStates[s.tableId]?.gameCode ?? ''))
         throw new Error('플레이 가능한 게임을 선택한 대기 테이블에서 준비해주세요.')
       const table = s.tableStates[s.tableId]
       if (ready && !isTableGamePlayable(table.gameCode)) throw new Error(GAME_CONSTRUCTION_NOTICE)
@@ -1838,6 +1861,31 @@ export class ParkRuntime implements ParkRuntimePort {
       if (generation === this.generation && useGame.getState().permittedGameId === g.gameId)
         useGame.setState({ uncertain: !(error instanceof ServerError && ['GAME_ACTION_INVALID_ACTION', 'GAME_ACTION_NOT_YOUR_TURN'].includes(error.code)),
           error: error instanceof Error ? error.message : '주사위 장부 처리 결과를 확인해주세요.' })
+      throw error
+    } finally { if (generation === this.generation) useGame.setState({ pending: false }) }
+  })
+  actDavinci = (input: import('../../game/davinci/protocol').DavinciInput) => this.action(async () => {
+    const own = useSession.getState(), state = useGame.getState(), game = state.game
+    if (own.status !== 'connected' || !game?.davinci || game.role !== 'PLAYER'
+      || state.permittedGameId !== game.gameId || state.recovery !== 'RESTORED' || state.pending || state.uncertain
+      || game.version < state.awaitingVersion || forfeitBlocksInput(game.gameId) || game.davinci.status !== 'PLAYING'
+      || !game.davinci.players.some(p => p.userId === own.sessionId && p.active)
+      || game.davinci.stage !== 'SETUP' && game.davinci.turnUserId !== own.sessionId)
+      throw new Error('본인 차례와 최신 흑백수사 상태를 확인해주세요.')
+    const generation = this.generation
+    useGame.setState({ pending: true, error: '' })
+    try {
+      await this.socket.request('GAME_ACTION_SEND', { gameId: game.gameId, actionId: crypto.randomUUID(),
+        expectedVersion: game.version, input: { ...input } }, ['GAME_ACTION_RESULT'])
+      // 위치 예약은 공개 버전을 올리지 않는다. 선택 결과는 본인 연결에서만 다시 조회한다.
+      if (input.kind === 'place' && generation === this.generation
+        && useGame.getState().permittedGameId === game.gameId)
+        await this.socket.request('GAME_STATE_CHECK', { gameId: game.gameId }, ['GAME_STATE'])
+    } catch (error) {
+      if (generation === this.generation && useGame.getState().permittedGameId === game.gameId)
+        useGame.setState({ uncertain: !(error instanceof ServerError),
+          error: error instanceof ServerError && error.code === 'GAME_ACTION_STALE_VERSION'
+            ? '판이 바뀌었어요. 최신 상태를 확인한 뒤 다시 선택해주세요.' : error instanceof Error ? error.message : '행동을 확인해주세요.' })
       throw error
     } finally { if (generation === this.generation) useGame.setState({ pending: false }) }
   })

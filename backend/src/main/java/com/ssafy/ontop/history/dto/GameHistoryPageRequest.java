@@ -4,7 +4,7 @@ import com.ssafy.ontop.history.exception.GameHistoryException;
 import java.util.Set;
 
 public record GameHistoryPageRequest(Long cursor, int size, String gameCode) {
-    public static final Set<String> GAME_CODES = Set.of("OMOK", "DICE", "ONE_CARD", "LIAR_BRIDGE", "DICE_LEDGER", "HALLI_GALLI", "ALKKAGI");
+    public static final Set<String> GAME_CODES = Set.of("OMOK", "DICE", "ONE_CARD", "LIAR_BRIDGE", "DICE_LEDGER", "HALLI_GALLI", "DAVINCI_CODE", "ALKKAGI");
 
     public GameHistoryPageRequest {
         if (cursor != null && cursor <= 0) {
