@@ -83,6 +83,28 @@ beforeEach(async () => {
   await vi.waitFor(() => expect(useSession.getState().tables).toHaveLength(1))
 })
 afterEach(async () => { await runtime.stop(); resetAiFeatures();resetBenchState();vi.restoreAllMocks();vi.useRealTimers(); clearAuthSession(); vi.unstubAllGlobals() })
+it('윷놀이와 겨울 편지 요청은 함께 허용하고 잘못된 경로와 메서드는 막는다', async () => {
+  const fetch = vi.fn(async () => new Response('{}'))
+  vi.stubGlobal('fetch', fetch)
+  const allowed: [string, RequestInit][] = [
+    ['/api/v1/minigames/yutnori/rooms?channelId=c', {}],
+    ['/api/v1/minigames/yutnori/chat', { method: 'POST' }],
+    ['/api/v1/world/winter/tree?channelId=c&before=1', {}],
+    ['/api/v1/world/winter/tree/status?channelId=c', {}],
+    ['/api/v1/world/winter/tree/messages', { method: 'POST' }],
+  ]
+  for (const [path, init] of allowed) await expect(runtime.requestJSON(path, init)).resolves.toEqual({})
+  expect(fetch).toHaveBeenCalledTimes(allowed.length)
+  for (const [path, init] of [
+    ['/api/v1/minigames/yutnori/start', {}],
+    ['/api/v1/minigames/yutnori/rooms?channelId=c&extra=1', {}],
+    ['/api/v1/world/winter/tree?channelId=c&before=0', {}],
+    ['/api/v1/world/winter/tree/admin', { method: 'POST' }],
+  ] as [string, RequestInit][]) {
+    await expect(runtime.requestJSON(path, init)).rejects.toThrow('현재 공원에서 사용할 수 없는 요청')
+  }
+  expect(fetch).toHaveBeenCalledTimes(allowed.length)
+})
 function nearTable() {
   useSession.setState({ mapCompatible: true })
   const [x, y, z] = TABLES[0]!.position, pose = { x, y: y + .8, z: z + 3, yaw: 0 }
