@@ -2,7 +2,8 @@ package com.ssafy.ontop.table;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ssafy.ontop.game.state.GameStateGateway;
+import com.ssafy.ontop.game.engine.GameEngineGateways;
+import com.ssafy.ontop.game.engine.GameEngineRouter;
 import com.ssafy.ontop.game.state.GameStateView;
 import com.ssafy.ontop.table.service.TableHub;
 import com.ssafy.ontop.world.config.WorldChannelProperties;
@@ -15,6 +16,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -24,9 +26,13 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "spring.profiles.active=local", "ontop.websocket.authenticated=true",
@@ -39,6 +45,7 @@ import static org.awaitility.Awaitility.await;
 })
 @Import({AuthenticatedWebSocketTests.AuthFixture.class, WorldCarryFlowTests.CarryWorldFixture.class})
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
+@MockitoSpyBean(types = GameEngineRouter.class)
 class WorldCarryFlowTests {
     @LocalServerPort private int port;
     @Autowired private WorldChannelRegistry channels;
@@ -222,8 +229,19 @@ class WorldCarryFlowTests {
         client.await(message -> message.path("type").asText().equals("CONNECTED"));
         assertThat(client.request("WORLD_MAP_CONFIRM", channels.mapMetadata()).path("type").asText())
                 .isEqualTo("WORLD_MAP_STATE");
-        client.request("CHANNEL_JOIN", Map.of("channelId", channel));
+        joinReadyChannel(client, channel);
         return client;
+    }
+
+    static void joinReadyChannel(ScenarioClient client, String channel) {
+        await().atMost(Duration.ofSeconds(3)).until(() -> {
+            var response = client.request("CHANNEL_JOIN", Map.of("channelId", channel));
+            if (response.path("type").asText().equals("CHANNEL_STATE")) {
+                return true;
+            }
+            assertThat(response.at("/payload/code").asText()).isEqualTo("GAME_RECOVERY_REQUIRED");
+            return false;
+        });
     }
 
     private Object direction(String carryId) {
@@ -243,19 +261,20 @@ class WorldCarryFlowTests {
     }
 
     @TestConfiguration(proxyBeanMethods = false)
+    @Import(GameEngineGateways.class)
     static class CarryWorldFixture {
         @Bean
         AtomicLong carryClock() {
             return new AtomicLong();
         }
-        // 관전 상태를 직접 주입하면 월드 틱이 지운다. 실제 승인된 구독 경로를 사용한다.
-        @Bean @Primary
-        GameStateGateway carryWatchStates(ObjectMapper mapper, WorldMapRuntime runtime) {
-            return (userId, gameId) -> gameId.equals("game")
-                    ? Optional.of(new GameStateView(userId, gameId, 1, GameStateView.Role.SPECTATOR,
+        // 공통 라우터의 관전 조회만 대역으로 제공한다. 별도 primary Gateway를 추가하지 않는다.
+        @Bean
+        InitializingBean carryWatchStates(ObjectMapper mapper, WorldMapRuntime runtime, GameEngineRouter router) {
+            return () -> doAnswer(invocation ->
+                    Optional.of(new GameStateView(invocation.getArgument(0), "game", 1, GameStateView.Role.SPECTATOR,
                             mapper.createObjectNode().put("status", "PLAYING"), mapper.createObjectNode(),
-                            runtime.tableLayout("a").getFirst().tableId()))
-                    : Optional.empty();
+                            runtime.tableLayout("a").getFirst().tableId())))
+                    .when(router).load(anyLong(), eq("game"));
         }
 
         @Bean @Primary

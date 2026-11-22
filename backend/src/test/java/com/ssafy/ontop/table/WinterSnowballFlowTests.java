@@ -1,6 +1,7 @@
 package com.ssafy.ontop.table;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.ssafy.ontop.game.engine.GameEngineRouter;
 import com.ssafy.ontop.world.service.WorldChannelRegistry;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
@@ -11,6 +12,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -25,6 +27,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 })
 @Import({AuthenticatedWebSocketTests.AuthFixture.class, WorldCarryFlowTests.CarryWorldFixture.class})
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
+@MockitoSpyBean(types = GameEngineRouter.class)
 class WinterSnowballFlowTests {
     @LocalServerPort private int port;
     @Autowired private WorldChannelRegistry channels;
@@ -34,7 +37,7 @@ class WinterSnowballFlowTests {
         var client = new ScenarioClient(port, login);
         client.await(m -> m.path("type").asText().equals("CONNECTED"));
         client.request("WORLD_MAP_CONFIRM", channels.mapMetadata());
-        client.request("CHANNEL_JOIN", Map.of("channelId", channel));
+        WorldCarryFlowTests.joinReadyChannel(client, channel);
         return client;
     }
     private void place(ScenarioClient client, double z) {
