@@ -1,5 +1,5 @@
 import {useContext,useEffect,useRef,useState} from 'react'
-import {useFrame} from '@react-three/fiber'
+import {useFrame,useThree} from '@react-three/fiber'
 import {Group,Sphere,Vector3} from 'three'
 import {CustomerModelPoolV5} from '../bungeoppang/customerModelV5'
 import {instantiateResident,RESIDENT_LOOKS,type ResidentKind} from './residentRig'
@@ -7,18 +7,21 @@ import {npcFrameView} from './npcFrameView'
 import {OMOK_FOCUS_LAYER} from '../../world/omokCamera'
 import {ResidentLoading} from './residentLoading'
 import {ResidentLoadQueue} from './residentLoadQueue'
+import {prepareObjectTextures,waitForScenePrograms} from '../../world/prepareScene'
 
 const pool=new CustomerModelPoolV5()
 const loads=new ResidentLoadQueue()
 const maxLoadAttempts=3
 export function ResidentModel({kind,speed,seated=false,airborne=false,talking=false}:{kind:ResidentKind;speed:{current:number};seated?:boolean;airborne?:boolean;talking?:boolean}) {
  const enabled=useContext(ResidentLoading)
+ const renderer=useThree(state=>state.get)
  const host=useRef<Group>(null),instance=useRef<ReturnType<typeof instantiateResident>|null>(null),[wanted,setWanted]=useState(false)
  const distance=useRef(Infinity)
  const frame=useRef({ elapsed:0, center:new Vector3(), sphere:new Sphere(new Vector3(),3), visible:true })
  useEffect(()=>{
   if(!enabled||!wanted)return
   let active=true,lease:ReturnType<typeof pool.acquire>|undefined,attempts=0
+  let preparing:ReturnType<typeof instantiateResident>|undefined
   let retryTimer:ReturnType<typeof setTimeout>|undefined,cancel=()=>{}
   const root=host.current!
   root.userData.loadError=false;root.userData.loadAttempts=0
@@ -33,10 +36,20 @@ export function ResidentModel({kind,speed,seated=false,airborne=false,talking=fa
     const source=await lease.ready
     if(!active)return
     performance.mark('park-resident-clone-start-'+kind)
-    const actor=instantiateResident(source,kind)
-    instance.current=actor;root.add(actor.root);root.userData.loaded=true;root.userData.loadError=false
+    const actor=preparing=instantiateResident(source,kind)
     performance.mark('park-resident-clone-end-'+kind)
+    const {gl,camera,scene}=renderer()
+    // Texture uploads and the program wait also apply without parallel linking.
+    // Three's compileAsync and our wait both retain their non-KHR fallback.
+    await Promise.all([
+     waitForScenePrograms(gl,()=>active,gl.compileAsync(actor.root,camera,scene)),
+     prepareObjectTextures(gl,actor.root,()=>active),
+    ])
+    if(!active)return
+    preparing=undefined
+    instance.current=actor;root.add(actor.root);root.userData.loaded=true;root.userData.loadError=false
    } catch(error) {
+    preparing?.dispose();preparing=undefined
     // A rejected lease stays cached while held. Release it before reacquiring,
     // and wait outside the queue so other residents can finish during backoff.
     release()
@@ -47,8 +60,8 @@ export function ResidentModel({kind,speed,seated=false,airborne=false,talking=fa
    }
   },()=>distance.current)}
   enqueue()
-  return()=>{active=false;cancel();clearTimeout(retryTimer);instance.current?.dispose();instance.current=null;release();root.userData.loaded=false}
- },[kind,enabled,wanted])
+  return()=>{active=false;cancel();clearTimeout(retryTimer);preparing?.dispose();preparing=undefined;instance.current?.dispose();instance.current=null;release();root.userData.loaded=false}
+ },[kind,enabled,wanted,renderer])
  useFrame(({camera,size,clock,gl},dt)=>{
   const resident=instance.current,group=host.current
   if(!group)return

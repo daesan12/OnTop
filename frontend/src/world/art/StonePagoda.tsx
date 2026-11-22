@@ -385,8 +385,8 @@ function stoneAsset(scale: number) {
 }
 
 /** Build tooling captures exact stone surfaces and their raycast ranges. */
-export function prebuildStaticSurfaces() {
-  for (const scale of new Set(PAGODA_ANCHORS.map(anchor => anchor.scale))) stoneAsset(scale)
+export function prebuildStaticSurfaces(scales: readonly number[] = PAGODA_ANCHORS.map(anchor => anchor.scale)) {
+  for (const scale of new Set(scales)) stoneAsset(scale)
 }
 
 /** Standalone scenes own this copy; disposing it never affects the park asset. */
