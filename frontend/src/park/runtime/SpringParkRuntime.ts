@@ -448,16 +448,18 @@ export class ParkRuntime implements ParkRuntimePort {
     const distanceCode = url === '/api/v1/feedback' ? 'FEEDBACK_OUT_OF_RANGE'
       : /^\/api\/v1\/notes(?:\?channelId=[^&#?]+)?$/.test(url) ? 'NOTES_OUT_OF_RANGE'
       : url === jokeSubmissionPath ? 'JOKE_OUT_OF_RANGE' : ''
-    const distanceForbidden = response.status === 403 && !!distanceCode
+    const winterBusiness = url.startsWith('/api/v1/world/winter/')
+    const distanceForbidden = response.status === 403 && (!!distanceCode || winterBusiness)
     if (response.status === 401 || (response.status === 403 && !distanceForbidden)) this.authEnded()
     if (!response.ok) {
       const body: unknown = await response.json().catch(() => null)
       const code = record(body) && typeof body.code === 'string' ? body.code : 'HTTP_ERROR'
       // Only the documented distance rejection is a business error, not an ended login session.
-      if (distanceForbidden && code !== distanceCode) this.authEnded()
+      if (distanceForbidden && code !== distanceCode && !(winterBusiness && ['WINTER_TREE_OUT_OF_RANGE', 'WINTER_NOT_IN_CHANNEL'].includes(code))) this.authEnded()
       throw new RestError(response.status, code,
         response.status === 401
           ? '로그인을 다시 확인해주세요.'
+          : winterBusiness && record(body) && typeof body.message === 'string' ? body.message
           : jokeBusinessMessage(url, response.status, body) ?? `서버 요청에 실패했습니다. (${response.status})`,
         record(body) && typeof body.nextAllowedAt === 'string' ? body.nextAllowedAt : undefined,
       )
@@ -490,6 +492,9 @@ export class ParkRuntime implements ParkRuntimePort {
       || method === 'GET' && /^\/api\/v1\/minigames\/skewer\/coop\/result\?gameId=skewer-coop-[a-f0-9-]{36}$/.test(path)
       || method === 'GET' && /^\/api\/v1\/minigames\/skewer\/coop\/rankings(?:\?mode=(?:PC|VR|ALL))?$/.test(path)
       || method === 'POST' && ['/api/v1/minigames/skewer/coop/rooms', '/api/v1/minigames/skewer/coop/leave'].includes(path)
+    const winterCommunityRequest = method === 'GET'
+      && /^\/api\/v1\/world\/winter\/tree(?:\/status)?\?channelId=[^&#?]+(?:&before=[1-9]\d{0,18})?$/.test(path)
+      || method === 'POST' && path === '/api/v1/world/winter/tree/messages'
     const rpsRouletteRequest = (method === 'GET' && path === '/api/v1/minigames/rps-roulette/status')
       || (method === 'POST' && /^\/api\/v1\/minigames\/rps-roulette\/rounds(?:\/[1-9]\d{0,18}\/(?:hands|challenge|stop))?$/.test(path))
     const plusMinusRequest = (method === 'GET' && path === '/api/v1/minigames/plus-minus/status')
@@ -525,7 +530,7 @@ export class ParkRuntime implements ParkRuntimePort {
         || (method === 'POST' && /^\/local\/ai\/companions\/(?:invite|action|talk)$/.test(path)))
     if (!this.active || (!serviceAiRequest && !localAiRequest && !notesRead && !notesWrite && !shopRequest && !profileRequest
       && !historyRequest && !minigameRequest && !jumpmapRequest && !rankingRequest && !parkRankingRequest && !skewerCoop
-      && !rpsRouletteRequest && !plusMinusRequest && !moleRequest && !speedMoleRequest && !jumpRopeRequest
+      && !winterCommunityRequest && !rpsRouletteRequest && !plusMinusRequest && !moleRequest && !speedMoleRequest && !jumpRopeRequest
       && !spotDifferenceRequest && !raffleRequest && !gachaRequest && !fitnessRewardRequest && !balloonFareRequest
       && !/^\/api\/v1\/(?:wallets\/me|feedback)$/.test(path))
       || (path === '/api/v1/feedback' && init.method !== 'POST'))

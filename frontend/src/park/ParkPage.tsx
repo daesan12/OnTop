@@ -1,4 +1,6 @@
 import { ParkNpcDialogue } from '../features/ai/ParkNpcDialogue'
+import { WinterCommunityBridge } from '../features/winter/community/WinterCommunityBridge'
+import { WinterCommunityPanels } from '../features/winter/community/WinterCommunityPanels'
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useState, type CSSProperties } from 'react'
 import { installBrowserShortcutGuard } from './browserShortcuts'
 import { NotificationCenter } from '../features/notifications/NotificationCenter'
@@ -196,7 +198,7 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked, welco
       <ParkSfx />
       <RewardCoinFlight />
       <ChannelEntryGate />
-      <AiResidentsHost /><ParkNpcDialogue />
+      <AiResidentsHost /><ParkNpcDialogue /><WinterCommunityBridge /><WinterCommunityPanels />
       <AnnouncementBanner hidden={hideAnnouncements} />
       <EntryNewsPopup hidden={hideAnnouncements || welcomeStoryDeadline != null} launcherHost={entryNewsHost} />
       {welcomeStoryDeadline != null && onWelcomeStoryComplete &&

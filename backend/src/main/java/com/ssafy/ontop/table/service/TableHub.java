@@ -3090,6 +3090,57 @@ public class TableHub {
 
     private record WorldPublishTiming(long totalNanos, long encodeNanos, long queueNanos, int recipients) { }
 
+    public synchronized com.ssafy.ontop.world.winter.community.WinterCommunity.Player winterPlayer(long user, String channel) {
+        String identity = Long.toString(user);
+        Member member = members.values().stream().filter(value -> value.userId().equals(identity) && isMapReady(value))
+                .findFirst().orElse(null);
+        if (stopped || member == null || !isMapReady(member) || channel == null || !channel.equals(channels.channelOf(identity))) {
+            throw new com.ssafy.ontop.world.winter.community.WinterCommunityException(403, "WINTER_NOT_IN_CHANNEL", "공원 채널에 다시 입장해주세요.");
+        }
+        return winterPlayers(channel).stream().filter(player -> player.userId().equals(identity)).findFirst()
+                .orElseThrow(() -> new com.ssafy.ontop.world.winter.community.WinterCommunityException(403,
+                        "WINTER_NOT_IN_CHANNEL", "공원 위치를 다시 확인해주세요."));
+    }
+
+    public synchronized java.util.List<com.ssafy.ontop.world.winter.community.WinterCommunity.Player> winterPlayers(String channel) {
+        if (stopped) { return java.util.List.of(); }
+        var result = new java.util.ArrayList<com.ssafy.ontop.world.winter.community.WinterCommunity.Player>();
+        for (var avatar : channels.winterAvatars(channel)) {
+            Member member = members.values().stream().filter(value -> value.userId().equals(avatar.userId()) && isMapReady(value))
+                    .findFirst().orElse(null);
+            if (member == null || !isMapReady(member)) { continue; }
+            var p = avatar.position();
+            double groundY = channels.winterGround(channel, p.x(), p.z());
+            boolean free = avatar.tableSeat() == null && avatar.activity() == null && avatar.carry() == null
+                    && !Boolean.TRUE.equals(avatar.vrActive()) && !p.swimming()
+                    && facilities.current(avatar.userId()) == null && !mobilityRides.containsKey(avatar.userId())
+                    && !emotes.isActive(avatar.userId()) && aiPracticeChatGame(avatar.userId()).isEmpty()
+                    && follows.activeStates().stream().flatMap(state -> state.links().stream())
+                        .noneMatch(link -> link.followerId().equals(avatar.userId()) || link.targetId().equals(avatar.userId()))
+                    && !snowballs.frozen(avatar.userId(), System.nanoTime())
+                    && Math.abs(p.y() - groundY - .76) < .65;
+            result.add(new com.ssafy.ontop.world.winter.community.WinterCommunity.Player(avatar.userId(),
+                    avatar.nickname(), p.x(), p.y(), p.z(), free));
+        }
+        return java.util.List.copyOf(result);
+    }
+
+    public synchronized void requireWinterTree(com.ssafy.ontop.world.winter.community.WinterCommunity.Player player, String channel) {
+        var tree = channels.winterTree(channel);
+        if (!tree.isObject() || Math.hypot(player.x() - tree.path("x").asDouble(), player.z() - tree.path("z").asDouble())
+                > tree.path("radius").asDouble() + 3.2 || Math.abs(player.y() - tree.path("y").asDouble() - .76) > .8) {
+            throw new com.ssafy.ontop.world.winter.community.WinterCommunityException(403, "WINTER_TREE_OUT_OF_RANGE", "광장 트리 가까이에서 편지를 확인해주세요.");
+        }
+    }
+
+    public synchronized void winterTreeChanged(Object state) {
+        if (stopped) { return; }
+        String message = protocol.encode(null, "WORLD_WINTER_TREE", state);
+        for (Member member : members.values()) {
+            if (isMapReady(member) && channels.channelOf(member.userId()) != null) { member.peer().offer(message); }
+        }
+    }
+
     /** 공개 게시판 변경 번호만 모든 입장 채널에 전파한다. 본문·작성자 정보는 포함하지 않는다. */
     public synchronized void notesChanged(long revision) {
         if (stopped || revision <= 0) { return; }

@@ -1,4 +1,5 @@
-import { SNOW_PILES } from '../../src/features/winter/plan'
+import { CHRISTMAS_TREE, SNOW_PILES, WINTER_DECOR } from '../../src/features/winter/plan'
+import { christmasCollision } from '../../src/features/winter/christmasCollision'
 import { mainPagodaCollision } from '../pagodaCollision'
 import { ShapeUtils, Vector2, type BufferGeometry } from 'three'
 import { createTowerDeck, createTowerRamp, MOVEMENT, OBSERVATION_TOWER, TOWER_DECK_RAIL_SEGMENTS, towerPoint } from '../../src/config'
@@ -10,6 +11,8 @@ import type { Point3 } from '../../src/map/park/interactionData'
 import { BOUNDARY_LENGTH, GATE, boundaryAtDistance, WALL_RUNS } from '../boundaryPlan'
 import { fountainAccessHeight } from '../fountainAccessSurface'
 import { groundSurfaceHeight } from '../groundSurface'
+import { parkGround } from '../groundGeometry'
+import { secretEntranceTerrain } from '../secretEntranceTerrain'
 import { HILLSIDE_RAIL_HEIGHTS, MONUMENT_STAIR_RAIL } from '../guardDimensions'
 import { hillsideGuardRuns, ascentFenceRuns } from '../guardLayout'
 import { JUMP_FENCE_HEIGHT, jumpFenceRuns } from '../jumpFencePlan'
@@ -71,11 +74,10 @@ function heightfield() {
     vertices.push(x, quantize(y), z)
     if (row && col) {
       const a = (row - 1) * side + col - 1
-      // Keep the height lookup grid intact. Only remove the cliff triangles that
-      // slope across the two portals; the masonry still defines their edges.
-      const underStair = x > -2 && x <= 2 && z > -48 && z <= -39
-      if (SECRET_ENTRANCES_OPEN && (underStair || HORROR_PORTALS.some(p => x === p.x + (p.outward > 0 ? 1 : 0)
-        && z > p.z - p.width / 2 && z - 1 < p.z + p.width / 2))) {
+      // Keep the lookup grid intact; replace only the artificial cliff slopes.
+      // The stair terrain is above the annex ceiling and must remain supported.
+      if (SECRET_ENTRANCES_OPEN && HORROR_PORTALS.some(p => x === p.x + (p.outward > 0 ? 1 : 0)
+        && z > p.z - p.width / 2 && z - 1 < p.z + p.width / 2)) {
         secretTerrainCuts.push(indices.length / 3, indices.length / 3 + 1)
       }
       indices.push(a, a + side, a + 1, a + 1, a + side, a + side + 1)
@@ -87,6 +89,7 @@ function heightfield() {
 export function buildRenewalPhysics(tables: readonly TableAnchor[]) {
   const { terrain, secretTerrainCuts } = heightfield()
   const meshes: RenewalMesh[] = [terrain], boxes: PhysicalBox[] = [], hulls: PhysicalHull[] = []
+  if (SECRET_ENTRANCES_OPEN) meshes.push(secretEntranceTerrain([parkGround.grass, parkGround.paving]))
   const putBox = (id: string, center: Point3, half: Point3, yaw = 0) => boxes.push({ id, center, half, yaw, role: 'solid' })
   const rail = (id: string, a: Point3, b: Point3, thickness: number, height: number, overlap = .015) => {
     const dx = b[0] - a[0], dz = b[2] - a[2], length = Math.hypot(dx, dz)
@@ -209,6 +212,13 @@ export function buildRenewalPhysics(tables: readonly TableAnchor[]) {
     if (b.kind === 'circle') cylinder(id, b.x, b.z, b.radius, b.bottom, b.top)
     else putBox(id, [b.x, (b.bottom + b.top) / 2, b.z], [b.halfX, (b.top - b.bottom) / 2, b.halfZ], Math.atan2(b.sin, b.cos))
   })
+  for (const decoration of WINTER_DECOR) {
+    const approved = christmasCollision(decoration.kind)
+    if (!approved) continue
+    const floor = groundSurfaceHeight(decoration.x, decoration.z)
+    hulls.push({ id: 'winter-asset-' + decoration.id, role: 'solid',
+      vertices: approved.vertices.map((value, i) => value + (i % 3 === 0 ? decoration.x : i % 3 === 1 ? floor : decoration.z)) })
+  }
   // The authored proxies above retain the visible bench/seat profiles. Service table
   // columns keep the existing no-climb policy and two visible stone seats.
   for (const table of tables) {
@@ -425,7 +435,9 @@ export function buildRenewalPhysics(tables: readonly TableAnchor[]) {
   const spawnY = groundSurfaceHeight(...RENEWAL_SPAWN) + MOVEMENT.halfHeight + MOVEMENT.radius + MOVEMENT.offset + groundClearance
   // The enlarged benches need more clearance under the tuned jump's stronger gravity.
   const physics = { ...basePhysics,
-    winterSnowPiles: SNOW_PILES.map(p => ({ ...p, y: groundSurfaceHeight(p.x, p.z) })), boxes, hulls, meshes, fountainPolicy, steppingStones: [], pavilionTunedJumpSpeed: 9.8,
+    winterSnowPiles: SNOW_PILES.map(p => ({ ...p, y: groundSurfaceHeight(p.x, p.z) })),
+    winterTree: { ...CHRISTMAS_TREE, y: groundSurfaceHeight(CHRISTMAS_TREE.x, CHRISTMAS_TREE.z) },
+    boxes, hulls, meshes, fountainPolicy, steppingStones: [], pavilionTunedJumpSpeed: 9.8,
     secretCorridor: { x0: HORROR.x0, x1: HORROR.x1, z0: HORROR.z0, z1: HORROR.z1, floor: HORROR.floor, ceiling: HORROR.ceiling },
     secretTerrainCuts, duckBoat: BOAT_ROUTE,
     interiorAccess: { routes: interiorAccess, annex, upperArrival, entrancesOpen: SECRET_ENTRANCES_OPEN,
