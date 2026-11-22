@@ -5,7 +5,7 @@ import { HANDS, type Hand } from './ledHands'
 export const ROULETTE = [10, 1, 2, 1, 3, 1, 2, 1, 5, 1, 1, 2, 1, 4, 1, 7, 1, 2, 1, 3, 1, 2, 1, 4, 1, 3, 1, 2, 1, 2] as const
 export const FEES = [10, 20, 30] as const
 export const MULTIPLIERS = [1, 2, 4] as const
-export const DAILY_PLAYS = 15
+export const DAILY_PLAYS = 0 // 0 means unlimited.
 
 export type Phase = 'DUEL' | 'DECIDE' | 'SETTLED'
 export interface LastDuel { duelNo: number; playerHand: Hand; machineHand: Hand; salt: string; result: 'WIN' | 'DRAW' | 'LOSE'; auto: boolean }
@@ -57,7 +57,7 @@ export function parseRpsState(value: unknown): RpsState {
   const r = value.rules
   return {
     serverNow: time(value.serverNow), availableBalance: int(value.availableBalance), playedToday: int(value.playedToday),
-    rules: { fees: ints(r.fees), dailyPlays: int(r.dailyPlays, 1),
+    rules: { fees: ints(r.fees), dailyPlays: int(r.dailyPlays),
       multipliers: Array.isArray(r.multipliers) && r.multipliers.every(m => typeof m === 'number') ? r.multipliers : invalid(),
       roulette: ints(r.roulette), duelLimitMs: int(r.duelLimitMs), decideLimitMs: int(r.decideLimitMs), graceMs: int(r.graceMs) },
     round: round(value.round),

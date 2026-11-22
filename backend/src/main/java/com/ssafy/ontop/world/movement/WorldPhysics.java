@@ -1604,6 +1604,10 @@ public final class WorldPhysics implements AutoCloseable {
         }
     }
 
+    public double winterGround(double x, double z) { return call(() -> scene.groundHeight(x, z)); }
+
+    public JsonNode winterTree() { return call(() -> scene.data.path("winterTree").deepCopy()); }
+
     public boolean snowPileInReach(String userId, String pileId) {
         return call(() -> {
             Actor actor = actors.get(userId);
