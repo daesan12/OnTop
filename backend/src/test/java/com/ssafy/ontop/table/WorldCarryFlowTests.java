@@ -30,6 +30,7 @@ import static org.awaitility.Awaitility.await;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "spring.profiles.active=local", "ontop.websocket.authenticated=true",
+        "ontop.games.chess.enabled=false",
         "ontop.world.channels[0].channel-id=a", "ontop.world.channels[0].name=A",
         "ontop.world.channels[0].capacity=4", "ontop.world.channels[1].channel-id=b",
         "ontop.world.channels[1].name=B", "ontop.world.channels[1].capacity=4",
