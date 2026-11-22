@@ -1,4 +1,4 @@
-import { acceptSnowballWindup, acceptSnowball, acceptWinterState, resetWinter, winterFrozen } from '../features/winter/state'
+import { acceptSnowballWindup, acceptSnowball, acceptSnowballImpact, acceptWinterState, resetWinter, winterFrozen } from '../features/winter/state'
 import { filterChat } from '../features/chat/filterChat'
 import { setHorrorOpen } from '../../park-renewal-preview/horrorPlan'
 import { create } from 'zustand'
@@ -898,6 +898,10 @@ export function receive(message: Envelope, expectedMapVersion: string = EXPECTED
     }
     case 'WORLD_SNOWBALL_EVENT': {
       if (state.status === 'connected' && state.mapCompatible) acceptSnowball(p, state.roomId, state.sessionId, estimatedServerTime())
+      break
+    }
+    case 'WORLD_SNOWBALL_IMPACT': {
+      if (state.status === 'connected' && state.mapCompatible) acceptSnowballImpact(p, state.roomId, state.sessionId, estimatedServerTime())
       break
     }
     case 'WORLD_EMOTE_EVENT': {

@@ -7,6 +7,9 @@ export const SNOW_RANGE = 16
 export const SNOW_ARC_HEIGHT = .55
 export const GATHER_MS = 800
 export const THROW_RECOVERY_MS = 650
+export const MAX_SNOWBALLS = 3
+export const SNOW_RELEASE_AT_MS = 250
+export const FREEZE_MS = 5000
 
 export function parseSnowballAim(p: Record<string, unknown>, channel: string, user: string): SnowballAim | null {
   if (p.channelId !== channel || p.userId !== user || typeof p.hitUserId !== 'string'
