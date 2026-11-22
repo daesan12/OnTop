@@ -39,8 +39,6 @@ public final class WorldPhysics implements AutoCloseable {
     private final Map<String, Actor> actors = new HashMap<>();
     private final Map<String, Chair> chairs = new HashMap<>();
     private final Map<String, PhysicsRigidBody> secretDoors = new HashMap<>();
-    private final Map<String, java.util.List<PhysicsRigidBody>> builtSnowmen = new HashMap<>();
-    private final Map<Integer, com.jme3.bullet.objects.PhysicsGhostObject> winterProbes = new HashMap<>();
     private boolean secretDoorsOpen;
     private static final java.util.regex.Pattern CHAIR = java.util.regex.Pattern.compile("(.+)-chair-([0-7])");
     private static final class Chair {
@@ -1606,81 +1604,9 @@ public final class WorldPhysics implements AutoCloseable {
         }
     }
 
-    public record WinterSurface(double groundY, boolean clear, boolean buildingZone, String pileId) { }
-
-    /** 서버 지형과 실제 고정 충돌만 검사한다. 굴리는 눈은 별도 규칙에서 서로의 간격을 검사한다. */
-    public WinterSurface winterSurface(double x, double z, double radius) {
-        return call(() -> {
-            if (!Double.isFinite(x) || !Double.isFinite(z) || !Double.isFinite(radius) || radius <= 0 || radius > 1.1) {
-                return new WinterSurface(0, false, false, "");
-            }
-            double ground = scene.groundHeight(x, z);
-            double halfSize = scene.data.path("world").path("halfSize").asDouble(110);
-            if (Math.abs(x) + radius >= halfSize - 1 || Math.abs(z) + radius >= halfSize - 1) {
-                return new WinterSurface(ground, false, false, "");
-            }
-            int size = (int) Math.ceil(radius * 100);
-            var probe = winterProbes.computeIfAbsent(size, key -> {
-                var value = new com.jme3.bullet.objects.PhysicsGhostObject(
-                        new com.jme3.bullet.collision.shapes.SphereCollisionShape(key / 100f));
-                value.setCollisionGroup(1); value.setCollideWithGroups(2);
-                return value;
-            });
-            probe.setPhysicsLocation(new Vector3f((float) x, (float) (ground + size / 100.0 + .025), (float) z));
-            boolean[] blocked = {false};
-            space.contactTest(probe, event -> { if (event.getDistance1() < -.03f) { blocked[0] = true; } });
-            double centerY = ground + number("halfHeight") + number("radius") + number("offset");
-            boolean clear = !blocked[0] && !positionCollision.swimming(new ClientPositionValidator.Pose(x, centerY, z));
-            boolean building = false;
-            for (JsonNode zone : scene.data.path("winterBuildZones")) {
-                if (Math.hypot(x - zone.path("x").asDouble(), z - zone.path("z").asDouble()) + radius + .35
-                        <= zone.path("radius").asDouble()) { building = true; break; }
-            }
-            String pile = "";
-            for (JsonNode snow : scene.data.path("winterSnowPiles")) {
-                if (Math.hypot(x - snow.path("x").asDouble(), z - snow.path("z").asDouble()) <= snow.path("radius").asDouble()) {
-                    pile = snow.path("id").asText(); break;
-                }
-            }
-            return new WinterSurface(ground, clear, building, pile);
-        });
-    }
-
     public double winterGround(double x, double z) { return call(() -> scene.groundHeight(x, z)); }
 
     public JsonNode winterTree() { return call(() -> scene.data.path("winterTree").deepCopy()); }
-
-    /** 완성품은 정적 구체 세 개다. 설치 직전에 들어온 보행자는 검증된 가까운 빈자리로 분리한다. */
-    public void installSnowman(String id, double x, double groundY, double z, double base, double middle, double head) {
-        call(() -> {
-            if (builtSnowmen.containsKey(id)) { return null; }
-            var bodies = new java.util.ArrayList<PhysicsRigidBody>();
-            var shape = com.ssafy.ontop.world.winter.community.SnowmanShape.stack(base, middle, head,
-                    scene.data.path("winterSnowman").path("jointInsetRatio")
-                            .asDouble(com.ssafy.ontop.world.winter.community.SnowmanShape.JOINT_INSET_RATIO));
-            double[] centers = {shape.baseY(), shape.middleY(), shape.headY()};
-            int part = 0;
-            for (double radius : new double[] {base, middle, head}) {
-                var body = new PhysicsRigidBody(new com.jme3.bullet.collision.shapes.SphereCollisionShape((float) radius), 0);
-                body.setUserObject("built-snowman:" + id + ":" + part);
-                body.setPhysicsLocation(new Vector3f((float) x, (float) (groundY + centers[part++]), (float) z));
-                body.setCollisionGroup(2); body.setCollideWithGroups(1);
-                space.addCollisionObject(body); bodies.add(body);
-            }
-            builtSnowmen.put(id, bodies);
-            for (var entry : actors.entrySet()) {
-                var actor = entry.getValue();
-                var at = actor.body.getPhysicsLocation(null);
-                if (Math.hypot(at.x - x, at.z - z) < base + .5
-                        && Math.abs(at.y - groundY - number("halfHeight") - number("radius")) < .7
-                        && !canStand(at.x, at.y, at.z)) {
-                    var safe = nearbyStand(at);
-                    if (safe != null) { placeNow(entry.getKey(), safe.x, safe.y, safe.z); }
-                }
-            }
-            return null;
-        });
-    }
 
     public boolean snowPileInReach(String userId, String pileId) {
         return call(() -> {

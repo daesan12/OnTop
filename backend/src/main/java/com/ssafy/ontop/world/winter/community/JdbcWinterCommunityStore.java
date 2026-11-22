@@ -11,7 +11,6 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 import org.springframework.context.annotation.Profile;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
@@ -19,7 +18,7 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/** V183. 점등은 전 채널 공용 행, 눈사람 추가는 채널 행을 먼저 잠가 직렬화한다. */
+/** V183. 점등은 전 채널 공용 행을 먼저 잠가 직렬화한다. */
 @Repository
 @Profile(RuntimeProfiles.PRODUCT_FEATURE_WITH_DB)
 public final class JdbcWinterCommunityStore implements WinterCommunityStore {
@@ -140,63 +139,10 @@ public final class JdbcWinterCommunityStore implements WinterCommunityStore {
         }));
     }
 
-    @Override
-    public List<WinterCommunity.Snowman> snowmen(String channel) {
-        return jdbc.query("SELECT * FROM winter_snowmen WHERE channel_id=? ORDER BY created_at,id", this::snowman, channel);
-    }
-
-    @Override
-    public Optional<WinterCommunity.Snowman> previousSnowman(String actorKey, String operation, String requestHash) {
-        return jdbc.query("SELECT * FROM winter_snowmen WHERE actor_key=? AND operation_id=?", (row, index) -> {
-                    if (!requestHash.equals(row.getString("request_hash"))) {
-                        throw new WinterCommunityException(409, "WINTER_OPERATION_CONFLICT", "같은 요청의 내용이 달라졌어요.");
-                    }
-                    return snowman(row, index);
-                },
-                actorKey, operation).stream().findFirst();
-    }
-
-    @Override
-    public WinterCommunity.Snowman saveSnowman(String actorKey, String operation, String requestHash,
-            WinterCommunity.Snowman snowman) {
-        return Objects.requireNonNull(transactions.execute(transaction -> {
-            jdbc.update("INSERT IGNORE INTO winter_snowman_channels (channel_id) VALUES (?)", snowman.channelId());
-            jdbc.queryForObject("SELECT revision FROM winter_snowman_channels WHERE channel_id=? FOR UPDATE",
-                    Long.class, snowman.channelId());
-            var previous = previousSnowman(actorKey, operation, requestHash);
-            if (previous.isPresent()) {
-                return previous.get();
-            }
-            var placed = snowmen(snowman.channelId());
-            if (placed.size() >= WinterCommunity.MAX_SNOWMEN) {
-                throw new WinterCommunityException(409, "WINTER_GARDEN_FULL", "이 채널의 눈사람 자리가 가득 찼어요.");
-            }
-            if (placed.stream().anyMatch(other -> Math.hypot(other.x() - snowman.x(), other.z() - snowman.z())
-                    < other.baseRadius() + snowman.baseRadius() + .5)) {
-                throw new WinterCommunityException(409, "WINTER_PLACEMENT_BLOCKED", "다른 눈사람과 조금 떨어뜨려 주세요.");
-            }
-            jdbc.update("INSERT INTO winter_snowmen "
-                    + "(id,channel_id,actor_key,operation_id,request_hash,name,x,ground_y,z,yaw,base_radius,middle_radius,head_radius,hat,scarf,face,created_at) "
-                    + "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", snowman.id(), snowman.channelId(), actorKey, operation, requestHash,
-                    snowman.name(), snowman.x(), snowman.groundY(), snowman.z(), snowman.yaw(), snowman.baseRadius(),
-                    snowman.middleRadius(), snowman.headRadius(), snowman.hat(), snowman.scarf(), snowman.face(),
-                    utc(Instant.parse(snowman.createdAt())));
-            jdbc.update("UPDATE winter_snowman_channels SET revision=revision+1 WHERE channel_id=?", snowman.channelId());
-            return snowman;
-        }));
-    }
-
     private WinterCommunity.TreeMessage message(ResultSet row, int index) throws SQLException {
         boolean anonymous = row.getBoolean("anonymous");
         return new WinterCommunity.TreeMessage(row.getLong("id"), row.getString("body"), anonymous,
                 anonymous ? null : row.getString("display_name"), row.getString("ornament"), time(row, "created_at"));
-    }
-
-    private WinterCommunity.Snowman snowman(ResultSet row, int index) throws SQLException {
-        return new WinterCommunity.Snowman(row.getString("id"), row.getString("channel_id"), row.getString("name"),
-                row.getDouble("x"), row.getDouble("ground_y"), row.getDouble("z"), row.getDouble("yaw"),
-                row.getDouble("base_radius"), row.getDouble("middle_radius"), row.getDouble("head_radius"),
-                row.getString("hat"), row.getString("scarf"), row.getString("face"), time(row, "created_at"));
     }
 
     private static String time(ResultSet row, String column) throws SQLException {

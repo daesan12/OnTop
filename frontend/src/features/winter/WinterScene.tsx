@@ -1,6 +1,5 @@
 import { memo, useEffect, useMemo, useRef } from 'react'
 import { SantaBell } from './SantaBell'
-import { SnowBuildingScene } from './community/SnowBuildingScene'
 import { useWinterCommunity } from './community/state'
 import { ChristmasCommunityTree } from './community/ChristmasCommunityTree'
 import { useFrame } from '@react-three/fiber'
@@ -175,7 +174,6 @@ export const WinterScene = memo(function WinterScene({ low = false, groundReady 
     <RoofSnow visible={winterRoofSnowVisible} protectedAreas={winterProtectedSurfaces} />
     <Snowfall low={low} />
     <Snowballs />
-    <SnowBuildingScene />
     <SnowballAim />
     {groundReady && <GroundSnow />}
     <WinterActors />

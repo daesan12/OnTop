@@ -1,5 +1,5 @@
 import { acceptSnowballWindup, acceptSnowball, acceptSnowballImpact, acceptWinterState, resetWinter, winterFrozen } from '../features/winter/state'
-import { acceptWinterBuilding, acceptWinterTree, resetWinterCommunity } from '../features/winter/community/state'
+import { acceptWinterTree, resetWinterCommunity } from '../features/winter/community/state'
 import { filterChat } from '../features/chat/filterChat'
 import { setHorrorOpen } from '../../park-renewal-preview/horrorPlan'
 import { create } from 'zustand'
@@ -886,11 +886,6 @@ export function receive(message: Envelope, expectedMapVersion: string = EXPECTED
       const cancellation = parseEmoteCancellation(p)
       if (emoteTimeline.cancelEvent(cancellation, estimatedServerTime())) stopAvatarEmote(cancellation.userId)
       break
-    }
-    case 'WORLD_WINTER_COMMUNITY': {
-      if (state.status !== 'connected' || !state.mapCompatible) return
-      acceptWinterBuilding(p, state.roomId)
-      return
     }
     case 'WORLD_WINTER_TREE': {
       if (state.status !== 'connected' || !state.mapCompatible) return

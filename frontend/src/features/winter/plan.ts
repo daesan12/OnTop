@@ -14,8 +14,6 @@ export const WINTER_DECOR = [
 ] as const
 interface SnowPile { id: string; x: number; z: number; radius: number }
 const snowPiles: SnowPile[] = [
-  { id: 'snow-building-west', x: -16, z: 43, radius: 5 },
-  { id: 'snow-building-east', x: 16, z: 43, radius: 5 },
   { id: 'snow-entry', x: 0, z: 88, radius: 2.4 },
   { id: 'snow-entry-arrival', x: 0, z: 96, radius: 3.2 },
   { id: 'snow-plaza-west', x: -5, z: 44, radius: 2.4 },
@@ -68,9 +66,4 @@ for (let x = -91; x <= 91; x += 14) for (let z = -91; z <= 91; z += 14) {
 }
 export const SNOW_PILES: readonly SnowPile[] = snowPiles
 export const SANTA = WINTER_DECOR[1]!
-/** 완성품은 통행로·출입구 밖의 눈밭에만 설치한다. FE/BE가 같은 영역을 사용한다. */
-export const SNOW_BUILD_ZONES = [
-  { id: 'snow-building-west', x: -16, z: 43, radius: 5 },
-  { id: 'snow-building-east', x: 16, z: 43, radius: 5 },
-] as const
 export const CHRISTMAS_TREE = WINTER_DECOR[0]!

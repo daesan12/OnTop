@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { acceptWinterBuilding, acceptWinterTree, parseTreePage, resetWinterCommunity, useWinterCommunity } from '../../src/features/winter/community/state'
+import { acceptWinterTree, parseTreePage, resetWinterCommunity, useWinterCommunity } from '../../src/features/winter/community/state'
 import { treeOrnamentSlots } from '../../src/features/winter/community/ornaments'
 
 const at = '2026-11-21T01:00:00Z'
@@ -23,18 +23,5 @@ describe('공동 겨울 공원 수신 상태', () => {
     const slots = treeOrnamentSlots(ornaments)
     expect(new Set(slots.map(slot => slot.anchor)).size).toBe(50)
     expect(treeOrnamentSlots([...ornaments].reverse())).toEqual(slots)
-  })
-  it('다른 채널과 낡은 눈 상태를 버린다', () => {
-    const state = { channelId: 'a', version: 4, serverTime: at, balls: [], snowmen: [] }
-    expect(acceptWinterBuilding(state, 'b')).toBe(false)
-    expect(acceptWinterBuilding(state, 'a')).toBe(true)
-    expect(acceptWinterBuilding({ ...state, version: 3 }, 'a')).toBe(false)
-    expect(useWinterCommunity.getState().building?.version).toBe(4)
-  })
-  it('최대 크기를 넘거나 잠금 상태가 없는 눈덩이를 거부한다', () => {
-    const ball = { id: '00000000-0000-4000-8000-000000000001', x: 1, groundY: 0, z: 2, radius: 1.11, pushing: [], reserved: false }
-    const state = { channelId: 'a', version: 4, serverTime: at, balls: [ball], snowmen: [] }
-    expect(acceptWinterBuilding(state, 'a')).toBe(false)
-    expect(acceptWinterBuilding({ ...state, balls: [{ ...ball, radius: 1.1 }] }, 'a')).toBe(true)
   })
 })

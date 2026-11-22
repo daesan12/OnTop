@@ -89,14 +89,9 @@ class WinterCommunityMySqlTests {
         assertThat(afterConcurrentPosts.revision()).isEqualTo(lit.revision() + 2);
         assertThat(afterConcurrentPosts.litAt()).isEqualTo(lit.litAt());
         assertThat(afterConcurrentPosts.ornaments()).hasSize(50);
-        var man = new WinterCommunity.Snowman(UUID.randomUUID().toString(), "channel-a", "우리 눈사람",
-                16, 0, 43, 0, .8, .6, .4, "TOP_HAT", "BLUE", "WINK", at.toString());
-        store.saveSnowman(actor, UUID.randomUUID().toString(), "a".repeat(64), man);
         var reopened = new JdbcWinterCommunityStore(jdbc, new DataSourceTransactionManager(source));
         assertThat(reopened.treeStatus()).isEqualTo(afterConcurrentPosts);
         assertThat(reopened.actorSalt()).containsExactly(store.actorSalt());
-        assertThat(reopened.snowmen("channel-a")).containsExactly(man);
-        assertThat(reopened.snowmen("channel-b")).isEmpty();
         flyway.validate();
     }
 }

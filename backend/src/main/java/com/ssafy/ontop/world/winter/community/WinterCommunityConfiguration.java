@@ -13,6 +13,6 @@ import org.springframework.context.annotation.Profile;
 public class WinterCommunityConfiguration {
     @Bean
     WinterCommunityService winterCommunityService(ObjectProvider<WinterCommunityStore> stores, TableHub hub) {
-        return new WinterCommunityService(stores::getIfAvailable, new HubWinterWorld(hub), Clock.systemUTC(), System::nanoTime);
+        return new WinterCommunityService(stores::getIfAvailable, new HubWinterWorld(hub), Clock.systemUTC());
     }
 }

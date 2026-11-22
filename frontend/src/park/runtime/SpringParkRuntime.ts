@@ -484,8 +484,8 @@ export class ParkRuntime implements ParkRuntimePort {
       || method === 'GET' && /^\/api\/v1\/minigames\/skewer\/coop\/rankings(?:\?mode=(?:PC|VR|ALL))?$/.test(path)
       || method === 'POST' && ['/api/v1/minigames/skewer/coop/rooms', '/api/v1/minigames/skewer/coop/leave'].includes(path)
     const winterCommunityRequest = method === 'GET'
-      && /^\/api\/v1\/world\/winter\/(?:snow|tree(?:\/status)?)\?channelId=[^&#?]+(?:&before=[1-9]\d{0,18})?$/.test(path)
-      || method === 'POST' && /^\/api\/v1\/world\/winter\/(?:tree\/messages|snow\/(?:snowmen|rolls(?:\/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\/(?:hold|release))?))$/.test(path)
+      && /^\/api\/v1\/world\/winter\/tree(?:\/status)?\?channelId=[^&#?]+(?:&before=[1-9]\d{0,18})?$/.test(path)
+      || method === 'POST' && path === '/api/v1/world/winter/tree/messages'
     const rpsRouletteRequest = (method === 'GET' && path === '/api/v1/minigames/rps-roulette/status')
       || (method === 'POST' && /^\/api\/v1\/minigames\/rps-roulette\/rounds(?:\/[1-9]\d{0,18}\/(?:hands|challenge|stop))?$/.test(path))
     const plusMinusRequest = (method === 'GET' && path === '/api/v1/minigames/plus-minus/status')

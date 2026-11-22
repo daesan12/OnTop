@@ -1,8 +1,6 @@
 import { nearbyParkNpcs } from '../ai/parkNpcInteraction'
 import { CHRISTMAS_TREE } from '../winter/plan'
-import { nearbyAssembly, openWinterCommunity } from '../winter/community/panelState'
-import { useSnowRollInput } from '../winter/community/rollInput'
-import { useWinterCommunity } from '../winter/community/state'
+import { openWinterCommunity } from '../winter/community/panelState'
 import { renewalGroundHeight } from '../../park/renewalMap'
 import { openParkDialogue } from '../ai/parkDialogueState'
 import { parkDialogues } from '../ai/parkDialogue'
@@ -100,7 +98,7 @@ const recreationLabels: Record<RenewalRecreationId, string> = {
 }
 
 export interface ParkInteraction {
-  kind: 'winter-tree' | 'winter-snowman' | 'park-npc' | 'sleigh' | 'bench' | 'table' | 'fitness' | 'telescope' | 'boat' | 'balloon' | 'feedback' | 'notes' | 'bungeoppang' | 'rps-roulette' | 'renewal-game' | 'spot-difference' | 'construction' | 'gacha' | 'ranking-board' | 'vr' | 'jumpmap-guide' | 'stone-rumble-guide' | 'avatar-pickup' | 'avatar-throw' | 'joke-judge' | 'interior-item' | 'interior-access' | 'advertisement'
+  kind: 'winter-tree' | 'park-npc' | 'sleigh' | 'bench' | 'table' | 'fitness' | 'telescope' | 'boat' | 'balloon' | 'feedback' | 'notes' | 'bungeoppang' | 'rps-roulette' | 'renewal-game' | 'spot-difference' | 'construction' | 'gacha' | 'ranking-board' | 'vr' | 'jumpmap-guide' | 'stone-rumble-guide' | 'avatar-pickup' | 'avatar-throw' | 'joke-judge' | 'interior-item' | 'interior-access' | 'advertisement'
   id: string
   label: string
   seat?: 0 | 1
@@ -115,7 +113,6 @@ export function getParkInteraction(preferredGuide?: typeof STONE_RUMBLE_GUIDE_ID
   const session = useSession.getState(), benches = useBenchState.getState(), fitness = useFitnessState.getState()
   const p = avatars.get(session.sessionId)
   if (winterFrozen(session.sessionId, estimatedServerTime())) return null
-  if (useSnowRollInput.getState().phase !== 'idle' || useWinterCommunity.getState().building?.balls.some(ball => ball.pushing.includes(session.sessionId))) return null
   const mobility = useMobility.getState()
   if (mobility.target || mobility.phase !== 'idle' || p?.vehicle || facilityMovementBlocked(session.sessionId)) return null
   if (!roamingInput.ready || !p || session.status !== 'connected' || !session.mapCompatible || session.tableId || p.seatIndex >= 0
@@ -126,7 +123,6 @@ export function getParkInteraction(preferredGuide?: typeof STONE_RUMBLE_GUIDE_ID
     const tree = CHRISTMAS_TREE, distance = Math.hypot(p.current.x - tree.x, p.current.z - tree.z)
     if (distance <= tree.radius + 3.2) choices.push({ kind: 'winter-tree', id: tree.id, label: '트리에 편지 걸기', available: true, occupied: false,
       distance: Math.max(0, distance - tree.radius), score: interactionScore(Math.max(0, distance - tree.radius), { x: tree.x, y: renewalGroundHeight(tree.x, tree.z) + 2, z: tree.z }) })
-    if (nearbyAssembly()) choices.push({ kind: 'winter-snowman', id: 'snowman-workshop', label: '눈덩이 세 개로 눈사람 만들기', available: true, occupied: false, distance: 0, score: -.5 })
   }
   for (const npc of nearbyParkNpcs(p.current, session.roomId)) {
     const distance = Math.hypot(p.current.x - npc.x, p.current.z - npc.z)
@@ -317,7 +313,7 @@ export function interactWithPark(expectedId?: string): boolean {
     const { sessionId, roomId } = useSession.getState(), pose = avatars.get(sessionId)?.current
     return !!pose && interiorVisit.addDiamond(visitScope(sessionId, roomId), pose)
   }
-  if (target.kind === 'winter-tree' || target.kind === 'winter-snowman') return openWinterCommunity(target.kind === 'winter-tree' ? 'tree' : 'snowman')
+  if (target.kind === 'winter-tree') return openWinterCommunity('tree')
   if (target.kind === 'avatar-pickup' || target.kind === 'avatar-throw') interactWithAvatar(target.kind, target.id)
   else if (target.kind === 'stone-rumble-guide') openStoneRumbleGuide(stoneRumbleGuideScope(useSession.getState()))
   else if (target.kind === 'jumpmap-guide') openJumpmapGuide(jumpmapGuideScope(useSession.getState()))
