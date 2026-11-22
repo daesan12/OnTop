@@ -2,9 +2,10 @@ import { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { CatmullRomCurve3, Group, InstancedMesh, Object3D, Vector3 } from 'three'
 import type { RefObject } from 'react'
+import type { ReinAnchors } from './reinAnchors'
 
 /** Continuous traces pass through animated harness rings and clear the animals' flanks. */
-export function Reins({ team }: { team: RefObject<Group | null> }) {
+export function Reins({ team, anchors }: { team: RefObject<Group | null>; anchors: ReinAnchors }) {
   const mesh = useRef<InstancedMesh>(null)
   const work = useMemo(() => ({ dummy: new Object3D(), from: new Vector3(), to: new Vector3(),
     direction: new Vector3(), tangent: new Vector3(), up: new Vector3(0, 1, 0),
@@ -13,13 +14,15 @@ export function Reins({ team }: { team: RefObject<Group | null> }) {
     ]) }))) }), [])
   useFrame(() => {
     if (!mesh.current || !team.current) return
-    mesh.current.parent?.updateWorldMatrix(true, true)
+    mesh.current.updateWorldMatrix(true, false)
     work.curves.forEach(({ curve, column, flank }, line) => {
-      const tow = mesh.current!.parent?.getObjectByName(column < 0 ? 'sleigh-tow-left' : 'sleigh-tow-right')
+      const tow = column < 0 ? anchors.tow.left : anchors.tow.right
       if (tow) { tow.getWorldPosition(curve.points[0]!); mesh.current!.worldToLocal(curve.points[0]!) }
+      else curve.points[0]!.set(column * .65, .25, 1.4)
       for (let row = 0; row < 3; row++) {
-        const animal = team.current!.children[row * 2 + (column < 0 ? 0 : 1)]!
-        const anchor = animal.getObjectByName(flank < 0 ? 'harness-left' : 'harness-right')
+        const index = row * 2 + (column < 0 ? 0 : 1)
+        const animal = team.current!.children[index]!
+        const anchor = flank < 0 ? anchors.harness[index]!.left : anchors.harness[index]!.right
         const point = curve.points[row + 1]!
         if (anchor) { anchor.getWorldPosition(point); mesh.current!.worldToLocal(point) }
         else point.set(flank * .3, .05, .37).applyQuaternion(animal.quaternion).add(animal.position)

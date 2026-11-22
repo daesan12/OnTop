@@ -10,6 +10,7 @@ import { reindeerGallop } from './gallop'
 import { sleighChassisPose, sleighTeamPose } from './formation'
 import { Reins } from './Reins'
 import { ChristmasAsset, ChristmasRudolph } from '../ChristmasAssets'
+import { createReinAnchors } from './reinAnchors'
 
 function Art({ art }: { art: ReturnType<typeof createSleighArt> }) {
   return <>{Object.entries(art).map(([finish, geometry]) => <mesh key={finish} geometry={geometry as BufferGeometry}
@@ -19,6 +20,7 @@ function Art({ art }: { art: ReturnType<typeof createSleighArt> }) {
 }
 export function SleighScene() {
   const root = useRef<Group>(null), deer = useRef<Group>(null)
+  const anchors = useMemo(createReinAnchors, [])
   const art = useMemo(() => ({ sleigh: createSleighArt(), deer: createSleighArt(true),
     upper: createReindeerLegArt(), lower: createReindeerLegArt(true) }), [])
   const frame = useMemo(() => ({ inverse: new Quaternion(), orientation: new Quaternion(),
@@ -54,11 +56,11 @@ export function SleighScene() {
     })
   }, -.5)
   return <group ref={root} name="winter-sleigh" position={[SLEIGH_DOCK.x, SLEIGH_DOCK.y, SLEIGH_DOCK.z]} rotation={[0, SLEIGH_DOCK.yaw, 0]}>
-    <ChristmasAsset id="sleigh" fallback={<Art art={art.sleigh} />} />
-    <Reins team={deer} />
+    <ChristmasAsset id="sleigh" anchors={anchors.tow} fallback={<Art art={art.sleigh} />} />
+    <Reins team={deer} anchors={anchors} />
     <group ref={deer} name="sleigh-reindeer-team">{[3.4, 5.9, 8.4].flatMap((z, row) => [-.85, .85].map((x, side) =>
       <group key={row + '-' + side} position={[x, 0, z]} name={row === 2 && side === 0 ? 'rudolph' : 'reindeer'}>
-        <ChristmasRudolph index={row * 2 + side} fallback={<>
+        <ChristmasRudolph index={row * 2 + side} anchors={anchors.harness[row * 2 + side]!} fallback={<>
         <Art art={art.deer} />
         {[-.43, .44].flatMap((legZ, front) => [-.21, .21].map((legX, side) =>
           <group key={front + '-' + side} name="reindeer-leg" position={[legX, .18, legZ]} userData={{ leg: front * 2 + side }}>

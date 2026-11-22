@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from 'react'
 import { AnimationMixer, CylinderGeometry, Mesh, MeshStandardMaterial, SkinnedMesh, TorusGeometry, Vector3, type Object3D } from 'three'
 import type { GLTF } from 'three/addons/loaders/GLTFLoader.js'
 import { clone } from 'three/addons/utils/SkeletonUtils.js'
 import { useFrame } from '@react-three/fiber'
 import { ParkAssetLoader } from '../../world/art/assetLoader'
+import type { ReinAnchorPair } from './sleigh/reinAnchors'
 
 type AssetId = 'tree' | 'santa' | 'snowman' | 'rudolph' | 'sleigh'
 const urls: Record<AssetId, string> = {
@@ -24,7 +25,11 @@ function useAsset(id: AssetId) {
       pending.set(id, request)
     }
     request.then(gltf => { if (live) setLoaded({ id, gltf }) })
-      .catch(error => { if (live) console.warn('크리스마스 모델을 불러오지 못해 기본 외관을 표시합니다.', id, error) })
+      .catch(error => {
+        // Evict even after unmount, without removing a newer concurrent request.
+        if (pending.get(id) === request) pending.delete(id)
+        if (live) console.warn('크리스마스 모델을 불러오지 못해 기본 외관을 표시합니다.', id, error)
+      })
     return () => { live = false }
   }, [id])
   return loaded?.id === id ? loaded.gltf : undefined
@@ -66,6 +71,18 @@ function ring(name: string) {
   marker.name = name; marker.raycast = () => {}; marker.userData.christmasAttachment = true
   return marker
 }
+
+function useAnchorPair(target: ReinAnchorPair | undefined, markers: readonly Object3D[] | undefined) {
+  useLayoutEffect(() => {
+    const left = markers?.[0], right = markers?.[1]
+    if (!target || !left || !right) return
+    target.left = left; target.right = right
+    return () => {
+      if (target.left === left) target.left = null
+      if (target.right === right) target.right = null
+    }
+  }, [target, markers])
+}
 function nearestVertex(scene: Object3D, target: Vector3, harnessOnly = false) {
   let best: { mesh: Mesh; index: number; distance: number } | undefined
   const point = new Vector3()
@@ -90,11 +107,12 @@ function nearestVertex(scene: Object3D, target: Vector3, harnessOnly = false) {
   return best
 }
 
-export function ChristmasAsset({ id, fallback }: { id: Exclude<AssetId, 'rudolph'>; fallback: ReactNode }) {
+export function ChristmasAsset({ id, fallback, anchors }: { id: Exclude<AssetId, 'rudolph'>; fallback: ReactNode; anchors?: ReinAnchorPair }) {
   const gltf = useAsset(id)
-  const scene = useMemo(() => {
+  const model = useMemo(() => {
     if (!gltf) return undefined
     const root = createChristmasInstance(gltf, id)
+    const markers: Object3D[] = []
     if (id === 'sleigh') for (const side of [-1, 1]) {
       const vertex = nearestVertex(root, new Vector3(side * .62, -.1, 1.1))
       const marker = ring(side < 0 ? 'sleigh-tow-left' : 'sleigh-tow-right')
@@ -111,13 +129,15 @@ export function ChristmasAsset({ id, fallback }: { id: Exclude<AssetId, 'rudolph
       marker.position.add(direction)
       root.add(socket)
       root.add(marker)
+      markers.push(marker)
     }
-    return root
+    return { scene: root, markers }
   }, [gltf, id])
-  return scene ? <primitive object={scene} dispose={null} /> : <>{fallback}</>
+  useAnchorPair(anchors, model?.markers)
+  return model ? <primitive object={model.scene} dispose={null} /> : <>{fallback}</>
 }
 
-export function ChristmasRudolph({ index, fallback }: { index: number; fallback: ReactNode }) {
+export function ChristmasRudolph({ index, fallback, anchors }: { index: number; fallback: ReactNode; anchors?: ReinAnchorPair }) {
   const gltf = useAsset('rudolph')
   const model = useMemo(() => {
     if (!gltf) return undefined
@@ -130,8 +150,9 @@ export function ChristmasRudolph({ index, fallback }: { index: number; fallback:
       scene.add(marker)
       return { ...vertex, marker, side }
     })
-    return { scene, mixer, action, attachments, moving: false, point: new Vector3() }
+    return { scene, mixer, action, attachments, markers: attachments.map(a => a.marker), moving: false, point: new Vector3() }
   }, [gltf])
+  useAnchorPair(anchors, model?.markers)
   useEffect(() => () => {
     model?.mixer.stopAllAction()
   }, [model])
@@ -144,7 +165,10 @@ export function ChristmasRudolph({ index, fallback }: { index: number; fallback:
       model.mixer.setTime((Number(state?.elapsed) || 0) / 1000 + index * .09)
     } else if (model.moving) model.mixer.stopAllAction()
     model.moving = moving
-    model.scene.updateWorldMatrix(true, true)
+    model.scene.parent?.updateWorldMatrix(true, false)
+    // updateMatrixWorld also refreshes SkinnedMesh.bindMatrixInverse before
+    // getVertexPosition applies the weighted bone transforms on the CPU.
+    model.scene.updateMatrixWorld(true)
     for (const { mesh, index, marker, side } of model.attachments) {
       mesh.getVertexPosition(index, model.point); mesh.localToWorld(model.point)
       model.scene.worldToLocal(model.point); model.point.x += side * .025
