@@ -2,54 +2,36 @@ import { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { CatmullRomCurve3, Group, InstancedMesh, Object3D, Vector3 } from 'three'
 import type { RefObject } from 'react'
-import type { ReinAnchors } from './reinAnchors'
 
-/** Continuous traces pass through animated harness rings and clear the animals' flanks. */
-export function Reins({ team, anchors }: { team: RefObject<Group | null>; anchors: ReinAnchors }) {
+/** Flexible reins follow the three pairs rather than cutting straight through a turn. */
+export function Reins({ team }: { team: RefObject<Group | null> }) {
   const mesh = useRef<InstancedMesh>(null)
   const work = useMemo(() => ({ dummy: new Object3D(), from: new Vector3(), to: new Vector3(),
-    direction: new Vector3(), tangent: new Vector3(), up: new Vector3(0, 1, 0),
-    curves: [-1, 1].flatMap(column => [-1, 1].map(flank => ({ column, flank, curve: new CatmullRomCurve3([
-      new Vector3(column * .65, .25, 1.4), ...[3.4, 5.9, 8.4].map(z => new Vector3(column * .85 + flank * .3, .05, z + .37)),
-    ]) }))) }), [])
+    direction: new Vector3(), up: new Vector3(0, 1, 0),
+    curves: [-1, 1].map(side => new CatmullRomCurve3([
+      new Vector3(side * .65, .25, 1.4), ...[3.4, 5.9, 8.4].map(z => new Vector3(side * .85, .4, z)),
+    ])) }), [])
   useFrame(() => {
     if (!mesh.current || !team.current) return
-    mesh.current.updateWorldMatrix(true, false)
-    work.curves.forEach(({ curve, column, flank }, line) => {
-      const tow = column < 0 ? anchors.tow.left : anchors.tow.right
-      if (tow) { tow.getWorldPosition(curve.points[0]!); mesh.current!.worldToLocal(curve.points[0]!) }
-      else curve.points[0]!.set(column * .65, .25, 1.4)
+    work.curves.forEach((curve, side) => {
       for (let row = 0; row < 3; row++) {
-        const index = row * 2 + (column < 0 ? 0 : 1)
-        const animal = team.current!.children[index]!
-        const anchor = flank < 0 ? anchors.harness[index]!.left : anchors.harness[index]!.right
-        const point = curve.points[row + 1]!
-        if (anchor) { anchor.getWorldPosition(point); mesh.current!.worldToLocal(point) }
-        else point.set(flank * .3, .05, .37).applyQuaternion(animal.quaternion).add(animal.position)
+        const animal = team.current!.children[row * 2 + side]!
+        curve.points[row + 1]!.set(0, .4, 0).applyQuaternion(animal.quaternion).add(animal.position)
       }
-      const pointAt = (t: number, target: Vector3) => {
-        curve.getPoint(t, target); curve.getTangent(t, work.tangent)
-        const phase = Math.min(2.999999, t * 3) % 1, slack = Math.sin(Math.PI * phase) ** 2
-        const clearance = .04 * slack + .28 * (729 / 16) * phase ** 4 * (1 - phase) ** 2
-        const length = Math.hypot(work.tangent.x, work.tangent.z) || 1
-        target.x += flank * work.tangent.z / length * clearance
-        target.z -= flank * work.tangent.x / length * clearance
-        target.y -= .045 * slack
-      }
-      for (let i = 0; i < 81; i++) {
-        pointAt(i / 81, work.from); pointAt((i + 1) / 81, work.to)
+      for (let i = 0; i < 20; i++) {
+        curve.getPoint(i / 20, work.from); curve.getPoint((i + 1) / 20, work.to)
         work.direction.subVectors(work.to, work.from)
         const length = work.direction.length()
         work.dummy.position.copy(work.from).add(work.to).multiplyScalar(.5)
         work.dummy.quaternion.setFromUnitVectors(work.up, work.direction.normalize())
         work.dummy.scale.set(1, length, 1); work.dummy.updateMatrix()
-        mesh.current!.setMatrixAt(line * 81 + i, work.dummy.matrix)
+        mesh.current!.setMatrixAt(side * 20 + i, work.dummy.matrix)
       }
     })
     mesh.current.instanceMatrix.needsUpdate = true
-  }, -.25)
-  return <instancedMesh ref={mesh} name="sleigh-curved-reins" args={[undefined, undefined, 324]} frustumCulled={false} raycast={() => {}}>
-    <cylinderGeometry args={[.026, .026, 1, 8, 1, true]} />
-    <meshStandardMaterial color="#ad293b" roughness={.72} />
+  })
+  return <instancedMesh ref={mesh} name="sleigh-curved-reins" args={[undefined, undefined, 40]} frustumCulled={false} raycast={() => {}}>
+    <cylinderGeometry args={[.018, .018, 1, 5]} />
+    <meshStandardMaterial color="#69462c" roughness={.85} />
   </instancedMesh>
 }
