@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { BoxGeometry, Group, Mesh, MeshBasicMaterial } from 'three'
-import { acceptSnowball, acceptWinterState, resetWinter, useWinter, winterFrozen } from '../../src/features/winter/state'
+import { acceptSnowball, acceptSnowballImpact, acceptWinterState, resetWinter, useWinter, winterFrozen } from '../../src/features/winter/state'
 import { snowRoofGeometry } from '../../src/features/winter/roofSnow'
 import { winterBoardViewActive } from '../../src/features/winter/boardView'
 
@@ -17,6 +17,8 @@ describe('겨울 공원 이벤트와 적설', () => {
     acceptSnowball(shot, 'park', 'self', now)
     acceptSnowball({ ...shot, shotId: 'old' }, 'park', 'self', now + 3000)
     expect(useWinter.getState().shots).toHaveLength(1)
+    expect(useWinter.getState().notice).not.toContain('맞았어요')
+    acceptSnowballImpact({shotId:'one',channelId:'park',userId:'friend',hitUserId:'self',impactedAt:new Date(now+300).toISOString()},'park','self',now+300)
     expect(useWinter.getState().notice).toContain('맞았어요')
     resetWinter()
     expect(useWinter.getState().shots).toHaveLength(0)
@@ -29,7 +31,7 @@ describe('겨울 공원 이벤트와 적설', () => {
     expect(acceptWinterState({ channelId: 'other', version: 3, players: [] }, 'park')).toBe(false)
     expect(acceptWinterState({ channelId: 'park', version: 1, players: [] }, 'park')).toBe(false)
     expect(useWinter.getState().players.self?.escapePresses).toBe(2)
-    expect(acceptWinterState({ channelId: 'park', version: 3, players: [{ ...player, snowballs: 2 }] }, 'park')).toBe(false)
+    expect(acceptWinterState({ channelId: 'park', version: 3, players: [{ ...player, snowballs: 4 }] }, 'park')).toBe(false)
     expect(acceptWinterState({ channelId: 'park', version: 3, players: [{ ...player, hits: 0, freezeId: '', frozenUntil: null, escapePresses: 0 }] }, 'park')).toBe(true)
     expect(winterFrozen('self', now)).toBe(false)
   })

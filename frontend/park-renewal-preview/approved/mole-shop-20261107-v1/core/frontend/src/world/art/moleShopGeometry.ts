@@ -147,7 +147,8 @@ export function buildMoleDemoHammer(){
  const b=new PropBuilder()
  b.cylinder('wood','#b87a37',[0,DEMO.hammerLength/2,0],.065,DEMO.handleRadius,DEMO.hammerLength+DEMO.handleOverhang*2)
  b.cylinder('wood','#aa6d30',[0,DEMO.hammerLength-.1,0],.105,.105,.24)
- b.cylinder('paint','#bd6342',[0,DEMO.hammerLength,0],DEMO.hammerRadius,DEMO.hammerRadius,.78,[0,0,Math.PI/2],24)
+ // End bands meet the red head instead of sharing its cylindrical surface.
+ b.cylinder('paint','#bd6342',[0,DEMO.hammerLength,0],DEMO.hammerRadius,DEMO.hammerRadius,.52,[0,0,Math.PI/2],24)
  for(const x of [-.32,.32])b.cylinder('paint',gold,[x,DEMO.hammerLength,0],DEMO.hammerRadius,DEMO.hammerRadius,.12,[0,0,Math.PI/2],24)
  return b.finish()
 }

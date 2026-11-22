@@ -34,23 +34,33 @@ describe('공원 입장 작업 순서', () => {
   it('첫 화면 전에는 원거리 단계를 시작하지 않고 커밋마다 렌더 한 번을 기다린다', () => {
     const queue = new EntryStages(8, 0)
     queue.commit(0, 0)
-    for (let frame = 1; frame <= 100; frame++) expect(queue.next(0, false, frame * 20)).toBe(0)
-    expect(queue.next(0, true, 2020)).toBe(1)
-    expect(queue.next(0, true, 2040)).toBe(0)
+    for (let frame = 1; frame <= 100; frame++) expect(queue.next(0, false, frame * 20, .02)).toBe(0)
+    expect(queue.next(0, true, 2020, .02)).toBe(1)
+    expect(queue.next(0, true, 2040, .02)).toBe(0)
     queue.commit(1, 2040)
-    expect(queue.next(1, true, 2200)).toBe(1)
-    expect(queue.next(1, true, 2400)).toBe(2)
+    expect(queue.next(1, true, 2200, .16)).toBe(1)
+    expect(queue.next(1, true, 2400, .2)).toBe(1)
+    expect(queue.next(1, true, 2600, .2)).toBe(2)
   })
 
   it('5 FPS에서도 단계가 멈추거나 동시에 여러 묶음을 생성하지 않는다', () => {
     const queue = new EntryStages(8, 0)
     let stage = 0
     queue.commit(stage, 0)
-    for (let now = 200; now <= 3200; now += 200) {
-      const next = queue.next(stage, true, now)
+    for (let now = 200; now <= 4800; now += 200) {
+      const next = queue.next(stage, true, now, .2)
       expect(next - stage).toBeLessThanOrEqual(1)
       if (next !== stage) { stage = next; queue.commit(stage, now) }
     }
     expect(stage).toBe(8)
+  })
+
+  it('느린 생성 프레임 뒤에는 연속된 정상 프레임을 확보한 후 다음 묶음을 시작한다', () => {
+    const queue = new EntryStages(8, 1)
+    queue.commit(1, 0)
+    expect(queue.next(1, true, 200, .2)).toBe(1)
+    expect(queue.next(1, true, 216, .016)).toBe(1)
+    expect(queue.next(1, true, 232, .016)).toBe(1)
+    expect(queue.next(1, true, 248, .016)).toBe(2)
   })
 })

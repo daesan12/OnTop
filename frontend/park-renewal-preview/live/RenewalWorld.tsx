@@ -34,6 +34,7 @@ import { site } from '../plan'
 import { WinterScene } from '../../src/features/winter/WinterScene'
 import { ParkGachaKiosk } from '../ParkGachaKiosk'
 import { ParkMoleShop } from '../ParkMoleShop'
+import { EntranceDirectionSigns } from '../DirectionSigns'
 
 const HorrorZone = lazy(() => import('../HorrorZone').then(module => ({ default: module.HorrorZone })))
 const AnnexDetails = lazy(() => import('../InteriorDetails').then(module => ({ default: module.AnnexDetails })))
@@ -100,8 +101,10 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady, gr
   useEntryStages({ stage, finalStage, firstFrameAt, onStage: setStage })
 
   useLayoutEffect(() => {
-    if (distantReady) onDistantReady(true)
-  }, [distantReady, onDistantReady])
+    // The jump-course scene is another large batch. Do not start it alongside
+    // the first scenery batch while entrance locomotion is becoming interactive.
+    if (entryPresented && stage === finalStage) onDistantReady(true)
+  }, [stage, entryPresented, onDistantReady])
 
   useLayoutEffect(() => () => interiorVisit.reset(), [])
 
@@ -225,6 +228,7 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady, gr
           <StableRentalPairs area="gate" />
           <StableRentalPairs area="nearby" />
           <StableEntranceLandscape quality={quality} showFitnessStations />
+          <EntranceDirectionSigns />
           <EntrancePartReady readiness={entranceReadiness} part="ground" />
         </EntranceAssetsReady>
       </Suspense>
@@ -239,7 +243,7 @@ export default function RenewalWorld({ quality, firstFrameAt, onDistantReady, gr
       {entryPresented && stage >= 3 && TABLES.map((anchor, index) => <Suspense key={anchor.id} fallback={null}>
         <StableTable index={index} boards={stage === finalStage || index < Math.max(0, stage - 3) * boardsPerStage} />
       </Suspense>)}
-      {stage === finalStage && <Suspense fallback={null}><ParkDetailGeometry jumpCourse={false} deferDistant /></Suspense>}
+      {entryPresented && stage === finalStage && <Suspense fallback={null}><ParkDetailGeometry jumpCourse={false} deferDistant /></Suspense>}
       </LakeProgress.Provider>
     </group>
     <group ref={interior} name="renewal-secret-corridor" visible={false}>

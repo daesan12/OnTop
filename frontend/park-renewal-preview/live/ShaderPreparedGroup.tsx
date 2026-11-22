@@ -1,7 +1,7 @@
 import { useFrame } from '@react-three/fiber'
 import { useRef, type ReactNode } from 'react'
 import { Object3D, type Group, type WebGLRenderer } from 'three'
-import { waitForScenePrograms } from '../../src/world/prepareScene'
+import { prepareObjectTextures, waitForScenePrograms } from '../../src/world/prepareScene'
 
 const objectsPerBatch = 12
 const lastBatchFrame = new WeakMap<WebGLRenderer, number>()
@@ -19,7 +19,10 @@ export function ShaderPreparedGroup({ children, priority = 0, batched = false }:
     const target = group.current
     if (!target || (started.current === target && !batches.current)) return
     const live = () => group.current === target
-    const reveal = () => { if (live()) target.visible = true }
+    const reveal = () => {
+      const ready = () => { if (live()) target.visible = true }
+      void prepareObjectTextures(gl, target, live).then(ready, ready)
+    }
 
     if (started.current !== target) {
       started.current = target
