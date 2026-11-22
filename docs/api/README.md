@@ -88,6 +88,9 @@ application.yml은 기본 enabled=false, `(local | dev) & !prod & !production`�
 | Feedback | GET /api/v1/admin/feedback | Access JWT·서버 관리자 ID 목록 | 200 |
 | Notes | POST /api/v1/notes | Access JWT·위치/활동 검사 | 201 |
 | Notes | GET /api/v1/notes | Access JWT·위치/활동 검사 | 200 |
+| Winter Community | GET /api/v1/world/winter/tree/status | Access JWT·현재 공원 채널 확인 | 200 |
+| Winter Community | GET /api/v1/world/winter/tree | Access JWT·트리 근접 확인 | 200 |
+| Winter Community | POST /api/v1/world/winter/tree/messages | Access JWT·위치/활동·UUID 멱등성·장식 검증 | 200 |
 | Raffle | GET /api/v1/raffles/rounds/{weekStart}/result | Access JWT·본인 결과만 | 200 |
 | Raffle | GET /api/v1/admin/raffles/rounds/{weekStart} | Access JWT·관리자 조회 | 200 |
 | Raffle | POST /api/v1/admin/raffles/rounds/{weekStart}/finalize | Access JWT·관리자 운영·판매 마감 후 | 200 |

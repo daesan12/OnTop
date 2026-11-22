@@ -154,6 +154,8 @@ abstract class OpenApiHttpTestSupport {
         }
         if (environment.acceptsProfiles(Profiles.of("(local | dev) & !prod & !production"))) {
             expected.addAll(Set.of("POST /api/v1/minigames/sessions", "GET /api/v1/minigames/sessions",
+                    "GET /api/v1/world/winter/tree/status", "GET /api/v1/world/winter/tree",
+                    "POST /api/v1/world/winter/tree/messages",
                     "GET /api/v1/world/fitness/rewards/status",
                     "GET /api/v1/minigames/rps-roulette/status", "POST /api/v1/minigames/rps-roulette/rounds",
                     "POST /api/v1/minigames/rps-roulette/rounds/{roundId}/hands",
@@ -232,6 +234,21 @@ abstract class OpenApiHttpTestSupport {
         JsonNode request = api.at("/components/schemas/AdminWalletGrantExecuteRequest/properties");
         assertThat(request.has("requestId")).isTrue();
         assertThat(request.has("expectedRecipientCount")).isTrue();
+    }
+
+    @Test
+    void 트리_편지의_인증과_채널_계약에_인증주체를_입력으로_노출하지_않는다() throws Exception {
+        var api = json();
+        for (String path : List.of("/api/v1/world/winter/tree/status", "/api/v1/world/winter/tree",
+                "/api/v1/world/winter/tree/messages")) {
+            var operation = api.path("paths").path(path).path(path.endsWith("messages") ? "post" : "get");
+            assertThat(operation.at("/security/0").has("AccessJwt")).isTrue();
+            assertThat(operation.path("tags").get(0).asText()).isEqualTo("WINTER_COMMUNITY");
+            Set<String> parameters = new HashSet<>();
+            operation.path("parameters").forEach(parameter -> parameters.add(parameter.path("name").asText()));
+            assertThat(parameters).doesNotContain("user", "userId", "nickname");
+            if (!path.endsWith("messages")) { assertThat(parameters).contains("channelId"); }
+        }
     }
 
     @Test

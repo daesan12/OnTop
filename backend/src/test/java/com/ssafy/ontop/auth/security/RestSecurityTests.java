@@ -486,6 +486,22 @@ class RestSecurityTests {
                 .andExpect(status().isForbidden());
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"/api/v1/world/winter/tree/status?channelId=channel-1",
+            "/api/v1/world/winter/tree?channelId=channel-1"})
+    void 트리_조회는_인증_없이_접근할_수_없다(String path) throws Exception {
+        mvc.perform(get(path)).andExpect(status().isUnauthorized());
+        verifyNoInteractions(members);
+    }
+
+    @Test
+    void 트리_편지_작성은_인증_없이_접근할_수_없다() throws Exception {
+        mvc.perform(post("/api/v1/world/winter/tree/messages")
+                        .contentType("application/json").content("{}"))
+                .andExpect(status().isUnauthorized());
+        verifyNoInteractions(members);
+    }
+
     @Test
     void 실제_운영_Controller_매핑_목록이_접근정책_문서와_일치한다() {
         var mappings = requestMappingHandlerMapping.getHandlerMethods().entrySet().stream()
@@ -574,6 +590,8 @@ class RestSecurityTests {
                 "GET /api/v1/users/me/games", "GET /api/v1/users/me/game-stats",
                 "POST /api/v1/behavior-events",
                 "GET /api/v1/channels",
+                "GET /api/v1/world/winter/tree/status", "GET /api/v1/world/winter/tree",
+                "POST /api/v1/world/winter/tree/messages",
                 "GET /api/v1/world/fitness/rewards/status",
                 "GET /api/v1/tables", "GET /dev/tables", "GET /dev/world-config",
                 "GET /api/v1/shop/items", "POST /api/v1/shop/purchases",

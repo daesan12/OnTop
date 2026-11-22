@@ -62,6 +62,9 @@ HttpSecurity를 요구하지 않으며, 실제 Servlet 서버에서는 프로필
 | GET `/api/v1/wallets/me` | **Access JWT + 활성 회원/로그인 세션** | 본인 잔액 조회. [WALLET](wallet-balance.md) |
 | GET `/api/v1/wallets/me/transactions` | **Access JWT + 활성 회원/로그인 세션** | 본인 원장의 거래 ID 커서 조회. [WALLET](wallet-transactions.md) |
 | GET `/api/v1/channels` | **Access JWT + 활성 회원** | local/dev 및 운영 prod,db에서 등록. 채널 목록 조회 |
+| GET `/api/v1/world/winter/tree/status` | **Access JWT + 활성 회원/로그인 세션** | 현재 공원 채널 확인 후 공용 편지 수·점등·최근 장식 조회. Cache-Control: no-store |
+| GET `/api/v1/world/winter/tree` | **Access JWT + 활성 회원/로그인 세션** | 현재 채널·트리 근접 확인, 익명 작성자 비공개, 12개 커서 조회 |
+| POST `/api/v1/world/winter/tree/messages` | **Access JWT + 활성 회원/로그인 세션** | 트리 근접·활동 상태·장식 검증, UUID 멱등성·15초 작성 간격. 서버 프로필만 작성자로 사용 |
 | GET `/api/v1/world/fitness/rewards/status` | **Access JWT + 활성 회원/로그인 세션** | Principal의 본인 운동 일일 수입만 읽기 전용으로 조회. Cache-Control: no-store. [계약](world-facility-api.md) |
 | GET `/api/v1/tables` | **Access JWT + 활성 회원** | local/dev 및 운영 prod,db에서 등록. 채널 설정 시 channelId 필요 |
 | POST `/api/v1/minigames/sessions` | **Access JWT + 활성 회원** | local/dev 및 운영 prod,db에서 등록. Idempotency-Key 필수, 미니게임 서비스는 별도 활성화 |
