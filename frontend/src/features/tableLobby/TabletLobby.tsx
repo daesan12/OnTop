@@ -189,7 +189,7 @@ function TabletSession({ tableId }: { tableId: string }) {
       </header>
       {step === 'select' ? stoneRumble ? <StoneLobbyCover>
         <fieldset disabled={!host || busy}><legend>참가 인원</legend><div className="tablet-counts" data-maximum={max}>
-          {Array.from({ length: max - 1 }, (_, index) => index + 2).filter(n => selectedCode !== 'QUORIDOR' || n !== 3).map(n => <button key={n}
+          {Array.from({ length: max - 1 }, (_, index) => index + 2).map(n => <button key={n}
             disabled={n < occupied} aria-pressed={count === n} onClick={() => setCount(n)}>{n}인</button>)}
         </div></fieldset>
         {!countSupported && <p role="status">{count}인 정원 선택은 서버 연결 준비 중입니다.</p>}
@@ -205,7 +205,7 @@ function TabletSession({ tableId }: { tableId: string }) {
             <button className="tablet-game-card" data-selected={code === item.code} data-construction={!item.playable}
               aria-pressed={code === item.code} disabled={!item.playable || !host || busy}
               onClick={() => { setCode(item.code); setCount(2) }}>
-              <GameArt code={item.code} />{!item.playable && <b className="tablet-construction">공사 중</b>}<span><strong>{item.name}</strong><small>{item.capacity === 2 ? '2인' : `2~${item.capacity}인`}</small></span>
+              <GameArt code={item.code} />{!item.playable && <b className="tablet-construction">공사 중</b>}<span><strong>{item.name}</strong><small>{item.code === 'QUORIDOR' ? '2·4인' : item.capacity === 2 ? '2인' : `2~${item.capacity}인`}</small></span>
             </button>
           </Fragment>)}
           <div className="tablet-coming">장기 · 준비 중</div>
