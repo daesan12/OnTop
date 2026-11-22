@@ -13,6 +13,7 @@ import { detailCamera, detailProfileAsset, detailProfileFacility } from './parkD
 import { fenceJumpRoute, type FenceJumpSite } from './fenceJump'
 import type { Facility, ParkView } from './scene'
 import { WINTER_DECOR } from '../src/features/winter/plan'
+import { SLEIGH_DOCK } from '../src/features/winter/sleigh/route'
 import { groundSurfaceHeight } from './groundSurface'
 import { plantings } from './landscape'
 import { winterTreeIsHeavy } from '../src/features/winter/trees'
@@ -102,6 +103,9 @@ function ParkCamera({ view, facility, jump }: ViewSelection) {
       const { position: [x, y, z], scale } = winterFir, distance = 8.6 * scale * fit
       orbit.target.set(x, y + 2.8 * scale, z)
       camera.position.set(x + Math.sin(firCameraAngle) * distance, y + 3.8 * scale * fit, z + Math.cos(firCameraAngle) * distance)
+    } else if (winterPreview && query.get('holiday') === 'sleigh' && facility?.id === 'plaza' && view === 'overview') {
+      orbit.target.set(SLEIGH_DOCK.x, SLEIGH_DOCK.y + .5, SLEIGH_DOCK.z - 4)
+      camera.position.set(SLEIGH_DOCK.x - 10 * fit, SLEIGH_DOCK.y + 8 * fit, SLEIGH_DOCK.z + 12 * fit)
     } else if (winterPreview && winterAsset && facility?.id === 'plaza' && view === 'overview') {
       const { x, z, height } = winterAsset, floor = groundSurfaceHeight(x, z)
       const distance = (winterAsset.kind === 'gifts' ? 3.2 : winterAsset.kind === 'tree' ? 12 : 4.7) * fit
