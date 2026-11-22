@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useThree } from '@react-three/fiber'
 import { Box3, Mesh, MeshStandardMaterial, Vector3, type Object3D } from 'three'
 import type { GLTF } from 'three/addons/loaders/GLTFLoader.js'
 import { ParkAssetLoader } from '../../../world/art/assetLoader'
@@ -41,6 +42,7 @@ function Ornament({ kind, position }: { kind: TreeOrnamentKind; position: Vector
 
 /** 기존 승인된 12m 모델과 Memo_Anchor를 그대로 사용한다. 광원 추가 없이 발광 재질만 점등한다. */
 export function ChristmasCommunityTree({ fallback }: { fallback: ReactNode }) {
+  const invalidate = useThree(state => state.invalidate)
   const gltf = useModel(treeUrl), status = useWinterCommunity(s => s.tree)
   const model = useMemo(() => {
     if (!gltf) return undefined
@@ -66,7 +68,8 @@ export function ChristmasCommunityTree({ fallback }: { fallback: ReactNode }) {
       material.emissiveIntensity = status?.lit ? 3 : 0
       material.toneMapped = !status?.lit; material.needsUpdate = true
     }
-  }, [model, status?.lit])
+    invalidate()
+  }, [model, status?.lit, invalidate])
   useEffect(() => () => { model?.lights.forEach(material => material.dispose()) }, [model])
   const ornaments = useMemo(() => treeOrnamentSlots(status?.ornaments ?? []).flatMap(item => {
     const anchor: Object3D | undefined = model?.root.getObjectByName(item.anchor)
