@@ -60,7 +60,9 @@ export function YutMatchView({ client, snapshot, user, busy, pending, myTurn, se
   }
   const hint = finished ? state.reason === 'YUT_COMPLETED' ? '승리 팀의 말이 모두 완주했어요.' : '마지막 남은 팀이 승리했어요.'
     : opening ? '각 팀 대표가 차례대로 윷을 던져주세요.' : !myTurn ? '윷판의 칸을 눌러 위치 핑을 보낼 수 있어요.'
-      : !activeRoll ? '윷을 던져 이동권을 얻으세요.' : selected < 0 ? '말을 고르고 도착 칸을 눌러주세요.' : `${teamName(state.team)} ${selected + 1}번 말 · 도착 칸을 눌러주세요.`
+      : !activeRoll ? '윷을 던져 이동권을 얻으세요.' : selected < 0 ? '말을 고르고 도착 칸을 눌러주세요.'
+        : state.pieces[state.team][selected] === 0 ? '새 말은 오른쪽 아래의 위쪽 첫 칸부터 세어요. 도착 칸을 눌러주세요.'
+          : `${teamName(state.team)} ${selected + 1}번 말 · 도착 칸을 눌러주세요.`
   return <div className="yut-match-layout" data-teams={state.teamCount} data-opening={opening} data-comparing={showOpening} inert={blocked}>
     <section className="yut-board-region yut-match-board" aria-label="중앙 윷판">
       <div className="yut-board-stage"><Board3D state={state} focus selected={selected} destinations={expanded ? [] : destinations}

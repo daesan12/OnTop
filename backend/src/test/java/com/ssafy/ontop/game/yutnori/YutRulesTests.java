@@ -12,6 +12,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class YutRulesTests {
+    @Test
+    void 새말은_출발모서리를_세지_않고_첫도부터_진입한다() {
+        assertThat(YutBoard.move(List.of(), 1, false, false)).containsExactly(1);
+        assertThat(YutBoard.move(List.of(), 2, false, false)).containsExactly(1, 2);
+        assertThat(YutBoard.move(List.of(), 5, false, false)).containsExactly(1, 2, 3, 4, 5);
+    }
+
     private final ObjectMapper mapper = new ObjectMapper();
 
     @Test

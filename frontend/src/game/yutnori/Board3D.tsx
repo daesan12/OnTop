@@ -1,7 +1,7 @@
 import { Suspense, Component, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Canvas, useFrame, useLoader, useThree } from '@react-three/fiber'
 import { ACESFilmicToneMapping, CanvasTexture, ExtrudeGeometry, PerspectiveCamera, RepeatWrapping, Shape, SRGBColorSpace, TextureLoader, type Group } from 'three'
-import { Board, boardJunctions, boardNodes, type BoardProps } from './Board'
+import { Board, boardJunctions, boardLabels, boardNodes, type BoardProps } from './Board'
 import { teamName } from './contracts'
 import { boardWorldPoint, fitYutCamera, projectYutPoint, yutHudInsets, YUT_SURFACE_Y, YUT_TEAM_COLORS, YUT_TOKEN_HEIGHT } from './board3dMath'
 import boardArt from './art/board.webp'
@@ -103,9 +103,7 @@ function TableScene({ state, selected, destinations, focus, onProject, onReady, 
     <Slab />
     {[[5, 10], [10, 15], [15, 20], [20, 5], [5, 15], [10, 20]].map(([a, b]) => <Track key={`${a}:${b}`} from={a} to={b} />)}
     {boardNodes.map(node => <Space key={node} node={node} active={destinations.some(move => move.to === node)} />)}
-    <BoardLetter text="방" position={[0, .08, .5]} width={1} />
-    <BoardLetter text="첫 도 ↑" position={[1.5, .08, .95]} width={1.2} />
-    <BoardLetter text="출발·참먹이" position={[1.5, .08, 2.56]} width={1.2} />
+    <BoardGuides />
     {state.pieces.flatMap((tokens, team) => tokens.map((node, piece) => {
       if (node === 0 || node === 30 || tokens.indexOf(node) !== piece) return null
       const count = tokens.filter(at => at === node).length
@@ -113,6 +111,26 @@ function TableScene({ state, selected, destinations, focus, onProject, onReady, 
         selected={state.team === team && tokens[selected] === node} target={destinations.some(move => move.to === node)} reducedMotion={reducedMotion} />
     }))}
   </>
+}
+function BoardGuides() {
+  const [homeX, homeZ] = boardWorldPoint(20), [, firstZ] = boardWorldPoint(1)
+  return <>
+    <BoardLetter text={boardLabels.center} position={[0, .08, .5]} width={1} />
+    <BoardLetter text={boardLabels.first} position={[1.5, .08, firstZ - .43]} width={1.2} />
+    <BoardLetter text={boardLabels.home} position={[1.5, .08, homeZ + .25]} width={1.2} />
+    <GuideStroke from={[homeX, homeZ + .21]} to={[homeX, homeZ + .25]} />
+    <GuideStroke from={[homeX, homeZ + .25]} to={[2.12, homeZ + .25]} />
+    <GuideStroke from={[2.14, firstZ]} to={[2.14, firstZ - .43]} />
+    <GuideStroke from={[2.14, firstZ - .43]} to={[2.11, firstZ - .43]} />
+    <GuideStroke from={[homeX, 2.02]} to={[homeX, 1.78]} />
+    <GuideStroke from={[homeX - .08, 1.88]} to={[homeX, 1.78]} />
+    <GuideStroke from={[homeX + .08, 1.88]} to={[homeX, 1.78]} />
+  </>
+}
+function GuideStroke({ from: [ax, az], to: [bx, bz] }: { from: [number, number]; to: [number, number] }) {
+  return <mesh position={[(ax + bx) / 2, .076, (az + bz) / 2]} rotation={[0, Math.atan2(bx - ax, bz - az), 0]}>
+    <boxGeometry args={[.022, .005, Math.hypot(bx - ax, bz - az)]} /><meshBasicMaterial color="#8b6a32" />
+  </mesh>
 }
 function FeltSurface() {
   const original = useLoader(TextureLoader, feltArt)
