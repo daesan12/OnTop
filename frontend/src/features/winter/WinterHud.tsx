@@ -11,6 +11,7 @@ import { SNOW_PILES } from './plan'
 import { CarryEscapeHint } from '../carry/CarryEscapeHint'
 import { useSnowballAim } from './aimState'
 import { useWinter, winterFrozen } from './state'
+import { MAX_SNOWBALLS } from './trajectory'
 import './winter.css'
 import { useWinterBoardView, winterSceneryVisible } from './presentation'
 
@@ -24,7 +25,8 @@ export function WinterHud() {
   const escape = useRef(createCarryEscape()), completed = useRef(false), queue = useRef(Promise.resolve())
   const gathering = motion?.kind === 'gather' && now - motion.at < 800
   const windingUp = motion?.kind === 'windup' && now - motion.at < 800
-  const frozen = !!player?.freezeId && !!player.frozenUntil && Date.parse(player.frozenUntil) > now
+  const frozen = winterFrozen(self, now)
+  const snowballs = player?.snowballs ?? 0
   useEffect(() => { escape.current.reset(); completed.current = false }, [player?.freezeId])
   useEffect(() => {
     const timer = setInterval(() => {
@@ -42,13 +44,14 @@ export function WinterHud() {
     const timer = setTimeout(() => setCooldown(false), 1300)
     return () => clearTimeout(timer)
   }, [cooldown])
-  const act = () => {
+  const act = (throwing = false) => {
     const session = useSession.getState(), own = avatars.get(session.sessionId)
     if (!winterSceneryVisible() || !ready || cooldown || gathering || windingUp || frozen || panelOwnsKeys() || !own || own.carry || session.pending) return
-    if (!player?.snowballs) {
-      if (pileId) void parkRuntime.pickupSnowball?.(pileId).then(() => focusParkCanvas())
+    if (!throwing && pileId && snowballs < MAX_SNOWBALLS) {
+      void parkRuntime.pickupSnowball?.(pileId).then(() => focusParkCanvas())
       return
     }
+    if (!snowballs) return
     const pose = sampleAvatar(own, performance.now(), { x: 0, y: 0, z: 0, yaw: 0 })
     setCooldown(true)
     void parkRuntime.throwSnowball?.(Math.atan2(Math.sin(pose.yaw), Math.cos(pose.yaw))).then(() => focusParkCanvas())
@@ -72,8 +75,8 @@ export function WinterHud() {
       if (frozen && (e.code === 'KeyA' || e.code === 'KeyD')) {
         e.preventDefault(); e.stopImmediatePropagation(); pressEscape(e.code === 'KeyA' ? 'A' : 'D'); return
       }
-      if (e.code !== 'KeyQ' || !ready || cooldown || winterFrozen(self, estimatedServerTime())) return
-      e.preventDefault(); act()
+      if (!['KeyQ', 'KeyR'].includes(e.code) || !ready || cooldown || winterFrozen(self, estimatedServerTime())) return
+      e.preventDefault(); act(e.code === 'KeyR')
     }
     window.addEventListener('keydown', key, true)
     return () => window.removeEventListener('keydown', key, true)
@@ -85,10 +88,12 @@ export function WinterHud() {
       <CarryEscapeHint action="얼음 깨기" onPress={key => { pressEscape(key); focusParkCanvas() }} />
       <small>A·D 반복 입력 · {player?.escapePresses ?? 0} / {CARRY_ESCAPE_PRESSES}</small>
     </div> : <>
-      <button type="button" aria-keyshortcuts="Q" disabled={!ready || cooldown || gathering || windingUp || !player?.snowballs && !pileId} onClick={act}>
-        <kbd>Q</kbd> {gathering ? '눈 모아 뭉치는 중…' : windingUp ? '던지는 중…' : cooldown ? '다음 동작 준비 중…' : player?.snowballs ? '눈덩이 던지기' : '눈 줍기 · 뭉치기'}
+      <div className="winter-hud__actions"><button type="button" aria-keyshortcuts="Q" disabled={!ready || cooldown || gathering || windingUp || (!pileId && !snowballs)} onClick={() => act()}>
+        <kbd>Q</kbd> {gathering ? '눈 모아 뭉치는 중…' : windingUp ? '던지는 중…' : cooldown ? '다음 동작 준비 중…' : pileId && snowballs < MAX_SNOWBALLS ? '눈 줍기 · 뭉치기' : '눈덩이 던지기'}
       </button>
-      {player?.snowballs === 1 && !gathering && <small role="status">{aim?.hitUserId ? `${avatars.get(aim.hitUserId)?.nickname ?? '상대'} 명중 예상 · ${aim.distance.toFixed(1)}m` : '캐릭터 정면의 표적으로 던져요'}</small>}
+      {!!pileId && <button type="button" aria-keyshortcuts="R" disabled={!ready || cooldown || gathering || windingUp || !snowballs} onClick={() => act(true)}><kbd>R</kbd> 눈덩이 던지기</button>}</div>
+      <small className="winter-hud__stock" role="status">눈덩이 {snowballs} / {MAX_SNOWBALLS}</small>
+      {snowballs > 0 && !gathering && <small role="status">{aim?.hitUserId ? `${avatars.get(aim.hitUserId)?.nickname ?? '상대'} 명중 예상 · ${aim.distance.toFixed(1)}m` : '캐릭터 정면의 표적으로 던져요'}</small>}
       {!!player?.hits && <small>피격 {player.hits} / 3 · 세 번 맞으면 얼어요</small>}
     </>}
     {!frozen && <span role="status">{notice}</span>}

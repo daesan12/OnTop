@@ -43,3 +43,18 @@ it('준비용 상대 시각에서 실경기와 다음 시간대로 바뀌어도 
     expect(marks.getY(0) - Math.fround((time - epoch) / 1000)).toBeCloseTo(1.2, 3)
   }
 })
+
+it('장시간 경기와 시간대 경계에서도 float32 남은 시간 오차는 0.5ms 이하다', () => {
+  const state = tiles(), marks = new InstancedBufferAttribute(new Float32Array(state.length * 2), 2)
+  const hour = stoneTileEpoch(1794078900000)
+  for (const time of [hour + 3599999, hour + 3600000, hour + 3600001, hour + 72 * 3600000 + 3599999]) {
+    const epoch = stoneTileEpoch(time)
+    state[0]!.breakAt = time + 2000
+    updateStoneTileMarks(marks, state, epoch)
+    // 서버 수신 중단/재개 시점과 120ms 지연 시각에도 동일한 기준점을 사용한다.
+    for (const offset of [-120, -83, 0, 41]) {
+      const remaining = Math.fround(marks.getY(0) - Math.fround((time + offset - epoch) / 1000))
+      expect(Math.abs(remaining - (2000 - offset) / 1000)).toBeLessThan(.0005)
+    }
+  }
+})

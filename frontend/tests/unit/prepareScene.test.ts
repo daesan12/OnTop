@@ -1,8 +1,60 @@
 import { afterEach, expect, it, vi } from 'vitest'
-import { BoxGeometry, Group, Mesh, MeshBasicMaterial, PerspectiveCamera, PointLight, Scene, Texture, Vector4, type WebGLRenderer } from 'three'
-import { prepareScene, warmSceneGeometry, waitForScenePrograms } from '../../src/world/prepareScene'
+import { BoxGeometry, Group, Mesh, MeshBasicMaterial, MeshStandardMaterial, PerspectiveCamera, PointLight, Scene, Texture, Vector4, type WebGLRenderer } from 'three'
+import { prepareObjectTextures, prepareScene, prepareVisibleScenePrograms, warmSceneGeometry, waitForScenePrograms } from '../../src/world/prepareScene'
 
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks() })
+
+it('skips nullish materials and array entries while still uploading valid shared maps once', async () => {
+  vi.useFakeTimers()
+  const scene = new Scene(), texture = new Texture(), material = new MeshBasicMaterial({ map: texture })
+  scene.add(new Group(), Object.assign(new Group(), { material: null }),
+    Object.assign(new Group(), { material: undefined }),
+    Object.assign(new Group(), { material: [null, material, undefined, material] }))
+  const initTexture = vi.fn(), renderer = { initTexture } as unknown as WebGLRenderer
+  const pending = prepareObjectTextures(renderer, scene, () => true)
+  await vi.runAllTimersAsync()
+  await expect(pending).resolves.toBeUndefined()
+  expect(initTexture.mock.calls).toEqual([[texture]])
+  texture.dispose(); material.dispose()
+})
+
+it('includes opted-in off-camera entrance meshes but respects visibility and camera layers', async () => {
+  const scene = new Scene(), camera = new PerspectiveCamera(60, 1, .1, 100)
+  const geometry = new BoxGeometry(), material = new MeshBasicMaterial()
+  const inside = new Mesh(geometry, material); inside.position.z = -5
+  const outside = inside.clone(); outside.position.x = 1000
+  const opted = outside.clone(); opted.userData.prepareEntranceProgram = true
+  const hidden = opted.clone(); hidden.visible = false
+  const otherLayer = opted.clone(); otherLayer.layers.set(1)
+  scene.add(inside, outside, opted, hidden, otherLayer)
+  const selected: unknown[] = []
+  const renderer = { compile: (objects: Group) => objects.traverse(object => selected.push(object)),
+    getContext: () => ({ getExtension: () => null, isContextLost: () => false }),
+  } as unknown as WebGLRenderer
+  await prepareVisibleScenePrograms(renderer, scene, camera, () => true)
+  expect(selected).toEqual([inside, opted])
+  expect(opted.parent).toBe(scene)
+  geometry.dispose(); material.dispose()
+})
+
+it('uploads streamed textures between display frames and skips remaining uploads after disposal', async () => {
+  const frames: FrameRequestCallback[] = []
+  vi.stubGlobal('requestAnimationFrame', (frame: FrameRequestCallback) => { frames.push(frame); return frames.length })
+  const color = new Texture(), normal = new Texture(), geometry = new BoxGeometry()
+  const material = new MeshStandardMaterial({ map: color, normalMap: normal })
+  const initTexture = vi.fn(), renderer = { initTexture } as unknown as WebGLRenderer
+  let live = true
+  try {
+    const pending = prepareObjectTextures(renderer, new Mesh(geometry, material), () => live)
+    expect(initTexture).not.toHaveBeenCalled()
+    frames.shift()!(0); await Promise.resolve()
+    expect(initTexture.mock.calls).toEqual([[color]])
+    live = false; frames.shift()!(16); await pending
+    expect(initTexture).toHaveBeenCalledOnce()
+  } finally {
+    vi.unstubAllGlobals(); color.dispose(); normal.dispose(); geometry.dispose(); material.dispose()
+  }
+})
 
 it('waits for every shared-material program variant while uploads overlap async compilation', async () => {
   vi.useFakeTimers()
@@ -11,11 +63,12 @@ it('waits for every shared-material program variant while uploads overlap async 
   scene.add(new Mesh(geometry, material), new Mesh(geometry, material))
   let releaseCompile!: () => void, secondReady = false, done = false
   const first = {}, second = {}
+  const getUniforms = vi.fn(), getAttributes = vi.fn()
   const initTexture = vi.fn()
   const renderer = {
     compileAsync: () => new Promise<void>(resolve => { releaseCompile = resolve }),
     initTexture,
-    info: {programs:[{program:first},{program:second}]},
+    info: {programs:[{program:first,getUniforms,getAttributes},{program:second,getUniforms,getAttributes}]},
     getContext: () => ({isContextLost:()=>false,getExtension:()=>({COMPLETION_STATUS_KHR:0x91b1}),
       getProgramParameter:(program:unknown) => program === first || secondReady}),
   } as unknown as WebGLRenderer
@@ -28,7 +81,30 @@ it('waits for every shared-material program variant while uploads overlap async 
   await vi.runAllTimersAsync()
   await pending
   expect(done).toBe(true)
+  expect(getUniforms).toHaveBeenCalledTimes(2)
+  expect(getAttributes).toHaveBeenCalledTimes(2)
   geometry.dispose(); material.dispose(); texture.dispose()
+})
+
+it('reflects bindings once per linked program, yields between programs and cancels on disposal', async () => {
+  vi.useFakeTimers()
+  let live = true
+  const programs = Array.from({ length: 2 }, () => ({ getUniforms: vi.fn(), getAttributes: vi.fn() }))
+  const renderer = { info: { programs }, getContext: () => ({
+    isContextLost: () => false, getExtension: () => null,
+  }) } as unknown as WebGLRenderer
+  const pending = waitForScenePrograms(renderer, () => live)
+  expect(programs[0]!.getUniforms).toHaveBeenCalledOnce()
+  expect(programs[1]!.getUniforms).not.toHaveBeenCalled()
+  live = false; await vi.runAllTimersAsync(); await pending
+  expect(programs[1]!.getUniforms).not.toHaveBeenCalled()
+  live = true
+  const resumed = waitForScenePrograms(renderer, () => live)
+  await vi.runAllTimersAsync(); await resumed
+  for (const program of programs) {
+    expect(program.getUniforms).toHaveBeenCalledOnce()
+    expect(program.getAttributes).toHaveBeenCalledOnce()
+  }
 })
 
 it('supports renderers without parallel compilation and propagates compilation failures', async () => {

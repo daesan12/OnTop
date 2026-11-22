@@ -174,7 +174,7 @@ function Preview() {
   </StoneRumbleGame>}
   {!state && <main className="stone-rumble-lobby" data-ready={parkReady}>
     <section className="stone-rumble-sheet"><h1><StoneTowerIcon />{exited ? '경기에서 나왔어요' : '돌탑 생존전'}</h1><p>{exited ? '남은 플레이어의 경기는 계속돼요.' : <>세 층의 무너지는 돌탑.<br />비둘기로 밀어내고, 끝까지 살아남아요.</>}</p>
-      <p>정사각형 발판은 밟은 뒤 1.2초 후 무너져요. 총 3개 층에서 진행하며 1층 아래로 떨어지면 탈락해요. 참가 인원은 2~8명이에요.</p>
+      <p>정사각형 발판은 밟은 뒤 2초 후 무너져요. 총 3개 층에서 진행하며 1층 아래로 떨어지면 탈락해요. 참가 인원은 2~8명이에요.</p>
       <p><b>현재 참가자: {stoneName(ownId)}</b> · {connected ? '서버 연결됨' : exited ? '연결 종료' : '연결 대기'}</p>
       <div className="stone-rumble-role-list">{[1, 2, 3, 4, 5, 6, 7, 8].map(index => <a key={index} href={`?role=${index}`} target={index === Number(role) ? undefined : '_blank'} rel="noreferrer">{stoneName(String(index * 101))}{index === Number(role) ? ' (나)' : ' 화면 열기'}</a>)}</div>
       <p role="status">{preparationError || (!parkReady ? '공원과 경기장을 준비하고 있어요…' : `공원 준비 완료 ${readyCount} / ${count}명`)}</p>
