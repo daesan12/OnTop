@@ -17,6 +17,5 @@ it.each(['mole', 'pigeon'] as const)('%s는 착지 모양을 유지하면서 불
     expect(geometry).not.toBe(source)
     geometry.dispose(); original.dispose()
   }
-  console.info(`${theme} vertex count: ${before} -> ${after}`)
   expect(after).toBeLessThan(before * .65)
 })
