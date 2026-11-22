@@ -40,7 +40,7 @@ function LetterComposer({ ornament, text, anonymous, busy, locked, error, onText
       } else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus() }
     }}>
     <header className="winter-letter-dialog__header">
-      <div><small>크리스마스 트리 편지</small><h2>편지 한 장 남기기</h2></div>
+      <div><small>크리스마스 트리 편지</small><h2>트리에 보내는 편지</h2></div>
       <button type="button" aria-label="편지 작성 닫기" disabled={busy} onClick={onClose}>×</button>
     </header>
     <form onSubmit={event => { event.preventDefault(); onSend() }}>

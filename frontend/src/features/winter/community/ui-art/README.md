@@ -28,7 +28,7 @@
 `bell-photo.webp`, `gift-photo.webp`를 built-in image_gen으로 각각 생성했다.
 기존 트리 그림, 공원 GLB와 모델 미리보기, 배치·충돌·맵 버전은 변경하지 않았다.
 원본의 투명도를 유지해 긴 변 512px, WebP quality=90/alphaQuality=100으로 인코딩했다.
-편지 작성창의 종이 배경은 기존 `features/notes/art/notes-paper.webp`를 재사용한다.
+편지 작성창은 기존 메모함의 작성 방식을 참고하되 크리스마스 전용 편지지를 사용한다.
 
 공통 프롬프트: `Use case: product-mockup. Game UI ornament selector asset.
 Photorealistic premium product photography, soft warm studio key light from upper left,
@@ -54,3 +54,26 @@ stocking `exec-695a3a51-3292-46f7-b46f-4010a521bfd4.png`,
 bauble `exec-14f6485c-07be-4a15-bef9-0c880e0a3d54.png`,
 bell `exec-fd7f1c11-7326-4549-b53d-9fea039dbdea.png`,
 gift `exec-e9295d4d-c9e4-4f10-948d-80be5a092b48.png`.
+
+## 크리스마스 편지지
+
+`christmas-letter-paper.webp`는 메모함 `features/notes/art/notes-paper.webp`를
+편집 대상으로 built-in image_gen에서 새로 편집했다. 원본 메모함 파일은 수정하지 않는다.
+담쟁이·꽃잎을 솔가지·붉은 벨벳 리본·열매·황동 종으로 바꾸고, 얇은 녹색/금색 프레임과
+밝은 종이 중앙을 유지한다. 투명도를 보존하고 폭 900px WebP quality=90/alphaQuality=100으로
+인코딩했다. 원본 PNG: `exec-20714ebf-fab9-469d-abf2-feeb485401a1.png`.
+
+편집 프롬프트: `Edit this existing game memo paper into a Christmas letter-writing background.
+Preserve the straight-on flat portrait rectangle, large plain warm ivory parchment center,
+thin tactile physical frame, softly rounded corners and genuinely transparent outside silhouette.
+Replace ALL ivy leaves, spring vines, pink petals and flowers with restrained realistic evergreen
+fir sprigs, a few red holly berries and deep crimson velvet ribbon at outer corners, plus one tiny
+antique brass bell at the lower left corner. Use a very slim muted antique gold and dark fir-green
+frame instead of prominent ordinary brown wood. Make it look like a real handmade Christmas
+stationery piece with soft photographic material texture, matching red knitted stockings and
+brass bell product photography. The CENTER MUST be completely blank calm pale cream writing
+paper: no decorations or shadows crossing into central 84 percent width, no branches behind
+future UI text. Keep ornaments strictly in outermost 6-8% at corners; top center and upper-right
+inner corner must stay empty for title and close button. Spacious and refined, not busy.
+No text, no letters, no UI controls, no drawn textbox, no watermark, no glow particles.
+Keep all four frame edges fully visible within the image.`
