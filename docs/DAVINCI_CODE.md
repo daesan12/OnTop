@@ -41,6 +41,30 @@
 - 진행 상태는 메모리다. 네트워크 재접속 조회는 지원하지만 서버 재시작 후 경기 전체 복원을 보장하지 않는다.
 - `WORLD_STATE.tables[].secretTiles`는 선택적 `{gameId,state}` 공개 투영이다. 엔진이 개인 숫자와 준비 중 순서를 제거한 복사본만 250ms 간격으로 월드에 반영한다. 종료 시 제거하며 좌석·좌표·충돌 데이터는 수정하지 않는다. 보행자도 관전 구독 없이 같은 타일 배치를 보고, 공식 관전 채팅/핑은 기존 승인 경로를 따른다.
 
+## 관전자 타일 추천 API
+
+기존 인증 `/ws/tables`의 `GAME_WATCH`로 첫 공개 상태를 받은 관전자만 추천할 수 있다. 현재 플레이어는 핑을 보낼 수 없다. 기존 채널·거리·로비 권한과 `PLAYING` 상태를 다시 검사한다.
+
+```json
+{
+  "requestId": "code-ping-1",
+  "type": "DAVINCI_SPECTATOR_PING_SEND",
+  "payload": {
+    "gameId": "game-1",
+    "eventId": "2d895dfa-3ffb-4bd8-92ca-5c9e3bf8921b",
+    "basedOnVersion": 8,
+    "targetUserId": "101",
+    "tileId": "public-tile-id"
+  }
+}
+```
+
+- `eventId`는 소문자 UUID, `basedOnVersion`은 마지막으로 전달된 공개 판의 안전 정수 버전이다. `targetUserId`는 양의 회원 ID 문자열이며 `tileId`는 해당 플레이어의 공개 `tiles` 목록에서 얻는다. 위 예제의 타일 ID는 형식 설명용이다.
+- 숫자가 가려진 타일도 공개 목록에 있는 ID라면 가리킬 수 있다. 중앙 공급 패·다른 사람의 타일 ID·존재하지 않는 타일은 `DAVINCI_SPECTATOR_PING_INVALID_TARGET`, 낡은 버전은 `DAVINCI_SPECTATOR_PING_STALE_VERSION` 오류다. 숨겨진 숫자를 요청하거나 응답하지 않는다.
+- 성공 응답/알림은 `DAVINCI_SPECTATOR_PING`이며 `gameId`, `eventId`, `senderUserId`, `basedOnVersion`, `targetUserId`, `tileId`, `sentAt`, `expiresAt`, `serverNow`를 담는다. 발신자는 원래 `requestId`, 복구된 참가자와 같은 경기의 승인 관전자는 `requestId=null`로 받는다. 다른 경기·미승인자는 받지 않는다.
+- 1초 전송 간격·2초 표시 TTL과 기존 관전 이벤트 정책을 따른다. 같은 내용의 동일 `eventId` 재전송은 원래 발행/만료 시각으로 발신자에게만 응답하고 다시 방송하지 않는다. 현재 시각 `serverNow`는 응답 시점으로 갱신될 수 있다.
+- 검증 실패는 요청자에게 `ERROR`만 반환하며 방송·빈도 제한·이벤트 영수증을 만들지 않는다. 추천은 실제 추리·차례·공개 버전·정산을 바꾸지 않는다. 수신자 화면 도착을 보장하는 ACK는 아니다.
+
 ## DB와 활성화
 
 - 2026-11-22 사용자 지정으로 미적용 신규 파일을 V183에서 **V184**로 변경했다. 파일: `backend/src/main/resources/db/migration/V184__allow_davinci_code_game_sessions.sql`.
@@ -232,3 +256,9 @@ MR·머지·배포는 사용자 명시 요청 전까지 보류한다. 테스트 
 - 통합 후 BE 194개(기존 리뷰 회귀 119개와 최신 REST 접근정책 75개), FE 관련 97개, TypeScript, `bootJar`, `git diff --check` 통과. FE 화면과 맵은 변하지 않아 이번에는 게임 브라우저·사용자 검수 서버를 새로 실행하지 않았다.
 - 전체 원격 참조 314개와 등록된 로컬 worktree 266곳의 DB 경로를 재확인했다. V184는 흑백수사 파일만 있고 현재 소스의 버전 중복은 없다. 별도 팀 예약과 실제 DB 적용 이력은 여전히 확인하지 못했다. DB·CI/CD·배포 설정을 직접 변경하거나 적용하지 않는다.
 - MR !675는 `feat/davinci-code` → `dev`로 머지하며, 해당 머지 커밋의 Jenkins 결과와 관련 검증을 확인한 뒤에만 작업 브랜치를 삭제한다. 자동 소스 삭제는 해제 상태를 유지한다. FE/BE 기능 플래그 활성화는 기존 인프라 담당자 요청 범위다.
+
+### 머지 후 CI 문서 계약 보완 — 2026-11-22
+
+- MR !675가 dev `cc87cd2a566f9f298dd47bc7ab367177fcd4ad2c`로 머지된 것을 UI와 Git 양쪽에서 확인했다. Jenkins #582가 같은 커밋을 빌드하며 OpenAPI 정적 명세와 중앙 WebSocket 요청 목록 불일치 2건을 보고했다.
+- 최신 dev에서 `fix/davinci-api-contracts`를 분기했다. 실제 HTTP YAML을 내보내 전적 필터의 `DAVINCI_CODE` enum을 추가하고, 중앙 WS 인덱스와 위 타일 추천 계약을 구현과 맞췄다. 게임 규칙·공통 production 코드·테스트 조건·맵·V184·인프라 설정은 변경하지 않는다.
+- API export 22개와 일반 API/REST 접근정책 121개, `git diff --check`가 통과했다. 세부 기록은 `docs/api/verification.md`를 따른다. 후속 문서 보완을 머지하고 전체 Jenkins 결과를 확인한 뒤 원래 기능 브랜치와 후속 수정 브랜치를 정리한다.
