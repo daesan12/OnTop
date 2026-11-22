@@ -169,6 +169,58 @@ class RummikubMatchTests {
     }
 
     @Test
+    void 여러_묶음의_순서를_바꾸고_조커_묶음에_붙여도_교체_타일을_요구하지_않는다() {
+        var jokerGroup = List.of(p("RED", 10), p("BLUE", 10), new Placed("JOKER-0", "BLACK", 10));
+        var own = new ArrayList<>(jokerGroup);
+        own.add(p("YELLOW", 10));
+        var match = match(own, group(12));
+        play(match, 1, List.of(jokerGroup));
+        play(match, 2, List.of(jokerGroup, group(12)));
+        var extended = new ArrayList<>(jokerGroup);
+        extended.add(p("YELLOW", 10));
+
+        play(match, 1, List.of(group(12), extended));
+
+        assertThat(match.snapshot().melds()).containsExactly(group(12), extended);
+        assertThat(match.hand(1)).hasSize(10);
+    }
+
+    @Test
+    void 두_조커가_각각_기존_묶음에_남으면_새_묶음이_추가되어도_교체를_요구하지_않는다() {
+        var jokerGroup = List.of(p("RED", 10), p("BLUE", 10), new Placed("JOKER-0", "BLACK", 10));
+        var jokerRun = List.of(p("BLUE", 10, 1), new Placed("JOKER-1", "BLUE", 11), p("BLUE", 12));
+        var own = new ArrayList<>(jokerGroup);
+        own.addAll(jokerRun);
+        own.addAll(run("RED", 4, 6));
+        var match = match(own, group(13));
+        play(match, 1, List.of(jokerGroup, jokerRun));
+        play(match, 2, List.of(jokerGroup, jokerRun, group(13)));
+
+        play(match, 1, List.of(group(13), jokerRun, run("RED", 4, 6), jokerGroup));
+
+        assertThat(match.snapshot().melds()).containsExactly(group(13), jokerRun, run("RED", 4, 6), jokerGroup);
+        assertThat(match.hand(1)).hasSize(5);
+    }
+
+    @Test
+    void 한_조커만_교체할_때_다른_조커의_묶음에는_교체를_요구하지_않는다() {
+        var jokerGroup = List.of(p("RED", 10), p("BLUE", 10), new Placed("JOKER-0", "BLACK", 10));
+        var jokerRun = List.of(p("BLUE", 10, 1), new Placed("JOKER-1", "BLUE", 11), p("BLUE", 12));
+        var own = new ArrayList<>(jokerGroup);
+        own.addAll(jokerRun);
+        own.addAll(List.of(p("BLACK", 10), p("YELLOW", 4), p("YELLOW", 6)));
+        var match = match(own, group(13));
+        play(match, 1, List.of(jokerGroup, jokerRun));
+        play(match, 2, List.of(jokerGroup, jokerRun, group(13)));
+        var reused = List.of(p("YELLOW", 4), new Placed("JOKER-0", "YELLOW", 5), p("YELLOW", 6));
+
+        play(match, 1, List.of(jokerRun, group(13), reused, group(10)));
+
+        assertThat(match.snapshot().melds()).containsExactly(jokerRun, group(13), reused, group(10));
+        assertThat(match.hand(1)).hasSize(5);
+    }
+
+    @Test
     void 뽑기는_한개만_지급하고_즉시_다음_차례로_넘긴다() {
         var match = match(List.of(), List.of());
         draw(match, 1);
