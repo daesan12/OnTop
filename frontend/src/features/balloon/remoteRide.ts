@@ -1,15 +1,17 @@
 import { create } from 'zustand'
 import { cabinRider, CABIN_WALK_RADIUS, idleCabin, type CabinPose } from './cabin'
-import { CAPACITY, type Point } from './flight'
-import type { BalloonControls } from './controls'
+import { CAPACITY, type Input, type Point } from './flight'
+import { stoppedFlightInput, type BalloonControls } from './controls'
 
 const INTERPOLATION_MS = 150
+const WARNING_MOTION_STALE_MS = 600
 const ownEndListeners = new Set<() => void>()
 type RemoteFlight = {
   from: Point; to: Point; aboard: boolean; receivedAt: number
   cabinFrom: CabinPose; cabinTo: CabinPose
   party: BalloonParty | null
   passengersFrom: Record<string, CabinPose>
+  warningInput: Input
 }
 export type BalloonParty = { capacity: number; boarding: boolean; passengers: Record<string, CabinPose>; controls: BalloonControls | null }
 const userId = /^[1-9]\d{0,18}$/
@@ -76,6 +78,15 @@ export function sampleRemoteBalloon(pilot: string, at = performance.now()) {
   return flight ? sample(flight, at) : null
 }
 
+/** 렌더 보간이 끝난 프레임에도 마지막 패킷 간 속도를 유지하되 오래된 이동은 예측하지 않는다. */
+export function sampleRemoteBalloonWarningInput(pilot: string, at = performance.now()): Input {
+  const flight = useRemoteBalloons.getState().flights[pilot]
+  if (!flight?.aboard || at < flight.receivedAt || at - flight.receivedAt > WARNING_MOTION_STALE_MS) {
+    return stoppedFlightInput
+  }
+  return flight.warningInput
+}
+
 export function remoteBalloonRider(id: string, at: number, localPilot?: { id: string; position: Point }) {
   const { flights } = useRemoteBalloons.getState()
   const flight = flights[id]
@@ -125,6 +136,13 @@ export function receiveRemoteBalloon(payload: Record<string, unknown>, channel: 
   const party = parseParty(partyPayload)
   if ((partyPayload != null && !party) || (pilotId === user && !party)) return
   const previous = flights[pilotId]
+  const elapsed = previous ? (at - previous.receivedAt) / 1000 : 0
+  // 표시용 from은 150ms 보간 중인 위치다. 속도는 실제로 수신한 두 to와 수신 간격으로 구한다.
+  const warningInput = previous?.aboard && flight.aboard && elapsed > 0 && elapsed <= 1 ? {
+    x: Math.max(-1, Math.min(1, (to.x - previous.to.x) / (10 * elapsed))),
+    z: Math.max(-1, Math.min(1, (to.z - previous.to.z) / (10 * elapsed))),
+    lift: Math.max(-1, Math.min(1, (to.y - previous.to.y) / (4 * elapsed))),
+  } : stoppedFlightInput
   const from = previous ? sample(previous, at) : to
   const cabinFrom = previous ? sampleCabin(previous, at) : cabinTo
   const passengersFrom: Record<string, CabinPose> = {}
@@ -135,5 +153,5 @@ export function receiveRemoteBalloon(payload: Record<string, unknown>, channel: 
     }
   }
   useRemoteBalloons.setState({ flights: { ...flights, [pilotId]: { from, to, cabinFrom, cabinTo,
-    aboard: flight.aboard, receivedAt: at, party, passengersFrom } } })
+    aboard: flight.aboard, receivedAt: at, party, passengersFrom, warningInput } } })
 }

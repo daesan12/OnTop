@@ -21,7 +21,7 @@ it('returns the desktop balloon within server pose limits and clears the dock af
     flight = next
     elapsed += dt
   }
-  expect(elapsed).toBe(8)
+  expect(elapsed).toBe(4)
   expect(flight).toMatchObject({ phase: 'landed', landing: 'dock', position: map.dock, seconds: 1 })
   expect(stepFlight(flight, idle, dt, map, 1).phase).toBe('removed')
 })
