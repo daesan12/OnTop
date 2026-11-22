@@ -1,4 +1,13 @@
 {
+  "creatureLandingReview20261122": {
+    "referenceCommit": "d492e8719603c6cf458cc2f2544668683278b7b1",
+    "mergeRequest": "!663",
+    "reason": "사용자가 승인하고 dev에 병합한 두더지·비둘기 착지 발판의 정점 최적화 소스만 검토하여 반영한다. 보호 파일 200개와 기존 해시 비교 검사는 유지하며 다른 199개 기준 해시·런타임·생성 맵·인프라는 수정하지 않는다.",
+    "reviewedFiles": [
+      { "file": "src/features/jumpmap/landingMotion.ts", "commit": "873c8130d7fa31ed3fbfacf8be4a29efda9aaae7", "reason": "두더지·비둘기의 착지 변형은 스케일·이동이므로 테셀레이션 대신 원본 geometry를 복제한다. 원본 정점 좌표·인덱스·모델·재질·배치·충돌과 다른 테마의 착지 계산은 유지한다." }
+    ],
+    "verification": "parkVisualPreservation.test.ts와 creatureLandingGeometry.test.ts에서 외관 보존 기준 및 두 테마의 원본 정점·인덱스 유지와 정점 감소를 검증한다."
+  },
   "entryPerformanceReview20261122": {
     "referenceCommit": "00ceb33f801fece2d2092da3f718bae00eb870d8",
     "previousReferenceCommit": "f3980669e3d6a5c02d2472188a69d149932fbf94",
@@ -228,7 +237,7 @@
     "src/world/simpleEnvironmentPalette.ts": "3039ebd2e4dce1370c0c3afdbb3b243e7a3a7b0f25793e5fac5303a77337495a",
     "src/world/ParkSun.tsx": "6883abd22154871f276332132f5121f1107b29269305a60ddce61af3806d68d6",
     "src/world/NightLighting.tsx": "a5d7e50e5aaa182cfb4b419dc682a3bbaec1dcc0c9a804b522dcd45b53c16df4",
-    "src/features/jumpmap/landingMotion.ts": "fadea8bfddd41b094c74fe7f7423e3a6726fe9a931ca6ab80f66d09de2365d1b",
+    "src/features/jumpmap/landingMotion.ts": "b4b5f27275a08c248109d9b4a73e6ea06ebea9368b72ae95756f269b05ea5169",
     "src/world/art/LuckyFacilities.tsx": "cf1f198fea3e3e0130bdf3b94c96d44c014174e352ba0645240ce41a511b77d4",
     "src/world/art/luckyFacilityGeometry.ts": "5c69f18ff9ee9564325e16d8738b6bdebcda6148f114911a595cec0b51cd816b",
     "src/layout-preview/stairFlightGeometry.ts": "73060545b54ff9e5cc27df141bdd5fb0f7912f971f5d821f74dad865aa2bab2d",
