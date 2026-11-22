@@ -19,11 +19,15 @@ import com.ssafy.ontop.game.rummikub.domain.RummikubTile;
 import com.ssafy.ontop.game.state.GameStateChanged;
 import com.ssafy.ontop.game.state.GameStateView;
 import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.PriorityQueue;
 import java.util.function.Consumer;
 import java.util.function.IntUnaryOperator;
 import org.slf4j.Logger;
@@ -31,6 +35,7 @@ import org.slf4j.LoggerFactory;
 
 public final class RummikubEngine implements GameEngine {
     public static final String GAME_CODE = "RUMMIKUB";
+    private static final Duration FINISHED_RETENTION = Duration.ofMinutes(30);
     private static final Logger log = LoggerFactory.getLogger(RummikubEngine.class);
     private final ObjectMapper mapper;
     private final Clock clock;
@@ -38,10 +43,11 @@ public final class RummikubEngine implements GameEngine {
     private final GameEngineRouter router;
     private final Consumer<List<RummikubTile>> shuffle;
     private final IntUnaryOperator tieBreaker;
-    private final Map<String, RummikubMatch> games = new HashMap<>();
+    private final Map<String, Session> games = new HashMap<>();
+    private final Map<String, Session> activeGames = new HashMap<>();
+    private final PriorityQueue<Retirement> retirements = new PriorityQueue<>(
+            Comparator.comparing(Retirement::expiresAt));
     private final Map<Long, String> latest = new HashMap<>();
-    private final GameLifecycle lifecycle = new GameLifecycle();
-    private final GameForfeitReceipts forfeits = new GameForfeitReceipts();
 
     public RummikubEngine(ObjectMapper mapper, Clock clock, Consumer<Object> events, GameEngineRouter router,
             Consumer<List<RummikubTile>> shuffle, IntUnaryOperator tieBreaker) {
@@ -57,9 +63,9 @@ public final class RummikubEngine implements GameEngine {
     public void create(String gameId, String tableId, List<Long> players) {
         tick();
         synchronized (this) {
-            RummikubMatch existing = games.get(gameId);
+            Session existing = games.get(gameId);
             if (existing != null) {
-                Snapshot state = existing.snapshot();
+                Snapshot state = existing.match().snapshot();
                 if (!state.tableId().equals(tableId) || !state.players().equals(players)) {
                     throw new IllegalStateException("기존 경기와 다른 수패마루 생성 요청입니다.");
                 }
@@ -86,7 +92,9 @@ public final class RummikubEngine implements GameEngine {
             RummikubMatch match = new RummikubMatch(gameId, tableId, players, deck,
                     firstPlayer, opening, clock.instant());
             router.register(this, gameId, tableId, players);
-            games.put(gameId, match);
+            Session session = new Session(match, new GameLifecycle(), new GameForfeitReceipts());
+            games.put(gameId, session);
+            activeGames.put(gameId, session);
             for (long userId : players) { latest.put(userId, gameId); }
         }
     }
@@ -97,7 +105,8 @@ public final class RummikubEngine implements GameEngine {
         Rejected rejected = null;
         List<Object> notices = new ArrayList<>();
         synchronized (this) {
-            RummikubMatch match = games.get(command.gameId());
+            Session session = games.get(command.gameId());
+            RummikubMatch match = session == null ? null : session.match();
             if (match == null || !match.isPlayer(command.userId())) { throw new Rejected(Rejection.ACCESS_DENIED); }
             Snapshot before = match.snapshot();
             try {
@@ -116,7 +125,8 @@ public final class RummikubEngine implements GameEngine {
     public Optional<GameStateView> load(long userId, String gameId) {
         tick();
         synchronized (this) {
-            RummikubMatch match = games.get(gameId);
+            Session session = games.get(gameId);
+            RummikubMatch match = session == null ? null : session.match();
             if (userId <= 0 || match == null) { return Optional.empty(); }
             Snapshot state = match.snapshot();
             return Optional.of(new GameStateView(userId, gameId, state.version(), match.isPlayer(userId)
@@ -129,7 +139,8 @@ public final class RummikubEngine implements GameEngine {
     public Optional<GameRecoverySnapshot> load(long userId) {
         tick();
         synchronized (this) {
-            RummikubMatch match = games.get(latest.get(userId));
+            Session session = games.get(latest.get(userId));
+            RummikubMatch match = session == null ? null : session.match();
             if (match == null) { return Optional.empty(); }
             Snapshot state = match.snapshot();
             return Optional.of(new GameRecoverySnapshot(userId, state.gameId(), state.players().size(), state.version(),
@@ -145,11 +156,12 @@ public final class RummikubEngine implements GameEngine {
         GameForfeitResult result = null;
         Rejected rejected = null;
         synchronized (this) {
-            RummikubMatch match = games.get(command.gameId());
+            Session session = games.get(command.gameId());
+            RummikubMatch match = session == null ? null : session.match();
             if (match == null || !match.isPlayer(command.userId())) {
                 throw new Rejected(Rejection.ACCESS_DENIED);
             }
-            GameForfeitResult previous = forfeits.previous(command);
+            GameForfeitResult previous = session.forfeits().previous(command);
             if (previous != null) { return previous; }
             var now = clock.instant();
             Snapshot before = match.snapshot();
@@ -162,10 +174,10 @@ public final class RummikubEngine implements GameEngine {
                 rejected = new Rejected(Rejection.NOT_ACTIVE);
             } else {
                 match.forfeit(command.userId(), now);
-                lifecycle.left(command.gameId(), before.tableId(), GAME_CODE, match.snapshot().version(),
+                session.lifecycle().left(command.gameId(), before.tableId(), GAME_CODE, match.snapshot().version(),
                         command.userId(), GameDepartureReason.EXPLICIT_LEAVE, now, before.players().size(), notices);
                 collect(before, match.snapshot(), notices);
-                result = forfeits.accepted(command, match.snapshot().version());
+                result = session.forfeits().accepted(command, match.snapshot().version());
             }
         }
         publish(notices);
@@ -177,7 +189,8 @@ public final class RummikubEngine implements GameEngine {
     public void graceExpired(GraceExpiration command) {
         List<Object> notices = new ArrayList<>();
         synchronized (this) {
-            RummikubMatch match = games.get(command.gameId());
+            Session session = games.get(command.gameId());
+            RummikubMatch match = session == null ? null : session.match();
             if (match == null || (command.action() != Action.FORFEIT && command.action() != Action.ELIMINATE)
                     || !match.isPlayer(command.userId()) || clock.instant().isBefore(command.deadline())) { return; }
             Snapshot before = match.snapshot();
@@ -187,7 +200,7 @@ public final class RummikubEngine implements GameEngine {
             boolean wasActive = before.endedAt() == null && match.isActive(command.userId());
             match.forfeit(command.userId(), command.deadline());
             if (wasActive && !match.isActive(command.userId())) {
-                lifecycle.left(command.gameId(), before.tableId(), GAME_CODE, match.snapshot().version(),
+                session.lifecycle().left(command.gameId(), before.tableId(), GAME_CODE, match.snapshot().version(),
                         command.userId(), command.reason(), command.deadline(), before.players().size(), notices);
             }
             collect(before, match.snapshot(), notices);
@@ -198,13 +211,36 @@ public final class RummikubEngine implements GameEngine {
     public void tick() {
         List<Object> notices = new ArrayList<>();
         synchronized (this) {
-            for (RummikubMatch match : games.values()) {
+            Instant now = clock.instant();
+            removeExpiredGames(now);
+            // collect가 종료된 경기를 즉시 제외하므로 활성 목록의 복사본을 순회한다.
+            for (Session session : new ArrayList<>(activeGames.values())) {
+                RummikubMatch match = session.match();
                 Snapshot before = match.snapshot();
-                match.expire(clock.instant());
+                match.expire(now);
                 collect(before, match.snapshot(), notices);
             }
         }
         publish(notices);
+    }
+
+    private void removeExpiredGames(Instant now) {
+        // 보관 중인 종료 경기는 매 틱 훑지 않고 만료 시각이 지난 항목만 제거한다.
+        while (!retirements.isEmpty() && !now.isBefore(retirements.peek().expiresAt())) {
+            Retirement retirement = retirements.remove();
+            String gameId = retirement.gameId();
+            if (!router.forgetFinished(this, gameId)) {
+                retirements.add(new Retirement(gameId, now.plusSeconds(60)));
+                log.warn("수패마루 종료 경기 정리를 보류합니다: gameId={}", gameId);
+                continue;
+            }
+            Session removed = games.remove(gameId);
+            if (removed != null) {
+                for (long user : removed.match().snapshot().players()) {
+                    latest.remove(user, gameId);
+                }
+            }
+        }
     }
 
     private void collect(Snapshot before, Snapshot after, List<Object> notices) {
@@ -212,7 +248,11 @@ public final class RummikubEngine implements GameEngine {
         notices.add(new GameStateChanged(after.gameId(), after.version()));
         if (before.endedAt() == null && after.endedAt() != null) {
             router.finished(this, after.gameId());
-            notices.add(lifecycle.finished(after.gameId(), after.tableId(), GAME_CODE, after.version(), after.players(),
+            activeGames.remove(after.gameId());
+            // 이탈 기한이 과거여도 종료를 처리한 시점부터 복구·재요청 보관 기간을 보장한다.
+            retirements.add(new Retirement(after.gameId(), clock.instant().plus(FINISHED_RETENTION)));
+            notices.add(games.get(after.gameId()).lifecycle().finished(
+                    after.gameId(), after.tableId(), GAME_CODE, after.version(), after.players(),
                     after.winnerUserIds(), after.endReason(), after.endedAt(), notices));
         }
     }
@@ -259,6 +299,9 @@ public final class RummikubEngine implements GameEngine {
     }
 
     private String id(Long value) { return value == null ? null : value.toString(); }
+
+    private record Session(RummikubMatch match, GameLifecycle lifecycle, GameForfeitReceipts forfeits) { }
+    private record Retirement(String gameId, Instant expiresAt) { }
 
     private void publish(List<Object> notices) {
         for (Object notice : notices) {
