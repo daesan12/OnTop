@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { Group } from 'three'
-import { acceptSnowball, acceptSnowballWindup, acceptWinterState, resetWinter, useWinter, winterMotion } from '../../src/features/winter/state'
+import { acceptSnowball, acceptSnowballWindup, acceptWinterState, heldSnowballVisible, resetWinter, useWinter, winterFrozen, winterMotion } from '../../src/features/winter/state'
 import { parseSnowballAim, snowballPoint } from '../../src/features/winter/trajectory'
 import { poseWinterAvatar } from '../../src/features/winter/avatarPose'
 
@@ -9,6 +9,25 @@ const player = { userId: 'self', snowballs: 0, hits: 0, freezeId: '', frozenUnti
 const aim = { channelId: 'park', userId: 'self', yaw: 0, x: 0, y: 1.2, z: 0, endX: 0, endY: 1.2, endZ: 16, distance: 16, hitUserId: '' }
 describe('눈덩이 동작과 조준', () => {
   beforeEach(resetWinter)
+  it('눈 세개를 보유해도 발사 전에 손의 눈을 숨기고 회복 후 다음 눈을 꺼낸다', () => {
+    acceptWinterState({channelId:'park',version:1,players:[{...player,snowballs:3}]},'park',now)
+    expect(heldSnowballVisible('self',now)).toBe(true)
+    acceptSnowballWindup({motionId:'wind',channelId:'park',userId:'self',yaw:0,startedAt:new Date(now).toISOString(),durationMs:300},'park',now)
+    expect(heldSnowballVisible('self',now+249)).toBe(true)
+    expect(heldSnowballVisible('self',now+250)).toBe(false)
+    acceptWinterState({channelId:'park',version:2,players:[{...player,snowballs:2}]},'park',now+300)
+    expect(winterMotion('self',now+300)?.kind).toBe('throw')
+    acceptSnowball({...aim,shotId:'shot',sentAt:new Date(now+300).toISOString(),durationMs:727},'park','self',now+300)
+    expect(heldSnowballVisible('self',now+280)).toBe(false)
+    expect(heldSnowballVisible('self',now+949)).toBe(false)
+    expect(heldSnowballVisible('self',now+950)).toBe(true)
+    expect(useWinter.getState().players.self?.snowballs).toBe(2)
+  })
+  it('표시 시각이 서버보다 늦어도 눈이 도착하기 전에 빙결을 그리지 않는다', () => {
+    acceptWinterState({channelId:'park',version:1,players:[{...player,hits:3,freezeId:'ice',frozenUntil:new Date(now+5400).toISOString()}]},'park',now+390)
+    expect(winterFrozen('self',now+399)).toBe(false)
+    expect(winterFrozen('self',now+400)).toBe(true)
+  })
   it('기존 소지량 복구는 재생하지 않고 승인된 0→1 변화에만 줍고 뭉치는 동작을 재생한다', () => {
     acceptWinterState({ channelId: 'park', version: 1, players: [{ ...player, snowballs: 1 }] }, 'park', now)
     expect(winterMotion('self', now)).toBeNull()
