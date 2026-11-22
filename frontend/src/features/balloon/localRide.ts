@@ -5,9 +5,9 @@ import { BALLOON_RIDE_ENABLED } from '../../park/mapSelection'
 import { parkRuntime } from '../../park/runtime/runtime'
 import { clearRoamingInput, focusParkCanvas, inputState } from '../../world/inputOwnership'
 import { BalloonFareError, buyBalloonTicket, completeBalloonTicket } from './fare'
-import { createFlight, DOCK_REMOVE_SECONDS, returnToDock, stepFlight, stepSightseeingFlight, stepUncrewedFlight, takeOff } from './flight'
+import { balloonCollisionWarning, createFlight, DOCK_REMOVE_SECONDS, returnToDock, stepFlight, stepSightseeingFlight, stepUncrewedFlight, takeOff } from './flight'
 import type { BalloonBoarding, Flight, FlightMap, Input, Point } from './flight'
-import { clearRemoteBalloons, sampleRemoteBalloon, useRemoteBalloons, watchOwnBalloonEnd } from './remoteRide'
+import { clearRemoteBalloons, sampleRemoteBalloon, sampleRemoteBalloonWarningInput, useRemoteBalloons, watchOwnBalloonEnd } from './remoteRide'
 import { cabinRider, cabinSeats, doorwayCabin, idleCabin, sightseeingCabin, SIGHTSEEING_STEP_HEIGHT, toggleCabinSeat, walkCabin, type BalloonRiderPose, type CabinPose } from './cabin'
 import { BALLOON_SCALE } from '../../../park-renewal-preview/plan'
 import { resetCabinCamera } from './cabinCamera'
@@ -262,7 +262,7 @@ export function tickLocalBalloon(input: Input, elapsed: number) {
   }
   if (controls?.returning) flight = returnToDock(flight, 'manual')
   if (guest) {
-    const position = sampleRemoteBalloon(ride.leader)
+    const position = sampleRemoteBalloon(ride.leader, now)
     if (!shared?.aboard || !shared.party?.passengers[ride.owner] || !position) {
       if (!shared?.party?.passengers[ride.owner]) useLocalBalloon.setState({ ticketId: '' })
       cancelLocalBalloon()
@@ -279,6 +279,8 @@ export function tickLocalBalloon(input: Input, elapsed: number) {
       flight = stepFlight(flight.fallSpeed ? { ...flight, fallSpeed: undefined } : flight, flightInput, dt, ride.map, elapsed)
     }
   }
+  const warningInput = guest ? sampleRemoteBalloonWarningInput(ride.leader, now) : flightInput
+  flight = { ...flight, collisionWarning: balloonCollisionWarning(flight, warningInput, ride.map) }
   const walking = flight.phase === 'flying' && walkingInside
   const stand = !role && ride.cabin.seatIndex >= 0 && occupiedBalloonSeats(ride).includes(ride.cabin.seatIndex)
   const pose = role && flight.phase !== 'boarding' ? cockpitPose(role) : stand ? toggleCabinSeat(ride.cabin) : ride.cabin

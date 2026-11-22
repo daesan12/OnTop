@@ -10,7 +10,6 @@ export const DOCK_REMOVE_SECONDS = 1
 export const BORDER_MARGIN = 8
 export const WARNING_MARGIN = 17
 export const MAX_ALTITUDE = 72
-const CRUISE_HEIGHT = 54
 const TAKEOFF_RISE = 10
 // Keep desktop return speeds within the server's horizontal and vertical pose limits.
 const RETURN_HORIZONTAL_SPEED = 20
@@ -35,6 +34,30 @@ export type Flight = {
   landing?: 'dock' | 'field'
   exit?: Point
   fallSpeed?: number
+  collisionWarning?: boolean
+  returnHeight?: number
+}
+
+/** 기존 지형/건물 조회로 현재 위치와 진행 방향을 미리 확인한다. 충돌 데이터는 변경하지 않는다. */
+export function balloonCollisionWarning(flight: Flight, input: Input, map: FlightMap) {
+  if (flight.phase !== 'flying') return false
+  const { x, y, z } = flight.position
+  const magnitude = Math.max(1, Math.hypot(input.x, input.z))
+  const vx = input.x * 10 / magnitude, vz = input.z * 10 / magnitude
+  // 상승 입력만으로 안전해진 것은 아니므로 현재 3m 위험 구간을 벗어날 때까지 유지한다.
+  return [0, .5, 1].some(time => y + Math.min(0, input.lift) * 4 * time
+    <= map.floor(x + vx * time, z + vz * time) + 3)
+}
+
+function safeReturnHeight(flight: Flight, map: FlightMap) {
+  const from = flight.position, to = map.dock
+  const steps = Math.max(1, Math.ceil(Math.hypot(to.x - from.x, to.z - from.z) / 4))
+  let height = Math.max(from.y, to.y + 4)
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps
+    height = Math.max(height, map.floor(from.x + (to.x - from.x) * t, from.z + (to.z - from.z) * t) + 4)
+  }
+  return Math.min(MAX_ALTITUDE, height)
 }
 
 export function createFlight(map: FlightMap): Flight {
@@ -119,7 +142,9 @@ export function stepFlight(flight: Flight, input: Input, dt: number, map: Flight
   }
   if (phase === 'returning') {
     const distance = Math.hypot(dock.x - x, dock.z - z)
-    const returnHeight = sightseeing ? SIGHTSEEING_HEIGHT : CRUISE_HEIGHT
+    const returnHeight = Math.min(MAX_ALTITUDE,
+      sightseeing ? SIGHTSEEING_HEIGHT : flight.returnHeight ?? safeReturnHeight(flight, map))
+    flight = { ...flight, returnHeight, collisionWarning: false }
     if (distance > 0 && y < returnHeight) {
       return { ...flight, position: { x, y: approach(y, returnHeight, (sightseeing ? 2.6 : RETURN_VERTICAL_SPEED) * dt), z } }
     }
