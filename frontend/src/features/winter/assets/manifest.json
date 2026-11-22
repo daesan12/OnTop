@@ -1,0 +1,106 @@
+{
+  "version": 1,
+  "package": "ontop-christmas-approved-assets",
+  "origin_dev": "3c8240eaf92a493edfea3e69e2aae665c8e32896",
+  "provider_calls": 0,
+  "additional_credits": 0,
+  "license": {
+    "tripo": "LicenseRef-Tripo-API-Output",
+    "terms": "https://developers.tripo3d.ai/en/terms",
+    "section": "3.2 Outputs & Service Restrictions",
+    "local_geometry": "User-commissioned original procedural geometry; reference photos were not copied as textures."
+  },
+  "assets": [
+    {
+      "id": "tree",
+      "file": "tree.glb",
+      "source": "plaza-christmas-wire-star-20261122/tree/Christmas_Tree_12m_VolumetricWireStar_Unlit.glb",
+      "source_sha256": "73adcf836bb544444adfaacddade050f190b1a5871d415c60e127d033c553202",
+      "provider_task": null,
+      "sha256": "dbacc29ae12844bba00c1bd9b839719a44dd82a78e64ea01c2dca6acc5afe809",
+      "bytes": 5263800,
+      "source_triangles": 231099,
+      "triangles": 142650,
+      "dimensions_metres": [
+        7.73758339881897,
+        12.0,
+        7.135380268096924
+      ],
+      "front_axis": "+Z",
+      "ground_offset": 0
+    },
+    {
+      "id": "santa",
+      "file": "santa.glb",
+      "source": "plaza-christmas-tripo-20261122/revisions/final-assets/Santa_Bell_Sack.glb",
+      "source_sha256": "5f9542306a6a56d182edce442e9f725332551a89898bca8c4fb01c121757e99f",
+      "provider_task": "8073118c-7bf3-46e7-98df-eb38caeacb5f",
+      "sha256": "c346e043d97509f4e0f20db6577c5ce85c1175d69635f8c26021bc3394b7680d",
+      "bytes": 2670032,
+      "source_triangles": 10983,
+      "triangles": 10983,
+      "dimensions_metres": [
+        2.4821919202804565,
+        2.8000001907348633,
+        1.4849315881729126
+      ],
+      "front_axis": "+Z",
+      "ground_offset": 0
+    },
+    {
+      "id": "snowman",
+      "file": "snowman.glb",
+      "source": "plaza-christmas-tripo-20261122/tripo-out/plaza-snowman-020ec369/model.glb",
+      "source_sha256": "11c389bd9270428a71c107251d2824679843c4413996a577acf620d177a7495f",
+      "provider_task": "020ec369-1b36-44b0-a777-bd217d1e848c",
+      "sha256": "264378785aa2344153655da31fcef8e1bc80dc85dffe574b649ee82be10c024e",
+      "bytes": 2316792,
+      "source_triangles": 5852,
+      "triangles": 5852,
+      "dimensions_metres": [
+        2.602544069290161,
+        3.0999999046325684,
+        1.77749502658844
+      ],
+      "front_axis": "+Z",
+      "ground_offset": 0
+    },
+    {
+      "id": "rudolph",
+      "file": "rudolph.glb",
+      "source": "plaza-christmas-natural-20261122/final-assets/Rudolph_ChestHarness_Run.glb",
+      "source_sha256": "cc3d45ba346521e01b7ed70bd48b73dc16776c04c03f5fd3da22346e8fcd38a4",
+      "provider_task": "d415dcbd-4e13-4e77-9958-16e1be2396bc",
+      "sha256": "6fc227349ccea4d36157bb747ccbb5d4e525771d162f03dd560e6a374fc61c3b",
+      "bytes": 3120540,
+      "source_triangles": 12320,
+      "triangles": 12320,
+      "dimensions_metres": [
+        1.4794517159461975,
+        2.399999976158142,
+        1.9209397435188293
+      ],
+      "front_axis": "+Z",
+      "ground_offset": -0.9
+    },
+    {
+      "id": "sleigh",
+      "file": "sleigh.glb",
+      "source": "plaza-christmas-tripo-20261122/tripo-out/plaza-sleigh-d370b998/model.glb",
+      "source_sha256": "5c8ce9b7d65def6f8789b46cc4619a2612ba0205b6cee1fef159f62d1126965a",
+      "provider_task": "d370b998-7ee9-447d-a145-c96dfb8aeae5",
+      "sha256": "05314550eeb432806460ec2a235dc1a395c4072626e4ae86eb5ebed07f66842c",
+      "bytes": 2555048,
+      "source_triangles": 9276,
+      "triangles": 9276,
+      "dimensions_metres": [
+        1.6273972988128662,
+        1.8904110193252563,
+        2.8000001907348633
+      ],
+      "front_axis": "+Z",
+      "ground_offset": -0.9
+    }
+  ],
+  "collision_sha256": "2d58d1b6bef7a4c40b5a5a4f5edb33c992a7dc0cb24061217816f6473687672a"
+}
