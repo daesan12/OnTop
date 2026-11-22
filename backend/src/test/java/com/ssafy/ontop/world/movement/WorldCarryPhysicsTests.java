@@ -1,9 +1,11 @@
 package com.ssafy.ontop.world.movement;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.jme3.bullet.objects.PhysicsCharacter;
 import com.ssafy.ontop.world.jumpmap.JumpCourse;
 import com.ssafy.ontop.world.map.PreparedParkMap;
 import java.nio.file.Path;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.Test;
@@ -470,6 +472,63 @@ class WorldCarryPhysicsTests {
     }
 
     @ParameterizedTest
+    @ValueSource(strings = {"release", "prune", "remove", "place", "hold"})
+    void 공중_던지기를_강제_종료하면_기본_스윕을_복원한다(String transition) throws Exception {
+        try (var physics = pair(false)) {
+            assertThat(physics.pickup("a", "b")).isTrue();
+            assertThat(physics.throwCarried("a", physics.carryState("a").carryId(), 1, 0, 0)).isTrue();
+            step(physics, 2);
+            PhysicsCharacter body = bodyOf(physics, "b");
+            assertThat(physics.carryState("b").role()).isEqualTo("THROWN");
+            assertThat(body.isUsingGhostSweepTest()).isFalse();
+
+            switch (transition) {
+                case "release" -> physics.releaseCarry("b");
+                case "prune" -> physics.pruneCarries(Set.of("b"));
+                case "remove" -> physics.remove("b");
+                case "place" -> physics.place("b", 0, .84, 78);
+                case "hold" -> physics.hold("b", 0, 2, 78, 0);
+                default -> throw new IllegalArgumentException(transition);
+            }
+
+            assertThat(body.isUsingGhostSweepTest()).isTrue();
+            assertThat(physics.carryState("b")).isNull();
+            if (transition.equals("place")) {
+                step(physics, 1);
+                assertThat(physics.snapshot("b").x()).isCloseTo(0, within(.01));
+            }
+        }
+    }
+
+    @Test
+    void 재접속_유예중에는_비행을_유지하고_착지하면_기본_스윕을_복원한다() throws Exception {
+        try (var physics = pair(false)) {
+            assertThat(physics.pickup("a", "b")).isTrue();
+            assertThat(physics.throwCarried("a", physics.carryState("a").carryId(), 1, 0, 0)).isTrue();
+            step(physics, 2);
+            PhysicsCharacter body = bodyOf(physics, "b");
+
+            physics.suspendClient("b");
+            physics.rebind("b");
+
+            assertThat(physics.carryState("b").role()).isEqualTo("THROWN");
+            assertThat(body.isUsingGhostSweepTest()).isFalse();
+            step(physics, 100);
+            assertThat(physics.carryState("b")).isNull();
+            assertThat(body.isUsingGhostSweepTest()).isTrue();
+        }
+    }
+
+    private PhysicsCharacter bodyOf(WorldPhysics physics, String id) throws Exception {
+        var actorsField = WorldPhysics.class.getDeclaredField("actors");
+        actorsField.setAccessible(true);
+        Object actor = ((Map<?, ?>) actorsField.get(physics)).get(id);
+        var bodyField = actor.getClass().getDeclaredField("body");
+        bodyField.setAccessible(true);
+        return (PhysicsCharacter) bodyField.get(actor);
+    }
+
+    @ParameterizedTest
     @ValueSource(booleans = {false, true})
     void 얇은_건물벽에_던져도_통과하거나_벽속에서_착지하지_않는다(boolean clientPositions) throws Exception {
         Path directory = Path.of("../frontend/generated/park");
@@ -484,10 +543,21 @@ class WorldCarryPhysicsTests {
             step(physics, 5);
             assertThat(physics.pickup("a", "b")).isTrue();
             assertThat(physics.throwCarried("a", physics.carryState("a").carryId(), 1, 0, 0)).isTrue();
+            var previous = physics.snapshot("b");
+            int wallFlightSamples = 0;
             for (int tick = 0; tick < 120; tick++) {
                 step(physics, 1);
-                assertThat(physics.snapshot("b").x()).isLessThan(5.8);
+                var flying = physics.snapshot("b");
+                assertThat(flying.x()).isLessThan(5.8);
+                if (previous.x() > 5.5 && previous.y() > 1.3 && flying.y() > 1.3) {
+                    // 보통의 벽 스윕 충돌은 수평 이동만 막고 중력에 따른 수직 속도는 잇는다.
+                    assertThat(flying.motion().velocityY()).isCloseTo(
+                            previous.motion().velocityY() - (clientPositions ? 1 : .6), within(.06));
+                    wallFlightSamples++;
+                }
+                previous = flying;
             }
+            assertThat(wallFlightSamples).isGreaterThan(4);
             var landed = physics.snapshot("b");
             assertThat(physics.carryState("b")).isNull();
             assertThat(physics.canStand(landed.x(), landed.y(), landed.z())).isTrue();

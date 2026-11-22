@@ -881,9 +881,7 @@ public final class WorldPhysics implements AutoCloseable {
                     a.body.setLinearVelocity(Vector3f.ZERO);
                     position.set(landing);
                 }
-                a.throwTicks = 0;
-                a.throwX = a.throwZ = 0;
-                a.body.setSweepTest(true);
+                clearThrow(a);
                 stopNow(entry.getKey());
                 resetMotion(a);
             }
@@ -1314,6 +1312,7 @@ public final class WorldPhysics implements AutoCloseable {
         actor.climbTargetY = 0;
         actor.moving = actor.running = false;
         actor.swimming = swimming(target);
+        clearThrow(actor);
         resetMotion(actor);
     }
 
@@ -1585,8 +1584,7 @@ public final class WorldPhysics implements AutoCloseable {
         for (var entry : actors.entrySet()) {
             Actor target = entry.getValue();
             if (entry.getKey().equals(id) && target.throwTicks > 0) {
-                target.throwTicks = 0;
-                target.throwX = target.throwZ = 0;
+                clearThrow(target);
                 stopNow(id);
                 resetMotion(target);
             }
@@ -1694,6 +1692,10 @@ public final class WorldPhysics implements AutoCloseable {
 
     private void placeNow(String id, double x, double y, double z) {
         Actor a = actors.get(id);
+        // 외부 순간 이동 뒤 이전 던지기 속도와 world sweep이 남지 않게 한다.
+        if (a.throwTicks > 0) {
+            clearThrow(a);
+        }
         a.relocations++;
         a.courseRide = false;
         stop(id);
@@ -1703,6 +1705,13 @@ public final class WorldPhysics implements AutoCloseable {
         a.body.setLinearVelocity(Vector3f.ZERO);
         a.positionValidator = null;
         resetMotion(a);
+    }
+
+    private void clearThrow(Actor actor) {
+        actor.throwTicks = 0;
+        actor.throwX = actor.throwZ = 0;
+        // 착지뿐 아니라 강제 해제·퇴장·위치 복구도 기본 ghost sweep으로 복원한다.
+        actor.body.setSweepTest(true);
     }
 
     private void resetMotion(Actor actor) {
