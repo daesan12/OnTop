@@ -24,7 +24,7 @@ export function PaperPopup({ title, label, onClose, children, className = '', cl
     role="dialog" aria-modal="true" aria-label={label} tabIndex={-1} onKeyDown={event => {
       if (event.key === 'Escape') { event.stopPropagation(); event.preventDefault(); if (!event.repeat && !event.nativeEvent.isComposing) close.current(); return }
       if (event.key !== 'Tab') return
-      const controls = [...event.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled),input:not(:disabled),a[href],summary')].filter(e => e.getClientRects().length)
+      const controls = [...event.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled),input:not(:disabled),textarea:not(:disabled),select:not(:disabled),a[href],summary')].filter(e => e.getClientRects().length)
       const first = controls[0], last = controls.at(-1)
       if (event.shiftKey && (document.activeElement === first || document.activeElement === dialog.current)) { event.preventDefault(); last?.focus() }
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus() }

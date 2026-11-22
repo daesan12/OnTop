@@ -39,7 +39,7 @@ import org.springframework.web.bind.annotation.RestController;
     @ApiResponse(responseCode = "400", description = "PLUS_MINUS_INVALID_REQUEST"),
     @ApiResponse(responseCode = "401", description = "인증된 활성 회원 필요"),
     @ApiResponse(responseCode = "403", description = "허용되지 않은 출처 또는 권한"),
-    @ApiResponse(responseCode = "409", description = "WALLET_NOT_READY / INSUFFICIENT_COINS / PLUS_MINUS_DAILY_LIMIT"),
+    @ApiResponse(responseCode = "409", description = "WALLET_NOT_READY / INSUFFICIENT_COINS"),
     @ApiResponse(responseCode = "503", description = "PLUS_MINUS_UNAVAILABLE")
 })
 public class PlusMinusController {
@@ -63,7 +63,7 @@ public class PlusMinusController {
     @PostMapping("/rounds")
     @NewActivity
     @Operation(operationId = "startPlusMinusRound", summary = "더하기 빼기 아케이드 START",
-            description = "참가비 30냥과 하루 판 수를 차감하고 세 릴의 칸을 정해 지급까지 한 번에 정산합니다. "
+            description = "횟수 제한 없이 참가비 30냥을 차감하고 세 릴의 칸을 정해 지급까지 한 번에 정산합니다. "
                     + "정지 버튼은 화면 연출이며 결과를 바꾸지 않습니다. "
                     + "Idempotency-Key를 재사용하면 같은 판을 반환하며 다시 차감하지 않습니다.")
     @Parameter(name = "Idempotency-Key", in = ParameterIn.HEADER, required = true,
