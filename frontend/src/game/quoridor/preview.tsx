@@ -109,6 +109,7 @@ function PreviewBoard() {
       labelYaw={quoridorYaw(c.player && c.board ? playerGoal(c.board, own) : undefined)}
       onMove={cell => void act({kind:'move',...cell})} onPing={cell => void runtime.pingOmok(cell.x,cell.y)}
       onPlace={wall => void act({kind:'wall',...wall})}
+      onOrientationChange={orientation => useQuoridorUI.setState({orientation,selected:null,hover:null})}
       onSelect={selected => useQuoridorUI.setState({selected})} onHover={hover => useQuoridorUI.setState({hover})} /></group>
   </>
 }

@@ -39,6 +39,7 @@ function LiveBoard() {
         labelYaw={quoridorYaw(c.player && c.board ? playerGoal(c.board, c.session.sessionId) : undefined)}
         onSelect={wall => { if (ready() && c.canAct) useQuoridorUI.setState({ selected: wall }) }}
         onHover={hover => useQuoridorUI.setState({ hover })}
+        onOrientationChange={orientation => useQuoridorUI.setState({ orientation, selected: null, hover: null })}
         onMove={cell => { if (ready() && c.canAct) void parkRuntime.actQuoridor?.({ kind: 'move', ...cell }) }}
         onPlace={wall => { if (ready() && c.canAct) void parkRuntime.actQuoridor?.({ kind: 'wall', ...wall }) }}
         onPing={cell => { if (ready() && c.canPing) void parkRuntime.pingOmok(cell.x, cell.y) }} />

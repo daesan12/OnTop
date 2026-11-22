@@ -4,10 +4,11 @@ import { CanvasTexture, Color, ExtrudeGeometry, Matrix4, Path, Plane, Shape, SRG
   type Group, type InstancedMesh, type MeshBasicMaterial } from 'three'
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
 import { OmokWood } from '../omok/BoardWood'
-import { clearRoamingInput, panelOwnsGameClicks, scenePointerOwners } from '../../world/inputOwnership'
+import { clearRoamingInput, inputState, panelOwnsGameClicks, scenePointerOwners } from '../../world/inputOwnership'
 import type { Cell, Quoridor, Wall } from './protocol'
 import { BOARD_SPAN, CELL_PITCH, TILE_SIZE, PLAYER_COLORS, cellPoint, wallPoint, wallDimensions, sameWall } from './presentation'
 import { legalDrop, type HeldPiece } from './drag'
+import { rotateWall, WallWheelStep } from './wallRotation'
 
 const noRaycast = () => {}
 const blocked = () => panelOwnsGameClicks() || !!document.querySelector('dialog[open],[role="dialog"],.game-hud-menu details[open]')
@@ -16,6 +17,7 @@ interface Props {
   state: Quoridor | null; ownId?: string; canAct?: boolean; spectator?: boolean; wallMode?: boolean;
   orientation?: Wall['orientation']; selected?: Wall | null; hover?: Wall | null; pings?: BoardPing[]; layer?: number; labelYaw?: number;
   onMove?(cell: Cell): void; onPlace?(wall: Wall): void; onSelect?(wall: Wall): void; onHover?(wall: Wall | null): void; onPing?(cell: Cell): void
+  onOrientationChange?(orientation: Wall['orientation']): void
 }
 function roundedPath<T extends Shape | Path>(path: T, size: number, radius: number) {
   const h = size / 2
@@ -28,13 +30,19 @@ function roundedPath<T extends Shape | Path>(path: T, size: number, radius: numb
 
 /** 공원과 독립 프리뷰가 공유하는 실제 3D 판. DOM/CSS로 그린 게임판은 사용하지 않는다. */
 export function QuoridorScene({ state, ownId = '', canAct = false, spectator = false, wallMode = false,
-  orientation = 'HORIZONTAL', selected = null, hover = null, pings = [], layer = 0, labelYaw = 0, onMove, onPlace, onSelect, onHover, onPing }: Props) {
+  orientation = 'HORIZONTAL', selected = null, hover = null, pings = [], layer = 0, labelYaw = 0, onMove, onPlace, onSelect, onHover, onPing, onOrientationChange }: Props) {
   const root = useRef<Group>(null)
   const [held, setHeld] = useState<HeldPiece | null>(null)
   const heldRef = useRef<HeldPiece | null>(null)
+  const wheelStep = useRef(new WallWheelStep())
+  const facing = useRef(orientation)
+  const live = useRef({ canAct, wallMode, version: state?.version, onOrientationChange })
+  useLayoutEffect(() => { live.current = { canAct, wallMode, version: state?.version, onOrientationChange } })
+  useLayoutEffect(() => { facing.current = orientation; press.current = null }, [orientation])
   const capture = useRef<{ releasePointerCapture(id: number): void; hasPointerCapture(id: number): boolean } | null>(null)
   const cancelHeld = () => {
     const prior = heldRef.current; heldRef.current = null; setHeld(null); press.current = null
+    wheelStep.current.reset()
     if (prior) { scenePointerOwners.delete(prior.pointerId)
       if (capture.current?.hasPointerCapture(prior.pointerId)) capture.current.releasePointerCapture(prior.pointerId) }
     capture.current = null
@@ -68,7 +76,24 @@ export function QuoridorScene({ state, ownId = '', canAct = false, spectator = f
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true
     mesh.computeBoundingSphere()
   }, [])
-  useEffect(() => { cancelHeld() }, [state?.version, wallMode, orientation, canAct, spectator])
+  useEffect(() => { cancelHeld() }, [state?.version, wallMode, canAct, spectator])
+  useEffect(() => {
+    const wheel = (event: WheelEvent) => {
+      const current = live.current, piece = heldRef.current
+      if (!current.canAct || !current.wallMode || !current.onOrientationChange || piece?.kind !== 'wall'
+        || piece.version !== current.version || blocked() || inputState.chatOpen || document.hidden || event.ctrlKey || event.metaKey
+        || !Number.isFinite(event.deltaY) || !event.deltaY || Math.abs(event.deltaX) > Math.abs(event.deltaY)
+        || document.elementFromPoint(event.clientX, event.clientY) !== canvas) return
+      // 공원 카메라의 같은 Canvas 휠 리스너보다 먼저 이 제스처를 소유한다.
+      event.preventDefault(); event.stopImmediatePropagation()
+      if (!wheelStep.current.accept(event.deltaY, event.deltaMode, performance.now())) return
+      facing.current = rotateWall(facing.current)
+      press.current = null
+      current.onOrientationChange(facing.current)
+    }
+    canvas.addEventListener('wheel', wheel, { capture: true, passive: false })
+    return () => canvas.removeEventListener('wheel', wheel, true)
+  }, [canvas])
   useEffect(() => {
     if (!held) return
     const prior = canvas.style.cursor; canvas.style.cursor = 'grabbing'
@@ -111,7 +136,7 @@ export function QuoridorScene({ state, ownId = '', canAct = false, spectator = f
     const prior = heldRef.current
     if (!prior || prior.pointerId !== event.pointerId) return
     event.stopPropagation(); follow(event)
-    const target = state && heldRef.current ? legalDrop(heldRef.current, state, orientation) : null
+    const target = state && heldRef.current ? legalDrop(heldRef.current, state, facing.current) : null
     const overCanvas = document.elementFromPoint(event.clientX, event.clientY) === canvas
     cancelHeld()
     if (!target || !canAct || !overCanvas || blocked()) return
