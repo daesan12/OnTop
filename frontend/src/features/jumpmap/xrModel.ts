@@ -1,4 +1,5 @@
-import { DAILY_CAP, REWARDS, STAGES, renewalCourse } from './activeCourse'
+import { dailyEarningsText } from '../minigameRewards'
+import { REWARDS, STAGES, renewalCourse } from './activeCourse'
 import type { useJumpmap } from './state'
 
 export type JumpmapXRState = ReturnType<typeof useJumpmap.getState>
@@ -17,15 +18,13 @@ export const xrTime = (ms: number) => {
 export function jumpmapXRView(s: JumpmapXRState, now: number, guide: boolean, inCourse = true): JumpmapXRView {
   const result = s.completion && s.result?.runId === s.completion.runId ? s.result : null
   if (result) {
-    const total = REWARDS.reduce((sum, reward) => sum + reward, 0)
-    const capped = s.todayEarned !== null && s.todayEarned >= DAILY_CAP
-    const confirming = s.todayEarned === null || result.runCoins < total && !capped
+    const confirming = s.todayEarned === null
     return { key: `result:${result.runId}`, title: '돌탑 도전 완료', lines: [
       renewalCourse ? '마지막 오리를 지나 호수섬까지 완주했어요!' : '마지막 연잎까지 멋지게 완주했어요!',
       result.finishMs === undefined ? '기록 확인 중…' : `완주 시간  ${xrTime(result.finishMs)}`,
       `이번 도전 받은 엽전  ${result.runCoins}냥`,
-      `오늘 미니게임 합산  ${s.todayEarned ?? '—'} / ${DAILY_CAP}냥`,
-      confirming ? '기록과 구간 보상을 확인하고 있어요.' : capped ? '오늘 보상 한도에 도달했어요. 기록 도전은 계속할 수 있어요.' : '구간 보상이 반영됐어요.',
+      `오늘 미니게임 합산  ${dailyEarningsText(s.todayEarned)}`,
+      confirming ? '기록과 구간 보상을 확인하고 있어요.' : '구간 보상이 반영됐어요.',
       s.bestFinishMs === null ? '' : `내 최고 기록  ${xrTime(s.bestFinishMs)}`,
       '계속하기 후 호수로 내려가거나 공원을 둘러보세요.',
     ].filter(Boolean), buttons: [{ id: 'ranking', label: '타임어택 랭킹' }, { id: 'continue', label: '계속하기 · A' }] }
@@ -35,7 +34,7 @@ export function jumpmapXRView(s: JumpmapXRState, now: number, guide: boolean, in
     '왼쪽 스틱 이동 · 왼손 그립을 누른 채 달리기',
     '오른손 A 버튼 점프 · 오른쪽 스틱 회전 (방식·속도 선택 가능)',
     renewalCourse ? '석탑부터 오리까지 열 구간을 순서대로 통과해요.' : '석탑부터 연잎까지 일곱 구간을 순서대로 통과해요.',
-    `구간 보상 합계 ${REWARDS.reduce((sum, reward) => sum + reward, 0)}냥 · 하루 합산 ${DAILY_CAP}냥 한도`,
+    `구간 보상 합계 ${REWARDS.reduce((sum, reward) => sum + reward, 0)}냥 · 일일 제한 없음`,
     renewalCourse ? '호수섬에 착지하면 완주해요. 떨어져도 받은 엽전은 유지돼요.' : '마지막 연잎에서 완주! 떨어져도 받은 엽전은 그대로예요.',
     '왼손 X 안내 열기·닫기 · 오른손 B VR 종료 · 실제로 뛰지 않아요.',
   ], buttons: [{ id: 'park-guide', label: '공원 조작 안내' }, { id: 'comfort', label: '편안함 설정' }, { id: 'continue', label: '안내 닫기 · A' }] }

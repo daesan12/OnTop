@@ -45,7 +45,7 @@ class StoneRumbleSettlementTests {
     }
 
     @Test
-    void 다른_미니게임을_합산한_하루_상한까지_일부_지급하고_소진하면_지급하지_않는다() {
+    void 다른_미니게임의_일일누계와_무관하게_순위보상을_전액_지급한다() {
         verifyRewards(8, true);
     }
 
@@ -92,19 +92,19 @@ class StoneRumbleSettlementTests {
         settle.settle(7);
 
         for (int i = 0; i < count; i++) {
-            long grant = capped && i < 2 ? i == 0 ? 7L : 0L : (count - i) * 10L;
+            long grant = (count - i) * 10L;
             assertThat(players.get(i).finishRank()).isEqualTo(i + 1);
             assertThat(players.get(i).rankReward()).isEqualTo((count - i) * 10L);
             assertThat(players.get(i).coinDelta()).isEqualTo(grant);
             assertThat(balances.get(i).balance()).isEqualTo(Wallet.SIGNUP_BALANCE + grant);
         }
-        verify(ledger, times(capped ? count - 1 : count)).save(any(WalletTransaction.class));
+        verify(ledger, times(count)).save(any(WalletTransaction.class));
         verify(earned, times(count)).setParameter("from", Instant.parse("2026-11-06T15:00:00Z"));
         verify(earned, times(count)).setParameter("until", Instant.parse("2026-11-07T15:00:00Z"));
         var settled = StoredGameResult.forMember(game, players, players.getFirst());
         assertThat(settled.participants().getFirst().rank()).isEqualTo(1);
-        assertThat(settled.participants().getFirst().rewardCoins()).isEqualTo(capped ? 7L : count * 10L);
-        assertThat(settled.participants().get(1).rewardCoins()).isEqualTo(capped ? 0L : (count - 1) * 10L);
+        assertThat(settled.participants().getFirst().rewardCoins()).isEqualTo(count * 10L);
+        assertThat(settled.participants().get(1).rewardCoins()).isEqualTo((count - 1) * 10L);
         receive.accept(finish);
         if (count == 8) {
             var replaced = new java.util.ArrayList<>(outcomes);

@@ -84,23 +84,23 @@ class MinigameServiceTests {
     }
 
     @Test
-    void 오늘_998냥이면_2냥만_지급하고_KST_날짜로_조회한다() {
+    void 오늘_998냥이어도_전액_지급하고_KST_날짜로_집계한다() {
         when(repository.earned(eq(101L), any(), any())).thenReturn(998L);
         var result = service.complete(101, 901, BungeoppangFixtures.sevenGolden(heats));
         assertThat(result.coinsCalculated()).isEqualTo(17);
-        assertThat(result.coinsGranted()).isEqualTo(2);
-        assertThat(result.todayEarned()).isEqualTo(1000);
-        assertThat(result.capReached()).isTrue();
+        assertThat(result.coinsGranted()).isEqualTo(17);
+        assertThat(result.todayEarned()).isEqualTo(1015);
+        assertThat(result.capReached()).isFalse();
         verify(repository).earned(101, Instant.parse("2026-10-22T15:00:00Z"),
                 Instant.parse("2026-10-23T15:00:00Z"));
     }
 
     @Test
-    void 상한이면_지급없이도_정상완료한다() {
+    void 기존_상한을_넘어도_전액_지급한다() {
         when(repository.earned(eq(101L), any(), any())).thenReturn(1000L);
-        assertThat(service.complete(101, 901, BungeoppangFixtures.sevenGolden(heats)).coinsGranted()).isZero();
+        assertThat(service.complete(101, 901, BungeoppangFixtures.sevenGolden(heats)).coinsGranted()).isEqualTo(17);
         assertThat(session.status()).isEqualTo("COMPLETED");
-        verify(repository, never()).persist(any(WalletTransaction.class));
+        verify(repository).persist(any(WalletTransaction.class));
     }
 
     @Test

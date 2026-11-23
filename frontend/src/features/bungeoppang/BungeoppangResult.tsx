@@ -1,3 +1,4 @@
+import { dailyEarningsText } from '../minigameRewards'
 import { useState } from 'react'
 import coinImage from '../../assets/entry/yeopjeon-icon.webp'
 import { PaperPopup } from '../tableLobby/PaperPopup'
@@ -49,9 +50,9 @@ export function BungeoppangResult() {
     <div className="paper-stats"><div><span>완성</span><b>{summary.made}개</b></div><div><span>실수</span><b className="paper-mistakes">{summary.failed}회</b></div></div>
     <RankingSummary feed={ranking} onOpen={() => setRankingOpen(true)} />
     <div className="paper-settlement" role="status"><strong><RewardCoinSource soundOnReveal receipt={gameId ? `minigame:${gameId}` : ''} amount={!bungeoppangService.mock && !preview ? result?.coinsGranted ?? 0 : 0}><img className="bung-result-coin" src={coinImage} alt="" width="28" height="28" draggable={false} />{preview ? `미리보기 · 환산 예상 ${result?.coinsCalculated ?? '확인 중'}냥` : result ? `받은 엽전 ${result.coinsGranted}냥` : submitError ? '보상 내역을 확인하지 못했어요' : '보상 확인 중'}</RewardCoinSource></strong>
-      <small>{preview ? '미리보기 · 실제 엽전 지급 없음' : result ? `미니게임 합산 수입 ${today} / ${result.dailyCap}냥` : '확인이 끝나면 엽전에 반영돼요'}</small></div>
-    {result?.capReached && <p>오늘 미니게임 보상 한도에 도달했어요. 게임은 계속할 수 있어요.</p>}
-    {!preview && result && result.coinsGranted < result.coinsCalculated && <p>환산 {result.coinsCalculated}냥 중 오늘 한도를 적용해 {result.coinsGranted}냥을 받았어요.</p>}
+      <small>{preview ? '미리보기 · 실제 엽전 지급 없음' : result ? `미니게임 합산 수입 ${dailyEarningsText(today, result.dailyCap)}` : '확인이 끝나면 엽전에 반영돼요'}</small></div>
+    {result && result.dailyCap > 0 && result.capReached && <p>오늘 미니게임 보상 한도에 도달했어요. 게임은 계속할 수 있어요.</p>}
+    {!preview && result && result.dailyCap > 0 && result.coinsGranted < result.coinsCalculated && <p>환산 {result.coinsCalculated}냥 중 오늘 한도를 적용해 {result.coinsGranted}냥을 받았어요.</p>}
     {submitError && <p className="paper-error" role="alert">{submitError.message}{submitError.retryable && !submitting && <button className="paper-text-button" onClick={() => void submitBungeoppang()}>같은 결과 다시 확인</button>}</p>}
     {startError && <p className="paper-error" role="alert">{startError}</p>}
     {walletError && <p className="paper-error">{walletError}<button className="paper-text-button" onClick={() => void refreshBungeoppangWallet()}>잔액 다시 확인</button></p>}

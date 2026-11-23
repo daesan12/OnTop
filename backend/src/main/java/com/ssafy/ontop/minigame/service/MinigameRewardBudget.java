@@ -5,9 +5,10 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 
-/** 미니게임 공통 KST 하루 상한. 지급자는 같은 트랜잭션에서 먼저 회원 지갑을 잠근다. */
+/** 미니게임 보상과 KST 일일 누계. 지급자는 같은 트랜잭션에서 먼저 회원 지갑을 잠근다. */
 public final class MinigameRewardBudget {
-    public static final int DAILY_CAP = 1000;
+    /** 응답의 0은 일일 지급 제한 없음을 뜻한다. 누계는 통계로만 사용한다. */
+    public static final int DAILY_CAP = 0;
     public static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
     private MinigameRewardBudget() {
@@ -34,6 +35,6 @@ public final class MinigameRewardBudget {
     }
 
     public static int grant(long calculated, long earned) {
-        return (int) Math.min(Math.max(0, calculated), Math.max(0, DAILY_CAP - earned));
+        return Math.toIntExact(Math.max(0, calculated));
     }
 }

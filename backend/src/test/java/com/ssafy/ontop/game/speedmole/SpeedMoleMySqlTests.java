@@ -112,7 +112,7 @@ class SpeedMoleMySqlTests {
         }
         return result;
     }
-    @Test void common_budget_caps_rewards_and_an_old_ranking_is_not_retroactively_paid() {
+    @Test void 일일누계와_무관하게_전액_지급하고_기존_랭킹은_소급_지급하지_않는다() {
         long user=user();
         jdbc.update("UPDATE wallets SET balance=1097 WHERE user_id=?",user);
         jdbc.update("INSERT INTO wallet_transactions(wallet_id,transaction_type,balance_delta,reserved_delta,idempotency_key,created_at) "
@@ -120,11 +120,11 @@ class SpeedMoleMySqlTests {
         long id=Long.parseLong(service.start(user,"cap").id());
         jdbc.update("UPDATE speed_mole_rounds SET seed=1,started_at=? WHERE id=?",Timestamp.from(Instant.now().minusSeconds(61)),id);
         var result=service.complete(user,id,taps(1,200));
-        assertThat(result.calculatedReward()).isEqualTo(40); assertThat(result.reward()).isEqualTo(3); assertThat(result.todayEarned()).isEqualTo(1000);
-        assertThat(jdbc.queryForObject("SELECT balance FROM wallets WHERE user_id=?",Long.class,user)).isEqualTo(1100);
+        assertThat(result.calculatedReward()).isEqualTo(40); assertThat(result.reward()).isEqualTo(40); assertThat(result.todayEarned()).isEqualTo(1037);
+        assertThat(jdbc.queryForObject("SELECT balance FROM wallets WHERE user_id=?",Long.class,user)).isEqualTo(1137);
         long next=Long.parseLong(service.start(user,"cap-next").id());
         jdbc.update("UPDATE speed_mole_rounds SET seed=1,started_at=? WHERE id=?",Timestamp.from(Instant.now().minusSeconds(61)),next);
-        assertThat(service.complete(user,next,taps(1,80)).reward()).isZero();
+        assertThat(service.complete(user,next,taps(1,80)).reward()).isEqualTo(16);
         long oldUser=user(); settled(oldUser,120,0,Instant.now().minusSeconds(120),1);
         long old=jdbc.queryForObject("SELECT id FROM speed_mole_rounds WHERE user_id=?",Long.class,oldUser);
         assertThat(service.complete(oldUser,old,List.of()).reward()).isZero();

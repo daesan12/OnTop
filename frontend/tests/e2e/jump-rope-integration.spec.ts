@@ -28,7 +28,7 @@ async function openJumpRope(page: Page) {
 test('오락기에서 공통 일일 엽전 집계를 표시하고 공원 설명서에서 줄넘기를 연다', async ({ page }) => {
   await setupPark(page)
   await page.route('**/api/v1/minigames/whack-a-mole/status', route => route.fulfill({ json: {
-    serverNow: new Date().toISOString(), todayEarned: 123, dailyCap: 1000, bestScore: 0, last: null,
+    serverNow: new Date().toISOString(), todayEarned: 10123, dailyCap: 0, bestScore: 0, last: null,
     rules: { durationMs: 90000, phaseMs: 30000, keys: ['S', 'D', 'F', 'J', 'K', 'L'], pointsPerCoin: 40,
       normalPoints: 10, goldPoints: 30, decoyPenalty: 10, rapidPoints: [10], comboSteps: [1], comboTenths: [10] },
   } }))
@@ -36,12 +36,12 @@ test('오락기에서 공통 일일 엽전 집계를 표시하고 공원 설명�
   const detail = arcade.locator('.arcade-detail')
   await arcade.getByRole('button', { name: /구구구 줄넘기/ }).click()
   await expect(detail.locator('dt')).toHaveText(['참가비', '오늘 미니게임 엽전', '받는 엽전'])
-  await expect(detail.locator('dd')).toHaveText(['무료', '123 / 1000냥', '50점당 1냥 · 하루 상한 안에서'])
+  await expect(detail.locator('dd')).toHaveText(['무료', '10123냥 · 일일 제한 없음', '50점당 1냥 · 일일 제한 없음'])
   const thumbnail = await detail.locator('img.manual-art').getAttribute('src')
   expect(thumbnail).toBeTruthy()
 
   await arcade.getByRole('button', { name: /스피드 두더지 잡기/ }).click()
-  await expect(detail.locator('dd')).toHaveText(['무료', '123 / 1000냥', '5점당 1냥 · 하루 상한 안에서'])
+  await expect(detail.locator('dd')).toHaveText(['무료', '10123냥 · 일일 제한 없음', '5점당 1냥 · 일일 제한 없음'])
   await arcade.getByRole('button', { name: /이 게임 하기/ }).click()
   const speedMole = page.getByRole('dialog', { name: '스피드 두더지 잡기' })
   await expect(speedMole).toBeVisible()

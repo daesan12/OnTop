@@ -326,15 +326,15 @@ class MinigameMySqlTests {
     }
 
     @Test
-    void 하루상한_남은2냥만_지급하고_다음판은_0냥으로_정상완료한다() {
+    void 일일누계가_기존_상한을_넘어도_매판_전액_지급한다() {
         historyReward(998);
         var first = ready("first");
         var result = minigames.complete(101, id(first), BungeoppangFixtures.sevenGolden(first.heats()));
-        assertThat(result.coinsGranted()).isEqualTo(2);
-        assertThat(result.todayEarned()).isEqualTo(1000);
+        assertThat(result.coinsGranted()).isEqualTo(17);
+        assertThat(result.todayEarned()).isEqualTo(1015);
         var second = ready("second");
-        assertThat(minigames.complete(101, id(second), BungeoppangFixtures.sevenGolden(second.heats())).coinsGranted()).isZero();
-        assertThat(balance()).isEqualTo(102);
+        assertThat(minigames.complete(101, id(second), BungeoppangFixtures.sevenGolden(second.heats())).coinsGranted()).isEqualTo(17);
+        assertThat(balance()).isEqualTo(134);
     }
 
     @Test

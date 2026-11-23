@@ -8,7 +8,7 @@ import './jumpmapPreview.css'
 
 const scope = { channelId: 'preview', mapVersion: MAP_VERSION }
 let revision = 0, serial = 0
-const money = () => ({ todayEarned: useJumpmap.getState().todayEarned ?? 0, dailyCap: 1000, earningsDate: kstDate() })
+const money = () => ({ todayEarned: useJumpmap.getState().todayEarned ?? 0, dailyCap: 0, earningsDate: kstDate() })
 function fresh() {
   revision = 0; serial = 0; resetJumpmap(); bindJumpmap('101', 'preview', MAP_VERSION)
   applyJumpStatus({ ...scope, ...money(), revision: 0, enabled: true, rulesVersion: RULES_VERSION, courseVersion: COURSE_VERSION,

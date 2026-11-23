@@ -6,7 +6,7 @@ import { clearRoamingInput } from '../../world/inputOwnership'
 import { JUMPMAP_ENABLED } from '../../park/mapSelection'
 import { closeJumpmapGuide, jumpmapGuideScope, useJumpmapGuide } from './guideState'
 import { useJumpmap } from './state'
-import { DAILY_CAP, STAGES } from './activeCourse'
+import { STAGES } from './activeCourse'
 import { JumpmapRankingDialog, type RankingLoader } from './JumpmapRanking'
 import './jumpmapGuide.css'
 import './rewardFeedback.css'
@@ -49,7 +49,7 @@ export function JumpmapGuideDialog({ onClose, loadRankings }: { onClose():void; 
       <section className="jm-guide-rewards" aria-label="점프맵 보상 안내"><h3>완주하면 총 {STAGES.reduce((sum, stage) => sum + stage.reward, 0)}냥</h3>
         <p>구간을 지날 때마다 받아요. 떨어져도 받은 엽전은 그대로예요.</p>
         <ol>{STAGES.map(stage => <li key={stage.stage}><span>{stage.name}</span><b>+{stage.reward}냥</b></li>)}</ol>
-        <small>미니게임 합산 하루 최대 {DAILY_CAP}냥<br />남은 일일 한도만큼 지급해요.</small>
+        <small>일일 획득 제한 없이<br />구간 보상을 받아요.</small>
       </section>
       <div className="jm-guide-controls" aria-label="돌탑 조작 안내"><span><kbd>WASD</kbd> 이동</span><span><kbd>Space</kbd> 점프</span><span><kbd>Shift</kbd> 달리기</span></div>
       <section className="jm-guide-ranking" aria-label="타임어택 랭킹 안내"><span aria-hidden="true"><StepIcon step={2} /></span><div>

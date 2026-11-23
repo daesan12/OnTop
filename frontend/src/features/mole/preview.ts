@@ -41,7 +41,7 @@ export class PreviewMoleService implements MolePort {
   private last: MoleSettlement['result'] | null = null
 
   async status(): Promise<MoleState> {
-    return { serverNow: new Date().toISOString(), todayEarned: this.earned, dailyCap: 1000, bestScore: this.best,
+    return { serverNow: new Date().toISOString(), todayEarned: this.earned, dailyCap: 0, bestScore: this.best,
       rules: PREVIEW_RULES, last: this.last }
   }
 
@@ -53,12 +53,12 @@ export class PreviewMoleService implements MolePort {
   async complete(roundId: string, hits: readonly Hit[]): Promise<MoleSettlement> {
     if (!this.round || this.round.id !== roundId) throw new Error('round')
     const score = scoreHits(this.round.moles, PREVIEW_RULES, hits)
-    const reward = Math.max(0, Math.min(score.coins, 1000 - this.earned))
+    const reward = Math.max(0, score.coins)
     this.earned += reward
     this.best = Math.max(this.best, score.score)
     this.last = { id: roundId, score: score.score, maxCombo: score.maxCombo, caught: score.caught,
       calculatedReward: score.coins, reward, settledAt: new Date().toISOString() }
-    return { result: this.last, todayEarned: this.earned, dailyCap: 1000, bestScore: this.best }
+    return { result: this.last, todayEarned: this.earned, dailyCap: 0, bestScore: this.best }
   }
 
   /** 대역 안에서 친 최고 점수 하나만 보여 준다. */

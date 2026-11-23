@@ -1,3 +1,4 @@
+import { dailyEarningsText } from '../minigameRewards'
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { BUNGEOPPANG, BUNGEOPPANG_V4, BUNGEOPPANG_V5, bungeoppangV4Preview, bungeoppangV5Preview, bungeoppangV5Enabled } from "./config";
 import { isV5Grill } from './rulesV5';
@@ -485,7 +486,7 @@ function StartPanel() {
   const starting = useBungeoppang((s) => s.starting);
   const startError = useBungeoppang((s) => s.startError);
   const walletError = useBungeoppang((s) => s.walletError);
-  const capped = !!status && status.todayEarned >= status.dailyCap;
+  const capped = !!status && status.dailyCap > 0 && status.todayEarned >= status.dailyCap;
   const v5 = status ? status.rulesVersion === 'v5' : bungeoppangV5Enabled;
   const readyRules = v5 ? BUNGEOPPANG_V5 : BUNGEOPPANG_V4;
   const rulesVersion = status?.rulesVersion ?? readyRules.rulesVersion;
@@ -535,10 +536,10 @@ function StartPanel() {
             disabled={starting} onClick={() => setRankingOpen(true)}>랭킹 보기</button></div>}
         </div>
       </section>
-      <p className="bung-start-earned" aria-label={`오늘 번 엽전 ${status ? `${status.todayEarned}냥` : '확인 중'} / ${status?.dailyCap ?? R.dailyCoinCap}냥`}>
+      <p className="bung-start-earned" aria-label={`오늘 번 엽전 ${status ? dailyEarningsText(status.todayEarned, status.dailyCap) : '확인 중'}`}>
         <span>미니게임 오늘</span><span className="bung-start-amount">{!status ? '수익 확인 중' : <><img src={coinIcon} alt="" width="28" height="28" />{status.todayEarned.toLocaleString()}냥</>}</span>
-        <span aria-hidden="true">/</span>
-        <strong className="bung-start-amount"><img src={coinIcon} alt="" width="28" height="28" />{status?.dailyCap ?? R.dailyCoinCap}냥</strong>
+        <span aria-hidden="true">·</span>
+        <strong className="bung-start-amount">{status?.dailyCap ? `하루 ${status.dailyCap}냥` : '일일 제한 없음'}</strong>
       </p>
       {capped && (
         <p className="bung-cap">오늘 미니게임 보상 한도에 도달했어요. 게임은 계속할 수 있어요.</p>

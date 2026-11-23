@@ -1,5 +1,7 @@
 # 붕어빵 미니게임 API · v2 / v4 Story 1·2·3
 
+> 2026-11-24: [공통 보상 정책](minigame-shared-budget.md)에 따라 미니게임 일일 획득 상한을 제거한다. 현재 dailyCap/dailyCoinCap=0은 무제한이며 누계가 1,000냥을 넘어도 전액 지급한다. 아래 이전 상한 설명과 예시보다 이 정책이 우선한다.
+
 기준: 2026-10-23 수신한 `붕어빵_뒤집기_최종기획.md`, BE·FE 작업명세와 사용자 확정 사항.
 이 문서는 기존 MINI-01~04 v2 계약과 명시적으로 선택하는 v4 Story 1·2·3 계약을 함께 설명한다.
 기본 비활성인 v5 계약은 `docs/minigame-bungeoppang-v5-contract.md`에 따로 정리한다.

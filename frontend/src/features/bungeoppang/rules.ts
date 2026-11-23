@@ -337,7 +337,7 @@ export function grantCoins(
   earnedToday: number,
   rules: BungeoppangRules,
 ): number {
-  return Math.max(0, Math.min(coins, rules.dailyCoinCap - earnedToday));
+  return Math.max(0, rules.dailyCoinCap > 0 ? Math.min(coins, rules.dailyCoinCap - earnedToday) : coins);
 }
 
 /** 불 세기 목록 생성. 실제로는 서버가 만들고, 이 함수는 목업 서버와 테스트용이다. */

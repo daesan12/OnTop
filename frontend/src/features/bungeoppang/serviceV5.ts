@@ -1,3 +1,4 @@
+import { validDailyBudget } from '../minigameRewards'
 import { record } from '../../network/protocol';
 import { RestError } from '../../network/restError';
 import { BUNGEOPPANG_V5 as R, BUNGEOPPANG_V5_LEGACY } from './config';
@@ -107,9 +108,9 @@ export function createBungeoppangV5Service(requestJSON: (path: string, init?: Re
     mock: false,
     async getStatus() {
       const p = await request(`${path}?rulesVersion=v5`);
-      if (!record(p) || p.rulesVersion !== 'v5' || !whole(p.todayEarned) || p.dailyCap !== 1000
+      if (!record(p) || p.rulesVersion !== 'v5' || !whole(p.todayEarned) || !validDailyBudget(p.todayEarned, p.dailyCap)
         || !(p.activeSessionId == null || id(p.activeSessionId))
-        || p.todayEarned > p.dailyCap || typeof p.isFirstGame !== 'boolean' || !Array.isArray(p.seenTips)
+        || typeof p.isFirstGame !== 'boolean' || !Array.isArray(p.seenTips)
         || !p.seenTips.every(t => typeof t === 'string')) return fail();
       return { rulesVersion: 'v5', todayEarned: p.todayEarned, dailyCap: p.dailyCap,
         isFirstGame: p.isFirstGame, seenTips: p.seenTips as string[], activeSessionId: p.activeSessionId as string | null | undefined };

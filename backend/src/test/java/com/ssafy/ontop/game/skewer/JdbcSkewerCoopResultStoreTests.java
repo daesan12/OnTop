@@ -77,7 +77,7 @@ class JdbcSkewerCoopResultStoreTests {
     }
 
     @Test
-    void 다른_미니게임_수입과_합산하여_각자_상한을_적용하고_중복결과는_다시_지급하지_않는다() {
+    void 일일누계와_무관하게_각자_전액_지급하고_중복결과는_다시_지급하지_않는다() {
         long chef = member("요리사", true), server = member("서빙", true);
         reward(chef, 990);
         reward(server, 30);
@@ -89,17 +89,17 @@ class JdbcSkewerCoopResultStoreTests {
         var first = store.find(chef, event.result().gameId(), NOW).orElseThrow();
         var second = store.find(server, event.result().gameId(), NOW).orElseThrow();
         assertThat(first.coinsCalculated()).isEqualTo(120);
-        assertThat(first.coinsGranted()).isEqualTo(10);
-        assertThat(first.todayEarned()).isEqualTo(1000);
-        assertThat(first.balance()).isEqualTo(1100);
+        assertThat(first.coinsGranted()).isEqualTo(120);
+        assertThat(first.todayEarned()).isEqualTo(1110);
+        assertThat(first.balance()).isEqualTo(1210);
         assertThat(second.coinsGranted()).isEqualTo(120);
         assertThat(second.todayEarned()).isEqualTo(150);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM wallet_transactions WHERE transaction_type='SKEWER_REWARD'",
                 Integer.class)).isEqualTo(2);
         assertThat(store.find(999999, event.result().gameId(), NOW)).isEmpty();
         var tomorrow = store.find(chef, event.result().gameId(), NOW.plusSeconds(86_400)).orElseThrow();
-        assertThat(tomorrow.coinsGranted()).isEqualTo(10);
-        assertThat(tomorrow.remainingToday()).isEqualTo(1000);
+        assertThat(tomorrow.coinsGranted()).isEqualTo(120);
+        assertThat(tomorrow.remainingToday()).isNull();
     }
 
     @Test

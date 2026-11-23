@@ -31,7 +31,7 @@ export const STAGE_COUNT = STAGES.length
 export const REWARDS = STAGES.map(stage => stage.reward)
 export const LAP_REWARD = REWARDS.reduce((total, reward) => total + reward, 0)
 export const BLOCK_BY_ID = new Map(COURSE.map(pad => [pad.id, pad]))
-export const expectedCoins = (gate: number, today: number) => Math.min(REWARDS[gate - 1] ?? 0, Math.max(0, legacy.DAILY_CAP - today))
+export const expectedCoins = (gate: number, _today: number) => REWARDS[gate - 1] ?? 0
 
 export function courseBlockIndex(value: unknown): number | null {
   if (!renewalCourse) return legacy.courseBlockIndex(value)

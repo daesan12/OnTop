@@ -340,7 +340,7 @@ class MinigameV5DeliveryServiceTests {
     }
 
     @Test
-    void 일일_상한이_차면_0냥으로_완료하고_원장을_남기지_않는다() {
+    void 일일_누계가_기존_상한이어도_전액_지급하고_원장을_남긴다() {
         when(repository.earned(eq(USER_ID), any(), any())).thenReturn(1000L);
         var request = delivery(twoBeans(), "1", "deliver-one");
         service.deliverV5(USER_ID, id, "deliver-one", request);
@@ -350,10 +350,10 @@ class MinigameV5DeliveryServiceTests {
                 completeBody(request.log(), 0));
 
         assertThat(result.coinsCalculated()).isEqualTo(4);
-        assertThat(result.coinsGranted()).isZero();
-        assertThat(result.capReached()).isTrue();
-        assertThat(wallet.balance()).isEqualTo(100);
-        assertThat(ledger).isEmpty();
+        assertThat(result.coinsGranted()).isEqualTo(4);
+        assertThat(result.capReached()).isFalse();
+        assertThat(wallet.balance()).isEqualTo(104);
+        assertThat(ledger).hasSize(1);
     }
 
     @Test

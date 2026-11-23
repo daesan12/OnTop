@@ -1,3 +1,4 @@
+import { validDailyBudget } from '../minigameRewards'
 import type { GrillLogEntry } from './rules'
 import { BUNGEOPPANG as R } from './config'
 import { parkRuntime } from '../../park/runtime/runtime'
@@ -105,7 +106,7 @@ export function createBungeoppangService(requestJSON: (path: string, init?: Requ
     mock: false,
     async getStatus() {
       const p = await request(path)
-      if (!record(p) || !whole(p.todayEarned) || p.dailyCap !== R.dailyCoinCap || p.todayEarned > p.dailyCap
+      if (!record(p) || !whole(p.todayEarned) || !validDailyBudget(p.todayEarned, p.dailyCap)
         || typeof p.isFirstGame !== 'boolean' || !Array.isArray(p.seenTips) || p.seenTips.length > 5
         || !p.seenTips.every(v => typeof v === 'string' && tips.includes(v))) return invalid()
       if (p.rulesVersion !== R.rulesVersion) throw new BungeoppangServiceError('RULES_VERSION_MISMATCH', messages.RULES_VERSION_MISMATCH!)
@@ -132,8 +133,8 @@ export function createBungeoppangService(requestJSON: (path: string, init?: Requ
       const p = await request(sessionPath(input.gameId) + '/complete', post({ log: input.log, seenTips: input.seenTips, clientScore: input.clientScore }))
       const fields = ['score', 'made', 'golden', 'failed', 'wasted', 'maxCombo', 'coinsCalculated', 'coinsGranted', 'todayEarned'] as const
       if (!record(p) || p.minigameSessionId !== input.gameId || p.status !== 'COMPLETED'
-        || !fields.every(k => whole(p[k])) || p.dailyCap !== R.dailyCoinCap || typeof p.capReached !== 'boolean'
-        || Number(p.todayEarned) > p.dailyCap || Number(p.coinsGranted) > Number(p.coinsCalculated)
+        || !fields.every(k => whole(p[k])) || !validDailyBudget(p.todayEarned, p.dailyCap) || typeof p.capReached !== 'boolean'
+        || Number(p.coinsGranted) > Number(p.coinsCalculated)
         || Number(p.coinsGranted) > Number(p.todayEarned) || p.rewardAmount !== p.coinsGranted || p.verifiedCompletedCount !== p.made) return invalid()
       return Object.fromEntries([...fields, 'dailyCap', 'capReached'].map(k => [k, p[k]])) as unknown as BungeoppangSubmitResult
     },

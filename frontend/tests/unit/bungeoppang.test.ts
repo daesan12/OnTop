@@ -235,8 +235,9 @@ describe("재료와 엽전", () => {
   });
   it.each([
     [0, 11, 11],
-    [995, 11, 5],
-    [1000, 11, 0],
+    [995, 11, 11],
+    [1000, 11, 11],
+    [100_000, 11, 11],
     [50, 0, 0],
   ])("오늘 %i냥, 계산 %i냥 → 지급 %i냥", (earned, coins, granted) => {
     expect(grantCoins(coins, earned, R)).toBe(granted);

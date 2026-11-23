@@ -1,5 +1,5 @@
 import type { GameManual } from '../manual/types'
-import { DAILY_CAP, LAP_REWARD, REWARDS, STAGES, renewalCourse } from './activeCourse'
+import { LAP_REWARD, REWARDS, STAGES, renewalCourse } from './activeCourse'
 
 const guideLocation = renewalCourse ? '점프맵 비석' : '출발 표식'
 
@@ -23,7 +23,7 @@ export const jumpManual: GameManual = {
     '소리들으며 플레이 하면 재미가 2배!! 발판마다 다른 착지 소리를 즐겨보세요. 설정에서 효과음 음량을 조절할 수 있어요.',
     '타임어택 랭킹이 있어요. 완주 화면의 타임어택 랭킹 보기에서 개인 최고 기록과 순위를 확인하세요.',
     '세이브 포인트가 없어요. 출발 자리까지 직접 걸어 돌아가요. 순간 이동은 없어요.',
-    `구간 보상은 ${REWARDS.join('·')}냥 (완주 합계 ${LAP_REWARD}냥)이에요. 한국 시간 기준 모든 미니게임 합산 하루 최대 ${DAILY_CAP}냥이며 서버 지급 결과를 따라요.`,
+    `구간 보상은 ${REWARDS.join('·')}냥 (완주 합계 ${LAP_REWARD}냥)이에요. 일일 획득 제한 없이 서버 지급 결과를 따라요.`,
     '동일 기록은 공동 순위예요. 먼저 도착한 사람이 위에 표시돼요.',
     '낙하 결과창은 뜨지 않아요. 짧은 보상 알림과 작은 구간·엽전 표시로 진행 상태를 확인해요.',
   ],

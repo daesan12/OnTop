@@ -164,7 +164,7 @@ class MoleServiceTests {
     }
 
     @Test
-    void 미니게임_공통_하루_상한에서_남은_만큼만_지급한다() {
+    void 미니게임_일일누계와_무관하게_점수_보상을_전액_지급한다() {
         repository.earnedBefore = 990;
         var round = service.start(USER, "round-1");
         clock.advance(Duration.ofSeconds(92));
@@ -172,8 +172,8 @@ class MoleServiceTests {
         var result = service.complete(USER, Long.parseLong(round.id()), catchAll());
 
         assertThat(result.result().calculatedReward()).isGreaterThan(10);
-        assertThat(result.result().reward()).isEqualTo(10);
-        assertThat(wallet.balance()).isEqualTo(110);
+        assertThat(result.result().reward()).isEqualTo(result.result().calculatedReward());
+        assertThat(wallet.balance()).isEqualTo(100L + result.result().calculatedReward());
     }
 
     @Test
@@ -222,7 +222,7 @@ class MoleServiceTests {
         var state = service.status(USER);
 
         assertThat(state.todayEarned()).isEqualTo(120 + settled.result().reward());
-        assertThat(state.dailyCap()).isEqualTo(1000);
+        assertThat(state.dailyCap()).isZero();
         assertThat(state.bestScore()).isEqualTo(settled.result().score());
         assertThat(state.last()).isEqualTo(settled.result());
     }

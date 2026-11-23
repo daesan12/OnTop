@@ -37,8 +37,8 @@ describe('accepted new-map course', () => {
     expect(recovered.lastRun?.runCoins).toBe(250)
     expect(() => parseJumpStatus(status({ activeRunId: 'bad', activeRun: { runId: 'bad', elapsedMs: 0, gatesPassed: 7, finalReached: true, maxHeight: 47, runCoins: 251 } }))).toThrow()
   })
-  it('caps expected receipts and uses Korea midnight', () => {
-    expect(expectedCoins(7, 995)).toBe(5); expect(expectedCoins(7, 1000)).toBe(0)
+  it('grants full receipts above the old cap and uses Korea midnight', () => {
+    expect(expectedCoins(7, 995)).toBe(85); expect(expectedCoins(7, 1000)).toBe(85)
     expect(kstDate(Date.parse('2026-10-30T14:59:59Z'))).toBe('2026-10-30')
     expect(kstDate(Date.parse('2026-10-30T15:00:00Z'))).toBe('2026-10-31')
   })

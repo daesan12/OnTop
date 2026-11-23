@@ -513,7 +513,7 @@ export function grantCoins(
   earnedToday: number,
   rules: BungeoppangRules,
 ): number {
-  return Math.max(0, Math.min(coins, rules.dailyCoinCap - earnedToday));
+  return Math.max(0, rules.dailyCoinCap > 0 ? Math.min(coins, rules.dailyCoinCap - earnedToday) : coins);
 }
 /** Mock/service-side only. Real order issuance requires the team's approved contract. */
 export function makeOrderList(

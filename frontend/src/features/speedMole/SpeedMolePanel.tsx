@@ -1,3 +1,4 @@
+import { dailyEarningsText } from '../minigameRewards'
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { playSfx } from '../../audio/sfx'
 import cabinet from './assets/cabinet.png'
@@ -186,7 +187,7 @@ export function SpeedMolePanel({ onClose, localPreview = false }: { onClose: () 
     {phase === 'ready' && <MoleStartGuide name="스피드 두더지 잡기" headline="더 빠르게, 톡! 톡!"
       description={<>기존 두더지 잡기보다 더 스피드하게 즐겨요.<br />60초 동안 나만의 최고 기록에 도전해요.</>}
       seconds={60} keyGroups={[SPEED_MOLE_KEYS.slice(0,4),SPEED_MOLE_KEYS.slice(4)]} twoRows
-      details={<><p><span>성공 <b>+1점</b></span><span>실수 <b>−3점</b></span><span>최저 <b>0점</b></span></p>{!localPreview && <p>{SPEED_MOLE_POINTS_PER_COIN}점당 1냥 · 오늘 미니게임 {commonRewards ? `${commonRewards.todayEarned}/${commonRewards.dailyCap}냥` : '확인 중'}</p>}</>}
+      details={<><p><span>성공 <b>+1점</b></span><span>실수 <b>−3점</b></span><span>최저 <b>0점</b></span></p>{!localPreview && <p>{SPEED_MOLE_POINTS_PER_COIN}점당 1냥 · 오늘 미니게임 {commonRewards ? dailyEarningsText(commonRewards.todayEarned, commonRewards.dailyCap) : '확인 중'}</p>}</>}
       error={error} onStart={() => void start()} onClose={onClose}
       extra={!localPreview && <button type="button" onClick={() => setRankingsOpen(true)}><SpeedMoleTrophy />내 최고 기록 · 전체 랭킹</button>} />}
     {phase === 'starting' && <div className="speed-mole__veil"><section className="speed-mole__card" role="status"><h2>두더지들이 준비 중이에요</h2><p>잠시만요. 곧 3초 카운트다운이 시작돼요.</p></section></div>}
@@ -201,7 +202,7 @@ export function SpeedMolePanel({ onClose, localPreview = false }: { onClose: () 
       <div className="speed-mole__result-medal"><SpeedMoleTrophy /></div><span className="speed-mole__eyebrow">도전 완료</span><h2>60초의 손끝 기록</h2><strong className="speed-mole__result-score">{display?.score ?? 0}<small>점</small></strong>
       <dl><div><dt>성공</dt><dd>{display?.hits ?? 0}회</dd></div><div><dt>실수</dt><dd>{display?.misses ?? 0}회</dd></div><div><dt>정확도</dt><dd>{accuracy}%</dd></div></dl>
       {!localPreview && <p className="speed-mole__save-state" data-saved={!!saved} role="status">{saving ? '기록을 확인하고 있어요…' : saved ? '기록 저장 완료 · 내 최고 기록은 랭킹에서 확인해요.' : '기록 저장 결과를 아직 확인하지 못했어요.'}</p>}
-      {saved && <div className="speed-mole__reward"><strong>{saved.reward > 0 ? <RewardCoinSource receipt={`mole:reward:speed:${saved.id}`} amount={saved.reward} soundOnReveal>+{saved.reward}냥</RewardCoinSource> : '+0냥'}</strong><small>오늘 미니게임 {saved.todayEarned}/{saved.dailyCap}냥{saved.reward < saved.calculatedReward && ' · 하루 상한에 도달했어요.'}</small></div>}
+      {saved && <div className="speed-mole__reward"><strong>{saved.reward > 0 ? <RewardCoinSource receipt={`mole:reward:speed:${saved.id}`} amount={saved.reward} soundOnReveal>+{saved.reward}냥</RewardCoinSource> : '+0냥'}</strong><small>오늘 미니게임 {dailyEarningsText(saved.todayEarned, saved.dailyCap)}{saved.dailyCap > 0 && saved.reward < saved.calculatedReward && ' · 하루 상한에 도달했어요.'}</small></div>}
       {error && <p role="alert">{error}</p>}
       {!localPreview && !saved && !saving && <button onClick={() => void save()}>같은 기록 저장 다시 확인</button>}
       {!localPreview && <button className="speed-mole__rank-button" disabled={saving} onClick={() => setRankingsOpen(true)}><SpeedMoleTrophy />내 최고 기록 · 전체 랭킹</button>}

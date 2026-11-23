@@ -1,3 +1,4 @@
+import { validDailyBudget } from '../minigameRewards'
 import { RestError } from '../../network/restError';
 import { record } from '../../network/protocol';
 import {
@@ -270,7 +271,7 @@ export function completeResult(value: unknown, gameId: string, version = 'v4') {
     || !/^[0-9a-f]{64}$/.test(value.finalPrefixHash)
     || value.rewardAmount !== value.coinsGranted || value.verifiedCompletedCount !== value.made
     || Number(value.coinsGranted) > Number(value.coinsCalculated)
-    || Number(value.todayEarned) > Number(value.dailyCap)) return fail();
+    || !validDailyBudget(value.todayEarned, value.dailyCap)) return fail();
   return {
     score: Number(value.score), made: Number(value.made), golden: Number(value.golden),
     failed: Number(value.failed), wasted: Number(value.wasted), maxCombo: Number(value.maxCombo),

@@ -183,24 +183,24 @@ class JumpRopeMySqlTests {
         assertThat(configuredService.rankings(user, 10, 0).me().score()).isEqualTo(result.score());
     }
 
-    @Test void exhausted_budget_settles_a_zero_reward_and_retry_does_not_recompute_it() {
+    @Test void 기존_일일_상한을_넘어도_전액_지급하고_재시도는_중복_지급하지_않는다() {
         long user = user();
         Instant finishAt = Instant.parse("2026-11-12T14:59:59Z");
-        seedBudget(user, MinigameRewardBudget.DAILY_CAP, finishAt.minusSeconds(1));
+        seedBudget(user, 1000, finishAt.minusSeconds(1));
         long id = Long.parseLong(at(finishAt.minusSeconds(65)).start(user, "exhausted").id());
         var finish = at(finishAt);
         var result = finish.complete(user, id, JumpRopeRulesTests.perfectRound());
-        assertThat(result.reward()).isZero();
+        assertThat(result.reward()).isEqualTo(39);
         assertThat(result.score()).isEqualTo(1965);
         assertThat(at(finishAt.plusSeconds(2)).complete(user, id, JumpRopeRulesTests.perfectRound())).isEqualTo(result);
-        assertThat(balance(user)).isEqualTo(100 + MinigameRewardBudget.DAILY_CAP);
-        assertThat(rewardRows(id)).isZero();
+        assertThat(balance(user)).isEqualTo(1139);
+        assertThat(rewardRows(id)).isEqualTo(1);
     }
 
     @Test void concurrent_finishes_of_two_jump_rope_rounds_only_pay_the_latest_round() throws Exception {
         long user = user();
         Instant now = NOW.plusSeconds(65);
-        seedBudget(user, MinigameRewardBudget.DAILY_CAP - 4, now);
+        seedBudget(user, 996, now);
         long oldId = start(user, "shared-old");
         long newId = start(user, "shared-new");
         var finish = at(now);
@@ -218,19 +218,19 @@ class JumpRopeMySqlTests {
             });
             release.countDown();
             old.get(15, TimeUnit.SECONDS);
-            assertThat(latest.get(15, TimeUnit.SECONDS).reward()).isEqualTo(4);
+            assertThat(latest.get(15, TimeUnit.SECONDS).reward()).isEqualTo(39);
         }
         assertThat(rewardRows(oldId)).isZero();
         assertThat(rewardRows(newId)).isEqualTo(1);
-        assertThat(balance(user)).isEqualTo(100 + MinigameRewardBudget.DAILY_CAP);
+        assertThat(balance(user)).isEqualTo(1135);
     }
 
-    @Test void simultaneous_jump_rope_and_speed_mole_rounds_share_the_remaining_wallet_budget() throws Exception {
+    @Test void 줄넘기와_스피드두더지의_동시_완료는_기존_상한을_넘어_모두_전액_지급한다() throws Exception {
         long user = user();
         Instant now = NOW.plusSeconds(65);
         var speedMole = new SpeedMoleService(new SpeedMoleRepository(jdbc), transactions,
                 Clock.fixed(now, ZoneOffset.UTC), new SecureRandom(), new SpeedMoleRewards(entities));
-        seedBudget(user, MinigameRewardBudget.DAILY_CAP - 4, now);
+        seedBudget(user, 996, now);
         long jumpId = Long.parseLong(at(now.minusSeconds(65)).start(user, "shared-cap").id());
         long moleId = Long.parseLong(speedMole.start(user, "shared-cap").id());
         jdbc.update("UPDATE speed_mole_rounds SET seed = 1, started_at = ? WHERE id = ?", Timestamp.from(now.minusSeconds(61)), moleId);
@@ -248,13 +248,13 @@ class JumpRopeMySqlTests {
             });
             release.countDown();
             assertThat(List.of(jump.get(15, TimeUnit.SECONDS).reward(), mole.get(15, TimeUnit.SECONDS).reward()))
-                    .containsExactlyInAnyOrder(0, 4);
+                    .containsExactlyInAnyOrder(39, 5);
         }
-        assertThat(balance(user)).isEqualTo(100 + MinigameRewardBudget.DAILY_CAP);
+        assertThat(balance(user)).isEqualTo(1140);
         assertThat(jdbc.queryForObject("""
                 SELECT SUM(t.balance_delta) FROM wallet_transactions t JOIN wallets w ON w.id = t.wallet_id
                 WHERE w.user_id = ? AND t.transaction_type IN ('MINIGAME_REWARD', 'MOLE_REWARD')
-                """, Long.class, user)).isEqualTo(MinigameRewardBudget.DAILY_CAP);
+                """, Long.class, user)).isEqualTo(1040);
     }
 
     @Test void database_failure_after_wallet_flush_rolls_back_both_and_identical_retry_pays_once() {
@@ -397,9 +397,10 @@ class JumpRopeMySqlTests {
         finish.complete(both, start(both, "v1"), TWO_PERFECTS);
         var bot = JumpRopeRulesV2Tests.bot();
         Instant now = NOW.plusSeconds(70);
-        seedBudget(v2Player, MinigameRewardBudget.DAILY_CAP - 4, now);
+        seedBudget(v2Player, 996, now);
         var v2Finish = v2At(now);
-        assertThat(v2Finish.complete(v2Player, startV2(v2Player, "v2", 42), bot.jumpOffsetsUs(), bot.duckSpansUs()).reward()).isEqualTo(4);
+        var v2Result = v2Finish.complete(v2Player, startV2(v2Player, "v2", 42), bot.jumpOffsetsUs(), bot.duckSpansUs());
+        assertThat(v2Result.reward()).isEqualTo(v2Result.score() / 50);
         var lateDuck = JumpRopeRulesV2Tests.round("lateDuckIsHitAndStunMissesTheNextPassage", 42);
         v2Finish.complete(both, startV2(both, "v2", 42), lateDuck.jumpOffsetsUs(), lateDuck.duckSpansUs());
 
@@ -412,7 +413,7 @@ class JumpRopeMySqlTests {
         assertThat(v2Board.totalParticipants()).isEqualTo(2);
         assertThat(v2Board.items()).containsExactly(new JumpRopeDtos.Item(1, name(v2Player), 1965), new JumpRopeDtos.Item(2, name(both), 1920));
         assertThat(v2Board.me()).isNull();
-        assertThat(balance(v2Player)).isEqualTo(100 + MinigameRewardBudget.DAILY_CAP);
+        assertThat(balance(v2Player)).isEqualTo(1096 + v2Result.reward());
     }
 
     @Test void schema_rejects_an_incomplete_settled_row() {

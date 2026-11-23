@@ -162,7 +162,7 @@ class MinigameV5ServiceTests {
         assertThat(started.rulesVersion()).isEqualTo("v5");
         assertThat(started.configVersion()).isEqualTo(BungeoppangV5Spec.CONFIG_VERSION).isEqualTo("v5-20261103.1");
         assertThat(started.rules().pointsPerCoin()).isEqualTo(5);
-        assertThat(started.rules().dailyCoinCap()).isEqualTo(1000);
+        assertThat(started.rules().dailyCoinCap()).isZero();
         assertThat(started.rules().durationMs()).isEqualTo(120_000);
         assertThat(started.rules().rushFromMs()).isEqualTo(90_000);
         assertThat(started.status()).isEqualTo("PLAYING");
@@ -377,7 +377,7 @@ class MinigameV5ServiceTests {
         var lobby = service.statusV5(USER_ID);
 
         assertThat(lobby.rulesVersion()).isEqualTo("v5");
-        assertThat(lobby.dailyCap()).isEqualTo(1000);
+        assertThat(lobby.dailyCap()).isZero();
         assertThat(lobby.activeSessionId()).isEqualTo(Long.toString(sessionId));
         assertThat(lobby.supportedRulesVersions()).containsExactly("v2", "v4", "v5");
     }

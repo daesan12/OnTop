@@ -61,7 +61,7 @@ class BungeoppangV5MySqlTests {
     }
 
     @Test
-    void 붕어빵과_점프맵이_동시에_보상받아도_공통1000냥만_지급하고_재시도는_중복지급하지않는다() throws Exception {
+    void 붕어빵과_점프맵을_동시에_전액_지급하고_재시도는_중복지급하지않는다() throws Exception {
         long sessionId = readyV5("shared-budget");
         var request = delivery(sessionId, "1", "shared-one");
         minigames.deliverV5(101, sessionId, "shared-one", request);
@@ -84,14 +84,14 @@ class BungeoppangV5MySqlTests {
             gate.countDown();
             result = (BungeoppangV4CompleteDtos.Response) bread.get(10, TimeUnit.SECONDS);
             var paid = (com.ssafy.ontop.world.jumpmap.JumpmapStore.Settled) jump.get(10, TimeUnit.SECONDS);
-            assertThat(result.coinsGranted() + paid.coinsGranted()).isEqualTo(2);
+            assertThat(result.coinsGranted() + paid.coinsGranted()).isEqualTo(result.coinsCalculated() + 2);
         }
-        assertThat(balance()).isEqualTo(1100);
-        assertThat(jumps.status(101, now).todayEarned()).isEqualTo(1000);
-        assertThat(result.dailyCap()).isEqualTo(1000);
+        assertThat(balance()).isEqualTo(1100 + result.coinsCalculated());
+        assertThat(jumps.status(101, now).todayEarned()).isEqualTo(1000 + result.coinsCalculated());
+        assertThat(result.dailyCap()).isZero();
         assertThat(minigames.complete(101, sessionId, "shared-complete", body)).isEqualTo(result);
         jumps.settle("shared-budget-run", 1, now);
-        assertThat(balance()).isEqualTo(1100);
+        assertThat(balance()).isEqualTo(1100 + result.coinsCalculated());
     }
     private static final String START = "{\"minigameType\":\"BUNGEOPPANG\",\"rulesVersion\":\"v5\"}";
 

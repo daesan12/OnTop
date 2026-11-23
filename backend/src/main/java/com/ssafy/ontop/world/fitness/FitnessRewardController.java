@@ -37,7 +37,7 @@ public class FitnessRewardController {
 
     @GetMapping("/status")
     @Operation(operationId = "getFitnessRewardStatus", summary = "본인 운동기구 일일 수입 조회", description = "실제 60초마다 5냥, 한국 시간 하루 최대 500냥으로 "
-            + "미니게임 1000냥과 별도입니다. todayEarned는 확정된 원장 합계이며 nextRewardAt은 지급 예정 경계입니다. "
+            + "일일 제한이 없는 미니게임 보상과 별도입니다. todayEarned는 확정된 원장 합계이며 nextRewardAt은 지급 예정 경계입니다. "
             + "지급 지연 중에는 과거 시각일 수 있으며, 한도 도달·미이용 시 null입니다. 하차 시 미완료 시간은 초기화됩니다. "
             + "조회는 지급이나 지갑 생성을 수행하지 않습니다.", security = @SecurityRequirement(name = "AccessJwt"))
     @ApiResponses({

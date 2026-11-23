@@ -66,7 +66,7 @@ function mole(v: unknown, durationMs: number): Mole {
 
 export function parseMoleState(value: unknown): MoleState {
   if (!record(value)) return invalid()
-  return { serverNow: time(value.serverNow), todayEarned: int(value.todayEarned), dailyCap: int(value.dailyCap, 1),
+  return { serverNow: time(value.serverNow), todayEarned: int(value.todayEarned), dailyCap: int(value.dailyCap),
     bestScore: int(value.bestScore), rules: rules(value.rules), last: value.last == null ? null : result(value.last) }
 }
 
@@ -96,6 +96,6 @@ export function parseMoleRankings(value: unknown, offset: number): MoleRankings 
 
 export function parseMoleSettlement(value: unknown): MoleSettlement {
   if (!record(value)) return invalid()
-  return { result: result(value.result), todayEarned: int(value.todayEarned), dailyCap: int(value.dailyCap, 1),
+  return { result: result(value.result), todayEarned: int(value.todayEarned), dailyCap: int(value.dailyCap),
     bestScore: int(value.bestScore) }
 }

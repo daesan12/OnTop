@@ -128,7 +128,7 @@ export function CoopLobby({ client, onClose, onEquipment, onConnectVR, canConnec
         </footer>
         </> : null}
       </>}
-      {!pub || waiting ? <p className="coop-entry-reward">입장료 없이 즐겨요 <span>·</span> 팀 점수 20점당 각자 1냥 <span>·</span> 모든 미니게임 합산 하루 최대 1000냥</p> : null}
+      {!pub || waiting ? <p className="coop-entry-reward">입장료 없이 즐겨요 <span>·</span> 팀 점수 20점당 각자 1냥 <span>·</span> 일일 획득 제한 없음</p> : null}
       <div className="paper-actions"><button ref={rankingButton} type="button" aria-haspopup="dialog" onClick={openRanking}>팀 랭킹 보기</button></div>
     </section>
   </PaperPopup>

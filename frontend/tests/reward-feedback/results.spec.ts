@@ -67,7 +67,7 @@ test('붕어빵 결과 상세는 기존 구성의 환산 문구만 표시하고 
   expect(errors).toEqual([])
 })
 
-test('점프맵 완료 화면은 완주 250냥과 구간 내역 및 한도 감액을 구분하고 작은 화면에서도 스크롤된다', async ({ page }) => {
+test('점프맵 완료 화면은 일일누계와_무관한_완주_보상과_구간내역을_표시하고_작은_화면에서도_스크롤된다', async ({ page }) => {
   const errors: string[] = []
   page.on('pageerror', error => errors.push(error.message))
   await page.goto('/jumpmap-preview.html')
@@ -96,8 +96,8 @@ test('점프맵 완료 화면은 완주 250냥과 구간 내역 및 한도 감�
   await page.evaluate(async () => (await import('/src/features/jumpmap/state.ts' as string)).useJumpmap.setState({ todayEarned: 400 }))
   await page.getByRole('button', { name: '첫 발판 (테스트)', exact: true }).click()
   await page.getByRole('button', { name: '마지막 발판 (테스트)', exact: true }).click()
-  await expect(dialog).toContainText('완주 보상 250냥 중 남은 일일 한도만큼 100냥을 받았어요.')
-  await expect(dialog).toContainText('기록 도전은 계속할 수 있어요.')
-  await shot(page, 'jumpmap-result-capped')
+  await expect(dialog).toContainText('일일 제한 없음')
+  await expect(dialog).not.toContainText('한도에 도달')
+  await shot(page, 'jumpmap-result-unlimited')
   expect(errors).toEqual([])
 })

@@ -1,5 +1,6 @@
+import { validDailyBudget } from '../minigameRewards'
 import { record, integer } from '../../network/protocol'
-import { DAILY_CAP, LAP_REWARD, STAGE_COUNT, courseBlockIndex } from './activeCourse'
+import { LAP_REWARD, STAGE_COUNT, courseBlockIndex } from './activeCourse'
 
 export const TIP_KEYS = ['START_SPOT', 'RUN_STARTED', 'FIRST_GATE', 'FIRST_FALL', 'FINAL_PAD'] as const
 export type TipKey = typeof TIP_KEYS[number]
@@ -25,7 +26,7 @@ export type JumpEvent =
 const text = (v: unknown): v is string => typeof v === 'string' && !!v.trim() && v.length <= 120
 const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v) && v >= 0
 const money = (v: unknown) => integer(v) && v <= LAP_REWARD
-const earnings = (p: Record<string, unknown>) => integer(p.todayEarned) && p.todayEarned <= DAILY_CAP && p.dailyCap === DAILY_CAP && typeof p.earningsDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(p.earningsDate)
+const earnings = (p: Record<string, unknown>) => validDailyBudget(p.todayEarned, p.dailyCap) && typeof p.earningsDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(p.earningsDate)
 const scope = (p: Record<string, unknown>) => text(p.channelId) && typeof p.mapVersion === 'string' && /^[a-f0-9]{64}$/.test(p.mapVersion)
 const gate = (g: unknown) => integer(g) && g >= 1 && g <= STAGE_COUNT
 const run = (r: unknown): r is RunView => record(r) && text(r.runId) && finite(r.elapsedMs) && integer(r.gatesPassed) && r.gatesPassed <= STAGE_COUNT && typeof r.finalReached === 'boolean' && finite(r.maxHeight) && money(r.runCoins)

@@ -1,3 +1,4 @@
+import { dailyEarningsText } from '../minigameRewards'
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { playSfx } from '../../audio/sfx'
 import { openManual } from '../manual/manualState'
@@ -177,7 +178,7 @@ function MoleScreen() {
   const tenths = comboTenths(rules, combo)
   const remaining = playing ? rules.durationMs - elapsed : phase === 'submitting' || phase === 'result' ? 0 : rules.durationMs
   const countdown = phase === 'countdown' ? Math.max(1, Math.ceil((COUNTDOWN_MS - (now - clock.current.countdownAt)) / 1000)) : 0
-  const todayEarned = state?.todayEarned ?? 0, dailyCap = state?.dailyCap ?? 1000
+  const todayEarned = state?.todayEarned ?? 0, dailyCap = state?.dailyCap ?? 0
   const stunLeft = live && playing ? Math.max(0, live.stunUntil - elapsed) : 0
 
   const taps = (mole: Mole) => live?.tapsOf(mole.id) ?? 0
@@ -267,7 +268,7 @@ function MoleScreen() {
           : <div className="mole-base-status" role="status">
             <p>왼손 <kbd>S</kbd><kbd>D</kbd><kbd>F</kbd> · 오른손 <kbd>J</kbd><kbd>K</kbd><kbd>L</kbd> · 클릭도 돼요 · 헬멧은 숫자만큼 연타 · 고슴도치는 피하기 · 빈 구멍은 2초 기절</p>
             {error ? <p className="mole-error" role="alert">{error}</p>
-              : <p>참가비 없음 · {state?.rules.pointsPerCoin ?? POINTS_PER_COIN}점당 1냥 · 오늘 미니게임 {todayEarned}/{dailyCap}냥 · 최고 {state?.bestScore ?? 0}점</p>}
+              : <p>참가비 없음 · {state?.rules.pointsPerCoin ?? POINTS_PER_COIN}점당 1냥 · 오늘 미니게임 {dailyEarningsText(todayEarned, dailyCap)} · 최고 {state?.bestScore ?? 0}점</p>}
           </div>}
         <button type="button" className="mole-start" disabled={phase !== 'idle' && phase !== 'result'} onClick={() => void startMole()}>
           {phase === 'starting' ? '준비 중…' : phase === 'result' ? '다시 하기' : 'START'}</button>
@@ -278,7 +279,7 @@ function MoleScreen() {
     {phase === 'idle' && <MoleStartGuide name="두더지 잡기" headline="튀어나오면, 망치로 쾅!"
       description={<>다양한 두더지를 잡고 콤보를 이어가요.<br />헬멧 두더지는 연타, 고슴도치는 피해 주세요.</>}
       seconds={rules.durationMs / 1000} keyGroups={[KEYS.slice(0,3),KEYS.slice(3)]}
-      details={<><p>{rules.pointsPerCoin}점당 1냥 · 오늘 미니게임 {todayEarned}/{dailyCap}냥</p><p>빈 구멍을 치면 2초 기절해요.</p></>}
+      details={<><p>{rules.pointsPerCoin}점당 1냥 · 오늘 미니게임 {dailyEarningsText(todayEarned, dailyCap)}</p><p>빈 구멍을 치면 2초 기절해요.</p></>}
       error={error} onStart={() => void startMole()} onClose={closeMole} onManual={() => openManual('whack-a-mole')}
       extra={<button type="button" onClick={() => setRankingsOpen(true)}><SpeedMoleTrophy />내 최고 기록 · 전체 랭킹</button>} />}
     {phase !== 'idle' && <div className="mole-corner">
@@ -308,9 +309,9 @@ function MoleScreen() {
                 +{settlement.result.reward}냥</RewardCoinSource>
               : '+0냥'}
           </p>
-          {settlement.result.reward < settlement.result.calculatedReward && <p className="mole-note">
+          {settlement.dailyCap > 0 && settlement.result.reward < settlement.result.calculatedReward && <p className="mole-note">
             오늘 미니게임 상한 {settlement.dailyCap}냥에 닿아 {settlement.result.calculatedReward}냥 중 {settlement.result.reward}냥만 받았어요.</p>}
-          <p className="mole-note">오늘 미니게임 {settlement.todayEarned}/{settlement.dailyCap}냥</p>
+          <p className="mole-note">오늘 미니게임 {dailyEarningsText(settlement.todayEarned, settlement.dailyCap)}</p>
         </> : <><h3>결과를 확인하지 못했어요</h3><p className="mole-error" role="alert">{error}</p></>}
         <div className="mole-actions">
           <button type="button" className="mole-primary" onClick={() => void startMole()}>다시 하기</button>

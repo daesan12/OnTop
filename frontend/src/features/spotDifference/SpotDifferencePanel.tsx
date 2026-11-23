@@ -1,3 +1,4 @@
+import { dailyEarningsText } from '../minigameRewards'
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react'
 import { useSession } from '../../network/worldClient'
 import { PaperPopup } from '../tableLobby/PaperPopup'
@@ -12,7 +13,7 @@ const aim = { x: width / 2, y: height / 2 }
 const koreanNumber = new Intl.NumberFormat('ko-KR')
 const messages = { HIT: '명중! · 표적 하나 완료', MISS: '빗나갔어요. 1초 동안 선택할 수 없어요.',
   WAIT: '잠시 후 다시 조준하세요.', ALREADY_FOUND: '이미 찾은 곳이에요.' }
-const initialBudget = 1000
+const initialBudget = 0
 const totalTargets = rounds * targetsPerRound
 const targetSlots = Array.from({ length: targetsPerRound }, (_, index) => index)
 const roundIntroMs = 700
@@ -457,7 +458,7 @@ export function SpotDifferencePanel() {
       {mode === 'SOLO' && <div className="spot-entry-budget">
         <strong>오늘 미니게임 보상 {todayEarned === undefined
           ? (budgetError ? '조회 실패' : '조회 중') : `${koreanNumber.format(todayEarned)}냥`}
-          {' / '}{koreanNumber.format(dailyCap)}냥</strong>
+          {dailyCap > 0 ? ` / ${koreanNumber.format(dailyCap)}냥` : ' · 일일 제한 없음'}</strong>
       </div>}
       <button type="button" className="spot-guide-back" disabled={busy} onClick={() => {
         retry.current = null
@@ -501,8 +502,8 @@ export function SpotDifferencePanel() {
         <section className="paper-settlement" aria-label="엽전 정산" role="status">
           <strong>지급 {receipt.granted}냥</strong>
           <small>정답 {view.total}/{totalTargets} · 이번 판 보상 {receipt.calculated}냥</small>
-          <small>오늘 미니게임 합계 {koreanNumber.format(receipt.todayEarned)} / {koreanNumber.format(dailyCap)}냥</small>
-          {receipt.granted < receipt.calculated && <small>오늘 남은 한도만큼 지급했어요.</small>}
+          <small>오늘 미니게임 합계 {dailyEarningsText(receipt.todayEarned, dailyCap)}</small>
+          {dailyCap > 0 && receipt.granted < receipt.calculated && <small>오늘 남은 한도만큼 지급했어요.</small>}
         </section>
         <div className="spot-actions">
           <button type="button" onClick={reset}>다시 난이도 고르기</button>

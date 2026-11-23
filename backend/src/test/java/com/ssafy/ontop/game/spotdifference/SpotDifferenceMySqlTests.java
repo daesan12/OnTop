@@ -43,7 +43,7 @@ class SpotDifferenceMySqlTests {
     }
 
     @Test
-    void 다른_게임의_엽전과_합산하여_동시_정산에도_지갑_원장에_잔여_한도만_한_번_기록한다() throws Exception {
+    void 일일누계와_무관하게_동시_정산도_각_보상을_전액_한번씩_기록한다() throws Exception {
         long user = createUser();
         addEntry(user, "MOLE_REWARD", 995, Instant.now());
         assertThat(rewards.status(user).todayEarned()).isEqualTo(995L);
@@ -56,15 +56,15 @@ class SpotDifferenceMySqlTests {
             start.countDown();
             var receipt = first.get(15, TimeUnit.SECONDS);
             var otherReceipt = second.get(15, TimeUnit.SECONDS);
-            assertThat(receipt.granted() + otherReceipt.granted()).isEqualTo(5);
+            assertThat(receipt.granted() + otherReceipt.granted()).isEqualTo(180);
             assertThat(rewards.settle(user, id, 72).granted()).isEqualTo(receipt.granted());
             assertThat(rewards.settle(user, concurrent, 108).granted()).isEqualTo(otherReceipt.granted());
         }
-        assertThat(rewards.status(user).todayEarned()).isEqualTo(1000L);
-        assertThat(jdbc.queryForObject("SELECT balance FROM wallets WHERE user_id = ?", Long.class, user)).isEqualTo(1000L);
+        assertThat(rewards.status(user).todayEarned()).isEqualTo(1175L);
+        assertThat(jdbc.queryForObject("SELECT balance FROM wallets WHERE user_id = ?", Long.class, user)).isEqualTo(1175L);
         assertThat(jdbc.queryForObject("""
                 SELECT COUNT(*) FROM wallet_transactions WHERE idempotency_key IN (?, ?)
-                """, Long.class, "spot-difference:reward:" + id, "spot-difference:reward:" + concurrent)).isEqualTo(1L);
+                """, Long.class, "spot-difference:reward:" + id, "spot-difference:reward:" + concurrent)).isEqualTo(2L);
     }
 
     @ParameterizedTest
@@ -76,8 +76,8 @@ class SpotDifferenceMySqlTests {
 
         var receipt = rewards.settle(user, UUID.randomUUID(), 108);
 
-        assertThat(receipt.granted()).isEqualTo(5);
-        assertThat(receipt.todayEarned()).isEqualTo(1000);
+        assertThat(receipt.granted()).isEqualTo(108);
+        assertThat(receipt.todayEarned()).isEqualTo(1103);
     }
 
     @Test
@@ -105,13 +105,13 @@ class SpotDifferenceMySqlTests {
 
         long earned = MinigameRewardBudget.earned(entities, user, from, until);
         assertThat(earned).isEqualTo(995);
-        assertThat(MinigameRewardBudget.grant(108, earned)).isEqualTo(5);
+        assertThat(MinigameRewardBudget.grant(108, earned)).isEqualTo(108);
 
         addEntry(user, "MINIGAME_REWARD", 2, from);
         addEntry(user, "MINIGAME_REWARD", 3, until.minusMillis(1));
         earned = MinigameRewardBudget.earned(entities, user, from, until);
         assertThat(earned).isEqualTo(1000);
-        assertThat(MinigameRewardBudget.grant(108, earned)).isZero();
+        assertThat(MinigameRewardBudget.grant(108, earned)).isEqualTo(108);
     }
 
     private long createUser() {

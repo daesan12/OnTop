@@ -5,7 +5,7 @@ import { PARK_MAP_VERSION } from '../../map/park/generated/mapVersion'
 export const COURSE_VERSION = 'park180-jump-v1'
 export const RULES_VERSION = 'v3'
 export const MAP_VERSION = PARK_MAP_VERSION
-export const DAILY_CAP = 1000
+export const DAILY_CAP = 0
 export const STATUS_PATH = '/api/v1/minigames/jumpmap/status'
 export const TIPS_PATH = '/api/v1/minigames/jumpmap/tips'
 export const STAGES = JUMP_STAGES.map((s, i) => ({ ...s, stage: i + 1, subtitle: ['돌탑을 따라 한 걸음', '또각또각, 하늘로', '노릇한 구름길', '폭신한 하늘 계단', '공원 위 반짝이는 길', '바람을 타고', '호수로 뛰어들어요'][i]! }))
@@ -28,7 +28,7 @@ export const courseBlockIndex = (value: unknown): number | null => typeof value 
 export function blockAtFeet(p: { x: number; y: number; z: number }, tolerance = .11): CourseBlock | undefined {
   return COURSE.find(b => Math.abs(p.y - b.top) <= tolerance && containsJumpPad(b as JumpPad, p.x, p.z))
 }
-export const expectedCoins = (gate: number, today: number) => Math.min(REWARDS[gate - 1] ?? 0, Math.max(0, DAILY_CAP - today))
+export const expectedCoins = (gate: number, _today: number) => REWARDS[gate - 1] ?? 0
 export const kstDate = (now = Date.now()) => new Date(now + 9 * 3600_000).toISOString().slice(0, 10)
 export function targetFade(top: number, feet: number, running: boolean, occupied: boolean, occluded: boolean) {
   let fade = 1

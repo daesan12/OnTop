@@ -129,7 +129,8 @@ public class JdbcSkewerCoopResultStore implements SkewerCoopResultStore {
                 Wallet wallet = wallets.get(index);
                 int calculated = event.teamScore() / 20;
                 long earned = earned(user, date);
-                int granted = MinigameRewardBudget.grant(calculated, earned);
+                // 한 판 지급 상한은 기존 DB 계약을 유지하며 일일 누계로 지급을 줄이지 않는다.
+                int granted = Math.min(1000, MinigameRewardBudget.grant(calculated, earned));
                 if (granted > 0) {
                     wallet.creditReward(granted);
                     entities.persist(WalletTransaction.skewerReward(wallet.id(), granted,
@@ -165,7 +166,7 @@ public class JdbcSkewerCoopResultStore implements SkewerCoopResultStore {
                     "ELIGIBLE".equals(row.get("ranking_reason")) ? "REGISTERED" : "EXCLUDED",
                     (String) row.get("ranking_reason"), number(row.get("coins_calculated")),
                     number(row.get("coins_granted")), earned, MinigameRewardBudget.DAILY_CAP,
-                    Math.max(0, MinigameRewardBudget.DAILY_CAP - earned),
+                    null,
                     ((Number) row.get("balance_after")).longValue(),
                     ((Date) row.get("reward_date")).toLocalDate(), ((Timestamp) row.get("settled_at")).toInstant()));
         });

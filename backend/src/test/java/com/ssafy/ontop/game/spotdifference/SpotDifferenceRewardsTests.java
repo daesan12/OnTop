@@ -2,11 +2,9 @@ package com.ssafy.ontop.game.spotdifference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -34,36 +32,36 @@ class SpotDifferenceRewardsTests {
     private final UUID id = UUID.randomUUID();
 
     @Test
-    void 다른_미니게임_보상으로_한도가_찼으면_엽전을_지급하지_않는다() {
+    void 다른_미니게임에서_천냥을_벌어도_전액_지급한다() {
         setup(1000);
         assertThat(rewards.settle(USER_ID, id, 108))
-                .isEqualTo(new SpotDifferenceRewards.Receipt(108, 0, 1000));
+                .isEqualTo(new SpotDifferenceRewards.Receipt(108, 108, 1108));
         verify(wallets).findForUpdateByUserId(USER_ID);
-        verify(wallet, never()).creditReward(anyLong(), any());
-        verify(ledger, never()).saveAndFlush(any());
+        verify(wallet).creditReward(eq(108L), any());
+        verify(ledger).saveAndFlush(any());
     }
 
     @Test
-    void 공통_일일_잔여_한도만_지급하고_같은_판의_재호출은_이전_지급을_반환한다() {
+    void 전액을_지급하고_같은_판의_재호출은_추가_지급하지_않는다() {
         var query = setup(995);
         var key = "spot-difference:reward:" + id;
         assertThat(rewards.settle(USER_ID, id, 108))
-                .isEqualTo(new SpotDifferenceRewards.Receipt(108, 5, 1000));
+                .isEqualTo(new SpotDifferenceRewards.Receipt(108, 108, 1103));
         var entry = ArgumentCaptor.forClass(WalletTransaction.class);
         verify(ledger).saveAndFlush(entry.capture());
-        assertThat(entry.getValue().balanceDelta()).isEqualTo(5);
+        assertThat(entry.getValue().balanceDelta()).isEqualTo(108);
         when(ledger.findByWalletIdAndIdempotencyKey(WALLET_ID, key)).thenReturn(Optional.of(entry.getValue()));
-        when(query.getSingleResult()).thenReturn(1000L);
+        when(query.getSingleResult()).thenReturn(1103L);
         assertThat(rewards.settle(USER_ID, id, 108))
-                .isEqualTo(new SpotDifferenceRewards.Receipt(108, 5, 1000));
-        verify(wallet).creditReward(eq(5L), any(Instant.class));
+                .isEqualTo(new SpotDifferenceRewards.Receipt(108, 108, 1103));
+        verify(wallet).creditReward(eq(108L), any(Instant.class));
         verify(ledger).saveAndFlush(any());
     }
 
     @Test
     void 보상_상태_조회는_지갑을_수정하지_않는다() {
         setup(27);
-        assertThat(rewards.status(USER_ID)).isEqualTo(new SpotDifferenceRewards.Budget(27, 1000));
+        assertThat(rewards.status(USER_ID)).isEqualTo(new SpotDifferenceRewards.Budget(27, 0));
         verifyNoInteractions(wallets, ledger, wallet);
     }
 

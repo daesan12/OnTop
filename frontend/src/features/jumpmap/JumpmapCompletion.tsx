@@ -1,3 +1,4 @@
+import { dailyEarningsText } from '../minigameRewards'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { PaperPopup } from '../tableLobby/PaperPopup'
@@ -6,7 +7,7 @@ import coinImage from '../../assets/entry/yeopjeon-icon.webp'
 import './jumpmapCompletion.css'
 import './rewardFeedback.css'
 import { JumpmapRankingDialog, jumpTime, type RankingLoader } from './JumpmapRanking'
-import { DAILY_CAP, REWARDS, STAGES } from './activeCourse'
+import { REWARDS, STAGES } from './activeCourse'
 
 /** Server-confirmed completion; closing restores park movement. */
 export function JumpmapCompletion({ runCoins, todayEarned, settled, finishMs, loadRankings, onClose }: {
@@ -16,8 +17,7 @@ export function JumpmapCompletion({ runCoins, todayEarned, settled, finishMs, lo
   const rankingButton = useRef<HTMLButtonElement>(null), returning = useRef(false)
   const returnToResult = () => { returning.current = true; setRankingOpen(false) }
   const fullReward = REWARDS.reduce((sum, reward) => sum + reward, 0)
-  const capped = todayEarned !== null && todayEarned >= DAILY_CAP
-  const confirming = !settled || todayEarned === null || runCoins < fullReward && !capped
+  const confirming = !settled || todayEarned === null
   useEffect(() => { clearRoamingInput(); return clearRoamingInput }, [])
   return createPortal(<div className="jumpmap jm-completion-root">
     {rankingOpen ? <JumpmapRankingDialog load={loadRankings} onBack={returnToResult} />
@@ -29,13 +29,11 @@ export function JumpmapCompletion({ runCoins, todayEarned, settled, finishMs, lo
       <div className="jm-paper-ornament" aria-hidden="true">❖</div>
       <div className="jm-paper-hero"><img src="/art/jumpmap/guide-3.webp" alt="마지막 연잎에서 호수로 뛰어드는 캐릭터" width="400" height="240" /></div>
       <div className="paper-stats"><div><span>도착 구간</span><b>{STAGES.length} / {STAGES.length}</b></div><div><span>이번 도전 받은 엽전</span><b>{runCoins}<small>냥</small></b></div></div>
-      <div className="paper-settlement" role="status"><strong><img src={coinImage} alt="" width="28" height="28" />미니게임 합산 수입 {todayEarned ?? '—'} / {DAILY_CAP}냥</strong>
-        {confirming ? <small>기록과 구간 보상을 확인하고 있어요.</small> : capped && runCoins < fullReward
-          ? <small>완주 보상 {fullReward}냥 중 남은 일일 한도만큼 {runCoins}냥을 받았어요.</small> : null}</div>
-      {capped && <p className="jm-completion-note">오늘 미니게임 보상 한도에 도달했어요. 기록 도전은 계속할 수 있어요.</p>}
+      <div className="paper-settlement" role="status"><strong><img src={coinImage} alt="" width="28" height="28" />미니게임 합산 수입 {dailyEarningsText(todayEarned)}</strong>
+        {confirming ? <small>기록과 구간 보상을 확인하고 있어요.</small> : null}</div>
       <details className="jm-reward-detail"><summary>구간 보상 자세히</summary>
         <dl>{STAGES.map(stage => <div key={stage.stage}><dt>{stage.stage}구간 · {stage.name}</dt><dd>{stage.reward}냥</dd></div>)}</dl>
-        <p>완주 합계 {fullReward}냥 · 실제 지급액은 오늘 남은 한도에 따라 달라져요.</p>
+        <p>완주 합계 {fullReward}냥 · 일일 획득 제한이 없어요.</p>
       </details>
       <div className="jm-ranking-entry"><button ref={rankingButton} className="paper-secondary" aria-haspopup="dialog" onClick={() => setRankingOpen(true)}>타임어택 랭킹 보기</button></div>
       <div className="paper-actions"><button className="paper-primary" onClick={onClose}>계속하기</button></div>

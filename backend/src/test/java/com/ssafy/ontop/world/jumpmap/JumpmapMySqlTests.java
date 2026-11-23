@@ -342,43 +342,43 @@ class JumpmapMySqlTests {
     }
 
     @Test
-    void 엽전과_상한_표대로_지급하고_지갑과_원장이_일치한다() {
+    void 횟수와_일일누계_제한없이_지급하고_지갑과_원장이_일치한다() {
         LocalDate date = LocalDate.of(2026, 10, 30);
         // 오늘 0 → 한 판 완주 250냥
         String firstRun = startRun(101, NOON);
         assertThat(passAll(firstRun, 101, 1, 7, NOON)).containsExactly(5, 10, 20, 30, 40, 60, 85);
         assertThat(today(101, date)).isEqualTo(250);
-        // 네 판까지 합계 1000냥, 그 뒤에는 지급하지 않는다.
+        // 네 판 이후에도 같은 보상을 지급한다.
         for (int i = 0; i < 3; i++) {
             assertThat(passAll(startRun(101, NOON), 101, 1, 7, NOON)).containsExactly(5, 10, 20, 30, 40, 60, 85);
         }
-        assertThat(passAll(startRun(101, NOON), 101, 1, 7, NOON)).containsOnly(0);
-        assertThat(balance(101)).isEqualTo(1100);
-        assertThat(ledger(101)).isEqualTo(1000);
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM wallet_transactions", Integer.class)).isEqualTo(28);
+        assertThat(passAll(startRun(101, NOON), 101, 1, 7, NOON)).containsExactly(5, 10, 20, 30, 40, 60, 85);
+        assertThat(balance(101)).isEqualTo(1350);
+        assertThat(ledger(101)).isEqualTo(1250);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM wallet_transactions", Integer.class)).isEqualTo(35);
 
-        // 붕어빵 등 다른 미니게임 995냥 → 문1 5냥 → 문2 0냥 → 문3 0냥
+        // 다른 미니게임 995냥 이후에도 각 구간 보상을 전액 지급한다.
         earned(202, date, 995);
         String run = startRun(202, NOON);
-        assertThat(passAll(run, 202, 1, 3, NOON)).containsExactly(5, 0, 0);
-        assertThat(today(202, date)).isEqualTo(1000);
-        assertThat(jdbc.queryForObject("SELECT coins_granted FROM jump_runs WHERE id = ?", Integer.class, run)).isEqualTo(5);
-        assertThat(balance(202) - 100).isEqualTo(ledger(202)).isEqualTo(5);
+        assertThat(passAll(run, 202, 1, 3, NOON)).containsExactly(5, 10, 20);
+        assertThat(today(202, date)).isEqualTo(1030);
+        assertThat(jdbc.queryForObject("SELECT coins_granted FROM jump_runs WHERE id = ?", Integer.class, run)).isEqualTo(35);
+        assertThat(balance(202) - 100).isEqualTo(ledger(202)).isEqualTo(35);
     }
 
     @Test
-    void 잔여_177냥이면_6구간_165냥_뒤_완주는_12냥에서_멈춘다() {
+    void 다른_보상이_823냥이어도_완주_보상_250냥을_전액_지급한다() {
         LocalDate date = LocalDate.of(2026, 10, 30);
         earned(101, date, 823);
         String run = startRun(101, NOON);
         assertThat(passAll(run, 101, 1, 6, NOON).stream().mapToInt(Integer::intValue).sum()).isEqualTo(165);
         assertThat(today(101, date)).isEqualTo(988);
-        assertThat(pass(run, 101, 7, NOON)).isEqualTo(12);
-        assertThat(today(101, date)).isEqualTo(1000);
+        assertThat(pass(run, 101, 7, NOON)).isEqualTo(85);
+        assertThat(today(101, date)).isEqualTo(1073);
         var ended = store.end(run, new JumpmapStore.RunEnd(JumpRun.EndReason.FINISH, NOON, 251_800, 251_800L, 7, true,
                 46.5, List.of(24, 10, 14, 13, 18, 19, 15), false, List.of()));
-        assertThat(ended.runCoins()).isEqualTo(177);
-        assertThat(ended.todayEarned()).isEqualTo(1000);
+        assertThat(ended.runCoins()).isEqualTo(250);
+        assertThat(ended.todayEarned()).isEqualTo(1073);
         assertThat(ended.bestFinishMs()).isEqualTo(251_800);
         assertThat(ended.newBest()).isTrue();
     }
@@ -413,7 +413,7 @@ class JumpmapMySqlTests {
     }
 
     @RepeatedTest(12)
-    void 두_판의_문을_동시에_정산해도_하루_상한을_넘지_않는다() throws Exception {
+    void 두_판의_문을_동시에_정산해도_각_보상을_한번씩_전액_지급한다() throws Exception {
         LocalDate date = JumpmapStore.kstDate(NOON);
         earned(101, date, 900);
         String first = startRun(101, NOON), second = startRun(101, NOON);
@@ -454,16 +454,16 @@ class JumpmapMySqlTests {
         }
 
         assertThat(errors).isEmpty();
-        assertThat(today(101, date)).isEqualTo(1000);
+        assertThat(today(101, date)).isEqualTo(1400);
         assertThat(today(101, date.plusDays(1))).isZero();
-        assertThat(balance(101)).isEqualTo(200);
-        assertThat(ledger(101)).isEqualTo(100);
-        assertThat(jdbc.queryForObject("SELECT SUM(coins_granted) FROM jump_runs", Integer.class)).isEqualTo(100);
+        assertThat(balance(101)).isEqualTo(600);
+        assertThat(ledger(101)).isEqualTo(500);
+        assertThat(jdbc.queryForObject("SELECT SUM(coins_granted) FROM jump_runs", Integer.class)).isEqualTo(500);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM jump_gate_rewards WHERE status = 'GRANTED'", Integer.class)).isEqualTo(14);
     }
 
     @Test
-    void 다음날_복구하면_미지급_보상은_실제_지급일의_한도를_사용한다() {
+    void 다음날_복구해도_미지급_보상을_전액_지급하고_지급일로_집계한다() {
         LocalDate date = JumpmapStore.kstDate(NOON);
         earned(101, date, 900);
         String pendingRun = startRun(101, NOON);
@@ -479,10 +479,10 @@ class JumpmapMySqlTests {
             recovery.settlePending();
         }
 
-        assertThat(today(101, date)).isEqualTo(1000);
+        assertThat(today(101, date)).isEqualTo(1150);
         assertThat(today(101, date.plusDays(1))).isEqualTo(35);
-        assertThat(balance(101)).isEqualTo(235);
-        assertThat(ledger(101)).isEqualTo(135);
+        assertThat(balance(101)).isEqualTo(385);
+        assertThat(ledger(101)).isEqualTo(285);
     }
 
     @Test

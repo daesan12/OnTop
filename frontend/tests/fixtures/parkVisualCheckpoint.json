@@ -5,7 +5,10 @@
     "mergeRequest": "!674",
     "reason": "사용자가 승인하고 dev에 병합한 길목 한 수의 기존 테이블 연결을 검토한다. 보호 파일 200개와 해시 비교 검사를 유지하며 다른 199개 해시·런타임·생성 맵·인프라는 변경하지 않는다.",
     "reviewedFiles": [
-      { "file": "src/features/tables/TableBoards.tsx", "reason": "기존 Suspense 안에 ParkQuoridorBoard import와 렌더 호출만 추가했다. 테이블 좌표·배율·기존 게임·흑백수사·수패마루 분기·DebrisGameSurface를 보존한다." }
+      {
+        "file": "src/features/tables/TableBoards.tsx",
+        "reason": "기존 Suspense 안에 ParkQuoridorBoard import와 렌더 호출만 추가했다. 테이블 좌표·배율·기존 게임·흑백수사·수패마루 분기·DebrisGameSurface를 보존한다."
+      }
     ],
     "verification": "해당 import와 렌더 호출 2줄만 제외하면 기존 기준 SHA-256 27f61d49480a7c20e3e09d4542df99083dfd053ce966b3ba792ecf2d8d9def9e와 정확히 일치한다. 나머지 199개 파일의 소스 해시도 기존 기준과 일치한다. 새 화면 검수를 수행했다는 의미가 아니며 기존 승인·검증 기록은 docs/quoridor.md와 docs/quoridor-3d.md를 참고한다."
   },
@@ -14,7 +17,10 @@
     "mergeRequest": "!676",
     "reason": "사용자가 승인하고 dev에 병합한 수패마루의 기존 테이블 연결을 검토한다. 보호 파일 200개와 해시 비교 검사를 유지하며 다른 199개 해시·런타임·생성 맵·인프라는 변경하지 않는다.",
     "reviewedFiles": [
-      { "file": "src/features/tables/TableBoards.tsx", "reason": "기존 Suspense 안에 RummikubSurface import와 렌더 호출만 추가했다. 테이블 좌표·배율·기존 게임·흑백수사 분기·DebrisGameSurface는 보존한다." }
+      {
+        "file": "src/features/tables/TableBoards.tsx",
+        "reason": "기존 Suspense 안에 RummikubSurface import와 렌더 호출만 추가했다. 테이블 좌표·배율·기존 게임·흑백수사 분기·DebrisGameSurface는 보존한다."
+      }
     ],
     "verification": "해당 import와 렌더 호출 2줄만 제외하면 기존 기준 SHA-256 511950963915a0e00dad1d9d3c8f9191b8830d66d3a2fe99190e8a74c5221512와 정확히 일치한다. 나머지 199개 파일의 소스 해시도 기존 기준과 일치한다. 승인된 테이블 통합·두 계정 기권 복귀 검증은 docs/rummikub/README.md 및 작업 기록에 남아 있다."
   },
@@ -23,7 +29,10 @@
     "mergeRequest": "!675",
     "reason": "사용자가 승인하고 dev에 병합한 흑백수사의 기존 테이블 연결을 검토한다. 보호 파일 200개와 해시 비교 검사를 유지하며 다른 199개 해시·런타임·생성 맵·인프라는 변경하지 않는다.",
     "reviewedFiles": [
-      { "file": "src/features/tables/TableBoards.tsx", "reason": "기존 게임과 같은 Suspense 안에 ParkSecretTiles import와 렌더 호출만 추가했다. 테이블 좌표·배율·기존 보드 분기·DebrisGameSurface를 보존하고 숫자 타일의 높이 배율만 게임 모듈에 전달한다." }
+      {
+        "file": "src/features/tables/TableBoards.tsx",
+        "reason": "기존 게임과 같은 Suspense 안에 ParkSecretTiles import와 렌더 호출만 추가했다. 테이블 좌표·배율·기존 보드 분기·DebrisGameSurface를 보존하고 숫자 타일의 높이 배율만 게임 모듈에 전달한다."
+      }
     ],
     "verification": "기준 dev f7457e30 대비 해당 소스의 차이가 import와 렌더 호출 두 줄임을 확인했다. 기존 2인·관전·4인 공원 검증은 docs/DAVINCI_CODE.md에 기록되어 있다. parkVisualPreservation.test.ts와 흑백수사·공통 테이블 회귀 검사를 실행한다."
   },
@@ -32,7 +41,11 @@
     "mergeRequest": "!663",
     "reason": "사용자가 승인하고 dev에 병합한 두더지·비둘기 착지 발판의 정점 최적화 소스만 검토하여 반영한다. 보호 파일 200개와 기존 해시 비교 검사는 유지하며 다른 199개 기준 해시·런타임·생성 맵·인프라는 수정하지 않는다.",
     "reviewedFiles": [
-      { "file": "src/features/jumpmap/landingMotion.ts", "commit": "873c8130d7fa31ed3fbfacf8be4a29efda9aaae7", "reason": "두더지·비둘기의 착지 변형은 스케일·이동이므로 테셀레이션 대신 원본 geometry를 복제한다. 원본 정점 좌표·인덱스·모델·재질·배치·충돌과 다른 테마의 착지 계산은 유지한다." }
+      {
+        "file": "src/features/jumpmap/landingMotion.ts",
+        "commit": "873c8130d7fa31ed3fbfacf8be4a29efda9aaae7",
+        "reason": "두더지·비둘기의 착지 변형은 스케일·이동이므로 테셀레이션 대신 원본 geometry를 복제한다. 원본 정점 좌표·인덱스·모델·재질·배치·충돌과 다른 테마의 착지 계산은 유지한다."
+      }
     ],
     "verification": "parkVisualPreservation.test.ts와 creatureLandingGeometry.test.ts에서 외관 보존 기준 및 두 테마의 원본 정점·인덱스 유지와 정점 감소를 검증한다."
   },
@@ -41,22 +54,46 @@
     "previousReferenceCommit": "f3980669e3d6a5c02d2472188a69d149932fbf94",
     "reason": "사용자가 승인한 공원 진입·초반 이동 준비 최적화 MR !658의 소스 변경 2개를 검토하여 기록한다. 보호 파일 200개와 기존 해시 비교 검사는 유지하며 런타임·맵·인프라는 수정하지 않는다.",
     "reviewedFiles": [
-      { "file": "src/world/art/assetLoader.ts", "commit": "6e2ee8e2", "reason": "기존 MeshoptDecoder를 단일 worker로 실행하도록 준비 경로만 추가했다. GLTF 로더·모델 URL·모델 데이터·재질·배치·디코딩 결과는 유지한다." },
-      { "file": "src/world/art/StonePagoda.tsx", "commit": "b9fdad68", "reason": "prebuildStaticSurfaces에 선택적인 scale 목록을 받고 기존 캐시 생성 함수를 그대로 호출한다. 기본 scale 목록·돌탑 생성식·지오메트리·재질·좌표·충돌은 유지한다." }
+      {
+        "file": "src/world/art/assetLoader.ts",
+        "commit": "6e2ee8e2",
+        "reason": "기존 MeshoptDecoder를 단일 worker로 실행하도록 준비 경로만 추가했다. GLTF 로더·모델 URL·모델 데이터·재질·배치·디코딩 결과는 유지한다."
+      },
+      {
+        "file": "src/world/art/StonePagoda.tsx",
+        "commit": "b9fdad68",
+        "reason": "prebuildStaticSurfaces에 선택적인 scale 목록을 받고 기존 캐시 생성 함수를 그대로 호출한다. 기본 scale 목록·돌탑 생성식·지오메트리·재질·좌표·충돌은 유지한다."
+      }
     ]
   },
   "winterTreesReview20261120": {
     "referenceCommit": "9c8069c8f5dd08e14ab9d8161fa4f7af13b9f8d4",
     "reviewedFiles": [
-      { "file": "src/world/art/FacetedParkTreeInstances.tsx", "commit": "fe8ab8eb", "reason": "사용자 요청의 눈 덮인 로우폴리 침엽수에 coneGeometry 입력을 추가했다. 기존 기본 지오메트리·재질·나무 배치는 유지하며 겨울 호출부에서만 적설 침엽수 지오메트리를 선택한다." }
+      {
+        "file": "src/world/art/FacetedParkTreeInstances.tsx",
+        "commit": "fe8ab8eb",
+        "reason": "사용자 요청의 눈 덮인 로우폴리 침엽수에 coneGeometry 입력을 추가했다. 기존 기본 지오메트리·재질·나무 배치는 유지하며 겨울 호출부에서만 적설 침엽수 지오메트리를 선택한다."
+      }
     ]
   },
   "mergedVisualSourceReview20261117": {
     "referenceCommit": "67c6d66bb9684e41b9646a99f13a3324678f47c1",
     "reviewedFiles": [
-      { "file": "src/world/art/CharacterRig.ts", "commit": "5b9d5c09", "reason": "혼잡한 VR 공원에 원격 캐릭터의 거리별 상세도 기준을 적용한다." },
-      { "file": "src/world/EnvironmentScene.tsx", "commit": "c51285b4", "reason": "기존 공원 노출값을 상수로 두고 보드 화면의 밝기 보정에 사용한다." },
-      { "file": "src/world/NightLighting.tsx", "commit": "c51285b4", "reason": "보드 화면을 그릴 때 야간 조명을 일시 조정한 뒤 공원 장면의 조명 상태를 복원한다." }
+      {
+        "file": "src/world/art/CharacterRig.ts",
+        "commit": "5b9d5c09",
+        "reason": "혼잡한 VR 공원에 원격 캐릭터의 거리별 상세도 기준을 적용한다."
+      },
+      {
+        "file": "src/world/EnvironmentScene.tsx",
+        "commit": "c51285b4",
+        "reason": "기존 공원 노출값을 상수로 두고 보드 화면의 밝기 보정에 사용한다."
+      },
+      {
+        "file": "src/world/NightLighting.tsx",
+        "commit": "c51285b4",
+        "reason": "보드 화면을 그릴 때 야간 조명을 일시 조정한 뒤 공원 장면의 조명 상태를 복원한다."
+      }
     ]
   },
   "seasonalSkyReview20261117": {
@@ -68,9 +105,24 @@
     "referenceCommit": "a956234ac6d3ef21e84e79e4f48ca417e03c7119",
     "reason": "Jenkins517에서 누락된 최신 dev 소스 기준만 반영한다. 보존 파일 목록과 비교 검사는 유지하며 제품 코드·모델·맵 배치는 변경하지 않는다.",
     "reviewedFiles": [
-      { "file": "src/world/art/CharacterRig.ts", "commit": "1fc252d4", "reason": "dev에 병합된 VR 탈것 손 표시에 실제 캐릭터의 팔 지오메트리를 사용하고 해제·dispose 시 원복하는 변경." },
-      { "file": "src/world/ParkSky.tsx", "commit": "1dc7a864", "reason": "dev에 병합된 VR 망원경 별자리 표시의 카메라별 공개 상태를 분리한 변경. 기존 하늘 재질·색상·별자리 배치는 유지." },
-      { "file": "src/layout-preview/RankingBoardModel.tsx", "commits": ["aa57c44b", "3b3ad619"], "reason": "사용자 승인 MR597의 랭킹 7종·4+3페이지와 나무/한지 테마, 제목 공통 표시를 반영한다. 구조물 지오메트리·배치·베이크·충돌은 유지." }
+      {
+        "file": "src/world/art/CharacterRig.ts",
+        "commit": "1fc252d4",
+        "reason": "dev에 병합된 VR 탈것 손 표시에 실제 캐릭터의 팔 지오메트리를 사용하고 해제·dispose 시 원복하는 변경."
+      },
+      {
+        "file": "src/world/ParkSky.tsx",
+        "commit": "1dc7a864",
+        "reason": "dev에 병합된 VR 망원경 별자리 표시의 카메라별 공개 상태를 분리한 변경. 기존 하늘 재질·색상·별자리 배치는 유지."
+      },
+      {
+        "file": "src/layout-preview/RankingBoardModel.tsx",
+        "commits": [
+          "aa57c44b",
+          "3b3ad619"
+        ],
+        "reason": "사용자 승인 MR597의 랭킹 7종·4+3페이지와 나무/한지 테마, 제목 공통 표시를 반영한다. 구조물 지오메트리·배치·베이크·충돌은 유지."
+      }
     ]
   },
   "description": "Accepted ranking-board facility and interaction entry retained with the new plaza, lantern, fish-shop counter, dice-ledger and duel-forfeit surfaces while preserving park tables/chairs. Approved jumpmap landing audio adapter and sound-layer diagnostic updated without geometry or placement changes (MR !258), 2026-10-31; authorized VR floor/start pad and plump jumpmap pastry, 2026-10-31. Merged pavilion bench/lantern clearance (f4af1d15), optional render-mode access for spectator collection tests (3ed52827), and fish-shop awning overlap repair (a4e53bb6), 2026-11-01. 사용자 QA 승인 범위의 돌 기단 겹침 제거, 오목 시각 높이의 게임 모듈 격리로 기존 맵 버전 유지, 2026-11-01. 돌 난간의 겹친 접지 밑면 제거, 2026-11-01. 사용자 요청에 따른 하늘·배경 산·경량 구름의 산뜻한 표현 보완, 바닥 타일·공원 조명·맵 배치 유지, 2026-11-01. 사용자 요청으로 전망대 메모함을 뒤로 0.45m 이동하고 공유 충돌 형상 추가, 2026-11-01. 사용자 요청으로 배경 구름 크기를 기존의 55%로 축소, 2026-11-01. 사용자 요청으로 VR 시작 바닥을 팔각형 석재판·황동 인레이·고글 문양으로 보완, 2026-11-01. 사용자 요청으로 돌탑 출발 표식만 엽전에서 돌탑 무늬로 교체하고 게임 모듈로 격리, 코스·배치·충돌 유지, 2026-11-01. 사용자 요청으로 메모함 위치·공유 충돌 변경만 취소하고 이전 맵 버전 복구, 그 외 시각 개선 유지, 2026-11-02. 공원 랭킹 API 개편에 맞춰 랭킹판 열 제목만 보유량·붕어빵 굽기·점프맵으로 변경하고 지오메트리·배치·재질·맵 버전은 유지, 2026-11-02. 사용자 요청으로 모델·재질·배치를 유지한 정적 나무 구역 분할과 주야간 그래픽 사전 준비를 적용하고 동일 시점 이미지로 검증, 2026-11-02. 사용자 요청으로 점프맵 출발 문양의 금속 반사와 겹친 윗면의 깜빡임만 제거하고 크기·배치·코스·충돌은 유지, 2026-11-03. 사용자 요청으로 비둘기의 방문자 위치 입력만 프레임 공유 계산에 연결하고 모델·배치·행동식은 유지. 30명 전후 화면과 동일 draw call·삼각형 수 확인, 2026-11-03. 최신 dev의 보상 정책 변경에 맞춰 jumpCourse 소스 해시 동기화. 캐릭터 CPU 접지에 불필요한 뼈대 팔레트 업로드만 제거하고 남녀 7가지 자세의 뼈대·접지·머리 위치 동등성 확인, 2026-11-03. 꼬치왕 독립 장면용 geometry 복사 함수만 추가하고, 이를 제외한 석탑 소스가 origin/dev와 동일함을 확인. 공원 형상·재질·배치 유지, 2026-11-04. VR 전용 브랜치 이관으로 카메라 월드 좌표 어댑터 7개 소스 해시만 갱신하고 최신 dev의 설명·다른 체크포인트를 보존, 2026-11-04. 사용자 요청으로 랭킹판 미니게임 열을 두더지 잡기·스피드 두더지 잡기로 바꾸며 열 제목 대체 문구만 변경하고 지오메트리·배치·재질·맵 버전은 유지, 2026-11-10. 사용자 요청으로 랭킹판에 구구구 줄넘기 열을 더하며 표시면을 네 장으로 나누고 세 칸 목재 구조물 앞에 걸었으며 구조물 지오메트리·배치·베이크·충돌·맵 버전은 유지, 2026-11-14. 220m 공원 밝기 보정과 착석 접촉 높이 산정, 2026-11-12. 220m 공원에서 검수한 팔각정 좌석과 보드 배치, 돌탑 착지 연출, 랭킹판 양면 표시, 전망대 메모함 상태 안내, 가로등 야간 조명과 정문 텍스처 우선 로딩을 체크포인트에 반영, 2026-11-12. 220m 정문 로딩에서 광장 지오메트리를 분리하고, 테이블 외형과 게임 보드의 로딩 순서를 분리하며, 미장착 랜드마크 지오메트리의 생성을 늦춤, 2026-11-12. 최신 dev의 랭킹판 4열과 220m 공원의 양면 표시를 통합하고 랭킹판 소스 체크섬을 갱신, 2026-11-14. 220m 공원 로컬 검수의 석탑 석재 접합, 점프맵 발판 모델과 돌테이블 좌석 표현을 기록, 2026-11-15.",
@@ -81,9 +133,9 @@
     "src/layout-preview/jumpAudio.ts": "f5e622b72bda6876a12a72b883fa57f00260d24423bb412d362c9b0c6dede41a",
     "src/layout-preview/jumpCourse.ts": "849e5f641826f8fcee95da7c00d2fc057fda00e55882a7a8bd6e7ddc0dd05ab5",
     "src/layout-preview/jumpGeometry.ts": "069e3b64ccd54e53773eca51d5c00e2bc9cd5c01f140de27dcaf7d83af583192",
-    "src/layout-preview/JumpHud.tsx": "0b470e2920f3a3d482b902441e7c784c76da74ace2c18e87fceed3e8ed7192d1",
+    "src/layout-preview/JumpHud.tsx": "c83914351e40cf15252bbcadf21ffddd57eda66bb88ed3d42c4a09564443c8c0",
     "src/layout-preview/jumpNavigation.ts": "199f815588101149550c36b2f513278ab288d955a982d79067c2b87899d7a60a",
-    "src/layout-preview/jumpSimulation.ts": "dfcdb6e5493acd0ca7b69230d4b55ea2c7d5a29409a027c6f1b0e42e50f07428",
+    "src/layout-preview/jumpSimulation.ts": "e0fafaa302c3b3c403163f7d002c5f6cb0ef959535fc6d7b0d7d1297ad2c21f4",
     "src/layout-preview/lakeGeometry.ts": "eec7bbb8685b1782b4b75e76969c2ef06123fb58104b8afe9b28145eedf35402",
     "src/layout-preview/lakeLayout.ts": "952b415b3a34d75d3288f6841c0f70870d8d95f24285c4615a8435e796fc86ac",
     "src/layout-preview/landscapeGeometry.ts": "b1544e56a0a91f4f86c2301781eddb7e0ceca7064473149e854e0c8cef25749f",
@@ -304,5 +356,14 @@
       "src/world/art/StonePagoda.tsx",
       "src/features/tables/PavilionWoodTable.tsx"
     ]
+  },
+  "dailyRewardReview20261124": {
+    "referenceCommit": "dadcdd7d1b82433b67ef885765981b8026c66286",
+    "reason": "사용자 요청의 일일 미니게임 재화 상한 제거. 미리보기 보상 계산과 오늘 누계 안내만 검토한다.",
+    "reviewedFiles": [
+      "src/layout-preview/JumpHud.tsx",
+      "src/layout-preview/jumpSimulation.ts"
+    ],
+    "verification": "JumpHud의 일일 상한/진행 막대를 무제한 안내로 바꾸고 jumpSimulation의 누계 차감만 제거했다. 이동 물리·좌표·시설·지형·그림은 유지한다. 다른 보호 파일 해시는 갱신하지 않는다."
   }
 }
