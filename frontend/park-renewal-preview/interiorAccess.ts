@@ -30,6 +30,10 @@ export const interiorAccess = {
   exit: { from: [-57.1, west.floor + .8, -88], to: [-60.2, west.floor + .8, -88], radius: .82, yaw: Math.PI / 2 },
 } as const satisfies Record<string, Access>
 
+/** Visible soil below the stair's coarse height grid; excludes the room behind the wall. */
+export const stoneDoorApproach = { x0: annex.x1, x1: interiorAccess.surface.to[0] + 4,
+  z0: annex.z0 - 1, z1: annex.z1 + 2, floor: annex.floor - 1, ceiling: annex.ceiling }
+
 export function inAnnex(p: { x: number; y: number; z: number }) {
   return p.x > annex.x0 && p.x < annex.x1 && p.z > annex.z0 && p.z < annex.z1
     && p.y > annex.floor && p.y < annex.ceiling

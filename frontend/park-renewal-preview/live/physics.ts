@@ -32,7 +32,7 @@ import { towerRampStartY } from '../towerEntrance'
 import { facilityYaw } from '../facilityPlacement'
 import { HORROR, HORROR_CRYPT, HORROR_PORTALS, HORROR_SOLIDS } from '../horrorPlan'
 import { horrorShell } from '../horrorGeometry'
-import { annex, annexVolumes, catwalkVolumes, galleryVolumes, interiorAccess, interiorRamps, passageVolumes, SECRET_ENTRANCES_OPEN, upperArrival, upperRoomVolumes } from '../interiorAccess'
+import { annex, annexVolumes, catwalkVolumes, galleryVolumes, interiorAccess, interiorRamps, passageVolumes, SECRET_ENTRANCES_OPEN, stoneDoorApproach, upperArrival, upperRoomVolumes } from '../interiorAccess'
 
 export const RENEWAL_HALF_SIZE = 110
 export const RENEWAL_SPAWN = [0, 96] as const
@@ -441,9 +441,9 @@ export function buildRenewalPhysics(tables: readonly TableAnchor[]) {
     secretCorridor: { x0: HORROR.x0, x1: HORROR.x1, z0: HORROR.z0, z1: HORROR.z1, floor: HORROR.floor, ceiling: HORROR.ceiling },
     secretTerrainCuts, duckBoat: BOAT_ROUTE,
     interiorAccess: { routes: interiorAccess, annex, upperArrival, entrancesOpen: SECRET_ENTRANCES_OPEN,
-      approaches: HORROR_PORTALS.map(p => ({ x0: Math.min(p.x, p.x + p.outward * 3.6),
+      approaches: [stoneDoorApproach, ...HORROR_PORTALS.map(p => ({ x0: Math.min(p.x, p.x + p.outward * 3.6),
         x1: Math.max(p.x, p.x + p.outward * 3.6), z0: p.z - p.width / 2, z1: p.z + p.width / 2,
-        floor: p.floor, ceiling: p.floor + p.height })) },
+        floor: p.floor, ceiling: p.floor + p.height }))] },
     tower: { ...basePhysics.tower, x: tower.x, z: tower.z, height: 40, topY: towerRampStartY + 40, surfaceOffset: towerRampStartY },
     terrain: { ...basePhysics.terrain, halfSize: RENEWAL_HALF_SIZE, step: 1, columns: 221, rows: 221 },
     spawn: { ...basePhysics.spawn, position: [RENEWAL_SPAWN[0], spawnY, RENEWAL_SPAWN[1]] as Point3, groundClearance } }

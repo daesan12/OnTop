@@ -81,6 +81,35 @@ class InteriorAccessTests {
     private long now;
 
     @Test
+    void 계단_아래_돌문_양옆을_걸어도_지하로_빠지지_않는다() throws Exception {
+        var path = Path.of(System.getenv("TEST_RENEWAL_MAP_DIR"));
+        var map = PreparedParkMap.load(path.resolve("server-map.json"), path.resolve("manifest.json"), Set.of("channel-1"));
+        try (var physics = new WorldPhysics(map.createScene(), false, () -> now, true)) {
+            physics.add("walker");
+            for (double x : new double[]{2.75, 4.24, 5.8}) {
+                for (double z : new double[]{-47.75, -45.75, -43.25, -40.75, -38.75}) {
+                    for (double[] direction : new double[][]{{1, 0}, {-1, 0}, {0, 1}, {0, -1}}) {
+                        physics.place("walker", x, 9.65, z);
+                        for (int frame = 0; frame < 60; frame++) {
+                            var before = physics.snapshot("walker");
+                            double nextX = before.x() + direction[0] * 6.25 / 30;
+                            double nextZ = before.z() + direction[1] * 6.25 / 30;
+                            boolean walking = frame >= 30 && nextX > 2.17 && nextX < 8.19
+                                    && nextZ > -48.75 && nextZ < -37.85;
+                            physics.input("walker", new MoveInput(++seq, walking ? direction[0] : 0,
+                                    walking ? direction[1] : 0, false, false), now);
+                            physics.step(now += WorldPhysics.STEP_NANOS, Set.of());
+                            assertThat(physics.snapshot("walker").y()).as("돌문 바깥 %.2f, %.2f", x, z)
+                                    .isGreaterThan(8.0);
+                            assertThat(physics.lastRecovery("walker")).isNull();
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
     void 회랑을_한_바퀴_돌아도_위층에_발을_딛기_전엔_출구가_잠긴다() throws Exception {
         Path path = Path.of(System.getenv("TEST_RENEWAL_MAP_DIR"));
         var map = PreparedParkMap.load(path.resolve("server-map.json"), path.resolve("manifest.json"), Set.of("channel-1"));

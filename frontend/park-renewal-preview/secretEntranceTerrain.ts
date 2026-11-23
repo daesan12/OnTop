@@ -1,5 +1,6 @@
 import type { BufferGeometry } from 'three'
 import { HORROR_PORTALS } from './horrorPlan'
+import { stoneDoorApproach } from './interiorAccess'
 
 type Vertex = [number, number, number]
 
@@ -19,10 +20,15 @@ export function secretEntranceTerrain(ground: readonly BufferGeometry[]) {
     }
     return output
   }
-  for (const portal of HORROR_PORTALS) {
-    const x0 = Math.min(portal.x, portal.x + portal.outward)
-    const x1 = Math.max(portal.x, portal.x + portal.outward)
-    const z0 = Math.floor(portal.z - portal.width / 2), z1 = Math.ceil(portal.z + portal.width / 2)
+  const areas = HORROR_PORTALS.map(portal => ({
+    x0: Math.min(portal.x, portal.x + portal.outward),
+    x1: Math.max(portal.x, portal.x + portal.outward),
+    z0: Math.floor(portal.z - portal.width / 2), z1: Math.ceil(portal.z + portal.width / 2),
+  }))
+  // The metre grid bridges the stair edge above the stone door. Keep the visible soil
+  // under both tree-side approaches without filling the room or changing its routes.
+  areas.push(stoneDoorApproach)
+  for (const { x0, x1, z0, z1 } of areas) {
     for (const geometry of ground) {
       const p = geometry.getAttribute('position'), ix = geometry.getIndex()!
       for (let i = 0; i < ix.count; i += 3) {
