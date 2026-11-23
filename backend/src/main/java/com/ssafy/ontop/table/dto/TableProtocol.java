@@ -214,6 +214,17 @@ public final class TableProtocol {
                     && validGameId(payload) && validEventId(payload) && prankUuid(payload.path("attemptId"));
             case "ONECARD_HAND_RESTORE_SEND" -> fields(payload, Set.of("gameId", "eventId", "effectId"))
                     && validGameId(payload) && validEventId(payload) && prankUuid(payload.path("effectId"));
+            case "DAVINCI_SPECTATOR_PING_SEND" -> fields(payload,
+                    Set.of("gameId", "eventId", "basedOnVersion", "targetUserId", "tileId"))
+                    && validGameId(payload) && validEventId(payload)
+                    && payload.path("basedOnVersion").isIntegralNumber()
+                    && payload.path("basedOnVersion").canConvertToLong()
+                    && payload.path("basedOnVersion").longValue() >= 0
+                    && payload.path("basedOnVersion").longValue() <= 9_007_199_254_740_991L
+                    && payload.path("targetUserId").isTextual()
+                    && payload.path("targetUserId").asText().matches("[1-9][0-9]{0,18}")
+                    && payload.path("tileId").isTextual() && !payload.path("tileId").asText().isBlank()
+                    && payload.path("tileId").asText().length() <= 120;
             case "OMOK_SPECTATOR_PING_SEND" -> fields(payload, Set.of("gameId", "eventId", "basedOnVersion", "x", "y"))
                     && validGameId(payload) && validEventId(payload)
                     && payload.path("basedOnVersion").isIntegralNumber()

@@ -56,7 +56,7 @@ public class GameHistoryController {
             @RequestParam(required = false) String cursor,
             @Parameter(schema = @Schema(type = "integer", minimum = "1", maximum = "100", defaultValue = "20"))
             @RequestParam(required = false) String size,
-            @Parameter(schema = @Schema(allowableValues = {"OMOK", "DICE", "ONE_CARD", "LIAR_BRIDGE", "DICE_LEDGER", "HALLI_GALLI", "ALKKAGI", "RUMMIKUB"}))
+            @Parameter(schema = @Schema(allowableValues = {"OMOK", "DICE", "ONE_CARD", "LIAR_BRIDGE", "DICE_LEDGER", "HALLI_GALLI", "ALKKAGI", "RUMMIKUB", "DAVINCI_CODE"}))
             @RequestParam(required = false) String gameCode) {
         requireUser(user);
         return response(service.findHistory(user.userId(), GameHistoryPageRequest.parse(cursor, size, gameCode)));

@@ -73,6 +73,8 @@ export interface ParkRuntimePort {
   actBridge(input: import('../../game/bridge/protocol').BridgeInput): Promise<boolean>
   actRummikub?(input: import('../../game/rummikub/protocol').RummikubInput): Promise<boolean>
   actLedger(input: import('../../game/ledger/protocol').LedgerInput): Promise<boolean>
+  actDavinci?(input: import('../../game/davinci/protocol').DavinciInput): Promise<boolean>
+  pingDavinci?(targetUserId: string, tileId: string): Promise<boolean>
   flipHalli(): Promise<boolean>
   /** bellWindowId and expectedVersion come from the state the player saw when pressing the bell. */
   ringHalli(bellWindowId: number, expectedVersion: number): Promise<boolean>

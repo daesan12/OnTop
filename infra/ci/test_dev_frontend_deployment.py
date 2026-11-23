@@ -32,6 +32,7 @@ class DevFrontendDeploymentTests(unittest.TestCase):
         self.assertIn("--build-env VITE_SKEWER_COOP_ENABLED=true", command)
         self.assertIn("--build-env VITE_PARK_RENEWAL_ENABLED=true", command)
         self.assertIn("--build-env VITE_STONE_RUMBLE_ENABLED=true", command)
+        self.assertIn("--build-env VITE_DAVINCI_ENABLED=true", command)
         self.assertIn("--build-env VITE_PARK_BINDINGS_URL=/park-bindings.generated.dev.json", command)
 
     def test_ci_build_and_vercel_deploy_share_dev_feature_flags(self):
@@ -41,6 +42,7 @@ class DevFrontendDeploymentTests(unittest.TestCase):
             "VITE_SKEWER_COOP_ENABLED=true",
             "VITE_PARK_RENEWAL_ENABLED=true",
             "VITE_STONE_RUMBLE_ENABLED=true",
+            "VITE_DAVINCI_ENABLED=true",
         ):
             self.assertEqual(pipeline.count(flag), 3)
 
@@ -57,7 +59,7 @@ class DevFrontendDeploymentTests(unittest.TestCase):
                          "VITE_ALKKAGI_ENABLED=true VITE_PARK_BINDINGS_URL=/park-bindings.generated.prod.json pnpm run build:park")
         self.assertEqual(prod.pop("outputDirectory"), "dist-park")
         self.assertEqual(dev.pop("buildCommand"),
-                         "VITE_ALKKAGI_ENABLED=true VITE_WARDROBE_OUTFITS=true VITE_SKEWER_COOP_ENABLED=true VITE_PARK_RENEWAL_ENABLED=true VITE_STONE_RUMBLE_ENABLED=true VITE_PARK_BINDINGS_URL=/park-bindings.generated.dev.json pnpm run build:park")
+                         "VITE_ALKKAGI_ENABLED=true VITE_WARDROBE_OUTFITS=true VITE_SKEWER_COOP_ENABLED=true VITE_PARK_RENEWAL_ENABLED=true VITE_STONE_RUMBLE_ENABLED=true VITE_DAVINCI_ENABLED=true VITE_PARK_BINDINGS_URL=/park-bindings.generated.dev.json pnpm run build:park")
         self.assertEqual(dev.pop("outputDirectory"), "dist-park")
         self.assertEqual(dev, prod)
 

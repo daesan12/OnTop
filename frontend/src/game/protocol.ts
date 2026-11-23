@@ -6,6 +6,7 @@ import { parseBridge, parseSecret, type Bridge, type SecretDie } from './bridge/
 import { parseLedger, type DiceLedger } from './ledger/protocol'
 import { parseRummikub, parseRummikubHand, type Rummikub, type RummikubHand } from './rummikub/protocol'
 import { parseHalliGalli, type HalliGalli } from './halligalli/protocol'
+import { parseDavinci, parseDavinciHand, type DavinciState, type DavinciHand } from './davinci/protocol'
 
 export type Recovery =
   | 'UNKNOWN'
@@ -52,6 +53,8 @@ export interface Omok {
   endedAt: string | null
 }
 interface GameHeader {
+  davinci?: never
+  davinciHand?: never
   gameId: string
   version: number
   role: 'PLAYER' | 'SPECTATOR'
@@ -65,7 +68,12 @@ export interface LedgerGame extends GameHeader { rummikub?: never; rummikubHand?
 export interface HalliGame extends GameHeader { rummikub?: never; rummikubHand?: never; stone?: never; ledger?: never; alkkagi?: never; alkkagiHand?: never; halli: HalliGalli; omok?: never; dice?: never; onecard?: never; hand?: never; bridge?: never; secret?: never }
 export interface StoneGame extends GameHeader { rummikub?: never; rummikubHand?: never; stone: StoneState; ledger?: never; alkkagi?: never; alkkagiHand?: never; omok?: never; dice?: never; onecard?: never; hand?: never; bridge?: never; secret?: never; halli?: never }
 export interface RummikubGame extends GameHeader { rummikub: Rummikub; rummikubHand: RummikubHand | null; stone?: never; ledger?: never; alkkagi?: never; alkkagiHand?: never; omok?: never; dice?: never; onecard?: never; hand?: never; bridge?: never; secret?: never; halli?: never }
-export type Game = RummikubGame | StoneGame | OmokGame | DiceGame | OneCardGame | BridgeGame | AlkkagiGame | LedgerGame | HalliGame
+export interface DavinciGame extends Omit<GameHeader, 'davinci' | 'davinciHand'> {
+  davinci: DavinciState; davinciHand: DavinciHand | null
+  rummikub?: never; rummikubHand?: never; stone?: never; ledger?: never; alkkagi?: never; alkkagiHand?: never; omok?: never; dice?: never
+  onecard?: never; hand?: never; bridge?: never; secret?: never; halli?: never
+}
+export type Game = DavinciGame | RummikubGame | StoneGame | OmokGame | DiceGame | OneCardGame | BridgeGame | AlkkagiGame | LedgerGame | HalliGame
 export interface Farkle {
   gameCode: 'DICE'; status: 'PLAYING' | 'FINISHED'; players: string[]; scores: number[]
   targetScore: number; turnTimeLimitMs: 30000; turnUserId: string | null; turnDeadline: string | null
@@ -76,8 +84,8 @@ export interface Farkle {
   winnerUserId: string | null; endReason: string | null; endedAt: string | null
   lastRoll?: { rollId: number; actorUserId: string; dice: Farkle['dice'] } | null
 }
-export const gameState = (g: Game) => g.omok ?? g.dice ?? g.onecard ?? g.bridge ?? g.rummikub ?? g.ledger ?? g.alkkagi ?? g.halli ?? g.stone
-export const gamePlayers = (g: Game) => g.omok ? [g.omok.blackUserId, g.omok.whiteUserId] : g.dice ? g.dice.players : g.alkkagi ? g.alkkagi.players : (g.rummikub ?? g.onecard ?? g.bridge ?? g.ledger ?? g.halli ?? g.stone).players.map(p => p.userId)
+export const gameState = (g: Game) => g.davinci ?? g.omok ?? g.dice ?? g.onecard ?? g.bridge ?? g.rummikub ?? g.ledger ?? g.alkkagi ?? g.halli ?? g.stone
+export const gamePlayers = (g: Game) => g.omok ? [g.omok.blackUserId, g.omok.whiteUserId] : g.dice ? g.dice.players : g.alkkagi ? g.alkkagi.players : (g.davinci ?? g.rummikub ?? g.onecard ?? g.bridge ?? g.ledger ?? g.halli ?? g.stone).players.map(p => p.userId)
 export interface Result {
   version: number
   gameSessionId: string
@@ -262,7 +270,7 @@ export function parseGame(p: Record<string, unknown>, ownId = ''): Game {
     !integer(p.version) ||
     !['PLAYER', 'SPECTATOR'].includes(String(p.role)) ||
     !record(p.privateState) ||
-    (!(record(p.publicState) && ['OMOK', 'ONE_CARD', 'LIAR_BRIDGE', 'ALKKAGI', 'RUMMIKUB'].includes(String(p.publicState.gameCode)) && p.role === 'PLAYER') && Object.keys(p.privateState).length !== 0)
+    (!(record(p.publicState) && ['OMOK', 'ONE_CARD', 'LIAR_BRIDGE', 'ALKKAGI', 'RUMMIKUB', 'DAVINCI_CODE'].includes(String(p.publicState.gameCode)) && p.role === 'PLAYER') && Object.keys(p.privateState).length !== 0)
   )
     throw new Error('경기 공개 상태 또는 관전 권한을 확인해주세요.')
   const common = {
@@ -273,6 +281,11 @@ export function parseGame(p: Record<string, unknown>, ownId = ''): Game {
   if (record(p.publicState) && p.publicState.gameCode === 'RUMMIKUB') {
     const rummikub = parseRummikub(p.publicState)
     return { ...common, rummikub, rummikubHand: parseRummikubHand(p.privateState, rummikub, ownId, common.role) }
+  }
+  if (record(p.publicState) && p.publicState.gameCode === 'DAVINCI_CODE') {
+    const davinci = parseDavinci(p.publicState)
+    if (davinci.version !== common.version) throw new Error('흑백수사 버전을 확인해주세요.')
+    return { ...common, davinci, davinciHand: parseDavinciHand(p.privateState, davinci, ownId, common.role) }
   }
   if (record(p.publicState) && p.publicState.gameCode === 'STONE_RUMBLE') return { ...common, stone: parseStoneState(p.publicState) }
   if (record(p.publicState) && p.publicState.gameCode === 'ALKKAGI') {
@@ -298,7 +311,7 @@ export function parseResult(p: Record<string, unknown>, ownId: string): Result {
   if (
     !id(p.gameSessionId) ||
     !integer(p.version) ||
-    !['OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE', 'DICE_LEDGER', 'ALKKAGI', 'HALLI_GALLI', 'STONE_RUMBLE', 'RUMMIKUB'].includes(String(p.gameCode)) ||
+    !['OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE', 'DICE_LEDGER', 'ALKKAGI', 'HALLI_GALLI', 'STONE_RUMBLE', 'RUMMIKUB', 'DAVINCI_CODE'].includes(String(p.gameCode)) ||
     !['FINISHED', 'INVALID'].includes(String(p.status)) ||
     typeof p.endReason !== 'string' || !/^[A-Z][A-Z0-9_]{0,31}$/.test(p.endReason) ||
     !['PENDING', 'SETTLED'].includes(String(p.settlementStatus)) ||

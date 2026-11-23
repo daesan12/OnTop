@@ -943,7 +943,7 @@ public class TableHub {
             // 참가자에게도 로비 복구 오류 대신 관전 권한 오류를 주도록 복구 게이트 앞에서 처리한다.
             // 관전자의 로비 자격은 canSpectate에서 다시 검사한다.
             if (request.type().equals("GAME_SPECTATOR_CHAT_SEND") || request.type().equals("OMOK_SPECTATOR_PING_SEND")
-                    || request.type().equals("DICE_LEDGER_SPECTATOR_PING_SEND") || request.type().equals("RUMMIKUB_SPECTATOR_PING_SEND")) {
+                    || request.type().equals("DICE_LEDGER_SPECTATOR_PING_SEND") || request.type().equals("RUMMIKUB_SPECTATOR_PING_SEND") || request.type().equals("DAVINCI_SPECTATOR_PING_SEND")) {
                 sendSpectatorEvent(sessionId, member, request);
                 return;
             }
@@ -4667,7 +4667,8 @@ public class TableHub {
 
         boolean rummikubPing = request.type().equals("RUMMIKUB_SPECTATOR_PING_SEND");
         boolean ledgerPing = request.type().equals("DICE_LEDGER_SPECTATOR_PING_SEND");
-        boolean ping = rummikubPing || ledgerPing || request.type().equals("OMOK_SPECTATOR_PING_SEND");
+        boolean codePing = request.type().equals("DAVINCI_SPECTATOR_PING_SEND");
+        boolean ping = rummikubPing || codePing || ledgerPing || request.type().equals("OMOK_SPECTATOR_PING_SEND");
         var payload = request.payload();
         if (member.accountId() == null) {
             fail(request, "GAME_SPECTATOR_AUTH_REQUIRED", "인증된 회원만 관전 채팅·핑을 보낼 수 있습니다.");
@@ -4681,9 +4682,9 @@ public class TableHub {
         if (push == null || ping && reconnect.get().canControlGame(member.accountId(), sessionId, gameId)) {
             fail(request, "GAME_SPECTATOR_ACCESS_DENIED", "관전이 승인된 경기에서만 보낼 수 있습니다.");
         }
-        if (ping && !(rummikubPing ? "RUMMIKUB" : ledgerPing ? "DICE_LEDGER" : "OMOK").equals(push.gameCode)
+        if (ping && !(rummikubPing ? "RUMMIKUB" : codePing ? "DAVINCI_CODE" : ledgerPing ? "DICE_LEDGER" : "OMOK").equals(push.gameCode)
                 || !Set.of("OMOK", "DICE", "ONE_CARD", "LIAR_BRIDGE", "DICE_LEDGER", "ALKKAGI",
-                        "HALLI_GALLI", "STONE_RUMBLE", "RUMMIKUB").contains(push.gameCode)) {
+                        "HALLI_GALLI", "STONE_RUMBLE", "RUMMIKUB", "DAVINCI_CODE").contains(push.gameCode)) {
             fail(request, "GAME_SPECTATOR_UNSUPPORTED_GAME", "지원하는 경기 채팅 또는 오목·주사위 장부 추천을 이용해주세요.");
         }
         if (!"PLAYING".equals(push.status)) {
@@ -4693,19 +4694,29 @@ public class TableHub {
         var kind = ping ? SpectatorEventPolicy.Kind.PING : SpectatorEventPolicy.Kind.CHAT;
         String text = ping ? null : new ChatText(payload.get("text").textValue()).value();
         long basedOnVersion = ping ? payload.get("basedOnVersion").longValue() : 0;
-        int x = ping && !ledgerPing && !rummikubPing ? payload.get("x").intValue() : 0;
-        int y = ping && !ledgerPing && !rummikubPing ? payload.get("y").intValue() : 0;
+        int x = ping && !ledgerPing && !codePing && !rummikubPing ? payload.get("x").intValue() : 0;
+        int y = ping && !ledgerPing && !codePing && !rummikubPing ? payload.get("y").intValue() : 0;
+        String codeTarget = codePing ? payload.path("targetUserId").asText() : "";
+        String codeTile = codePing ? payload.path("tileId").asText() : "";
+        if (codePing && !com.ssafy.ontop.game.davinci.service.DavinciSocial.validTarget(push.publicState, codeTarget, codeTile)) {
+            fail(request, "DAVINCI_SPECTATOR_PING_INVALID_TARGET", "공개된 게임판의 타일을 선택해주세요.");
+        }
         String category = ledgerPing && payload.has("category") ? payload.get("category").textValue() : null;
         Integer dieId = ledgerPing && payload.has("dieId") ? payload.get("dieId").intValue() : null;
         int meldIndex = rummikubPing ? payload.path("meldIndex").intValue() : 0;
-        String content = rummikubPing ? basedOnVersion + ":meld:" + meldIndex : ledgerPing ? basedOnVersion + ":" + (category != null ? category : "die" + dieId)
+        String content = rummikubPing ? basedOnVersion + ":meld:" + meldIndex : codePing ? basedOnVersion + ":" + codeTarget + ":" + codeTile
+                : ledgerPing ? basedOnVersion + ":" + (category != null ? category : "die" + dieId)
                 : ping ? basedOnVersion + ":" + x + ":" + y : text;
-        String type = rummikubPing ? "RUMMIKUB_SPECTATOR_PING" : ledgerPing ? "DICE_LEDGER_SPECTATOR_PING" : ping ? "OMOK_SPECTATOR_PING" : "GAME_SPECTATOR_CHAT_MESSAGE";
+        String type = rummikubPing ? "RUMMIKUB_SPECTATOR_PING" : codePing ? "DAVINCI_SPECTATOR_PING" : ledgerPing ? "DICE_LEDGER_SPECTATOR_PING" : ping ? "OMOK_SPECTATOR_PING" : "GAME_SPECTATOR_CHAT_MESSAGE";
         long now = worldClock.sample().serverNow();
         java.util.function.Function<SpectatorEventPolicy.Stamp, Object> eventOf = issued -> rummikubPing
-                ? java.util.Map.of("gameId", gameId, "eventId", eventId, "senderUserId", member.userId(),
-                    "basedOnVersion", basedOnVersion, "meldIndex", meldIndex, "sentAt", issued.sentAt(),
-                    "expiresAt", issued.expiresAt(), "serverNow", now) : ledgerPing
+                ? Map.of("gameId", gameId, "eventId", eventId, "senderUserId", member.userId(),
+                        "basedOnVersion", basedOnVersion, "meldIndex", meldIndex, "sentAt", issued.sentAt(),
+                        "expiresAt", issued.expiresAt(), "serverNow", now) : codePing
+                ? Map.of("gameId", gameId, "eventId", eventId, "senderUserId", member.userId(),
+                        "basedOnVersion", basedOnVersion, "targetUserId", codeTarget, "tileId", codeTile,
+                        "sentAt", issued.sentAt(), "expiresAt", issued.expiresAt(), "serverNow", now)
+                : ledgerPing
                 ? new DiceLedgerSpectatorPing(gameId, eventId, member.userId(), basedOnVersion, category, dieId, issued, now)
                 : ping ? new OmokSpectatorPing(gameId, eventId, member.userId(), basedOnVersion, x, y, issued, now)
                 : new GameSpectatorChatMessage(gameId, eventId, member.userId(), text, issued, now);
@@ -4719,7 +4730,7 @@ public class TableHub {
             }
             // Hub 잠금이 경기 상태 변경 알림과의 경계다. 더 새 버전 알림을 받았으면 아직 전달 전이어도 거절한다.
             if (ping && (basedOnVersion != push.deliveredVersion || push.requestedVersion > push.deliveredVersion)) {
-                fail(request, rummikubPing ? "RUMMIKUB_SPECTATOR_PING_STALE_VERSION" : ledgerPing ? "DICE_LEDGER_SPECTATOR_PING_STALE_VERSION" : "OMOK_SPECTATOR_PING_STALE_VERSION",
+                fail(request, rummikubPing ? "RUMMIKUB_SPECTATOR_PING_STALE_VERSION" : codePing ? "DAVINCI_SPECTATOR_PING_STALE_VERSION" : ledgerPing ? "DICE_LEDGER_SPECTATOR_PING_STALE_VERSION" : "OMOK_SPECTATOR_PING_STALE_VERSION",
                         "최신 판 상태에서 다시 추천해주세요.");
             }
             stamp = spectatorEvents.accept(member.accountId(), eventId, kind, gameId, content, now);
@@ -4798,8 +4809,9 @@ public class TableHub {
                 error = "GAME_ACTION_UNAVAILABLE";
             }
             finishGameAction(sessionId, member, request.requestId(), result, error);
-            if (error == null) {
+            if (error == null && result.version() > command.expectedVersion()) {
                 // 입력자 연결이 끊겨도 확정된 변경은 남은 참가자에게 전달한다.
+                // 공개 버전이 그대로인 개인 입력은 관전자에게 시점을 재방송하지 않는다.
                 gameStateChanged(new GameStateChanged(result.gameId(), result.version()));
             }
         });
