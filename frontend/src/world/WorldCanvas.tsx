@@ -202,8 +202,10 @@ export const WorldCanvas = memo(function WorldCanvas({
   }, [onReady])
   const boardPlayer = useGame(s => s.game?.role === 'PLAYER' && (s.game?.omok?.status === 'PLAYING' || s.game?.alkkagi?.status === 'PLAYING'))
   const boardSpectator = useGame(s => s.game?.role === 'SPECTATOR' && (s.game?.omok?.status === 'PLAYING' || s.game?.alkkagi?.status === 'PLAYING'))
+  const tileRole = useGame(s => s.game?.rummikub?.status === 'PLAYING' ? s.game.role : null)
   const scope = useSession(seatScope), lookScope = useTableLobby(s=>s.lookScope), spectatorView = useTableLobby(s=>s.spectatorView)
   const boardDetail = boardPlayer && !!scope && scope !== lookScope || boardSpectator && spectatorView === 'board'
+  const tileDetail = tileRole === 'PLAYER' && !!scope && scope !== lookScope || tileRole === 'SPECTATOR' && spectatorView === 'board'
   const preset = QUALITY[quality]
   const overlayTargets = useMemo<OverlayTargets>(() => new Map(), [])
   const visible = usePageVisible()
@@ -233,6 +235,7 @@ export const WorldCanvas = memo(function WorldCanvas({
   // 판만 표시하는 시점에서는 공원용720p 예산 대신 최대FullHD/기기DPR1을 사용한다.
   // 주변 보기/종료 시 기존 사용자 화질 예산으로 돌아간다.
   const renderDpr = boardDetail ? effectiveDpr('high', viewport.width, viewport.height, viewport.dpr)
+    : tileDetail ? dpr
     : (GENERATED_PARK_ENABLED || RENEWAL_PARK_ENABLED) ? Math.min(dpr, MAP_RENDER_BUDGET.maxDpr, Math.sqrt(MAP_RENDER_BUDGET.maxPixels / Math.max(1, viewport.width * viewport.height))) : dpr
   return (
     <>
@@ -313,7 +316,7 @@ export const WorldCanvas = memo(function WorldCanvas({
           <CameraRig />
           {TABLET_ENABLED && <TableTablet3D />}
           <PerformanceProbe />
-          {!boardDetail && <AdaptiveResolution ceiling={renderDpr} />}
+          {!boardDetail && !tileDetail && <AdaptiveResolution ceiling={renderDpr} />}
         </AvatarPoseFrame>
       </Canvas>
       <AvatarOverlays targets={overlayTargets} />

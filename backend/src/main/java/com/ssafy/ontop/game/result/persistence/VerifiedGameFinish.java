@@ -15,21 +15,23 @@ import java.util.Set;
 
 /** 서버 엔진 이벤트만 수신한다. JSON/공개 정산 요청 DTO가 아니다. */
 final class VerifiedGameFinish {
-    private static final Map<String, Set<String>> REASONS = Map.of(
-            "OMOK", Set.of("FIVE_IN_ROW", "BOARD_FULL", "AGREED_DRAW", "TURN_TIMEOUT", "RECONNECT_EXPIRED", "LOGOUT", "MEMBER_DEACTIVATED", "EXPLICIT_LEAVE"),
-            "DICE", Set.of("TARGET_REACHED", "LAST_PLAYER_STANDING", "RECONNECT_EXPIRED", "LOGOUT",
-                    "MEMBER_DEACTIVATED", "EXPLICIT_LEAVE"),
-            "ONE_CARD", Set.of("EMPTY_HAND", "STALEMATE", "PLAYER_LEFT"),
-            "LIAR_BRIDGE", Set.of("THREE_GOALS", "LAST_PLAYER_STANDING", "GOAL_SLOTS_EXHAUSTED",
-                    "NO_RUNNABLE_PAWNS", "ABORTED_NO_PLAYERS"),
-            "DICE_LEDGER", Set.of("ALL_CATEGORIES_FILLED", "LAST_PLAYER_STANDING"),
-            "ALKKAGI", Set.of("PIECES_OUT", "MATCH_TIME_LIMIT", "AFK_FORFEIT", "EXPLICIT_LEAVE",
-                    "DISCONNECT_TIMEOUT", "LOGOUT", "MEMBER_DEACTIVATED", "SIMULATION_INVALID", "SIMULATION_LIMIT"),
+    private static final Map<String, Set<String>> REASONS = Map.ofEntries(
+            Map.entry("OMOK", Set.of("FIVE_IN_ROW", "BOARD_FULL", "AGREED_DRAW", "TURN_TIMEOUT",
+                    "RECONNECT_EXPIRED", "LOGOUT", "MEMBER_DEACTIVATED", "EXPLICIT_LEAVE")),
+            Map.entry("DICE", Set.of("TARGET_REACHED", "LAST_PLAYER_STANDING", "RECONNECT_EXPIRED", "LOGOUT",
+                    "MEMBER_DEACTIVATED", "EXPLICIT_LEAVE")),
+            Map.entry("ONE_CARD", Set.of("EMPTY_HAND", "STALEMATE", "PLAYER_LEFT")),
+            Map.entry("LIAR_BRIDGE", Set.of("THREE_GOALS", "LAST_PLAYER_STANDING", "GOAL_SLOTS_EXHAUSTED",
+                    "NO_RUNNABLE_PAWNS", "ABORTED_NO_PLAYERS")),
+            Map.entry("DICE_LEDGER", Set.of("ALL_CATEGORIES_FILLED", "LAST_PLAYER_STANDING")),
+            Map.entry("ALKKAGI", Set.of("PIECES_OUT", "MATCH_TIME_LIMIT", "AFK_FORFEIT", "EXPLICIT_LEAVE",
+                    "DISCONNECT_TIMEOUT", "LOGOUT", "MEMBER_DEACTIVATED", "SIMULATION_INVALID", "SIMULATION_LIMIT")),
             // CARD_COUNT·NO_CARDS_TO_FLIP은 카드 수 공동 1위를 모두 승자로 둔다. 기권 종료도 LAST_PLAYER_STANDING이다.
-            "HALLI_GALLI", Set.of("CARD_COUNT", "LAST_PLAYER_STANDING", "NO_CARDS_TO_FLIP"),
-            "QUORIDOR", Set.of("GOAL_REACHED", "LAST_PLAYER_STANDING"),
-            "DAVINCI_CODE", Set.of("LAST_PLAYER_STANDING"),
-            "STONE_RUMBLE", Set.of("LAST_PLAYER_STANDING", "ALL_FALLEN", "SIMULATION_LIMIT", "LOADING_TIMEOUT"));
+            Map.entry("HALLI_GALLI", Set.of("CARD_COUNT", "LAST_PLAYER_STANDING", "NO_CARDS_TO_FLIP")),
+            Map.entry("QUORIDOR", Set.of("GOAL_REACHED", "LAST_PLAYER_STANDING")),
+            Map.entry("RUMMIKUB", Set.of("EMPTY_HAND", "STALEMATE", "LAST_PLAYER_STANDING")),
+            Map.entry("DAVINCI_CODE", Set.of("LAST_PLAYER_STANDING")),
+            Map.entry("STONE_RUMBLE", Set.of("LAST_PLAYER_STANDING", "ALL_FALLEN", "SIMULATION_LIMIT", "LOADING_TIMEOUT")));
 
     private VerifiedGameFinish() { }
 

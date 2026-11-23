@@ -29,6 +29,7 @@ export interface ParkRuntimePort {
   sendTyping?(typing: boolean): Promise<boolean>
   setMyRoomOpen?(open: boolean): Promise<boolean>
   sendSpectatorChat(text: string): Promise<boolean>
+  pingRummikub?(meldIndex: number): Promise<boolean>
   pingOmok(x: number, y: number): Promise<boolean>
   pingLedger(target: import('../../game/ledger/protocol').LedgerPingTarget): Promise<boolean>
   sendEmote(id: import('../../features/emotes/catalog').EmoteId): Promise<boolean>
@@ -71,6 +72,7 @@ export interface ParkRuntimePort {
   actQuoridor?(input: import('../../game/quoridor/protocol').QuoridorInput): Promise<boolean>
   actAlkkagi?(input: Record<string, unknown>): Promise<boolean>
   actBridge(input: import('../../game/bridge/protocol').BridgeInput): Promise<boolean>
+  actRummikub?(input: import('../../game/rummikub/protocol').RummikubInput): Promise<boolean>
   actLedger(input: import('../../game/ledger/protocol').LedgerInput): Promise<boolean>
   actDavinci?(input: import('../../game/davinci/protocol').DavinciInput): Promise<boolean>
   pingDavinci?(targetUserId: string, tileId: string): Promise<boolean>

@@ -34,6 +34,7 @@ import { seatScope, seatedLook, resetSeatedLook, useTableLobby, SEATED_LOOK } fr
 import { useDiceUI, diceCamera, holdBustCamera } from '../game/farkle/controls'
 import { DICE_CAMERA, DICE_SPECTATOR_CAMERA, diceFocusActive, diceSpectatorCameraPose } from '../game/farkle/camera'
 import { LEDGER_CAMERA, ledgerCameraPose, ledgerFocusActive } from '../game/ledger/camera'
+import { rummikubCameraPose } from '../game/rummikub/camera'
 import { HALLI_CAMERA, halliCameraPose, halliPlayerViewActive, halliSpectatorCameraPose, halliSpectatorViewActive } from '../game/halligalli/camera'
 import { roamingFirstPerson } from './roamingCamera'
 import { rememberRoamingView, restoreRoamingView } from './cameraReturn'
@@ -376,7 +377,7 @@ export function CameraRig() {
     const ownDice = seated && !!avatar.tableId && game?.role === 'PLAYER' && !!game.dice
     const diceFocus = seated && !!avatar.tableId && diceFocusActive(game, session.sessionId,
       useDiceUI.getState().boardView || holdBustCamera(game?.gameId, session.sessionId))
-    const ledgerFocus = seated && !!avatar.tableId && ledgerFocusActive(game, session.sessionId, looking)
+    const ledgerFocus = seated && !!avatar.tableId && (ledgerFocusActive(game, session.sessionId, looking) || !looking && game?.role === 'PLAYER' && !!game.rummikub)
     state.look.set(pose.x, pose.y + CAMERA.focusHeight - 0.8, pose.z)
     if (state.owner !== session.sessionId) {
       state.focus.copy(state.look)
@@ -492,7 +493,9 @@ export function CameraRig() {
     } else if (ledgerFocus) {
       const anchor = TABLES.find(t => t.id === avatar.tableId)!
       const seat = tableSeats(anchor, session.seatIndex + 1)[session.seatIndex] ?? tableSeats(anchor)[0]!
-      const scale = tableScale(anchor), pose = ledgerCameraPose(anchor.position, seat.x * scale, seat.z * scale, scale)
+      const scale = tableScale(anchor), pose = game?.rummikub
+        ? rummikubCameraPose(anchor.position, seat.x * scale, seat.z * scale, scale,{width:gl.domElement.clientWidth,height:gl.domElement.clientHeight})
+        : ledgerCameraPose(anchor.position, seat.x * scale, seat.z * scale, scale)
       state.desired.set(...pose.position)
       state.look.set(...pose.target)
     } else if (diceSpectator) {
@@ -510,7 +513,7 @@ export function CameraRig() {
       )
       state.desired.set(
         state.look.x,
-        Math.min(state.look.y + (spectatorBoard && game?.ledger ? 3.2 : 2.6) * tableScale(anchor), spectatorClearHeight(anchor.pavilionId)),
+        Math.min(state.look.y + (spectatorBoard && (game?.ledger || game?.rummikub) ? 3.2 : 2.6) * tableScale(anchor), spectatorClearHeight(anchor.pavilionId)),
         state.look.z + 0.001,
       )
     } else if (closeAnchor) {
