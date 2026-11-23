@@ -222,3 +222,11 @@ DB 준비 후 실행할 `QuoridorSettlementMySqlTests` 5개를 추가하고 test
 같은 커밋의 Jenkins ontop-dev #591에서 OpenApiLocalTests의 정적 API 구조 비교와 GameEngineProfileTests의 기본 local 격리 실패를 확인해 `fix/quoridor-api-contract`에 후속 수정했다. 전적 조회 필터의 실행 명세와 동일한 위치에 정적 명세의 QUORIDOR를 추가했다. 엔진 활성화는 다른 게임과 같이 `ontop.games.quoridor.enabled=true`가 명시된 경우만 허용하도록 matchIfMissing을 제거했다. 테스트를 완화하거나 제외하지 않았으며 OpenApiLocalTests·GameEngineProfileTests·Quoridor 전체의 12개 클래스 72개 테스트가 통과했다. 명시적으로 활성화한 2인/4인 시작·기권·관전 경로도 포함된다.
 
 배포 환경의 활성화 설정 유무는 확인하지 못했다. 담당자에게 `ONTOP_GAMES_QUORIDOR_ENABLED=true` 또는 동일한 애플리케이션 속성의 적용 여부 확인과 엔진 기동·테이블 시작 검증을 요청했다. 배포 설정·Jenkins·인프라·migration·맵은 직접 수정하지 않았다. 전용 MySQL 검증 미완료 제약은 유지한다.
+
+## 공통 인원 테스트 보완 (2026-11-24)
+
+사용자가 제공한 `4a7fce04`의 Jenkins 로그에서 BE 4,344개 중 GamePlayerLimitsTests의 QUORIDOR 항목 한 건이 실패한 것을 확인했다. 최신 dev에서도 같은 실패를 재현했다. 공통 테스트가 최소 인원부터 최대 인원 사이의 모든 수를 시작 가능하다고 가정해 3인 시작을 기대했지만, 길목 한 수의 실제 계약은 2인·4인이다.
+
+최신 dev `4a7fce0413c348b1aa9442baa65e286577f51639`에서 `fix/quoridor-player-limits`를 만들고 공통 인원 테스트의 기대값만 게임 규칙에 맞췄다. 3명도 반복 검증에 그대로 포함해 전원 준비 후 시작 불가를 확인하고 2명·4명은 시작 가능을 확인한다. 다른 게임의 기존 기대값과 좌석 정원·전원 준비 검증을 유지하며 실패 메시지에 게임과 인원을 표시한다. 제품 코드·FE·DB·migration·맵·인프라 변경은 없다.
+
+`./gradlew.bat test --tests '*GamePlayerLimitsTests' --tests '*ReadyBetConsentTests' --tests '*QuoridorCommittedStartTests' --tests '*QuoridorMatchTests'`로 4개 클래스 35개 테스트가 통과했다. 기존 실패 클래스의 13개도 모두 통과했으며 제외·건너뛰기는 없다. Jenkins 전체 빌드는 이번 검증에서 다시 실행하지 않았고 새 MR 생성·머지는 별도 요청 전까지 보류한다.
