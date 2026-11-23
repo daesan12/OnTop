@@ -137,6 +137,7 @@ gameId/version/state를 노출하지 않으며 기존 FE 파서와 재시도 UI�
 | 오목 관전 채팅·핑 | GAME_SPECTATOR_CHAT_SEND / OMOK_SPECTATOR_PING_SEND | GAME_SPECTATOR_CHAT_MESSAGE / OMOK_SPECTATOR_PING ([상세](../websocket-api/10-game-spectator-events.md), 승인 관전자만 발신) |
 | 주사위 장부 관전 훈수 | DICE_LEDGER_SPECTATOR_PING_SEND | DICE_LEDGER_SPECTATOR_PING ([상세](../dice-ledger.md#관전자-훈수-핑), 승인 관전자만 발신) |
 | 흑백수사 관전 타일 추천 | DAVINCI_SPECTATOR_PING_SEND | DAVINCI_SPECTATOR_PING ([상세](../DAVINCI_CODE.md#관전자-타일-추천-api), 승인 관전자만 공개된 타일 ID를 참조) |
+| 수패마루 관전 조합 추천 | RUMMIKUB_SPECTATOR_PING_SEND | RUMMIKUB_SPECTATOR_PING ([상세](../rummikub/README.md#규칙과-계약), 승인 관전자만 공개 조합의 meldIndex 0~34를 참조) |
 | 알까기 관전 커서·훈수 | ALKKAGI_SPECTATOR_SEND | ALKKAGI_SPECTATOR_EVENT ([상세](../websocket-api/11-alkkagi-spectator-events.md), 로컬 알까기 활성화·관전 권한 필요) |
 | 경기 결과 | GAME_RESULT_CHECK | GAME_RESULT |
 | 원카드 장난·방어 | ONECARD_PRANK_REACH_SEND / ONECARD_PRANK_HIT_SEND / ONECARD_HAND_RESTORE_SEND / ONECARD_HAND_FLIP_SEND | [방어·차단·뒤집기·복구](../onecard-ux-be-spec.md), 구형 FLIP은 방어 비활성 호환 전용 |

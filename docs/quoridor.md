@@ -208,3 +208,9 @@ Browser plugin이 없어 설치된 Chrome/Playwright로 실제 TabletLobby와 Ma
 **실제 MySQL 잔액·커밋·원장 검증은 미완료다.** TEST_GAME_DB_URL·TEST_GAME_WALLET_FLOW_DB_URL·TEST_GAME_DB_USERNAME·TEST_GAME_DB_PASSWORD가 없고 loopback 3306/3307/3310의 MySQL도 확인되지 않았다. 설정·DB·migration을 임의로 준비하거나 변경하지 않았다. 담당자 요청은 채팅에 전달했다.
 
 DB 준비 후 실행할 `QuoridorSettlementMySqlTests` 5개를 추가하고 testClasses 컴파일만 통과했다. 일반 test에서는 mysql 태그로 제외되며 실행/통과했다고 보고하지 않는다. 담당자는 MySQL 8.4 loopback의 `ontop_game_test_quoridor_*` 전용 DB에 최신 스키마와 V186을 준비하고 TEST_GAME_DB_URL·TEST_GAME_DB_USERNAME·TEST_GAME_DB_PASSWORD를 안전하게 제공해야 한다. 테스트는 Flyway를 비활성화해 migration을 적용하지 않으며 DB 버전과 V186 성공 이력을 확인한다. 실행 명령은 `backend`에서 `./gradlew.bat mysqlTest --tests '*QuoridorSettlementMySqlTests'`다. 확인 범위는 실제 시작 예약, 기권/도착 종료, 예약 해제·승패별 잔액·원장 합계, 종료 이벤트/정산 중복 처리, 종결 경기 재시작 거절이다. 운영 DB·외부 인증·실제 회원 자산을 사용하지 않는 전용 환경만 대상으로 한다.
+
+## 최신 dev 통합과 충돌 확인 (2026-11-23)
+
+사용자 요청에 따라 원격을 다시 확인하고 `origin/dev` `1b2589a2bb1b0a02ab89b28a382d8852abee54b1`을 `feat/quoridor-table`에 반영했다. 미커밋 변경이 없는 상태에서 사전 merge-tree 검사와 실제 병합 모두 충돌이 없었다. 추가된 9개 파일은 흑백수사 기권 시각·정산 회귀, 겨울 HUD, API 문서와 테이블 검증 기준이며 길목 한 수의 종료 연결과 기존 게임 구현을 보존했다. 지형·시설 좌표·충돌·생성 맵·인프라·migration의 추가 변경은 없다.
+
+통합 상태에서 BE 19개 클래스 102개 테스트, FE 12개 파일 203개 테스트와 타입 검사가 통과했다. BE는 기존 길목 한 수·공통 기권/종료/정산 회귀에 최신 흑백수사의 진행 시계 기반 기권 정산 6개를 더했다. FE는 기존 10개 파일에 겨울·썰매 단위 테스트를 포함했다. 실제 MySQL 검증은 전용 DB 미제공으로 계속 미실행이며 앞 절의 제한을 유지한다. 검증용 브라우저나 사용자 테스트 서버는 열지 않았고 테스트 JVM의 서버 종료를 확인했다. 금지된 맵 전수 탐색·자전거·킥보드 주행 테스트는 실행하지 않았다.
