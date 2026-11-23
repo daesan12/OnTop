@@ -4,7 +4,6 @@ import com.ssafy.ontop.game.speedmole.SpeedMoleRepository;
 import com.ssafy.ontop.game.speedmole.SpeedMoleRewards;
 import com.ssafy.ontop.game.speedmole.SpeedMoleRules;
 import com.ssafy.ontop.game.speedmole.SpeedMoleService;
-import com.ssafy.ontop.minigame.service.MinigameRewardBudget;
 import com.ssafy.ontop.wallet.repository.WalletRepository;
 import com.ssafy.ontop.wallet.repository.WalletTransactionRepository;
 import jakarta.persistence.EntityManager;
