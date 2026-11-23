@@ -187,3 +187,24 @@ Browser plugin이 없어 설치된 Chrome/Playwright로 실제 TabletLobby와 Ma
 최종 타입 검사와 직접 Vite build가 통과했고 build에 새 WebP가 포함되는 것을 확인했다. 기존 Three CJS·큰 chunk 경고는 남는다. 검증한 Chrome 2개 PID는 finally에서 종료해 잔존 0개이며 임시 FE 5275도 종료했다. 생성 원본·스크립트·실제 태블릿/설명서 PNG·build 로그는 저장소 밖 `OnTop/output/quoridor-cover-20261123`에 보관했다. 맵 전수 탐색·이동수단 주행 테스트를 실행하지 않았으며 원격 Jenkins 결과는 기존 인증 조회 제한으로 별도 확인이 필요하다.
 
 푸시 직전 dev에 수패마루가 병합되어 `549e0c2a21b6824a86fe99fa25b1468de7006704`까지 추가 통합했다. 공통 18개 파일 충돌은 세 게임의 시작/종료·목록·전적·복구·설명서와 좌표/타일/조합 대상 핑을 모두 보존해 해결했다. 지원 게임이 11개가 되어 종료 사유 표는 Java Map.of의 10개 제한을 피하도록 동일 내용을 Map.ofEntries로 옮겼다. 태블릿에는 최신 게임 순서와 기존 길목 한 수의 마지막 카드 위치를 유지했고 새 표지·contain 표시도 보존했다. 통합 후 FE 관련 18개 파일 185개 테스트, BE 세 게임 17개 클래스 114개 테스트, 타입 검사·직접 Vite build가 통과했다. 같은 Chrome 검증으로 새 카드·상세·설명서와 2인 설정을 재확인했으며 이번 표지 작업의 총 Chrome 3개 PID 잔존 0개와 임시 FE 종료를 확인했다. 인프라 파일은 최신 dev와 동일하며 직접 수정은 없다.
+
+## 기권 종료·정산 검증 (2026-11-23)
+
+사용자 제보에 따라 최신 dev `549e0c2a`가 포함된 기준에서 기권·정상 승리의 종료 연결과 금액을 검증했다. `GameFinishedResultListener.finished(GameFinished)`의 공통 알림 허용 목록에 QUORIDOR가 없어 엔진 종료 후 `TableHub.roundEnded`와 전원 결과 조회 호출이 누락되는 결함을 발견했다. 실제 엔진의 2인/4인 기권·도착 종료 4개 회귀가 수정 전 모두 실패했고 QUORIDOR를 연결한 뒤 통과했다. DB 종결 정보의 StoredGameRoundEnded 복구 경로도 존재하지만 엔진의 즉시 종료 연결을 대신하는 것으로 간주하지 않는다. 제품 코드 변경은 이 공통 리스너 하나이며 게임별 테스트·검증 기록 외에 맵·기권 연출·인프라·DB·V186 변경은 없다.
+
+### 기권 동작
+
+- 2인: 한 명 기권 → 상대 승리 → 결과/정산 → 서버 WAITING 확인 후 다음 판 준비. 기권자는 테이블에서 빠진다.
+- 4인: 중간 기권은 해당 말만 비활성화하고 장벽을 유지한다. 기권자는 퇴장하며 나머지 경기는 계속된다. 최후 한 명이 남으면 종료하고 전체 경기 결과로 정산한다. 중간 기권 직후 임의로 잔액을 정산하지 않는다.
+- `QuoridorForfeitFlowTests`: 실제 JWT·인증 ticket·소켓·테이블 시작·엔진·공통 종료 리스너로 2인/4인 기권 승인·중복 영수증·LOBBY 전환·WORLD_MOVE 허용, 4인 중간 경기 유지, 최종 WAITING·참가자 결과 조회·관전자 개인 결과 거절, 승자 TABLE_LEAVE·이동 허용, 다시 참가/준비한 새 경기 ID, 낡은 경기의 기권 재전송 거절을 확인했다. 첫 실행에서 새 테스트의 무채널 목록 조회가 최신 채널 계약에 맞지 않아 `listTables("one")`로 정정했다. 제품 TableHub는 변경하지 않았다.
+- 소켓 검증의 시작/결과 저장은 기존 QuoridorParkApplication.LocalLedger 대역이다. 이 대역은 SETTLED·myCoinDelta 0을 제공하므로 실제 지급·잔액의 증거로 사용하지 않는다. 실제 공원 맵 이동/카메라·브라우저 전체 흐름 검수와도 구분한다.
+
+### 금액 검증과 남은 DB 범위
+
+`QuoridorSettlementTests` 5개는 실제 엔진이 생성한 기권/도착 GameFinished를 실제 GameFinishPersistenceService·GameSettlementPersistenceService·Wallet 도메인으로 처리했다. Repository·트랜잭션만 대역이다. 2인 무료, 2인/4인 판돈 7, 기권과 정상 도착을 확인했으며 초기 잔액 100 기준 2인 승자는 107·패자는 93, 4인 승자는 121·나머지는 93이다. 남은 경기 중에는 예약 7을 유지하고 최종 정산 후 예약은 0이다. 총 잔액은 보존되며 같은 종료 이벤트와 settle 재처리에서도 잔액·원장·결과 버전이 추가 증가하지 않는다. FE는 종료 판정이나 SETTLED 하나만으로 다음 판을 열지 않고 서버 WAITING까지 확인하는 2인/4인 회귀를 추가했다.
+
+관련 BE 18개 클래스 96개 테스트와 FE 10개 파일 189개 테스트가 통과했다. BE는 길목 한 수·흑백수사 시작/종료·돌탑 종료·공통 결과 전송/재시도·수동 기권·정산 계산/저장/무효 반환 회귀를 포함한다. 테스트 서버·소켓은 테스트 종료 시 정리됐고 검증 브라우저나 사용자 검수용 서버를 새로 열지 않았다. 금지된 맵 전수 탐색·이동수단 주행 테스트는 실행하지 않았다.
+
+**실제 MySQL 잔액·커밋·원장 검증은 미완료다.** TEST_GAME_DB_URL·TEST_GAME_WALLET_FLOW_DB_URL·TEST_GAME_DB_USERNAME·TEST_GAME_DB_PASSWORD가 없고 loopback 3306/3307/3310의 MySQL도 확인되지 않았다. 설정·DB·migration을 임의로 준비하거나 변경하지 않았다. 담당자 요청은 채팅에 전달했다.
+
+DB 준비 후 실행할 `QuoridorSettlementMySqlTests` 5개를 추가하고 testClasses 컴파일만 통과했다. 일반 test에서는 mysql 태그로 제외되며 실행/통과했다고 보고하지 않는다. 담당자는 MySQL 8.4 loopback의 `ontop_game_test_quoridor_*` 전용 DB에 최신 스키마와 V186을 준비하고 TEST_GAME_DB_URL·TEST_GAME_DB_USERNAME·TEST_GAME_DB_PASSWORD를 안전하게 제공해야 한다. 테스트는 Flyway를 비활성화해 migration을 적용하지 않으며 DB 버전과 V186 성공 이력을 확인한다. 실행 명령은 `backend`에서 `./gradlew.bat mysqlTest --tests '*QuoridorSettlementMySqlTests'`다. 확인 범위는 실제 시작 예약, 기권/도착 종료, 예약 해제·승패별 잔액·원장 합계, 종료 이벤트/정산 중복 처리, 종결 경기 재시작 거절이다. 운영 DB·외부 인증·실제 회원 자산을 사용하지 않는 전용 환경만 대상으로 한다.
