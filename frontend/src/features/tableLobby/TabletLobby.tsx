@@ -1,4 +1,5 @@
 import {residentsEnabled,useAiFeatures} from '../ai/serviceFeatures'
+import ontopLogo from '../../assets/entry/ontop-logo.webp'
 import { Fragment, lazy, Suspense, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useSession } from '../../network/worldClient'
@@ -28,18 +29,19 @@ const ResidentSeatInvite=lazy(()=>import('../../ai-park/ResidentSeatInvite').the
 const descriptions: Record<TableGameCode, string> = {
   STONE_RUMBLE: '세 층의 돌탑에서 비둘기로 밀어내고 끝까지 버텨요',
   ALKKAGI: '알을 튕기고 비책으로 승부하는 2인 경기',
+  RUMMIKUB: '숫자 타일을 이어 손패를 모두 비워요',
   OMOK: '다섯 돌을 이어 만드는 한 수', DICE: '주사위를 굴려 목표 점수에 도전해요',
   ONE_CARD: '손에 든 카드를 모두 내려놓으면 승리!', LIAR_BRIDGE: '믿거나 의심하거나, 다리를 건너요',
   DICE_LEDGER: '세 번 굴려 장부 열두 칸을 채워요',
   HALLI_GALLI: '같은 과일이 다섯 개면 누구보다 빨리 종!',
   DAVINCI_CODE: '검정·흰색 타일에 숨은 숫자를 추리해요',
 }
-const choiceOrder: TableGameCode[] = ['OMOK', 'ONE_CARD', 'DAVINCI_CODE', 'DICE_LEDGER', 'DICE', 'LIAR_BRIDGE', 'ALKKAGI', 'HALLI_GALLI']
+const choiceOrder: TableGameCode[] = ['OMOK', 'RUMMIKUB', 'DAVINCI_CODE', 'ONE_CARD', 'DICE_LEDGER', 'DICE', 'LIAR_BRIDGE', 'ALKKAGI', 'HALLI_GALLI']
 const gameChoices = choiceOrder.map(code => TABLE_GAMES.find(game => game.code === code)).filter(game => game != null)
 const availableGameChoices = gameChoices.filter(game => game.playable)
 const constructionGameChoices = gameChoices.filter(game => !game.playable)
 export function GameArt({ code }: { code: TableGameCode }) {
-  const thumbnail = code === 'DAVINCI_CODE' ? davinciThumbnail : code === 'STONE_RUMBLE' ? '/art/stone-rumble/cover-v3.webp' : code === 'ALKKAGI' ? alkkagiThumbnail : code === 'HALLI_GALLI' ? fruitDdaengThumbnail : code === 'DICE_LEDGER' ? ledgerThumbnail : undefined
+  const thumbnail = code === 'RUMMIKUB' ? ontopLogo : code === 'DAVINCI_CODE' ? davinciThumbnail : code === 'STONE_RUMBLE' ? '/art/stone-rumble/cover-v3.webp' : code === 'ALKKAGI' ? alkkagiThumbnail : code === 'HALLI_GALLI' ? fruitDdaengThumbnail : code === 'DICE_LEDGER' ? ledgerThumbnail : undefined
   return <div className="tablet-game-art" data-game={code} style={thumbnail ? { backgroundImage: `url(${thumbnail})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined} role="img" aria-label={TABLE_GAMES.find(g => g.code === code)?.name} />
 }
 function StoneLobbyCover({ children }: { children: ReactNode }) {
