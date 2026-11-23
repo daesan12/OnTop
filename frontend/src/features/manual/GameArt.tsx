@@ -1,5 +1,5 @@
 import type { ManualGameId } from "./types";
-import chessThumbnail from '../../game/chess/assets/thumbnail.png';
+import chessThumbnail from '../../game/chess/assets/thumbnail.webp';
 import alkkagiThumbnail from "../../game/alkkagi/assets/thumbnail.webp";
 import fruitDdaengThumbnail from "../../game/halligalli/assets/thumbnail.webp";
 import ledgerThumbnail from "../../game/ledger/assets/thumbnail.webp";
