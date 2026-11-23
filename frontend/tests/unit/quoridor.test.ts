@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { parseGame, gamePlayers, gameState, type QuoridorGame } from '../../src/game/protocol'
+import { parseGame, gamePlayers, gameState, type QuoridorGame, type Result, type StartState } from '../../src/game/protocol'
 import { parseQuoridor, type Quoridor } from '../../src/game/quoridor/protocol'
 import { canStartForfeit } from '../../src/game/forfeit'
 import { gatheringModel } from '../../src/features/tableLobby/gatheringModel'
@@ -54,6 +54,30 @@ it('도착 승리 결과를 공통 테이블 결과에 표시한다', () => {
     ownId: '101', game, result: null, start: null, nickname: id => id === '101' ? '하나' : '둘' })
   expect(model.headline).toBe('하나 승리')
   expect(model.reason).toBe('맞은편 끝줄에 도착했습니다.')
+})
+
+it.each([2, 4])('%i인 기권 종료는 정산과 서버 대기실 확인 후에만 다음 판을 연다', count => {
+  const board = initial(count), winner = board.players.at(-1)!.userId
+  Object.assign(board, { status: 'FINISHED', version: 2, turnUserId: null, legalMoves: [],
+    winnerUserIds: [winner], endReason: 'LAST_PLAYER_STANDING', endedAt: '2026-11-23T00:00:00Z' })
+  board.players = board.players.map(player => ({ ...player, active: player.userId === winner }))
+  const game = parseGame(payload(board), winner)
+  const result: Result = { gameSessionId: 'q', gameCode: 'QUORIDOR', version: 1, status: 'FINISHED',
+    endReason: 'LAST_PLAYER_STANDING', settlementStatus: 'PENDING', betAmountPerPlayer: 7, myCoinDelta: null,
+    endedAt: board.endedAt!, participants: board.players.map(player => ({ userId: player.userId,
+      result: player.userId === winner ? 'WIN' : 'FORFEIT' })) }
+  const state = { table: { tableId: 't', seats: [], gameCode: 'QUORIDOR' } as never,
+    ownId: winner, game, result, start: { tableId: 't', phase: 'SETTLING', simulation: false } as StartState,
+    nickname: (id: string) => id }
+  expect(gatheringModel(state)).toMatchObject({ finished: true, canReturn: false, settled: false,
+    settlement: '정산 대기 중' })
+  const paid = { ...result, version: 2, settlementStatus: 'SETTLED' as const, myCoinDelta: count === 2 ? 7 : 21 }
+  expect(gatheringModel({ ...state, result: paid }).canReturn).toBe(false)
+  expect(gatheringModel({ ...state, start: { ...state.start, phase: 'WAITING' } }).canReturn).toBe(false)
+  const returned = gatheringModel({ ...state, result: paid, start: { ...state.start, phase: 'WAITING' } })
+  expect(returned).toMatchObject({ canReturn: true, settled: true,
+    settlement: count === 2 ? '내 엽전 +7냥' : '내 엽전 +21냥' })
+  expect(returned.rows.filter(row => row.label === '기권')).toHaveLength(count - 1)
 })
 
 it('승인된 공통 기권 연출과 탁자·엽전 잔해를 읽는다', () => {
