@@ -24,9 +24,10 @@
 - BE 15개 클래스 130개, 실패/스킵 0개. Java InteriorAccessTests 4개는 돌문 양옆 보행 중 낙하·강제 위치 복구 없음과 기존 출입/출구 잠금·해제 조건을 검증한다. 큰 일일 누계에서 전액 지급, 재시도, 자정 집계, 순위 보상 회귀를 검증했다.
 - OpenAPI local export 22개 통과, 정적 API 명세 갱신. FE 소스 TypeScript 검사와 리뉴얼 활성화 park-integration Vite 빌드 통과.
 - Chrome 1440x900 및 390x844: 실제 공원에서 돌문 양옆 이동 보고와 출입 버튼 표시, 누계 100,024냥/추가 24냥의 무제한 결과 표시, 마지막 버튼 접근을 확인했다. 오류 오버레이와 pageerror 없음. 인증·REST·WS는 fixture이며 실제 Java 물리는 위 테스트로 별도 확인했다. Browser 플러그인 부재로 기존 Playwright를 사용했다.
-- 전체 테스트 TypeScript 검사는 기존 tableGathering.test.ts의 RUMMIKUB fixture 필드 3개 누락 오류로 실패한다. 해당 파일은 수정하지 않았다.
+- MR 피드백 후 tableGathering.test.ts의 RUMMIKUB 종료 fixture에 firstUserId·openingDraws·finalTurnUserIds를 보완하고 명시적인 Rummikub 타입을 적용했다. 턴 제한도 현재 계약의 60초로 맞췄다. 전체 테스트 TypeScript 검사와 소스 TypeScript 검사 통과, tableGathering/rummikub 기존 테스트 2개 파일 27개 통과. 제품 코드·맵·인프라 설정 변경은 없다.
+- 최신 dev의 Jenkinsfile은 pnpm run test(vitest run)와 pnpm run build(소스 tsconfig의 tsc --noEmit)를 실행하며 typecheck:tests는 직접 호출하지 않는다. 따라서 이 fixture 누락이 현재 정의된 Jenkins 단계를 막는 원인은 아니지만, 테스트 타입 검사를 별도로 실행할 때의 오류를 제거했다.
 - MySQL 전용 테스트의 새 지급 기대값은 갱신/컴파일했으나 전용 DB 환경 변수가 없어 실제 DB 테스트는 실행하지 않았다. 운영 인증·운영 DB·VR 헤드셋은 미검증이다. 브라우저와 서버 리스너 잔여 0개를 확인했다.
 
 ## 원격 반영
 
-기능별 커밋 후 작업 브랜치에 푸시한다. MR 생성·dev/master 머지·배포는 이번 요청에 포함되지 않는다. FE/BE에는 동일 mapVersion의 산출물을 함께 반영해야 하며 CI/CD·서버·네트워크 설정은 직접 수정하지 않는다.
+기능별 커밋을 작업 브랜치에 푸시했고, 사용자 요청으로 dev 대상 MR !690을 생성했다. 피드백 보완도 같은 MR의 별도 테스트 커밋으로 반영한다. dev/master 머지·배포와 브랜치 삭제는 진행하지 않는다. FE/BE에는 동일 mapVersion의 산출물을 함께 반영해야 하며 CI/CD·서버·네트워크 설정은 직접 수정하지 않는다.
