@@ -17,6 +17,7 @@ const gameThumbnails: Partial<Record<ManualGameId, string>> = {
   rummikub: ontopLogo,
   davinci: davinciThumbnail,
   alkkagi: alkkagiThumbnail,
+  quoridor: "/art/quoridor/cover-park-v2.webp",
   gomoku: "/art/tablet/omok.webp",
   farkle: "/art/tablet/dice-v2.webp",
   onecard: "/art/tablet/onecard-v2.webp",

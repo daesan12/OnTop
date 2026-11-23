@@ -70,7 +70,8 @@ public class GameFinishedResultListener {
     @EventListener
     public void finished(GameFinished event) {
         // 전용 알림이 없는 게임은 공통 종료 알림으로 로비·결과를 연결한다.
-        if (!java.util.Set.of("ALKKAGI", "STONE_RUMBLE", "DAVINCI_CODE", "RUMMIKUB").contains(event.gameCode())) { return; }
+        if (!java.util.Set.of("ALKKAGI", "STONE_RUMBLE", "DAVINCI_CODE", "RUMMIKUB", "QUORIDOR")
+                .contains(event.gameCode())) { return; }
         tables.ifPresent(hub -> hub.roundEnded(event.tableId(), event.gameId()));
         results.finished(event.gameId(), event.participants().stream().map(GameFinished.Participant::userId).toList());
     }

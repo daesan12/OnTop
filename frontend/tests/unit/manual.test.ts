@@ -31,7 +31,7 @@ describe('M15 input ownership and stale transitions',()=>{
   });
 });
 it('searches details across supported game/category boundaries without inventing later games',()=>{
-  expect(gameManuals.map(g=>g.id)).toEqual(['davinci','alkkagi','gomoku','farkle','onecard','bridge','rummikub','ledger','halligalli','fish-bread','rps-roulette','plus-minus','whack-a-mole','speed-mole','jump-rope']);
+  expect(gameManuals.map(g=>g.id)).toEqual(['davinci','alkkagi','quoridor','gomoku','farkle','onecard','bridge','rummikub','ledger','halligalli','fish-bread','rps-roulette','plus-minus','whack-a-mole','speed-mole','jump-rope']);
   expect(filterManuals('game','흑백수사').map(g=>g.id)).toEqual(['davinci']);
   expect(filterManuals('minigame','도전 배수').map(g=>g.id)).toEqual(['rps-roulette']);
   expect(filterManuals('game','알까기').map(g=>g.id)).toEqual(['alkkagi']);
@@ -43,7 +43,7 @@ it('searches details across supported game/category boundaries without inventing
 it('lists board games before minigames, each under its own heading',()=>{
   const groups=groupManuals(filterManuals('all',''));
   expect(groups.map(g=>g.label)).toEqual(['보드게임','미니게임']);
-  expect(groups[0]!.games.map(g=>g.id)).toEqual(['davinci','alkkagi','gomoku','farkle','onecard','bridge','rummikub','ledger','halligalli']);
+  expect(groups[0]!.games.map(g=>g.id)).toEqual(['davinci','alkkagi','quoridor','gomoku','farkle','onecard','bridge','rummikub','ledger','halligalli']);
   expect(groups[1]!.games.map(g=>g.id)).toEqual(['fish-bread','rps-roulette','plus-minus','whack-a-mole','speed-mole','jump-rope']);
   expect(groupManuals(filterManuals('minigame','')).map(g=>g.label)).toEqual(['미니게임']);
   expect(groupManuals([])).toEqual([]);

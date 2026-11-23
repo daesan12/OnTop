@@ -6,6 +6,7 @@ import { parseBridge, parseSecret, type Bridge, type SecretDie } from './bridge/
 import { parseLedger, type DiceLedger } from './ledger/protocol'
 import { parseRummikub, parseRummikubHand, type Rummikub, type RummikubHand } from './rummikub/protocol'
 import { parseHalliGalli, type HalliGalli } from './halligalli/protocol'
+import { parseQuoridor, type Quoridor } from './quoridor/protocol'
 import { parseDavinci, parseDavinciHand, type DavinciState, type DavinciHand } from './davinci/protocol'
 
 export type Recovery =
@@ -59,21 +60,22 @@ interface GameHeader {
   version: number
   role: 'PLAYER' | 'SPECTATOR'
 }
-export interface OmokGame extends GameHeader { rummikub?: never; rummikubHand?: never; stone?: never; ledger?: never; alkkagi?: never; alkkagiHand?: never; omok: Omok; dice?: never; onecard?: never; hand?: never; bridge?: never; secret?: never; halli?: never }
-export interface DiceGame extends GameHeader { rummikub?: never; rummikubHand?: never; stone?: never; ledger?: never; alkkagi?: never; alkkagiHand?: never; dice: Farkle; omok?: never; onecard?: never; hand?: never; bridge?: never; secret?: never; halli?: never }
-export interface OneCardGame extends GameHeader { rummikub?: never; rummikubHand?: never; stone?: never; ledger?: never; alkkagi?: never; alkkagiHand?: never; onecard: OneCard; hand: Hand | null; omok?: never; dice?: never; bridge?: never; secret?: never; halli?: never }
-export interface BridgeGame extends GameHeader { rummikub?: never; rummikubHand?: never; stone?: never; ledger?: never; alkkagi?: never; alkkagiHand?: never; bridge: Bridge; secret: SecretDie | null; omok?: never; dice?: never; onecard?: never; hand?: never; halli?: never }
-export interface AlkkagiGame extends GameHeader { rummikub?: never; rummikubHand?: never; stone?: never; ledger?: never; alkkagi: Alkkagi; alkkagiHand: AlkkagiHand | null; omok?: never; dice?: never; onecard?: never; hand?: never; bridge?: never; secret?: never; halli?: never }
-export interface LedgerGame extends GameHeader { rummikub?: never; rummikubHand?: never; stone?: never; alkkagi?: never; alkkagiHand?: never; ledger: DiceLedger; omok?: never; dice?: never; onecard?: never; hand?: never; bridge?: never; secret?: never; halli?: never }
-export interface HalliGame extends GameHeader { rummikub?: never; rummikubHand?: never; stone?: never; ledger?: never; alkkagi?: never; alkkagiHand?: never; halli: HalliGalli; omok?: never; dice?: never; onecard?: never; hand?: never; bridge?: never; secret?: never }
-export interface StoneGame extends GameHeader { rummikub?: never; rummikubHand?: never; stone: StoneState; ledger?: never; alkkagi?: never; alkkagiHand?: never; omok?: never; dice?: never; onecard?: never; hand?: never; bridge?: never; secret?: never; halli?: never }
-export interface RummikubGame extends GameHeader { rummikub: Rummikub; rummikubHand: RummikubHand | null; stone?: never; ledger?: never; alkkagi?: never; alkkagiHand?: never; omok?: never; dice?: never; onecard?: never; hand?: never; bridge?: never; secret?: never; halli?: never }
+export interface OmokGame extends GameHeader { quoridor?: never; rummikub?: never; rummikubHand?: never; stone?: never; ledger?: never; alkkagi?: never; alkkagiHand?: never; omok: Omok; dice?: never; onecard?: never; hand?: never; bridge?: never; secret?: never; halli?: never }
+export interface DiceGame extends GameHeader { quoridor?: never; rummikub?: never; rummikubHand?: never; stone?: never; ledger?: never; alkkagi?: never; alkkagiHand?: never; dice: Farkle; omok?: never; onecard?: never; hand?: never; bridge?: never; secret?: never; halli?: never }
+export interface OneCardGame extends GameHeader { quoridor?: never; rummikub?: never; rummikubHand?: never; stone?: never; ledger?: never; alkkagi?: never; alkkagiHand?: never; onecard: OneCard; hand: Hand | null; omok?: never; dice?: never; bridge?: never; secret?: never; halli?: never }
+export interface BridgeGame extends GameHeader { quoridor?: never; rummikub?: never; rummikubHand?: never; stone?: never; ledger?: never; alkkagi?: never; alkkagiHand?: never; bridge: Bridge; secret: SecretDie | null; omok?: never; dice?: never; onecard?: never; hand?: never; halli?: never }
+export interface AlkkagiGame extends GameHeader { quoridor?: never; rummikub?: never; rummikubHand?: never; stone?: never; ledger?: never; alkkagi: Alkkagi; alkkagiHand: AlkkagiHand | null; omok?: never; dice?: never; onecard?: never; hand?: never; bridge?: never; secret?: never; halli?: never }
+export interface LedgerGame extends GameHeader { quoridor?: never; rummikub?: never; rummikubHand?: never; stone?: never; alkkagi?: never; alkkagiHand?: never; ledger: DiceLedger; omok?: never; dice?: never; onecard?: never; hand?: never; bridge?: never; secret?: never; halli?: never }
+export interface HalliGame extends GameHeader { quoridor?: never; rummikub?: never; rummikubHand?: never; stone?: never; ledger?: never; alkkagi?: never; alkkagiHand?: never; halli: HalliGalli; omok?: never; dice?: never; onecard?: never; hand?: never; bridge?: never; secret?: never }
+export interface StoneGame extends GameHeader { quoridor?: never; rummikub?: never; rummikubHand?: never; stone: StoneState; ledger?: never; alkkagi?: never; alkkagiHand?: never; omok?: never; dice?: never; onecard?: never; hand?: never; bridge?: never; secret?: never; halli?: never }
+export interface RummikubGame extends GameHeader { quoridor?: never; rummikub: Rummikub; rummikubHand: RummikubHand | null; stone?: never; ledger?: never; alkkagi?: never; alkkagiHand?: never; omok?: never; dice?: never; onecard?: never; hand?: never; bridge?: never; secret?: never; halli?: never }
 export interface DavinciGame extends Omit<GameHeader, 'davinci' | 'davinciHand'> {
   davinci: DavinciState; davinciHand: DavinciHand | null
-  rummikub?: never; rummikubHand?: never; stone?: never; ledger?: never; alkkagi?: never; alkkagiHand?: never; omok?: never; dice?: never
+  quoridor?: never; rummikub?: never; rummikubHand?: never; stone?: never; ledger?: never; alkkagi?: never; alkkagiHand?: never; omok?: never; dice?: never
   onecard?: never; hand?: never; bridge?: never; secret?: never; halli?: never
 }
-export type Game = DavinciGame | RummikubGame | StoneGame | OmokGame | DiceGame | OneCardGame | BridgeGame | AlkkagiGame | LedgerGame | HalliGame
+export interface QuoridorGame extends GameHeader { rummikub?: never; rummikubHand?: never; quoridor: Quoridor; stone?: never; ledger?: never; alkkagi?: never; alkkagiHand?: never; omok?: never; dice?: never; onecard?: never; hand?: never; bridge?: never; secret?: never; halli?: never }
+export type Game = QuoridorGame | DavinciGame | RummikubGame | StoneGame | OmokGame | DiceGame | OneCardGame | BridgeGame | AlkkagiGame | LedgerGame | HalliGame
 export interface Farkle {
   gameCode: 'DICE'; status: 'PLAYING' | 'FINISHED'; players: string[]; scores: number[]
   targetScore: number; turnTimeLimitMs: 30000; turnUserId: string | null; turnDeadline: string | null
@@ -84,8 +86,8 @@ export interface Farkle {
   winnerUserId: string | null; endReason: string | null; endedAt: string | null
   lastRoll?: { rollId: number; actorUserId: string; dice: Farkle['dice'] } | null
 }
-export const gameState = (g: Game) => g.davinci ?? g.omok ?? g.dice ?? g.onecard ?? g.bridge ?? g.rummikub ?? g.ledger ?? g.alkkagi ?? g.halli ?? g.stone
-export const gamePlayers = (g: Game) => g.omok ? [g.omok.blackUserId, g.omok.whiteUserId] : g.dice ? g.dice.players : g.alkkagi ? g.alkkagi.players : (g.davinci ?? g.rummikub ?? g.onecard ?? g.bridge ?? g.ledger ?? g.halli ?? g.stone).players.map(p => p.userId)
+export const gameState = (g: Game) => g.davinci ?? g.omok ?? g.dice ?? g.rummikub ?? g.onecard ?? g.bridge ?? g.ledger ?? g.alkkagi ?? g.halli ?? g.quoridor ?? g.stone
+export const gamePlayers = (g: Game) => g.omok ? [g.omok.blackUserId, g.omok.whiteUserId] : g.dice ? g.dice.players : g.alkkagi ? g.alkkagi.players : (g.davinci ?? g.rummikub ?? g.onecard ?? g.bridge ?? g.ledger ?? g.halli ?? g.quoridor ?? g.stone).players.map(p => p.userId)
 export interface Result {
   version: number
   gameSessionId: string
@@ -293,6 +295,11 @@ export function parseGame(p: Record<string, unknown>, ownId = ''): Game {
     return { ...common, alkkagi, alkkagiHand: parseAlkkagiHand(p.privateState, alkkagi, ownId, common.role) }
   }
   if (record(p.publicState) && p.publicState.gameCode === 'DICE_LEDGER') return { ...common, ledger: parseLedger(p.publicState) }
+  if (record(p.publicState) && p.publicState.gameCode === 'QUORIDOR') {
+    const quoridor = parseQuoridor(p.publicState)
+    if (quoridor.version !== common.version) throw new Error('길목 한 수 버전이 일치하지 않습니다.')
+    return { ...common, quoridor }
+  }
   if (record(p.publicState) && p.publicState.gameCode === 'HALLI_GALLI') return { ...common, halli: parseHalliGalli(p.publicState) }
   if (record(p.publicState) && p.publicState.gameCode === 'LIAR_BRIDGE') {
     const bridge = parseBridge(p.publicState)
@@ -311,7 +318,7 @@ export function parseResult(p: Record<string, unknown>, ownId: string): Result {
   if (
     !id(p.gameSessionId) ||
     !integer(p.version) ||
-    !['OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE', 'DICE_LEDGER', 'ALKKAGI', 'HALLI_GALLI', 'STONE_RUMBLE', 'RUMMIKUB', 'DAVINCI_CODE'].includes(String(p.gameCode)) ||
+    !['OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE', 'DICE_LEDGER', 'ALKKAGI', 'HALLI_GALLI', 'QUORIDOR', 'RUMMIKUB', 'DAVINCI_CODE', 'STONE_RUMBLE'].includes(String(p.gameCode)) ||
     !['FINISHED', 'INVALID'].includes(String(p.status)) ||
     typeof p.endReason !== 'string' || !/^[A-Z][A-Z0-9_]{0,31}$/.test(p.endReason) ||
     !['PENDING', 'SETTLED'].includes(String(p.settlementStatus)) ||
