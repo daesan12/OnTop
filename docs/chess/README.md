@@ -413,3 +413,12 @@ Windows 클래스패스 길이 제한을 피하려면 Java 인수 파일을 사�
 - Browser plugin not available: Playwright와 별도 Chrome 프로필로 FE 5338/BE 19208의 최신 실제 공원/엔진/WS를 검증했다. 1440×1000·390×844에서 선택/준비/설명서의 새 이미지와 체스 화면, e2e4/e7e5, 양쪽 새로고침 복구, 기권/결과/퇴장, 퇴장 후 양쪽 이동을 확인했다. 양쪽 `cameraReady=false`, `pending=false`, `uncertain=false`, `permittedGameId=''`를 확인했고 페이지 예외/프레임워크 오류 및 기존 부가 API 503 외 콘솔 오류는 0개였다. 복구 시 체스 효과음은 재생하지 않았다.
 - 검수 브라우저는 `finally`에서 즉시 닫고 해당 프로필 Chrome 프로세스 0개를 확인했다. 이번 QA 전용 FE도 종료했으며 기존 체스 BE는 최신 코드로 유지했다. 테스트 인증·지갑·정산은 메모리 대역이며, 이번 브라우저 판돈은 0냥이다. 실제 MySQL 8.4 migration/유상 지갑 트랜잭션은 여전히 미검증이며 이전 담당자 요청의 DB 환경 제공이 필요하다. 독립 유상 정산 검증 결과와 구분한다.
 - 원격 브랜치 323개에서 V187은 기존 `origin/feat/chess`의 체스 파일 하나만 확인했다. 새 migration이나 번호 변경은 없으며 기존 V187을 유지한다. 팀 외부 예약/실제 DB 적용 현황은 별도 확인이 필요하다. GitLab의 열린 MR에서 chess 검색 결과는 0개였으며 MR은 dev 대상으로만 생성하고 머지/브랜치 삭제는 하지 않는다.
+
+### 2026-11-24 MR !686 피드백 확인
+
+- 작업 시작 시 최신 원격 dev `4a7fce04`가 이미 포함되어 있음을 확인했다. 추가 통합/충돌이나 맵·인프라 파일 변경은 없으며 V187도 유지한다.
+- `TableHub.fail()`은 에러 프레임만 보내는 메서드가 아니라 `RequestException`을 던진다. 따라서 체스 좌표 거절 후 제어가 계속된다는 의견은 현재 코드에 해당하지 않아 불필요한 `return`을 추가하지 않았다. `ChessSpectatorFlowTests`의 실제 JWT/테이블/엔진/소켓에서 (8,0)/(0,8)/(14,14)의 오류 응답과 양쪽 참가자·관전자 방송 0건, 직후 (7,7)의 정상 전달을 확인했다. 거절된 핑은 빈도 제한도 소비하지 않으며 판/버전은 유지된다. DB/지갑은 메모리 대역이다.
+- 수정 전 `GameEngineProfileTests`의 기본 local 격리와 `OpenApiLocalTests`의 정적 명세 구조 비교가 실패하는 것을 재현했다(23개 중 2개 실패). 앞선 MR 검증에는 이 두 CI 검사가 누락되어 있었다.
+- `ChessConfiguration`의 `matchIfMissing=true`를 제거해 명시적 true에서만 엔진/라우터/타이머를 등록한다. `ChessConfigurationTests`에서 미설정/true/false를 확인하고 겨울·들기 테스트의 체스 비활성화 우회 설정은 제거했다. 공원 검수 진입점은 기존 true 실행 인자를 유지한다. 배포 활성화는 V187/정산 검증 후 담당자가 `ontop.games.chess.enabled=true` 또는 `ONTOP_GAMES_CHESS_ENABLED=true`를 명시하도록 채팅에 인프라 요청문을 남겼다. 배포 설정은 직접 수정하지 않았다.
+- `exportOpenApi`를 실행해 실제 스키마로 정적 명세를 생성했다. `docs/api/openapi.yaml` 변경은 전적 조회 enum의 CHESS 한 줄뿐이다. 생성 태스크 통과 후 일반 `test` 경로에서 다시 구조 비교를 통과했다.
+- 최종 BE 프로필/API·체스/다빈치/루미큐브/길목 한 수·공통 시작/종료/정산·기권/복구/관전·겨울/들기·전적 요청 71개 suite 468개 테스트가 실패/오류/skip 없이 통과했다. `git diff --check`도 통과했다. FE/화면·DB/인프라 변경은 없고 이번에 게임 브라우저나 검수 서버를 새로 실행하지 않았다. 실제 MySQL/배포/Jenkins 성공을 대신하는 검증으로 해석하지 않는다. 기존 MR !686에 추가 반영하며 머지·브랜치 삭제는 보류한다.

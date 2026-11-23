@@ -6098,6 +6098,7 @@ paths:
         schema:
           type: string
           enum:
+          - CHESS
           - OMOK
           - DICE
           - ONE_CARD
