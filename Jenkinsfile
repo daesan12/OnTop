@@ -134,7 +134,7 @@ fi
 set -euo pipefail
 pnpm install --frozen-lockfile
 pnpm map:check
-VITE_ALKKAGI_ENABLED=true VITE_WARDROBE_OUTFITS=true VITE_SKEWER_COOP_ENABLED=true VITE_PARK_RENEWAL_ENABLED=true VITE_STONE_RUMBLE_ENABLED=true VITE_PARK_BINDINGS_URL=/park-bindings.generated.dev.json pnpm run build:park
+VITE_ALKKAGI_ENABLED=true VITE_WARDROBE_OUTFITS=true VITE_SKEWER_COOP_ENABLED=true VITE_PARK_RENEWAL_ENABLED=true VITE_STONE_RUMBLE_ENABLED=true VITE_DAVINCI_ENABLED=true VITE_PARK_BINDINGS_URL=/park-bindings.generated.dev.json pnpm run build:park
 '''
                 }
             }
@@ -151,7 +151,7 @@ pnpm map:check
 pnpm run test
 pnpm run build
 if [[ "$TEST_PARK_MAP" != 1 ]]; then
-  VITE_ALKKAGI_ENABLED=true VITE_WARDROBE_OUTFITS=true VITE_SKEWER_COOP_ENABLED=true VITE_PARK_RENEWAL_ENABLED=true VITE_STONE_RUMBLE_ENABLED=true VITE_PARK_BINDINGS_URL=/park-bindings.generated.dev.json pnpm run build:park
+  VITE_ALKKAGI_ENABLED=true VITE_WARDROBE_OUTFITS=true VITE_SKEWER_COOP_ENABLED=true VITE_PARK_RENEWAL_ENABLED=true VITE_STONE_RUMBLE_ENABLED=true VITE_DAVINCI_ENABLED=true VITE_PARK_BINDINGS_URL=/park-bindings.generated.dev.json pnpm run build:park
 fi
 '''
                 }
@@ -223,7 +223,7 @@ export VERCEL_ORG_ID VERCEL_PROJECT_ID
 }
 cd frontend
 # This is the production target of the separate ontop-frontend-dev project.
-vercel deploy --prod --yes --local-config vercel.dev.json --project "$VERCEL_PROJECT_ID" --build-env VITE_WARDROBE_OUTFITS=true --build-env VITE_SKEWER_COOP_ENABLED=true --build-env VITE_PARK_RENEWAL_ENABLED=true --build-env VITE_STONE_RUMBLE_ENABLED=true --build-env VITE_PARK_BINDINGS_URL=/park-bindings.generated.dev.json --token "$VERCEL_TOKEN" > vercel-deployment-url.txt
+vercel deploy --prod --yes --local-config vercel.dev.json --project "$VERCEL_PROJECT_ID" --build-env VITE_WARDROBE_OUTFITS=true --build-env VITE_SKEWER_COOP_ENABLED=true --build-env VITE_PARK_RENEWAL_ENABLED=true --build-env VITE_STONE_RUMBLE_ENABLED=true --build-env VITE_DAVINCI_ENABLED=true --build-env VITE_PARK_BINDINGS_URL=/park-bindings.generated.dev.json --token "$VERCEL_TOKEN" > vercel-deployment-url.txt
 cat vercel-deployment-url.txt
 '''
                 }
