@@ -457,3 +457,40 @@ dev 대비 수정하지 않았다. V184 흑백수사와 V185 수패마루 migrat
 GitLab 브라우저에서 기존 MR의 충돌 차단과 필수 승인 없음·MR 파이프라인 없음 상태를 확인했다.
 해결 커밋을 푸시한 뒤 충돌 해제와 정확한 HEAD를 확인하고 MR을 머지하며, 해당 Jenkins 결과가 확인되기 전에는
 작업 브랜치를 삭제하지 않는다. 실제 원격 머지·빌드 결과는 완료 보고로 남긴다.
+
+## 2026-11-23 기권 복귀·실제 DB 엽전 정산 검증
+
+MR !676이 병합된 최신 `origin/dev`의 `549e0c2a21b6824a86fe99fa25b1468de7006704`를 기준으로
+`fix/supae-forfeit-settlement`에서 검증했다. 갇힘이나 중복 정산은 재현되지 않아 제품 코드는 바꾸지 않고
+다음 회귀 테스트를 추가했다. 맵·공통 입력/카메라·인프라·V185는 변경하지 않았다.
+
+- `MultiplayerForfeitFlowTests`에 수패마루 3/4인전을 추가했다. 기권자 즉시 LOBBY/좌석 해제,
+  중복 기권, 재접속·채널 이동·WORLD_MOVE, 남은 인원의 경기 지속, 최종 종료·개인 결과,
+  같은 테이블 재준비·새 경기 첫 액션을 확인했다. 기존 원카드·거짓말 다리 건너기 회귀도 유지한다.
+- `RummikubSettlementWalletFlowMySqlTests`는 격리된 MySQL 8.4와 실제 인증·WS·엔진·예약·정산·outbox·지갑을
+  사용한다. 2인 정상 빈손 승리/기권을 각 0/5냥, 3/4인 연속 기권을 각 5냥으로 총 6개 검증했다.
+  정상 승리에 필요한 섞기만 고정하고 지갑·정산은 대역으로 바꾸지 않았다.
+- 초기 100냥·참가비 5냥 기준 2인 승자/패자는 105/95냥, 3인은 110/95/95냥,
+  4인은 115/95/95/95냥이었다. 모든 최종 예약금은 0냥이고 총액은 보존됐다.
+  다인전 중도 기권자의 판돈은 남은 경기가 끝날 때 정산한다.
+  결과 재조회·중복 기권·outbox/알림 재처리에도 거래 수(각 4/6/8개)와 잔액은 증가하지 않았다.
+- 실제 DB 결과의 참가자 영수증 15건을 현재 FE의 `parseEnvelope`/`parseResult`와 지갑 갱신 처리에 넣어
+  정산 완료 시 HTTP 잔액 재조회, 같은 결과의 중복 갱신 방지, PENDING/타인 결과 무시를 확인했다.
+- Chrome의 두 별도 origin 계정으로 실제 공원 테이블에서 상대 차례 기권 → 공원 복귀·상대 승리 →
+  양쪽 재착석 → 기존 기권자가 방장인 새 경기 시작 → 자기 차례 기권 → 양쪽 공원 복귀를 확인했다.
+  이 화면 검증은 기존 0냥 메모리 fixture이며 실제 DB 금액 검증과 구분한다.
+  게임 탭 두 개와 FE 5544/BE 19464는 검증 직후 종료했고 포트 잔류도 없었다.
+
+BE 관련 테스트 50개와 MySQL 테스트 6개 모두 통과했다. MySQL 테스트는 `mysqlTest` 태스크로 실행한다.
+`TEST_RUMMIKUB_DB_URL`은 `jdbc:mysql://127.0.0.1:<port>/ontop_game_test_supae_<고유값>` 전용 DB만 허용하며,
+`TEST_GAME_DB_USERNAME`/`TEST_GAME_DB_PASSWORD`를 외부 환경으로 전달한다. 기존 데이터가 있는 DB는 사용하지 않는다.
+
+```powershell
+./gradlew.bat --offline test --tests 'com.ssafy.ontop.table.MultiplayerForfeitFlowTests' --tests 'com.ssafy.ontop.game.rummikub.*Tests'
+./gradlew.bat --offline mysqlTest --tests 'com.ssafy.ontop.table.RummikubSettlementWalletFlowMySqlTests'
+```
+
+실행 증거는 `backend/build/reports/rummikub-settlement-wallet-flow.json` 및 저장소 밖
+`OnTop/qa-supae-forfeit-20261123/`에 보관한다. 임시 MySQL 컨테이너는 성공 후 제거했다.
+새 DB의 전체 migration/V185 적용을 확인했으며 기존 운영 DB의 업그레이드·운영 OAuth·배포 환경 정산·
+서버 재시작 복원·VR은 이번 검증 범위가 아니다. 이번 요청으로 별도 MR을 생성하거나 머지하지 않는다.
