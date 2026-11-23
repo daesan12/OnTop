@@ -1,5 +1,5 @@
 import {residentsEnabled,useAiFeatures} from '../ai/serviceFeatures'
-import ontopLogo from '../../assets/entry/ontop-logo.webp'
+import rummikubThumbnail from '../../game/rummikub/assets/cover.webp'
 import { Fragment, lazy, Suspense, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useSession } from '../../network/worldClient'
@@ -41,8 +41,8 @@ const gameChoices = choiceOrder.map(code => TABLE_GAMES.find(game => game.code =
 const availableGameChoices = gameChoices.filter(game => game.playable)
 const constructionGameChoices = gameChoices.filter(game => !game.playable)
 export function GameArt({ code }: { code: TableGameCode }) {
-  const thumbnail = code === 'RUMMIKUB' ? ontopLogo : code === 'DAVINCI_CODE' ? davinciThumbnail : code === 'STONE_RUMBLE' ? '/art/stone-rumble/cover-v3.webp' : code === 'ALKKAGI' ? alkkagiThumbnail : code === 'HALLI_GALLI' ? fruitDdaengThumbnail : code === 'DICE_LEDGER' ? ledgerThumbnail : undefined
-  return <div className="tablet-game-art" data-game={code} style={thumbnail ? { backgroundImage: `url(${thumbnail})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined} role="img" aria-label={TABLE_GAMES.find(g => g.code === code)?.name} />
+  const thumbnail = code === 'RUMMIKUB' ? rummikubThumbnail : code === 'DAVINCI_CODE' ? davinciThumbnail : code === 'STONE_RUMBLE' ? '/art/stone-rumble/cover-v3.webp' : code === 'ALKKAGI' ? alkkagiThumbnail : code === 'HALLI_GALLI' ? fruitDdaengThumbnail : code === 'DICE_LEDGER' ? ledgerThumbnail : undefined
+  return <div className="tablet-game-art" data-game={code} style={thumbnail ? { backgroundImage: `url(${thumbnail})`, backgroundSize: code === 'RUMMIKUB' ? 'contain' : 'cover', backgroundPosition: 'center', ...(code === 'RUMMIKUB' ? { backgroundRepeat: 'no-repeat' } : {}) } : undefined} role="img" aria-label={TABLE_GAMES.find(g => g.code === code)?.name} />
 }
 function StoneLobbyCover({ children }: { children: ReactNode }) {
   return <div className="stone-lobby-cover">
