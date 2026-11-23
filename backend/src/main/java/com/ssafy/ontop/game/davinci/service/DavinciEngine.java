@@ -147,9 +147,11 @@ public final class DavinciEngine implements GameEngine {
             if (match.endedAt() != null) { throw new Rejected(Rejection.GAME_FINISHED); }
             if (!match.active(command.userId())) { throw new Rejected(Rejection.NOT_ACTIVE); }
             long before = match.version();
-            match.forfeit(command.userId(), clock.instant());
+            // 이탈 시각이 종료 시각보다 늦으면 공통 정산 검증이 거절하므로 같은 판정 시각을 사용한다.
+            Instant now = clock.instant();
+            match.forfeit(command.userId(), now);
             entry.lifecycle.left(match.gameId(), match.tableId(), DavinciMatch.GAME_CODE, match.version(), command.userId(),
-                    com.ssafy.ontop.game.result.GameDepartureReason.EXPLICIT_LEAVE, clock.instant(),
+                    com.ssafy.ontop.game.result.GameDepartureReason.EXPLICIT_LEAVE, now,
                     match.players().size(), notices);
             collect(entry, before, false, notices);
             result = entry.forfeits.accepted(command, match.version());
