@@ -6104,8 +6104,10 @@ paths:
           - LIAR_BRIDGE
           - DICE_LEDGER
           - HALLI_GALLI
-          - DAVINCI_CODE
           - ALKKAGI
+          - QUORIDOR
+          - RUMMIKUB
+          - DAVINCI_CODE
       responses:
         "200":
           description: 본인 경기 내역 (no-store)

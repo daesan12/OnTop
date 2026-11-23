@@ -10,6 +10,8 @@ import com.ssafy.ontop.game.halligalli.service.HalliGalliEngine;
 import com.ssafy.ontop.game.ledger.service.DiceLedgerEngine;
 import com.ssafy.ontop.game.omok.service.OmokEngine;
 import com.ssafy.ontop.game.onecard.service.OneCardEngine;
+import com.ssafy.ontop.game.quoridor.service.QuoridorEngine;
+import com.ssafy.ontop.game.rummikub.service.RummikubEngine;
 import com.ssafy.ontop.game.stonerumble.service.StoneRumbleEngine;
 import com.ssafy.ontop.operation.domain.ServiceOperationState;
 import com.ssafy.ontop.operation.service.ServiceOperationService;
@@ -40,6 +42,8 @@ public class CommittedGameStartService {
     private final AlkkagiEngine alkkagi;
     private StoneRumbleEngine stoneRumble;
     private ChessEngine chess;
+    private QuoridorEngine quoridor;
+    private RummikubEngine rummikub;
     private DavinciEngine davinci;
     private ServiceOperationService operations = ServiceOperationService.alwaysOpen();
 
@@ -117,6 +121,16 @@ public class CommittedGameStartService {
     }
 
     @Autowired(required = false)
+    void configureQuoridor(QuoridorEngine engine) {
+        this.quoridor = engine;
+    }
+
+    @Autowired(required = false)
+    void configureRummikub(RummikubEngine engine) {
+        this.rummikub = engine;
+    }
+
+    @Autowired(required = false)
     void configureDavinci(DavinciEngine engine) {
         this.davinci = engine;
     }
@@ -156,6 +170,8 @@ public class CommittedGameStartService {
                         && command.targetScore() != null;
                 case "DICE_LEDGER" -> ledger.isPresent();
                 case "HALLI_GALLI" -> halligalli.isPresent();
+                case "QUORIDOR" -> quoridor != null && (players.size() == 2 || players.size() == 4);
+                case "RUMMIKUB" -> rummikub != null && players.size() >= 2 && players.size() <= 4;
                 case "STONE_RUMBLE" -> stoneRumble != null && players.size() >= 2 && players.size() <= 8;
                 case "DAVINCI_CODE" -> davinci != null && players.size() >= 2 && players.size() <= 4;
                 default -> false;
@@ -185,6 +201,8 @@ public class CommittedGameStartService {
                         command.targetScore());
                 case "DICE_LEDGER" -> ledger.orElseThrow().create(result.gameSessionId(), command.tableId(), players);
                 case "HALLI_GALLI" -> halligalli.orElseThrow().create(result.gameSessionId(), command.tableId(), players);
+                case "QUORIDOR" -> quoridor.create(result.gameSessionId(), command.tableId(), players);
+                case "RUMMIKUB" -> rummikub.create(result.gameSessionId(), command.tableId(), players);
                 default -> throw new IllegalStateException("경기 실행 설정을 확인해주세요.");
             }
             activations.ifPresent(service -> service.started(command, result.gameSessionId()));

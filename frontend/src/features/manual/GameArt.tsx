@@ -1,5 +1,6 @@
 import type { ManualGameId } from "./types";
 import chessThumbnail from '../../game/chess/assets/thumbnail.webp';
+import ontopLogo from "../../assets/entry/ontop-logo.webp";
 import alkkagiThumbnail from "../../game/alkkagi/assets/thumbnail.webp";
 import fruitDdaengThumbnail from "../../game/halligalli/assets/thumbnail.webp";
 import ledgerThumbnail from "../../game/ledger/assets/thumbnail.webp";
@@ -15,8 +16,10 @@ import jumpThumbnail from "../jumpmap/assets/thumbnail.webp";
 /** 게임 고르기 화면(태블릿·오락기)과 같은 대표 그림. 태블릿 그림은 public/art/tablet에 있다. */
 const gameThumbnails: Partial<Record<ManualGameId, string>> = {
   chess: chessThumbnail,
+  rummikub: ontopLogo,
   davinci: davinciThumbnail,
   alkkagi: alkkagiThumbnail,
+  quoridor: "/art/quoridor/cover-park-v2.webp",
   gomoku: "/art/tablet/omok.webp",
   farkle: "/art/tablet/dice-v2.webp",
   onecard: "/art/tablet/onecard-v2.webp",

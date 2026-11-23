@@ -1,0 +1,42 @@
+{
+  "accounts": [
+    {
+      "role": "red",
+      "userId": "101",
+      "room": "channel-1",
+      "map": "verified",
+      "moved": true
+    },
+    {
+      "role": "green",
+      "userId": "202",
+      "room": "channel-1",
+      "map": "verified",
+      "moved": true
+    }
+  ],
+  "errors": [],
+  "timeout": {
+    "seconds": 60,
+    "penalty": 3,
+    "handCount": 17,
+    "poolCount": 75,
+    "draftReset": true,
+    "publicBoardUnchanged": true
+  },
+  "opening": {
+    "firstUserId": "101",
+    "draws": [
+      {
+        "userId": "101",
+        "color": "BLACK",
+        "number": 10
+      },
+      {
+        "userId": "202",
+        "color": "BLUE",
+        "number": 2
+      }
+    ]
+  }
+}

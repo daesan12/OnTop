@@ -1,0 +1,422 @@
+{
+  "worldClick": true,
+  "steps": [
+    {
+      "name": "01-initial-a",
+      "version": 1,
+      "counts": [
+        11,
+        14
+      ],
+      "melds": [
+        [
+          {
+            "id": "JOKER-0",
+            "color": "BLACK",
+            "number": 10
+          },
+          {
+            "id": "BLUE-10-0",
+            "color": "BLUE",
+            "number": 10
+          },
+          {
+            "id": "RED-10-0",
+            "color": "RED",
+            "number": 10
+          }
+        ]
+      ]
+    },
+    {
+      "name": "02-initial-b",
+      "version": 2,
+      "counts": [
+        11,
+        8
+      ],
+      "melds": [
+        [
+          {
+            "id": "JOKER-0",
+            "color": "BLACK",
+            "number": 10
+          },
+          {
+            "id": "BLUE-10-0",
+            "color": "BLUE",
+            "number": 10
+          },
+          {
+            "id": "RED-10-0",
+            "color": "RED",
+            "number": 10
+          }
+        ],
+        [
+          {
+            "id": "BLACK-8-0",
+            "color": "BLACK",
+            "number": 8
+          },
+          {
+            "id": "BLUE-8-0",
+            "color": "BLUE",
+            "number": 8
+          },
+          {
+            "id": "RED-8-0",
+            "color": "RED",
+            "number": 8
+          }
+        ],
+        [
+          {
+            "id": "YELLOW-11-0",
+            "color": "YELLOW",
+            "number": 11
+          },
+          {
+            "id": "YELLOW-12-0",
+            "color": "YELLOW",
+            "number": 12
+          },
+          {
+            "id": "YELLOW-13-0",
+            "color": "YELLOW",
+            "number": 13
+          }
+        ]
+      ]
+    },
+    {
+      "name": "03-rearrange",
+      "version": 3,
+      "counts": [
+        8,
+        8
+      ],
+      "melds": [
+        [
+          {
+            "id": "JOKER-0",
+            "color": "BLACK",
+            "number": 10
+          },
+          {
+            "id": "BLUE-10-0",
+            "color": "BLUE",
+            "number": 10
+          },
+          {
+            "id": "RED-10-0",
+            "color": "RED",
+            "number": 10
+          }
+        ],
+        [
+          {
+            "id": "BLACK-8-0",
+            "color": "BLACK",
+            "number": 8
+          },
+          {
+            "id": "BLUE-8-0",
+            "color": "BLUE",
+            "number": 8
+          },
+          {
+            "id": "YELLOW-8-0",
+            "color": "YELLOW",
+            "number": 8
+          }
+        ],
+        [
+          {
+            "id": "YELLOW-11-0",
+            "color": "YELLOW",
+            "number": 11
+          },
+          {
+            "id": "YELLOW-12-0",
+            "color": "YELLOW",
+            "number": 12
+          },
+          {
+            "id": "YELLOW-13-0",
+            "color": "YELLOW",
+            "number": 13
+          }
+        ],
+        [
+          {
+            "id": "RED-7-0",
+            "color": "RED",
+            "number": 7
+          },
+          {
+            "id": "RED-8-0",
+            "color": "RED",
+            "number": 8
+          },
+          {
+            "id": "RED-9-0",
+            "color": "RED",
+            "number": 9
+          }
+        ]
+      ]
+    },
+    {
+      "name": "04-extend",
+      "version": 5,
+      "counts": [
+        6,
+        9
+      ],
+      "melds": [
+        [
+          {
+            "id": "JOKER-0",
+            "color": "BLACK",
+            "number": 10
+          },
+          {
+            "id": "BLUE-10-0",
+            "color": "BLUE",
+            "number": 10
+          },
+          {
+            "id": "RED-10-0",
+            "color": "RED",
+            "number": 10
+          }
+        ],
+        [
+          {
+            "id": "BLACK-8-0",
+            "color": "BLACK",
+            "number": 8
+          },
+          {
+            "id": "BLUE-8-0",
+            "color": "BLUE",
+            "number": 8
+          },
+          {
+            "id": "YELLOW-8-0",
+            "color": "YELLOW",
+            "number": 8
+          }
+        ],
+        [
+          {
+            "id": "YELLOW-11-0",
+            "color": "YELLOW",
+            "number": 11
+          },
+          {
+            "id": "YELLOW-12-0",
+            "color": "YELLOW",
+            "number": 12
+          },
+          {
+            "id": "YELLOW-13-0",
+            "color": "YELLOW",
+            "number": 13
+          }
+        ],
+        [
+          {
+            "id": "RED-5-0",
+            "color": "RED",
+            "number": 5
+          },
+          {
+            "id": "RED-6-0",
+            "color": "RED",
+            "number": 6
+          },
+          {
+            "id": "RED-7-0",
+            "color": "RED",
+            "number": 7
+          },
+          {
+            "id": "RED-8-0",
+            "color": "RED",
+            "number": 8
+          },
+          {
+            "id": "RED-9-0",
+            "color": "RED",
+            "number": 9
+          }
+        ]
+      ]
+    }
+  ],
+  "final": {
+    "gameCode": "RUMMIKUB",
+    "status": "FINISHED",
+    "turnTimeLimitMs": 60000,
+    "turnUserId": null,
+    "turnId": 7,
+    "poolCount": 76,
+    "initialMeldPoints": 30,
+    "jokerPenalty": 30,
+    "lastEvent": "PLAY",
+    "turnDeadline": null,
+    "endReason": "EMPTY_HAND",
+    "endedAt": "2026-11-21T11:47:15.307169800Z",
+    "melds": [
+      [
+        {
+          "id": "BLACK-10-0",
+          "color": "BLACK",
+          "number": 10
+        },
+        {
+          "id": "BLUE-10-0",
+          "color": "BLUE",
+          "number": 10
+        },
+        {
+          "id": "RED-10-0",
+          "color": "RED",
+          "number": 10
+        }
+      ],
+      [
+        {
+          "id": "BLACK-8-0",
+          "color": "BLACK",
+          "number": 8
+        },
+        {
+          "id": "BLUE-8-0",
+          "color": "BLUE",
+          "number": 8
+        },
+        {
+          "id": "YELLOW-8-0",
+          "color": "YELLOW",
+          "number": 8
+        }
+      ],
+      [
+        {
+          "id": "YELLOW-11-0",
+          "color": "YELLOW",
+          "number": 11
+        },
+        {
+          "id": "YELLOW-12-0",
+          "color": "YELLOW",
+          "number": 12
+        },
+        {
+          "id": "YELLOW-13-0",
+          "color": "YELLOW",
+          "number": 13
+        }
+      ],
+      [
+        {
+          "id": "RED-5-0",
+          "color": "RED",
+          "number": 5
+        },
+        {
+          "id": "RED-6-0",
+          "color": "RED",
+          "number": 6
+        },
+        {
+          "id": "RED-7-0",
+          "color": "RED",
+          "number": 7
+        },
+        {
+          "id": "RED-8-0",
+          "color": "RED",
+          "number": 8
+        },
+        {
+          "id": "RED-9-0",
+          "color": "RED",
+          "number": 9
+        }
+      ],
+      [
+        {
+          "id": "YELLOW-4-0",
+          "color": "YELLOW",
+          "number": 4
+        },
+        {
+          "id": "JOKER-0",
+          "color": "YELLOW",
+          "number": 5
+        },
+        {
+          "id": "YELLOW-6-0",
+          "color": "YELLOW",
+          "number": 6
+        }
+      ],
+      [
+        {
+          "id": "BLUE-11-0",
+          "color": "BLUE",
+          "number": 11
+        },
+        {
+          "id": "BLUE-12-0",
+          "color": "BLUE",
+          "number": 12
+        },
+        {
+          "id": "BLUE-13-0",
+          "color": "BLUE",
+          "number": 13
+        }
+      ]
+    ],
+    "firstUserId": "101",
+    "openingDraws": [
+      {
+        "userId": "101",
+        "color": "RED",
+        "number": 13
+      },
+      {
+        "userId": "202",
+        "color": "BLACK",
+        "number": 1
+      }
+    ],
+    "finalTurnUserIds": [],
+    "winnerUserIds": [
+      "101"
+    ],
+    "players": [
+      {
+        "userId": "101",
+        "tileCount": 0,
+        "registered": true,
+        "forfeited": false,
+        "score": 80
+      },
+      {
+        "userId": "202",
+        "tileCount": 10,
+        "registered": true,
+        "forfeited": false,
+        "score": -80
+      }
+    ]
+  },
+  "errors": [],
+  "settlement": "local-memory-zero-coins"
+}

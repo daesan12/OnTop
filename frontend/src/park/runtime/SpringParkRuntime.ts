@@ -63,6 +63,9 @@ import { canActOneCard } from '../../game/onecard/actions'
 import type { OneCardInput } from '../../game/onecard/protocol'
 import { canActBridge } from '../../game/bridge/actions'
 import type { BridgeInput } from '../../game/bridge/protocol'
+import { RummikubPingEvents } from '../../game/rummikub/pings'
+import { canActRummikub } from '../../game/rummikub/actions'
+import type { RummikubInput } from '../../game/rummikub/protocol'
 import { canActLedger } from '../../game/ledger/actions'
 import type { LedgerInput, LedgerPingTarget } from '../../game/ledger/protocol'
 import { LedgerPingEvents } from '../../game/ledger/pings'
@@ -216,7 +219,7 @@ export class ParkRuntime implements ParkRuntimePort {
     hide: () => {
       resetAlkkagiSocial()
       this.omokEvents.reset()
-      this.ledgerPings.reset()
+      this.rummikubPings.reset(); this.ledgerPings.reset()
       this.oneCardPranks.reset()
       this.oneCardDefense.reset()
       if (this.gameWatchRequestId) this.obsoleteGameWatchRequests.add(this.gameWatchRequestId)
@@ -244,14 +247,21 @@ export class ParkRuntime implements ParkRuntimePort {
     if (game.role === 'SPECTATOR' && (!this.spectator.accepts(game.gameId) || g.watchedGameId !== game.gameId)) return null
     return { key: JSON.stringify([this.generation, s.sessionId, s.roomId, game.gameId, game.role,
       game.role === 'SPECTATOR' ? this.gameWatchRequestId : '']), gameId: game.gameId, version: game.version,
-      role: game.role, canSend: (game.role === 'PLAYER' || !s.tableId) && getAuthSession()?.status === 'AUTHENTICATED' }
+      role: game.role, ...(game.quoridor ? { pingBoardSize: 9 as const } : {}),
+      canSend: (game.role === 'PLAYER' || !s.tableId) && getAuthSession()?.status === 'AUTHENTICATED' }
   }
   private omokEvents = new OmokSpectatorEvents({
     displayName: userId => chatAuthorName(useSession.getState().profiles[userId]),
     scope: () => this.gameEventScope(),
     request: (type, payload, expected, onId) => this.socket.request(type, payload, expected, onId),
   })
-  // 주사위 장부 관전자 훈수. 채팅과 같은 경기 범위를 쓰고 장부 경기에서만 열린다.
+  // 관전 핑은 현재 경기 범위에서만 수신·전송한다.
+  private rummikubPings = new RummikubPingEvents({
+    scope: () => useGame.getState().game?.rummikub ? this.gameEventScope() : null,
+    request: (type, payload, expected) => this.socket.request(type, payload, expected),
+  })
+  pingRummikub = (meldIndex: number) => this.rummikubPings.send(meldIndex)
+  // 주사위 장부 관전자 훈수.
   private ledgerPings = new LedgerPingEvents({
     scope: () => useGame.getState().game?.ledger ? this.gameEventScope() : null,
     request: (type, payload, expected, onId) => this.socket.request(type, payload, expected, onId),
@@ -313,7 +323,7 @@ export class ParkRuntime implements ParkRuntimePort {
   private resetSpectator() {
     this.chessFinishWait.reset()
     this.omokEvents.reset()
-    this.ledgerPings.reset()
+    this.rummikubPings.reset(); this.ledgerPings.reset()
     this.oneCardPranks.reset()
     this.oneCardDefense.reset()
     this.spectatorIntent = null; this.spectator.reset(); this.gameWatchRequestId = ''
@@ -496,7 +506,7 @@ export class ParkRuntime implements ParkRuntimePort {
     const profileRequest = ((method === 'PATCH' || method === 'DELETE') && path === '/api/v1/users/me')
       || (method === 'GET' && /^\/api\/v1\/users\/nickname-availability\?nickname=[^&#]+$/.test(path))
     const historyRequest = method === 'GET' && (path === '/api/v1/users/me/game-stats'
-      || /^\/api\/v1\/users\/me\/games\?size=20(?:&cursor=[1-9]\d{0,18})?(?:&gameCode=(?:CHESS|OMOK|DICE|ONE_CARD|LIAR_BRIDGE|DICE_LEDGER|HALLI_GALLI|DAVINCI_CODE))?$/.test(path))
+      || /^\/api\/v1\/users\/me\/games\?size=20(?:&cursor=[1-9]\d{0,18})?(?:&gameCode=(?:CHESS|OMOK|DICE|ONE_CARD|LIAR_BRIDGE|DICE_LEDGER|HALLI_GALLI|QUORIDOR|RUMMIKUB|DAVINCI_CODE))?$/.test(path))
     const minigameRequest = /^\/api\/v1\/minigames\/sessions(?:\?rulesVersion=v[45]|\/\d+(?:\?(?:(?:includeSource|includeProgress)=true|deliveryKey=[A-Za-z0-9_-]{1,64})(?:&(?:(?:includeSource|includeProgress)=true|deliveryKey=[A-Za-z0-9_-]{1,64}))*|\/(?:complete|abandon|deliveries))?)?$/.test(path)
       || method === 'POST' && /^\/api\/v1\/minigames\/sessions\/\d+\/manual-pause$/.test(path)
     const rankingRequest = BUNGEOPPANG_RANKINGS_ENABLED && method === 'GET'
@@ -823,6 +833,7 @@ export class ParkRuntime implements ParkRuntimePort {
       acceptAlkkagiSocial(message, eligible ? g!.gameId : '', g?.version)
       return
     }
+    if (this.rummikubPings.accept(message)) return
     if (this.ledgerPings.accept(message)) return
     if (message.type === 'DAVINCI_SPECTATOR_PING') {
       const game = useGame.getState().game
@@ -893,7 +904,7 @@ export class ParkRuntime implements ParkRuntimePort {
       const alkkagi = useGame.getState().game?.alkkagi
       syncAlkkagiSocial(alkkagi?.gameId ?? '', alkkagi?.version ?? -1, alkkagi?.stage === 'AIMING')
       this.omokEvents.sync()
-      this.ledgerPings.sync()
+      this.rummikubPings.sync(); this.ledgerPings.sync()
       this.oneCardPranks.sync()
       this.oneCardDefense.sync()
     } catch (error) {
@@ -1516,7 +1527,7 @@ export class ParkRuntime implements ParkRuntimePort {
   setReady = (ready: boolean) =>
     this.action(async () => {
       const s = useSession.getState()
-      if (tableBusy() || !['CHESS', 'OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE', 'DICE_LEDGER', 'ALKKAGI', 'HALLI_GALLI', 'DAVINCI_CODE', 'STONE_RUMBLE'].includes(s.tableStates[s.tableId]?.gameCode ?? ''))
+      if (tableBusy() || !['CHESS', 'OMOK', 'DICE', 'ONE_CARD', 'LIAR_BRIDGE', 'DICE_LEDGER', 'ALKKAGI', 'HALLI_GALLI', 'QUORIDOR', 'RUMMIKUB', 'DAVINCI_CODE', 'STONE_RUMBLE'].includes(s.tableStates[s.tableId]?.gameCode ?? ''))
         throw new Error('플레이 가능한 게임을 선택한 대기 테이블에서 준비해주세요.')
       const table = s.tableStates[s.tableId]
       if (ready && !isTableGamePlayable(table.gameCode)) throw new Error(GAME_CONSTRUCTION_NOTICE)
@@ -1839,6 +1850,22 @@ export class ParkRuntime implements ParkRuntimePort {
     } catch { return false }
     finally { this.stoneControlRequests.delete(requestId) }
   }
+  actQuoridor = (input: import('../../game/quoridor/protocol').QuoridorInput) => this.action(async () => {
+    const own = useSession.getState(), s = useGame.getState(), g = s.game
+    if (own.status !== 'connected' || !g?.quoridor || g.role !== 'PLAYER' || g.gameId !== s.permittedGameId
+      || s.recovery !== 'RESTORED' || s.pending || s.uncertain || g.version < s.awaitingVersion
+      || g.quoridor.status !== 'PLAYING' || g.quoridor.turnUserId !== own.sessionId)
+      throw new Error('본인 차례와 최신 길목 한 수 상태를 확인해주세요.')
+    const generation = this.generation
+    useGame.setState({ pending: true, error: '' })
+    try {
+      await this.socket.request('GAME_ACTION_SEND', { gameId: g.gameId, actionId: crypto.randomUUID(), expectedVersion: g.version, input: { ...input } }, ['GAME_ACTION_RESULT'])
+    } catch (error) {
+      if (generation === this.generation && useGame.getState().permittedGameId === g.gameId)
+        useGame.setState({ uncertain: !(error instanceof ServerError), error: error instanceof Error ? error.message : '길목 한 수 처리 결과를 확인해주세요.' })
+      throw error
+    } finally { if (generation === this.generation) useGame.setState({ pending: false }) }
+  })
   actAlkkagi = (input: Record<string, unknown>) => this.action(async () => {
     const own = useSession.getState(), s = useGame.getState(), g = s.game
     if (own.status !== 'connected' || !g?.alkkagi || g.role !== 'PLAYER' || g.gameId !== s.permittedGameId
@@ -1867,6 +1894,23 @@ export class ParkRuntime implements ParkRuntimePort {
       if (generation === this.generation && useGame.getState().permittedGameId === g.gameId)
         useGame.setState({ uncertain: !(error instanceof ServerError && ['GAME_ACTION_INVALID_ACTION', 'GAME_ACTION_NOT_YOUR_TURN'].includes(error.code)),
           error: error instanceof Error ? error.message : '다리 경기 처리 결과를 확인해주세요.' })
+      throw error
+    } finally { if (generation === this.generation) useGame.setState({ pending: false }) }
+  })
+  actRummikub = (input: RummikubInput) => this.action(async () => {
+    const own = useSession.getState(), g = useGame.getState().game
+    if (own.status !== 'connected' || !g?.rummikub || !canActRummikub(own.sessionId, input))
+      throw new Error('본인 차례·최신 타일 상태를 확인해주세요.')
+    const generation = this.generation
+    useGame.setState({ pending: true, error: '' })
+    try {
+      await this.socket.request('GAME_ACTION_SEND', { gameId: g.gameId, actionId: crypto.randomUUID(), expectedVersion: g.version,
+        input },
+      ['GAME_ACTION_RESULT'])
+    } catch (error) {
+      if (generation === this.generation && useGame.getState().permittedGameId === g.gameId)
+        useGame.setState({ uncertain: !(error instanceof ServerError && ['GAME_ACTION_INVALID_ACTION', 'GAME_ACTION_NOT_YOUR_TURN'].includes(error.code)),
+          error: error instanceof Error ? error.message : '수패마루 처리 결과를 확인해주세요.' })
       throw error
     } finally { if (generation === this.generation) useGame.setState({ pending: false }) }
   })

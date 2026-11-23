@@ -16,6 +16,8 @@ const GAME_OPTIONS = [
   { code: 'ONE_CARD', name: '원카드', capacity: 4, playable: true },
   { code: 'LIAR_BRIDGE', name: '거짓말 다리 건너기', capacity: 4, playable: false },
   { code: 'DICE_LEDGER', name: '주사위 장부', capacity: 4, playable: true },
+  { code: 'QUORIDOR', name: '길목 한 수', capacity: 4, playable: true },
+  { code: 'RUMMIKUB', name: '수패마루', capacity: 4, playable: true },
   { code: 'HALLI_GALLI', name: '과일 땡', capacity: 4, playable: true },
   { code: 'DAVINCI_CODE', name: '흑백수사', capacity: 4, playable: import.meta.env.DEV || import.meta.env.VITE_DAVINCI_ENABLED === 'true' },
 ] as const

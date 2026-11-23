@@ -3,7 +3,7 @@ import { filterChat } from '../../features/chat/filterChat'
 import { integer, record, type Envelope } from '../../network/protocol'
 import { omokCoordinate } from '../omokPresentation'
 
-export interface EventScope { key: string; gameId: string; version: number; role: 'PLAYER' | 'SPECTATOR'; canSend: boolean }
+export interface EventScope { key: string; gameId: string; version: number; role: 'PLAYER' | 'SPECTATOR'; canSend: boolean; pingBoardSize?: 9 | 15 }
 interface BaseEvent { gameId: string; eventId: string; senderUserId: string; sentAt: number; expiresAt: number; serverNow: number; displayName?: string }
 export type ChatEvent = BaseEvent & { kind: 'chat'; text: string }
 export type PingEvent = BaseEvent & { kind: 'ping'; basedOnVersion: number; x: number; y: number }
@@ -77,7 +77,7 @@ export class OmokSpectatorEvents {
   sync() {
     const next = this.deps.scope()
     if (next?.key !== this.scope?.key) { this.reset(); this.scope = next; this.publish() }
-    else if (next && (next.version !== this.scope?.version || next.canSend !== this.scope?.canSend)) {
+    else if (next && (next.version !== this.scope?.version || next.canSend !== this.scope?.canSend || next.pingBoardSize !== this.scope?.pingBoardSize)) {
       this.scope = next; this.pings = this.pings.filter(p => p.basedOnVersion >= next.version); this.publish()
     }
     const ready=this.queuedSpeech.filter(e=>e.until>this.now()&&e.message.payload.gameId===this.scope?.gameId&&e.message.payload.basedOnVersion===this.scope?.version)
@@ -145,6 +145,7 @@ export class OmokSpectatorEvents {
     const event = parseSpectatorEvent(message), scope = this.scope, now = this.now()
     for (const [id, until] of this.seen) if (until <= now) this.seen.delete(id)
     if (!event || !scope || event.gameId !== scope.gameId || this.seen.has(event.eventId)) return true
+    if (event.kind === 'ping' && (event.x >= (scope.pingBoardSize ?? 15) || event.y >= (scope.pingBoardSize ?? 15))) return true
     const remaining = event.expiresAt - event.serverNow
     if (remaining <= 0) return true
     event.displayName = this.deps.displayName?.(event.senderUserId)
@@ -174,7 +175,8 @@ export class OmokSpectatorEvents {
       if (kind === 'chat') extra = { text: spectatorText(value as string) }
       else {
         const { x, y } = value as { x: number; y: number }
-        if (!Number.isInteger(x) || !Number.isInteger(y) || x < 0 || x > 14 || y < 0 || y > 14) return false
+        const size = scope.pingBoardSize ?? 15
+        if (!Number.isInteger(x) || !Number.isInteger(y) || x < 0 || x >= size || y < 0 || y >= size) return false
         extra = { basedOnVersion: scope.version, x, y }
       }
     } catch (error) { useOmokEvents.setState({ error: (error as Error).message }); return false }
@@ -189,7 +191,10 @@ export class OmokSpectatorEvents {
       const event = parseSpectatorEvent(response)
       if (!event || event.gameId !== scope.gameId || event.eventId !== eventId) throw new Error('관전 이벤트 승인 응답을 확인해주세요.')
       this.last[kind] = this.now()
-      if (event.kind === 'ping') this.pingFeedback = { text: `${omokCoordinate(event.x, event.y)} 추천을 보냈어요.`, until: this.now() + 2500 }
+      if (event.kind === 'ping') {
+        const label = scope.pingBoardSize === 9 ? `${String.fromCharCode(65 + event.x)}${9 - event.y}` : omokCoordinate(event.x, event.y)
+        this.pingFeedback = { text: `${label} 추천을 보냈어요.`, until: this.now() + 2500 }
+      }
       this.accept(response) // ACK is displayed once; SharedSocket may have delivered it already.
       return true
     } catch (error) {
