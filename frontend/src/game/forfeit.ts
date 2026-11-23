@@ -34,6 +34,7 @@ export function canStartForfeit(userId: string, s: ForfeitGameState) {
   if (g.ledger && !g.ledger.players.some(p => p.userId === userId && !p.forfeited)) return false
   if (g.quoridor && !g.quoridor.players.some(p => p.userId === userId && p.active)) return false
   if (g.halli && !g.halli.players.some(p => p.userId === userId && p.active)) return false
+  if (g.davinci && !g.davinci.players.some(p => p.userId === userId && p.active)) return false
   if (g.dice?.forfeitedUserIds?.includes(userId)) return false
   return true // It need not be this participant's turn; no local deadline or rule decision.
 }

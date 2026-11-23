@@ -32,7 +32,7 @@
   - 같은 `gameId`의 승인 관전자 전원
 - 일반 광장 채팅(`WORLD_CHAT_SEND`/`WORLD_CHAT_MESSAGE`)과 type·gameId로 완전히 분리한다. 광장 채팅은 플레이어에게 중계하지 않고, 관전 채팅은 근처 사용자에게 보내지 않는다.
 - 다른 경기·다른 채널·`TABLE_WATCH`만 한 사용자·관전 해제한 사용자는 받지 않는다.
-- 채팅은 `publicState.gameCode`가 `OMOK`, `ONE_CARD`, `DICE`, `LIAR_BRIDGE`, `DICE_LEDGER`이고 `status == "PLAYING"`인 경기에서 동작한다. 오목의 흑·백 ID, 주사위의 문자열 `players`, 원카드·브리지·주사위 장부의 `players[].userId`에서 참가자 범위를 계산한다. 이 문서의 핑은 오목 전용이다. 주사위 장부의 칸·주사위 훈수 핑(`DICE_LEDGER_SPECTATOR_PING_SEND`)은 [주사위 장부](../dice-ledger.md#관전자-훈수-핑)를 따른다.
+- 채팅은 `publicState.gameCode`가 `OMOK`, `ONE_CARD`, `DICE`, `LIAR_BRIDGE`, `DICE_LEDGER`, `ALKKAGI`, `HALLI_GALLI`, `STONE_RUMBLE`, `DAVINCI_CODE`이고 `status == "PLAYING"`인 경기에서 동작한다. 오목의 흑·백 ID, 주사위의 문자열 `players`, 다른 게임의 `players[].userId`에서 참가자 범위를 계산한다. 아래 좌표형 핑은 오목 전용이다. 주사위 장부의 칸·주사위 훈수 핑(`DICE_LEDGER_SPECTATOR_PING_SEND`)은 [주사위 장부](../dice-ledger.md#관전자-훈수-핑), 흑백수사의 타일 추천(`DAVINCI_SPECTATOR_PING_SEND`)은 [흑백수사](../DAVINCI_CODE.md#관전자-타일-추천-api)를 따른다.
 - 경기 중 승인된 관전자의 `WORLD_CHAT_SEND`는 `GAME_CHAT_REQUIRED`로 거절한다. 플레이어는 기존 복구 게이트의 `GAME_RECOVERY_REQUIRED`로 먼저 거절될 수 있다. 어느 경우에도 광장에 방송하지 않는다.
 - FE는 시작 승인 대기부터 주변 채팅을 경기 채팅으로 전환한다. 승인 전 전송은 차단하고 공개 채팅으로 대체하지 않는다. 현재 경기에서 수신한 최대 100개를 접속 중에만 표시하며 관전 종료·경기/역할/채널 변경 시 지운다. 서버 이력 저장·재전송은 추가하지 않는다.
 

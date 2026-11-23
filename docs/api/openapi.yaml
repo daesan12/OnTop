@@ -6104,6 +6104,7 @@ paths:
           - LIAR_BRIDGE
           - DICE_LEDGER
           - HALLI_GALLI
+          - DAVINCI_CODE
           - ALKKAGI
       responses:
         "200":

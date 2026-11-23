@@ -17,6 +17,7 @@ const GAME_OPTIONS = [
   { code: 'DICE_LEDGER', name: '주사위 장부', capacity: 4, playable: true },
   { code: 'QUORIDOR', name: '길목 한 수', capacity: 4, playable: true },
   { code: 'HALLI_GALLI', name: '과일 땡', capacity: 4, playable: true },
+  { code: 'DAVINCI_CODE', name: '흑백수사', capacity: 4, playable: import.meta.env.DEV || import.meta.env.VITE_DAVINCI_ENABLED === 'true' },
 ] as const
 export const TABLE_GAMES = GAME_OPTIONS
 export type TableGameCode = typeof GAME_OPTIONS[number]['code']

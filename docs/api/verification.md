@@ -208,3 +208,15 @@ git diff --check
   local/dev 명세 비교·기본/운영/혼합 프로필 문서 비공개·WebSocket 문서 회귀를 포함한다.
 - 전체 4194개 재실행과 원격 Jenkins 재빌드는 아직 수행하지 않았다. 맵·생성 맵 버전·Flyway·
   CI/CD·서버/환경 설정은 변경하지 않았다. 인프라 변경 요청이 필요한 수정은 아니다.
+
+## 2026-11-22 흑백수사 API 계약 동기화
+
+- 기준 dev `cc87cd2a`(MR !675 머지). 해당 Jenkins #582에서 정적 OpenAPI 비교와 중앙 WS 요청 목록의
+  문서 회귀 2건이 확인됐다. 흑백수사 전적 필터 enum 및 관전 타일 핑 요청이 문서에서 빠져 있었다.
+- `exportOpenApi`의 실제 local HTTP 출력으로 YAML을 갱신했다. 변경은 전적 조회 `gameCode` enum의
+  `DAVINCI_CODE` 한 항목뿐이다. 중앙 WS 인덱스에 `DAVINCI_SPECTATOR_PING_SEND`/`DAVINCI_SPECTATOR_PING`을
+  등록하고 공개 타일 대상·버전·권한·전파·오류·중복 계약을 기존 구현대로 정리했다.
+- YAML export 22개, 일반 API 패키지와 RestSecurityTests 121개, `git diff --check` 통과.
+  실패했던 두 항목을 포함해 local/dev의 실제 명세 비교와 운영 프로필 문서 비공개 검사도 통과했다.
+- 애플리케이션 로직·테스트 조건·맵·Flyway·CI/CD·배포/환경 설정은 변경하지 않았다.
+  사용자가 승인한 흑백수사 머지의 CI 후속 보완이며 전체 Jenkins 재검증은 후속 머지에서 확인한다.

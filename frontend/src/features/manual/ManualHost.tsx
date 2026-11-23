@@ -63,7 +63,7 @@ function openContextManual() {
   const session = useSession.getState();
   const game = useGame.getState().game;
   const code = game ? gameState(game).gameCode : session.tableStates[session.tableId || session.watchedTableId]?.gameCode;
-  const pages: Record<string, ManualGameId> = { STONE_RUMBLE:"stone-rumble", ALKKAGI:"alkkagi", OMOK:"gomoku", DICE:"farkle", ONE_CARD:"onecard", LIAR_BRIDGE:"bridge", DICE_LEDGER:"ledger", HALLI_GALLI:"halligalli", QUORIDOR:"quoridor" };
+  const pages: Record<string, ManualGameId> = { STONE_RUMBLE:"stone-rumble", ALKKAGI:"alkkagi", OMOK:"gomoku", DICE:"farkle", ONE_CARD:"onecard", LIAR_BRIDGE:"bridge", DICE_LEDGER:"ledger", HALLI_GALLI:"halligalli", QUORIDOR:"quoridor", DAVINCI_CODE:"davinci" };
   openManual(useSpeedMole.getState().open ? "speed-mole" : useBungeoppang.getState().phase !== "idle" ? "fish-bread" : session.telescopeId ? "places" : pages[code ?? ""] ?? (useJumpmap.getState().run ? "jump" : undefined));
 
 }

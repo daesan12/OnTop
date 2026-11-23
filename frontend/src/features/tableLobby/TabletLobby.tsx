@@ -18,6 +18,7 @@ import coinImage from '../../assets/entry/yeopjeon-icon.webp'
 import alkkagiThumbnail from '../../game/alkkagi/assets/thumbnail.webp'
 import fruitDdaengThumbnail from '../../game/halligalli/assets/thumbnail.webp'
 import ledgerThumbnail from '../../game/ledger/assets/thumbnail.webp'
+import davinciThumbnail from '../../game/davinci/assets/cover.webp'
 import './tablet.css'
 import '../../game/stone-rumble/lobby.css'
 import { useReadyBalance, canAffordBet, BetBalanceNotice, startFailureNotice } from './readyBalance'
@@ -32,13 +33,14 @@ const descriptions: Record<TableGameCode, string> = {
   DICE_LEDGER: '세 번 굴려 장부 열두 칸을 채워요',
   QUORIDOR: '길을 만들고 장벽을 세워, 반대편 끝줄로 먼저!',
   HALLI_GALLI: '같은 과일이 다섯 개면 누구보다 빨리 종!',
+  DAVINCI_CODE: '검정·흰색 타일에 숨은 숫자를 추리해요',
 }
-const choiceOrder: TableGameCode[] = ['OMOK', 'ONE_CARD', 'DICE_LEDGER', 'DICE', 'LIAR_BRIDGE', 'ALKKAGI', 'HALLI_GALLI', 'QUORIDOR']
+const choiceOrder: TableGameCode[] = ['OMOK', 'ONE_CARD', 'DAVINCI_CODE', 'DICE_LEDGER', 'DICE', 'LIAR_BRIDGE', 'ALKKAGI', 'HALLI_GALLI', 'QUORIDOR']
 const gameChoices = choiceOrder.map(code => TABLE_GAMES.find(game => game.code === code)).filter(game => game != null)
 const availableGameChoices = gameChoices.filter(game => game.playable)
 const constructionGameChoices = gameChoices.filter(game => !game.playable)
 export function GameArt({ code }: { code: TableGameCode }) {
-  const thumbnail = code === 'QUORIDOR' ? '/art/quoridor/thumbnail.webp' : code === 'STONE_RUMBLE' ? '/art/stone-rumble/cover-v3.webp' : code === 'ALKKAGI' ? alkkagiThumbnail : code === 'HALLI_GALLI' ? fruitDdaengThumbnail : code === 'DICE_LEDGER' ? ledgerThumbnail : undefined
+  const thumbnail = code === 'DAVINCI_CODE' ? davinciThumbnail : code === 'QUORIDOR' ? '/art/quoridor/thumbnail.webp' : code === 'STONE_RUMBLE' ? '/art/stone-rumble/cover-v3.webp' : code === 'ALKKAGI' ? alkkagiThumbnail : code === 'HALLI_GALLI' ? fruitDdaengThumbnail : code === 'DICE_LEDGER' ? ledgerThumbnail : undefined
   return <div className="tablet-game-art" data-game={code} style={thumbnail ? { backgroundImage: `url(${thumbnail})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined} role="img" aria-label={TABLE_GAMES.find(g => g.code === code)?.name} />
 }
 function StoneLobbyCover({ children }: { children: ReactNode }) {
