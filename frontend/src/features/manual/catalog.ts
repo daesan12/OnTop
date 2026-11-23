@@ -1,5 +1,6 @@
 import { chessManual } from '../../game/chess/manual';
 import { stoneRumbleManual } from '../../game/stone-rumble/manual';
+import { davinciManual } from '../../game/davinci/manual';
 import { STONE_RUMBLE_ENABLED } from '../tableLobby/model';
 import { rulebooks } from './rulebooks';
 import { jumpManual } from '../jumpmap/manual';
@@ -32,6 +33,7 @@ const renewalPlaceRows: [string, string][] = [
 // Current dev contracts: docs/{omok,farkle,onecard,bridge,dice-ledger,minigame-api}.md. HALLI_GALLI: HalliGalliEngine publicState.
 // This guide never calculates legality, deadlines, outcomes or rewards.
 const allGameManuals: GameManual[] = [
+  davinciManual,
   ...(STONE_RUMBLE_ENABLED ? [stoneRumbleManual] : []),
   chessManual,
   jumpManual,

@@ -2,6 +2,7 @@ import type { ReactElement } from "react";
 
 export const manualGameIds = [
   "chess",
+  "davinci",
   "stone-rumble",
   "alkkagi",
   "gomoku",

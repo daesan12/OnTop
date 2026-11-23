@@ -777,6 +777,34 @@ paths:
                 $ref: "#/components/schemas/WeeklyMinigameGameConfig"
       security:
       - AccessJwt: []
+  /api/v1/world/winter/tree/messages:
+    post:
+      tags:
+      - WINTER_COMMUNITY
+      summary: 크리스마스 트리에 장식 편지 작성
+      description: 트리 근접·활동 상태와 장식을 확인합니다. operationId는 UUID이며 동일 요청 재시도는 중복 저장하지
+        않습니다. 새 편지는 15초 간격이고 누적 50개부터 점등합니다. 닉네임은 인증된 서버 프로필을 사용합니다.
+      operationId: message
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TreeMessageRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/TreeReceipt"
+      security:
+      - AccessJwt: []
   /api/v1/users/onboarding:
     post:
       tags:
@@ -2948,7 +2976,7 @@ paths:
       tags:
       - MINIGAME
       summary: 가위바위보 룰렛 START
-      description: 참가비(10/20/30냥)와 하루 판 수를 차감하고 첫 대결의 기계 손 커밋을 발급합니다. Idempotency-Key를
+      description: 횟수 제한 없이 참가비(10/20/30냥)를 차감하고 첫 대결의 기계 손 커밋을 발급합니다. Idempotency-Key를
         재사용하면 같은 판을 반환하며 다시 차감하지 않습니다.
       operationId: startRpsRouletteRound
       parameters:
@@ -3000,7 +3028,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/RpsRouletteStateResponse"
         "409":
-          description: WALLET_NOT_READY / INSUFFICIENT_COINS / RPS_DAILY_LIMIT / RPS_ROUND_IN_PROGRESS
+          description: WALLET_NOT_READY / INSUFFICIENT_COINS / RPS_ROUND_IN_PROGRESS
             / RPS_INVALID_PHASE / IDEMPOTENCY_KEY_CONFLICT
           headers:
             Cache-Control:
@@ -3089,7 +3117,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/RpsRouletteStateResponse"
         "409":
-          description: WALLET_NOT_READY / INSUFFICIENT_COINS / RPS_DAILY_LIMIT / RPS_ROUND_IN_PROGRESS
+          description: WALLET_NOT_READY / INSUFFICIENT_COINS / RPS_ROUND_IN_PROGRESS
             / RPS_INVALID_PHASE / IDEMPOTENCY_KEY_CONFLICT
           headers:
             Cache-Control:
@@ -3178,7 +3206,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/RpsRouletteStateResponse"
         "409":
-          description: WALLET_NOT_READY / INSUFFICIENT_COINS / RPS_DAILY_LIMIT / RPS_ROUND_IN_PROGRESS
+          description: WALLET_NOT_READY / INSUFFICIENT_COINS / RPS_ROUND_IN_PROGRESS
             / RPS_INVALID_PHASE / IDEMPOTENCY_KEY_CONFLICT
           headers:
             Cache-Control:
@@ -3267,7 +3295,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/RpsRouletteStateResponse"
         "409":
-          description: WALLET_NOT_READY / INSUFFICIENT_COINS / RPS_DAILY_LIMIT / RPS_ROUND_IN_PROGRESS
+          description: WALLET_NOT_READY / INSUFFICIENT_COINS / RPS_ROUND_IN_PROGRESS
             / RPS_INVALID_PHASE / IDEMPOTENCY_KEY_CONFLICT
           headers:
             Cache-Control:
@@ -3307,7 +3335,7 @@ paths:
       tags:
       - MINIGAME
       summary: 더하기 빼기 아케이드 START
-      description: 참가비 30냥과 하루 판 수를 차감하고 세 릴의 칸을 정해 지급까지 한 번에 정산합니다. 정지 버튼은 화면 연출이며
+      description: 횟수 제한 없이 참가비 30냥을 차감하고 세 릴의 칸을 정해 지급까지 한 번에 정산합니다. 정지 버튼은 화면 연출이며
         결과를 바꾸지 않습니다. Idempotency-Key를 재사용하면 같은 판을 반환하며 다시 차감하지 않습니다.
       operationId: startPlusMinusRound
       parameters:
@@ -3354,7 +3382,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/PlusMinusStateResponse"
         "409":
-          description: WALLET_NOT_READY / INSUFFICIENT_COINS / PLUS_MINUS_DAILY_LIMIT
+          description: WALLET_NOT_READY / INSUFFICIENT_COINS
           headers:
             Cache-Control:
               description: no-store
@@ -5583,6 +5611,68 @@ paths:
                 $ref: "#/components/schemas/StatusResult"
       security:
       - AccessJwt: []
+  /api/v1/world/winter/tree:
+    get:
+      tags:
+      - WINTER_COMMUNITY
+      summary: 크리스마스 트리 편지 조회
+      description: 서버가 트리 근접을 확인합니다. 편지는 12개씩 조회하며 익명 편지의 닉네임은 공개하지 않습니다.
+      operationId: tree
+      parameters:
+      - name: channelId
+        in: query
+        required: true
+        schema:
+          type: string
+          x-utf16-max-length: 64
+      - name: before
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/TreePage"
+      security:
+      - AccessJwt: []
+  /api/v1/world/winter/tree/status:
+    get:
+      tags:
+      - WINTER_COMMUNITY
+      summary: 크리스마스 트리 점등 상태 조회
+      description: 현재 공원 채널의 인증된 회원만 조회합니다. 전 채널 공용 편지 수와 최근 장식을 반환합니다.
+      operationId: treeStatus
+      parameters:
+      - name: channelId
+        in: query
+        required: true
+        schema:
+          type: string
+          x-utf16-max-length: 64
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              description: no-store
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/TreeStatus"
+      security:
+      - AccessJwt: []
   /api/v1/world/fitness/rewards/status:
     get:
       tags:
@@ -6014,6 +6104,7 @@ paths:
           - LIAR_BRIDGE
           - DICE_LEDGER
           - HALLI_GALLI
+          - DAVINCI_CODE
           - ALKKAGI
       responses:
         "200":
@@ -7073,7 +7164,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/RpsRouletteStateResponse"
         "409":
-          description: WALLET_NOT_READY / INSUFFICIENT_COINS / RPS_DAILY_LIMIT / RPS_ROUND_IN_PROGRESS
+          description: WALLET_NOT_READY / INSUFFICIENT_COINS / RPS_ROUND_IN_PROGRESS
             / RPS_INVALID_PHASE / IDEMPOTENCY_KEY_CONFLICT
           headers:
             Cache-Control:
@@ -7150,7 +7241,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/PlusMinusStateResponse"
         "409":
-          description: WALLET_NOT_READY / INSUFFICIENT_COINS / PLUS_MINUS_DAILY_LIMIT
+          description: WALLET_NOT_READY / INSUFFICIENT_COINS
           headers:
             Cache-Control:
               description: no-store
@@ -9424,6 +9515,69 @@ components:
         finalizedAt:
           type: string
           format: date-time
+    TreeMessageRequest:
+      type: object
+      properties:
+        channelId:
+          type: string
+        operationId:
+          type: string
+        text:
+          type: string
+        anonymous:
+          type: boolean
+        ornament:
+          type: string
+    TreeMessage:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        text:
+          type: string
+        anonymous:
+          type: boolean
+        nickname:
+          type: string
+        ornament:
+          type: string
+        createdAt:
+          type: string
+    TreeOrnament:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        ornament:
+          type: string
+    TreeReceipt:
+      type: object
+      properties:
+        status:
+          $ref: "#/components/schemas/TreeStatus"
+        message:
+          $ref: "#/components/schemas/TreeMessage"
+        nextAllowedAt:
+          type: string
+    TreeStatus:
+      type: object
+      properties:
+        count:
+          type: integer
+          format: int64
+        lit:
+          type: boolean
+        litAt:
+          type: string
+        revision:
+          type: integer
+          format: int64
+        ornaments:
+          type: array
+          items:
+            $ref: "#/components/schemas/TreeOrnament"
     UserOnboardingRequest:
       required:
       - characterGender
@@ -11809,6 +11963,18 @@ components:
         status:
           type: string
         version:
+          type: integer
+          format: int64
+    TreePage:
+      type: object
+      properties:
+        status:
+          $ref: "#/components/schemas/TreeStatus"
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/TreeMessage"
+        nextBefore:
           type: integer
           format: int64
     FitnessRewardStatusResponse:

@@ -4,6 +4,7 @@ import {NpcResultPanel,useNpcResult} from '../features/ai/NpcResultPanel'
 import { lazy, Suspense } from 'react'
 import { StoneLoadingTips } from './stone-rumble/StoneLoadingTips'
 const StoneRumblePanel = lazy(() => import('./stone-rumble/StoneRumblePanel').then(module => ({ default: module.StoneRumblePanel })))
+const DavinciPanel = lazy(() => import('./davinci/DavinciPanel').then(module => ({ default: module.DavinciPanel })))
 import { AlkkagiPanel } from './alkkagi/AlkkagiPanel'
 import { useDisplayGame as useGame } from './displayGame'
 import { OmokPanel } from './OmokPanel'
@@ -46,9 +47,11 @@ function GamePanelContent() {
   const ledger = useGame(s => !!s.game?.ledger || (s.start?.gameCode === 'DICE_LEDGER' && ['PLAYING', 'SETTLING'].includes(s.start.phase)))
   const chess = useGame(s => !!s.game?.chess || (s.start?.gameCode === 'CHESS' && ['PLAYING', 'SETTLING'].includes(s.start.phase)))
   const halli = useGame(s => !!s.game?.halli || (s.start?.gameCode === 'HALLI_GALLI' && ['PLAYING', 'SETTLING'].includes(s.start.phase)))
+  const davinci = useGame(s => !!s.game?.davinci)
   if (chess) return <ChessPanel />
   if (npcResult) return <NpcResultPanel practice={npcResult}/>
   if (terminalPlayer && !seated) return null
+  if (davinci) return <Suspense fallback={<p role="status">흑백수사 게임판을 준비하고 있어요.</p>}><DavinciPanel /></Suspense>
   if (stone) return <Suspense fallback={<StoneLoadingTips ready={0} total={stonePlayers} ownReady={false} error="" retry={() => void runtime.checkRecovery()} />}><StoneRumblePanel /></Suspense>
   if (alkkagi) return <AlkkagiPanel />
   if (spectatorResult) {

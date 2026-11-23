@@ -193,3 +193,30 @@ git diff --check
 남은 운영 인수 조건: 실제 배포의 프로필/기능 플래그, Origin/쿠키/프록시를 별도로 확인한다.
 클라이언트 수신 ACK·다중 노드 전달·다른 boot의 미완료 경기 자동 INVALID 반환은 지원하지 않는다.
 문서 작업에서 이 기능을 활성화하거나 새로운 API를 만들지 않았다.
+
+
+## 2026-11-22 겨울 트리 API 계약 동기화
+
+- 기준 origin/dev 0880bb2c. Jenkins의 백엔드 4194개 중 실패한 6개는 트리 REST 3개에 대한
+  OpenAPI summary·명시적 매핑 목록과 정적 YAML 동기화 누락이었다. 접근정책 문서에도 경로를 추가했다.
+- WINTER_COMMUNITY 태그와 AccessJwt 요구사항을 명시하고 인증 주체를 API 입력 문서에서 숨겼다.
+  기존 인증 필터·트리 근접/활동 검사·UUID 멱등성은 그대로다. 비로그인 GET/POST의 401과
+  OpenAPI 인증/채널/인증주체 비노출 계약을 회귀 검증한다.
+- exportOpenApi: 실제 local HTTP YAML을 내보내는 22개 테스트 통과. 기존 오락실 무제한 설명도
+  현재 Controller와 맞춰 갱신했다. 수동 YAML 편집이나 검사 우회는 하지 않았다.
+- 일반 test: API 패키지 *Tests와 RestSecurityTests, 8개 클래스 121개 통과. 실패했던 6개 항목과
+  local/dev 명세 비교·기본/운영/혼합 프로필 문서 비공개·WebSocket 문서 회귀를 포함한다.
+- 전체 4194개 재실행과 원격 Jenkins 재빌드는 아직 수행하지 않았다. 맵·생성 맵 버전·Flyway·
+  CI/CD·서버/환경 설정은 변경하지 않았다. 인프라 변경 요청이 필요한 수정은 아니다.
+
+## 2026-11-22 흑백수사 API 계약 동기화
+
+- 기준 dev `cc87cd2a`(MR !675 머지). 해당 Jenkins #582에서 정적 OpenAPI 비교와 중앙 WS 요청 목록의
+  문서 회귀 2건이 확인됐다. 흑백수사 전적 필터 enum 및 관전 타일 핑 요청이 문서에서 빠져 있었다.
+- `exportOpenApi`의 실제 local HTTP 출력으로 YAML을 갱신했다. 변경은 전적 조회 `gameCode` enum의
+  `DAVINCI_CODE` 한 항목뿐이다. 중앙 WS 인덱스에 `DAVINCI_SPECTATOR_PING_SEND`/`DAVINCI_SPECTATOR_PING`을
+  등록하고 공개 타일 대상·버전·권한·전파·오류·중복 계약을 기존 구현대로 정리했다.
+- YAML export 22개, 일반 API 패키지와 RestSecurityTests 121개, `git diff --check` 통과.
+  실패했던 두 항목을 포함해 local/dev의 실제 명세 비교와 운영 프로필 문서 비공개 검사도 통과했다.
+- 애플리케이션 로직·테스트 조건·맵·Flyway·CI/CD·배포/환경 설정은 변경하지 않았다.
+  사용자가 승인한 흑백수사 머지의 CI 후속 보완이며 전체 Jenkins 재검증은 후속 머지에서 확인한다.

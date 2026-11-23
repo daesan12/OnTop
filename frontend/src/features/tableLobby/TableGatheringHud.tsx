@@ -13,11 +13,14 @@ import { BoardRewardCoinSource } from '../wallet/RewardCoinFlight'
 import {useDebrisPresentation} from '../parkDebris/presentation'
 import { ChessCheckmateHero } from '../../game/chess/ChessCheckmateHero'
 import { chessCheckmateWinner } from '../../game/chess/checkmate'
+import { DavinciVictory } from '../../game/davinci/DavinciVictory'
 
 export function TableGatheringHud({ model }: { model: GatheringModel }) {
   const presentation=useDebrisPresentation(model.tableId)
   if(presentation&&!window.matchMedia('(prefers-reduced-motion: reduce)').matches)return null
-  return TABLET_ENABLED ? <TabletResult model={model} /> : <LegacyTableGatheringHud model={model} />
+  const result = TABLET_ENABLED ? <TabletResult model={model} /> : <LegacyTableGatheringHud model={model} />
+  return model.gameCode === 'DAVINCI_CODE' ? <DavinciVictory key={model.scope} gameId={model.scope.split('/')[1] ?? ''}
+    headline={model.headline} invalid={model.invalid}>{result}</DavinciVictory> : result
 }
 export type ResultActions={pending:boolean;error:string;onReturn:()=>void;onLeave:()=>void}
 export function TabletResult({ model, actions }: { model: GatheringModel; actions?:ResultActions }) {

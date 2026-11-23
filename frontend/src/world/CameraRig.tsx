@@ -49,6 +49,7 @@ import { advanceOmokCamera, OMOK_FOCUS_LAYER, omokTopDownHeight, omokSpectatorFr
 import { boardFocusLighting } from './boardFocusLighting'
 import { wardrobeView } from '../features/wardrobe/view'
 import { parkXRView } from './xrView'
+import { secretTileCamera } from '../game/davinci/camera'
 
 /** Whole-figure framing used by the wardrobe zoom (the avatar plus a little headroom). */
 const WARDROBE_FRAME = { height: CHARACTER.height * 1.08, minDistance: 1.4, maxDistance: 5 }
@@ -451,6 +452,12 @@ export function CameraRig() {
       const yaw = Math.atan2(-turnSeat.x, -turnSeat.z) + .35 + benchLook.yaw - Math.PI / 4
       const pose = oneCardSpectatorCameraPose(anchor, yaw, camera instanceof PerspectiveCamera ? camera.aspect : 1.6, spectatorClearHeight(anchor.pavilionId))
       state.desired.set(...pose.position); state.look.set(...pose.target)
+    } else if (game?.davinci && (seated && !!avatar.tableId || game.role === 'SPECTATOR' && (closeAnchor || watchedAnchor))) {
+      const anchor = game.role === 'PLAYER' ? TABLES.find(t => t.id === avatar.tableId) : closeAnchor ?? watchedAnchor
+      if (anchor) {
+        const pose = secretTileCamera(anchor, game.role === 'PLAYER' ? session.seatIndex : 0, camera instanceof PerspectiveCamera ? camera.aspect : 1.6)
+        state.desired.set(...pose.position); state.look.set(...pose.target)
+      }
     } else if (halliPlayerViewActive(game, seated && !!avatar.tableId, looking)) {
       const anchor = TABLES.find(t => t.id === avatar.tableId)
       if (anchor) {
@@ -698,7 +705,7 @@ export function CameraRig() {
     if (!smoothingBoard && camera instanceof PerspectiveCamera && state.bungeoppangFov === null) {
       const halliView = !debrisAnchor && !tablet && !gathering && (halliPlayerViewActive(game, seated && !!avatar.tableId, looking)
         || halliSpectatorViewActive(game, !!(closeAnchor || watchedAnchor)))
-      const fov = halliView ? HALLI_CAMERA.fov : targetFov
+      const fov = game?.davinci ? 52 : halliView ? HALLI_CAMERA.fov : targetFov
       if (Math.abs(camera.fov - fov) > 0.01) {
         camera.fov = fov
         camera.updateProjectionMatrix()

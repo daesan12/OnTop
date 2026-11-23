@@ -21,7 +21,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 /** V183. 점등은 전 채널 공용 행을 먼저 잠가 직렬화한다. */
 @Repository
 @Profile(RuntimeProfiles.PRODUCT_FEATURE_WITH_DB)
-public final class JdbcWinterCommunityStore implements WinterCommunityStore {
+public class JdbcWinterCommunityStore implements WinterCommunityStore {
     private final JdbcTemplate jdbc;
     private final TransactionTemplate transactions;
     private volatile byte[] salt;
