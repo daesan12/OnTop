@@ -6105,6 +6105,7 @@ paths:
           - DICE_LEDGER
           - HALLI_GALLI
           - ALKKAGI
+          - QUORIDOR
           - RUMMIKUB
           - DAVINCI_CODE
       responses:

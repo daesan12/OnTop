@@ -19,7 +19,7 @@ import org.springframework.context.annotation.Profile;
 
 @Configuration(proxyBeanMethods = false)
 @Profile(RuntimeProfiles.PRODUCT_FEATURE)
-@ConditionalOnProperty(name = "ontop.games.quoridor.enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(name = "ontop.games.quoridor.enabled", havingValue = "true")
 @Import(GameEngineGateways.class)
 public class QuoridorConfiguration {
     @Bean
