@@ -4682,9 +4682,11 @@ public class TableHub {
         if (push == null || ping && reconnect.get().canControlGame(member.accountId(), sessionId, gameId)) {
             fail(request, "GAME_SPECTATOR_ACCESS_DENIED", "관전이 승인된 경기에서만 보낼 수 있습니다.");
         }
-        if (ping && !(rummikubPing ? "RUMMIKUB" : codePing ? "DAVINCI_CODE" : ledgerPing ? "DICE_LEDGER" : "OMOK").equals(push.gameCode)
+        if (ping && !(rummikubPing ? "RUMMIKUB".equals(push.gameCode) : codePing ? "DAVINCI_CODE".equals(push.gameCode)
+                : ledgerPing ? "DICE_LEDGER".equals(push.gameCode)
+                : Set.of("OMOK", "QUORIDOR").contains(push.gameCode))
                 || !Set.of("OMOK", "DICE", "ONE_CARD", "LIAR_BRIDGE", "DICE_LEDGER", "ALKKAGI",
-                        "HALLI_GALLI", "STONE_RUMBLE", "RUMMIKUB", "DAVINCI_CODE").contains(push.gameCode)) {
+                        "HALLI_GALLI", "QUORIDOR", "RUMMIKUB", "DAVINCI_CODE", "STONE_RUMBLE").contains(push.gameCode)) {
             fail(request, "GAME_SPECTATOR_UNSUPPORTED_GAME", "지원하는 경기 채팅 또는 오목·주사위 장부 추천을 이용해주세요.");
         }
         if (!"PLAYING".equals(push.status)) {
@@ -4700,6 +4702,9 @@ public class TableHub {
         String codeTile = codePing ? payload.path("tileId").asText() : "";
         if (codePing && !com.ssafy.ontop.game.davinci.service.DavinciSocial.validTarget(push.publicState, codeTarget, codeTile)) {
             fail(request, "DAVINCI_SPECTATOR_PING_INVALID_TARGET", "공개된 게임판의 타일을 선택해주세요.");
+        }
+        if (ping && "QUORIDOR".equals(push.gameCode) && (x < 0 || x > 8 || y < 0 || y > 8)) {
+            fail(request, "QUORIDOR_PING_INVALID_POSITION", "길목 한 수 게임판 안의 위치를 선택해주세요.");
         }
         String category = ledgerPing && payload.has("category") ? payload.get("category").textValue() : null;
         Integer dieId = ledgerPing && payload.has("dieId") ? payload.get("dieId").intValue() : null;

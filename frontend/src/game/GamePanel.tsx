@@ -1,6 +1,7 @@
 import {NpcResultPanel,useNpcResult} from '../features/ai/NpcResultPanel'
 import { lazy, Suspense } from 'react'
 import { StoneLoadingTips } from './stone-rumble/StoneLoadingTips'
+const QuoridorPanel = lazy(() => import('./quoridor/QuoridorPanel').then(module => ({ default: module.QuoridorPanel })))
 const StoneRumblePanel = lazy(() => import('./stone-rumble/StoneRumblePanel').then(module => ({ default: module.StoneRumblePanel })))
 const DavinciPanel = lazy(() => import('./davinci/DavinciPanel').then(module => ({ default: module.DavinciPanel })))
 import { AlkkagiPanel } from './alkkagi/AlkkagiPanel'
@@ -31,6 +32,7 @@ export function GamePanel() {
   const spectatorResult = useGame(s => s.game?.role === 'SPECTATOR' && gameState(s.game).status === 'FINISHED' ? s.game : null)
   const stone = useGame(s => !!s.game?.stone || (s.start?.gameCode === 'STONE_RUMBLE' && ['PLAYING', 'SETTLING'].includes(s.start.phase)))
   const stonePlayers = useSession(s => s.tableStates[s.tableId]?.selectedPlayers ?? s.tableStates[s.tableId]?.capacity ?? 8)
+  const quoridor = useGame(s => s.game?.quoridor && (s.game.role === 'SPECTATOR' || s.game.quoridor.status === 'PLAYING') ? s.game.role : null)
   const alkkagi = useGame(s => !!s.game?.alkkagi)
   const profiles = useSession(s => s.profiles)
   const seated = useSession(s => !!s.tableId && s.seatIndex >= 0
@@ -48,6 +50,7 @@ export function GamePanel() {
   if (terminalPlayer && !seated) return null
   if (davinci) return <Suspense fallback={<p role="status">흑백수사 게임판을 준비하고 있어요.</p>}><DavinciPanel /></Suspense>
   if (stone) return <Suspense fallback={<StoneLoadingTips ready={0} total={stonePlayers} ownReady={false} error="" retry={() => void runtime.checkRecovery()} />}><StoneRumblePanel /></Suspense>
+  if (quoridor && (quoridor === 'SPECTATOR' || seated)) return <Suspense fallback={<p role="status">길목 한 수 게임판 준비 중…</p>}><QuoridorPanel /></Suspense>
   if (alkkagi) return <AlkkagiPanel />
   if (spectatorResult) {
     if (spectatorResult.rummikub) return <RummikubPanel />

@@ -33,16 +33,17 @@ const descriptions: Record<TableGameCode, string> = {
   OMOK: '다섯 돌을 이어 만드는 한 수', DICE: '주사위를 굴려 목표 점수에 도전해요',
   ONE_CARD: '손에 든 카드를 모두 내려놓으면 승리!', LIAR_BRIDGE: '믿거나 의심하거나, 다리를 건너요',
   DICE_LEDGER: '세 번 굴려 장부 열두 칸을 채워요',
+  QUORIDOR: '길을 만들고 장벽을 세워, 반대편 끝줄로 먼저!',
   HALLI_GALLI: '같은 과일이 다섯 개면 누구보다 빨리 종!',
   DAVINCI_CODE: '검정·흰색 타일에 숨은 숫자를 추리해요',
 }
-const choiceOrder: TableGameCode[] = ['OMOK', 'RUMMIKUB', 'DAVINCI_CODE', 'ONE_CARD', 'DICE_LEDGER', 'DICE', 'LIAR_BRIDGE', 'ALKKAGI', 'HALLI_GALLI']
+const choiceOrder: TableGameCode[] = ['OMOK', 'RUMMIKUB', 'DAVINCI_CODE', 'ONE_CARD', 'DICE_LEDGER', 'DICE', 'LIAR_BRIDGE', 'ALKKAGI', 'HALLI_GALLI', 'QUORIDOR']
 const gameChoices = choiceOrder.map(code => TABLE_GAMES.find(game => game.code === code)).filter(game => game != null)
 const availableGameChoices = gameChoices.filter(game => game.playable)
 const constructionGameChoices = gameChoices.filter(game => !game.playable)
 export function GameArt({ code }: { code: TableGameCode }) {
-  const thumbnail = code === 'RUMMIKUB' ? rummikubThumbnail : code === 'DAVINCI_CODE' ? davinciThumbnail : code === 'STONE_RUMBLE' ? '/art/stone-rumble/cover-v3.webp' : code === 'ALKKAGI' ? alkkagiThumbnail : code === 'HALLI_GALLI' ? fruitDdaengThumbnail : code === 'DICE_LEDGER' ? ledgerThumbnail : undefined
-  return <div className="tablet-game-art" data-game={code} style={thumbnail ? { backgroundImage: `url(${thumbnail})`, backgroundSize: code === 'RUMMIKUB' ? 'contain' : 'cover', backgroundPosition: 'center', ...(code === 'RUMMIKUB' ? { backgroundRepeat: 'no-repeat' } : {}) } : undefined} role="img" aria-label={TABLE_GAMES.find(g => g.code === code)?.name} />
+  const thumbnail = code === 'RUMMIKUB' ? rummikubThumbnail : code === 'DAVINCI_CODE' ? davinciThumbnail : code === 'QUORIDOR' ? '/art/quoridor/cover-park-v2.webp' : code === 'STONE_RUMBLE' ? '/art/stone-rumble/cover-v3.webp' : code === 'ALKKAGI' ? alkkagiThumbnail : code === 'HALLI_GALLI' ? fruitDdaengThumbnail : code === 'DICE_LEDGER' ? ledgerThumbnail : undefined
+  return <div className="tablet-game-art" data-game={code} style={thumbnail ? { backgroundImage: `url(${thumbnail})`, backgroundSize: code === 'QUORIDOR' || code === 'RUMMIKUB' ? 'contain' : 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' } : undefined} role="img" aria-label={TABLE_GAMES.find(g => g.code === code)?.name} />
 }
 function StoneLobbyCover({ children }: { children: ReactNode }) {
   return <div className="stone-lobby-cover">
@@ -158,7 +159,7 @@ function TabletSession({ tableId }: { tableId: string }) {
   }
   if (!table) return null
   const amount = stoneRumble ? 0 : Number(bet), validBet = /^\d+$/.test(bet) && Number.isSafeInteger(amount) && amount >= 0 && Number.isSafeInteger(amount * max)
-  const countSupported = !!port || count === max
+  const countSupported = (!!port || count === max) && (selectedCode !== 'QUORIDOR' || count === 2 || count === 4)
   const canConfigure = host && isTableGamePlayable(selectedCode) && countSupported && count >= occupied
     && (stoneRumble || validBet && canAffordBet(balance,amount))
   const confirmation = signature
@@ -208,7 +209,7 @@ function TabletSession({ tableId }: { tableId: string }) {
             <button className="tablet-game-card" data-selected={code === item.code} data-construction={!item.playable}
               aria-pressed={code === item.code} disabled={!item.playable || !host || busy}
               onClick={() => { setCode(item.code); setCount(2) }}>
-              <GameArt code={item.code} />{!item.playable && <b className="tablet-construction">공사 중</b>}<span><strong>{item.name}</strong><small>{item.capacity === 2 ? '2인' : `2~${item.capacity}인`}</small></span>
+              <GameArt code={item.code} />{!item.playable && <b className="tablet-construction">공사 중</b>}<span><strong>{item.name}</strong><small>{item.code === 'QUORIDOR' ? '2·4인' : item.capacity === 2 ? '2인' : `2~${item.capacity}인`}</small></span>
             </button>
           </Fragment>)}
           <div className="tablet-coming">장기 · 준비 중</div>
@@ -216,7 +217,7 @@ function TabletSession({ tableId }: { tableId: string }) {
         <div className="tablet-selection-detail">
           <small>선택한 게임</small><h3>{TABLE_GAMES.find(g => g.code === code)?.name}</h3><p>{descriptions[code]}</p>
           <GameArt code={code} />
-          <fieldset disabled={!host || busy || !isTableGamePlayable(code)}><legend>참가 인원</legend><div className="tablet-counts" data-maximum={max}>{Array.from({ length: max - 1 }, (_, index) => index + 2).map(n => <button key={n}
+          <fieldset disabled={!host || busy || !isTableGamePlayable(code)}><legend>참가 인원</legend><div className="tablet-counts" data-maximum={max}>{Array.from({ length: max - 1 }, (_, index) => index + 2).filter(n => selectedCode !== 'QUORIDOR' || n !== 3).map(n => <button key={n}
             aria-pressed={count === n} onClick={() => setCount(n)}>{n}인</button>)}</div></fieldset>
           {code === 'DICE' && <label className="tablet-score">목표 점수<select aria-label="주사위 목표 점수" disabled={!host || busy || !isTableGamePlayable(code)} value={target} onChange={e => setTarget(Number(e.target.value))}>
             {TARGET_SCORES.map(score => <option key={score} value={score}>{score.toLocaleString()}점</option>)}</select></label>}
