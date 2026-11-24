@@ -1,3 +1,7 @@
+import { SnowballHand } from '../features/winter/SnowballHand'
+import { poseWinterAvatar, winterPoseActive } from '../features/winter/avatarPose'
+import { winterSceneryVisible } from '../features/winter/presentation'
+import { sleighRider } from '../features/winter/sleigh/controller'
 import { gatheringCameraActive } from '../features/tableLobby/gathering'
 import { OneCardHeldHand } from '../game/onecard/OneCardHeldHand'
 import { oneCardHeldCount, oneCardHoldingPose } from '../game/onecard/heldHand'
@@ -124,10 +128,13 @@ function Avatar({
   const pose = useMemo(() => ({ x: 0, y: 0, z: 0, yaw: 0 }), [])
   const overlapPose = useMemo(() => ({ x: 0, y: 0, z: 0, yaw: 0 }), [])
   const worldPosition = useMemo(() => new Vector3(), [])
+  const sleighSeatOffset = useMemo(() => new Vector3(), [])
   const inverseRoot = useMemo(() => new Matrix4(), [])
   const presentation = useMemo(() => new AvatarPresentation(), [])
   const mountedVehicle = useMemo(createMountedVehicle, [])
   const motion = useMemo(() => createAvatarMotion(model, RENEWAL_PARK_ENABLED), [model])
+  const winterPose = useMemo(() => (rig: typeof model, figure: Group) =>
+    poseWinterAvatar(rig, figure, id, estimatedServerTime(), pose.yaw, avatars.get(id)?.moving ?? false), [id, pose])
   const carriedPartner = useRef({ id: '', carryId: '' })
   const cadence = useMemo(() => new AvatarPoseCadence(avatarCrowdGroup(id)), [id, model])
   const appearance = useRef<ReturnType<typeof createAvatarOpacity> | null>(null)
@@ -150,7 +157,7 @@ function Avatar({
       })
     }
     const schedulePreparation = () => {
-      if (firstGateFrameAt?.current === null) pendingFadeShaders.current = prepare
+      if (firstGateFrameAt && (own || firstGateFrameAt.current === null)) pendingFadeShaders.current = prepare
       else prepare()
     }
     const lost = () => { pendingFadeShaders.current = null; current.invalidate() }
@@ -168,7 +175,7 @@ function Avatar({
       current.dispose()
       model.dispose()
     }
-  }, [id, rigs, model, rendererState, firstGateFrameAt])
+  }, [id, rigs, model, rendererState, firstGateFrameAt, own])
   useFrame(({ camera }, delta) => {
     const avatar = avatars.get(id)
     if (!avatar || !root.current || !figure.current) return
@@ -186,6 +193,7 @@ function Avatar({
     const localPilot = localBalloon.flight && localBalloon.owner === localBalloon.leader
       ? { id: localBalloon.owner, position: localBalloon.flight.position } : undefined
     const balloonRider = own ? localBalloonRider(id) : remoteBalloonRider(id, frameAt, localPilot)
+    const sleigh = sleighRider(id), rider = sleigh ?? balloonRider
     const ownAvatar = !own && useJumpmap.getState().run ? avatars.get(useSession.getState().sessionId) : undefined
     const ownPose = ownAvatar && samplePose(ownAvatar, frameAt, overlapPose)
     const overlap = !!ownPose && Math.hypot(pose.x - ownPose.x, pose.z - ownPose.z) < .7 && Math.abs(pose.y - ownPose.y) < 1.8
@@ -197,7 +205,8 @@ function Avatar({
     const hiddenForCooking = !own && bungeoppangCookingView(frameAt)
     const gateFrameAt = firstGateFrameAt?.current
     // Give the first render and walking input a turn before compiling fade-only variants.
-    if (gateFrameAt != null && (frameAt - gateFrameAt >= 1000 || (opacity > 0 && opacity < 1))) {
+    if (gateFrameAt != null && ((own ? bungeoppangCookingView(frameAt) : frameAt - gateFrameAt >= 1000)
+      || (opacity > 0 && opacity < 1))) {
       pendingFadeShaders.current?.()
     }
     const debrisMotion=!reducedMotion.matches&&activeParkDebris(useSession.getState().tableId,estimatedServerTime())
@@ -207,16 +216,19 @@ function Avatar({
     const showRideHands = ownXR && !!avatar.vehicle
     model.showRideHands(showRideHands)
     figure.current.visible = !ownXR || showRideHands
-    const visibleOutsideXR = !hideBalloonRider && (!!balloonRider || !!debrisMotion
+    const visibleOutsideXR = !hideBalloonRider && (!!rider || !!debrisMotion
       || !(own && ((avatar.tableId && seated && !gatheringCameraActive() || avatar.benchId && seated || avatar.telescopeId)
       || roamingFirstPerson(avatar, !!useGame.getState().watchedGameId))))
     root.current.visible = !hiddenForCooking && firstAppearanceReady.current && opacity > 0
       && (ownXR ? !!avatar.vehicle : visibleOutsideXR)
     appearance.current?.set(root.current.visible ? opacity : 1)
     root.current.userData.appearanceOpacity = root.current.visible ? opacity : 0
-    if (balloonRider) {
-      const seatLift = balloonRider.seatIndex >= 0 ? model.seatedContactLift - model.hipHeight : 0
-      root.current.position.set(balloonRider.x, balloonRider.y + seatLift, balloonRider.z)
+    root.current.rotation.set(sleigh?.pitch ?? 0, rider?.yaw ?? pose.yaw, sleigh?.bank ?? 0, 'YXZ')
+    if (rider) {
+      const seatLift = rider.seatIndex >= 0 ? model.seatedContactLift - model.hipHeight : 0
+      sleighSeatOffset.set(0, seatLift, 0)
+      if (sleigh) sleighSeatOffset.applyQuaternion(root.current.quaternion)
+      root.current.position.set(rider.x + sleighSeatOffset.x, rider.y + sleighSeatOffset.y, rider.z + sleighSeatOffset.z)
     }
     else root.current.position.set(
       pose.x,
@@ -225,7 +237,6 @@ function Avatar({
           + (RENEWAL_PARK_ENABLED ? model.seatedContactLift : model.seatedHipLift) - model.hipHeight : 0),
       pose.z,
     )
-    root.current.rotation.y = balloonRider?.yaw ?? pose.yaw
     const carryAnimation = carryMotion.get(id)
     if (!root.current.visible && !carryAnimation) return
     // The visitors parent has an identity transform; this position is already
@@ -237,11 +248,12 @@ function Avatar({
     const holdingCards = seated && oneCardHeldCount(id, avatar.tableId) > 0
     const displayFlags = own && localMovement.ready ? localMovement.displayFlags(frameAt)
       : !own ? remoteMovement.flags(id) : undefined
-    const motionAvatar = balloonRider ? { ...avatar, seatIndex: balloonRider.seatIndex,
-      moving: balloonRider.moving, running: false, swimming: false } : avatar
-    const displayAvatar = presentation.sample(motionAvatar, balloonRider ? undefined : displayFlags,
-      own || balloonRider ? undefined : pose, frameAt)
-    const active = !!avatar.vehicle || mountedVehicle.root.children.length > 0 || !!carryAnimation || !!reaction || avatarPoseActive(displayAvatar, now)
+    const motionAvatar = rider ? { ...avatar, seatIndex: rider.seatIndex,
+      moving: rider.moving, running: false, swimming: false } : avatar
+    const displayAvatar = presentation.sample(motionAvatar, rider ? undefined : displayFlags,
+      own || rider ? undefined : pose, frameAt)
+    const winterActive = RENEWAL_PARK_ENABLED && winterSceneryVisible() && winterPoseActive(id, now)
+    const active = winterActive || !!avatar.vehicle || mountedVehicle.root.children.length > 0 || !!carryAnimation || !!reaction || avatarPoseActive(displayAvatar, now)
     // Keep the authoritative position interpolation above at display cadence.
     // State changes (seat, action, reconnect) must never wait for the next pose tick.
     const poseDelta = cadence.advance(
@@ -251,7 +263,7 @@ function Avatar({
       active,
       presentation.key(motionAvatar, reaction?.key ?? '', holdingCards, active),
       !reaction && avatarPoseAmbient(displayAvatar),
-      crowded && !carryAnimation && !reaction && !seated && !displayAvatar.emote && !displayAvatar.fitnessId && !displayAvatar.telescopeId,
+      crowded && !winterActive && !carryAnimation && !reaction && !seated && !displayAvatar.emote && !displayAvatar.fitnessId && !displayAvatar.telescopeId,
       crowdFrame.current,
       crowdedXR,
     )
@@ -270,7 +282,7 @@ function Avatar({
     if (!mountedVehicle.apply(avatar.vehicle, pose, root.current.position.y, delta, figure.current, model, showRideHands))
       motion.apply(displayAvatar, now, poseDelta, pose, figure.current, reaction,
       holdingCards ? oneCardHoldingPose : undefined, throwFlight,
-      carryAnimation?.releasedAt !== null ? carryAnimation?.age : undefined, seatForward)
+      carryAnimation?.releasedAt !== null ? carryAnimation?.age : undefined, seatForward, winterActive ? winterPose : undefined)
     // Follow the posed head when swimming; a tilted standing-height marker
     // otherwise puts the nickname in front of the swimmer's face/water.
     model.bones.head.getWorldPosition(worldPosition)
@@ -302,6 +314,7 @@ function Avatar({
       <group ref={figure} name={`figure-${id}`}>
         <primitive object={model.root} dispose={null} />
         <OneCardHeldHand userId={id} model={model} />
+        {RENEWAL_PARK_ENABLED && <SnowballHand id={id} model={model} />}
       </group>
       <group ref={marker} position={[0, CHARACTER.height - 0.5, 0]} />
     </group>

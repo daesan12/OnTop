@@ -1,0 +1,79 @@
+{
+  "version": 1,
+  "package": "ontop-winter-community-tree-ornaments",
+  "source_branch": "feat/christmas-tripo-assets",
+  "source_commit": "6f31c87539253064ed4c9e95943d509d7bf397b2",
+  "license": {
+    "tripo": "LicenseRef-Tripo-API-Output",
+    "terms": "https://developers.tripo3d.ai/en/terms",
+    "section": "3.2 Outputs & Service Restrictions",
+    "local_geometry": "User-commissioned original procedural geometry; reference photos were not copied as textures."
+  },
+  "provider_calls": 0,
+  "additional_credits": 0,
+  "assets": [
+    {
+      "id": "tree",
+      "file": "tree.glb",
+      "source": "plaza-christmas-wire-star-20261122/tree/Christmas_Tree_12m_VolumetricWireStar_Unlit.glb",
+      "source_sha256": "73adcf836bb544444adfaacddade050f190b1a5871d415c60e127d033c553202",
+      "provider_task": null,
+      "sha256": "dbacc29ae12844bba00c1bd9b839719a44dd82a78e64ea01c2dca6acc5afe809",
+      "bytes": 5263800,
+      "source_triangles": 231099,
+      "triangles": 142650,
+      "dimensions_metres": [
+        7.73758339881897,
+        12,
+        7.135380268096924
+      ],
+      "front_axis": "+Z",
+      "ground_offset": 0
+    },
+    {
+      "id": "STOCKING",
+      "file": "stocking.glb",
+      "source": "plaza-christmas-tripo-20261122/tripo-out/tree-stocking-102297f3/model.glb",
+      "sha256": "400f8a0823894a5cfe4a332763436e275b248576d506af11bc8013f7ff816c1a",
+      "bytes": 1565768,
+      "provider_task": "102297f3-83a2-4e15-ade4-46a8498491c3",
+      "triangles": 1964,
+      "preview": "stocking.webp",
+      "preview_sha256": "e3b1f74dfe3f85cd17f60c5932a9114b82042666aaf2c58fb01381c9af26d45d"
+    },
+    {
+      "id": "BAUBLE",
+      "file": "bauble.glb",
+      "source": "plaza-christmas-tripo-20261122/tripo-out/tree-bauble-7cd144aa/model.glb",
+      "sha256": "ac73222607a3399c4aee012082acb3842a19526cfb50ae7c5b424935f9643396",
+      "bytes": 1714524,
+      "provider_task": "7cd144aa-4959-45aa-8a75-f3d80ee62074",
+      "triangles": 1414,
+      "preview": "bauble.webp",
+      "preview_sha256": "662742bc5a402039454327d1d2e225c608e510900b1ebd4d8b66cca12565cf7f"
+    },
+    {
+      "id": "BELL",
+      "file": "bell.glb",
+      "source": "plaza-christmas-tripo-20261122/tripo-out/tree-bell-bf1f872c/model.glb",
+      "sha256": "d7bbec3699a356c3fee03d281bafab5402358192d2d975064983be73abda5ca1",
+      "bytes": 2123912,
+      "provider_task": "bf1f872c-a9f8-4383-9565-a19a4566f769",
+      "triangles": 1920,
+      "preview": "bell.webp",
+      "preview_sha256": "c5b3802471be4fd570b75df05c1c655bbf0fd24634c30b1b87daa00caa7b942f"
+    },
+    {
+      "id": "GIFT",
+      "file": "gift.glb",
+      "source": "plaza-christmas-tripo-20261122/tripo-out/tree-gift-233404bc/model.glb",
+      "sha256": "0916a6b1102a19797bc17764dfab0c76490be21ff243f075d22778f931ff4bf9",
+      "bytes": 2193056,
+      "provider_task": "233404bc-8ee3-4939-a775-91ba36fee64e",
+      "triangles": 1448,
+      "preview": "gift.webp",
+      "preview_sha256": "39dd2851bd4f6e2dc8e83852803f46f1a8efebb750dad04eb2f9e4684aa7a610"
+    }
+  ],
+  "collision_sha256": "e14ce1d9aa188626b2e582d21d2338d0ca1560d30a3f8b742686f560578268c9"
+}

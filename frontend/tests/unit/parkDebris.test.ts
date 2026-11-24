@@ -7,6 +7,11 @@ const item:ParkDebris={id:'g:reaction:101',gameId:'g',tableId:'table',anchorId:'
  occurredAt:'2026-10-31T00:00:00Z',throwYaw:0,seed:123,parts:['board',...Array.from({length:12},(_,i)=>'coin-'+i)]}
 const state=(version=1)=>({channelId:'one',mapVersion:'map',version,items:[item]})
 afterEach(()=>{resetParkDebris();vi.unstubAllGlobals()})
+it('수패마루 기권은 기존 판과 동전만 수신하고 주사위 조각을 허용하지 않는다',()=>{
+ expect(debrisPieces('RUMMIKUB')).toEqual([])
+ expect(parseParkDebris({...state(),items:[{...item,gameCode:'RUMMIKUB'}]}).items[0]!.parts).toEqual(item.parts)
+ expect(()=>parseParkDebris({...state(),items:[{...item,gameCode:'RUMMIKUB',parts:[...item.parts,'die-0']}]})).toThrow()
+})
 it('does not reinterpret alkkagi as dice debris',()=>{
  expect(debrisPieces('ALKKAGI')).toEqual([])
  expect(()=>parseParkDebris({...state(),items:[{...item,gameCode:'ALKKAGI',parts:[...item.parts,'die-0']}]})).toThrow()

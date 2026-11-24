@@ -25,6 +25,8 @@ public final class WorldPhysics implements AutoCloseable {
     private static final float CARRY_HEIGHT = 1.7f;
     private static final int MAX_THROW_TICKS = 90;
     private static final int CARRY_COOLDOWN_TICKS = 30;
+    // Bullet's 4cm skin can read a few float ulps deeper on a valid floor.
+    private static final float STAND_PENETRATION_TOLERANCE = .0401f;
     private static final double THROW_SPEED = 14;
     private static final double THROW_LIFT = 8;
     private static final double THROW_AIM_LIFT = 6;
@@ -660,11 +662,12 @@ public final class WorldPhysics implements AutoCloseable {
                 dz = a.throwZ / speed;
                 active = false;
             }
-            if (course != null) {
+            if (course != null || a.throwTicks > 0) {
                 // 기본 ghost sweep은 겹친 몸체만 검사해 얇은 발판을 약 27m/s 이상 낙하에서 지나칠 수 있다.
                 // 코스 활성 채널에서 빠르게 떨어지는 틱만 world sweep으로 경로 전체를 검사한다.
                 // 걷기·계단·벽·일반 점프는 기존 ghost sweep 그대로다.
-                a.body.setSweepTest(a.motion.velocityY() >= -FAST_FALL_SWEEP);
+                // Thrown capsules must sweep the whole path, including thin building walls.
+                a.body.setSweepTest(a.throwTicks == 0 && a.motion.velocityY() >= -FAST_FALL_SWEEP);
             }
             float stepX = (float) dx * speed * DT;
             float stepZ = (float) dz * speed * DT;
@@ -860,9 +863,25 @@ public final class WorldPhysics implements AutoCloseable {
                 a.courseRide = false;
             }
             if (!a.seated) updateInteriorArrival(a);
-            if (a.throwTicks > 0 && (--a.throwTicks == 0 || supported || a.swimming)) {
-                a.throwTicks = 0;
-                a.throwX = a.throwZ = 0;
+            boolean thrownOverlap = a.throwTicks > 0 && !canOccupy(position);
+            boolean thrownEdge = a.throwTicks > 0 && supported && !a.swimming
+                    && !canStand(position.x, position.y, position.z);
+            if (a.throwTicks > 0 && (--a.throwTicks == 0 || supported || a.swimming || thrownOverlap)) {
+                // onGround도 층 모서리의 캡슐 겹침을 허용하므로 안전한 지지면을 확인한다.
+                if (thrownOverlap || thrownEdge) {
+                    Vector3f raised = position.add(0, .12f, 0);
+                    // A wall hit in midair returns to the last non-penetrating
+                    // point of this flight before searching for a nearby floor.
+                    Vector3f landing = thrownOverlap && !supported && canOccupy(a.beforeStepPosition) ? a.beforeStepPosition.clone()
+                            : canStand(raised.x, raised.y, raised.z) ? raised : nearbyStand(raised);
+                    if (landing == null) {
+                        landing = carryExit(raised, a);
+                    }
+                    a.body.warp(landing);
+                    a.body.setLinearVelocity(Vector3f.ZERO);
+                    position.set(landing);
+                }
+                clearThrow(a);
                 stopNow(entry.getKey());
                 resetMotion(a);
             }
@@ -987,7 +1006,22 @@ public final class WorldPhysics implements AutoCloseable {
                 && position.y < scene.groundHeight(position.x, position.z)
                         + number("halfHeight") + number("radius") - .35
                 && !inSecretCorridor(position) && !nearSecretDoor(position, 1.4)
-                && !insideVolume(position, scene.data.path("interiorAccess").path("annex"));
+                && !insideVolume(position, scene.data.path("interiorAccess").path("annex"))
+                && !inInteriorApproach(position);
+    }
+
+    // 절개된 입구의 낮은 발판은 절벽의 원래 높이 조회값보다 아래에 있다.
+    private boolean inInteriorApproach(Vector3f position) {
+        var layout = scene.data.path("interiorAccess");
+        if (!layout.path("entrancesOpen").asBoolean(true)) {
+            return false;
+        }
+        for (var bounds : layout.path("approaches")) {
+            if (insideVolume(position, bounds)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean specialMovement(Vector3f p) { return swimming(p) || isTower(p); }
@@ -1278,6 +1312,7 @@ public final class WorldPhysics implements AutoCloseable {
         actor.climbTargetY = 0;
         actor.moving = actor.running = false;
         actor.swimming = swimming(target);
+        clearThrow(actor);
         resetMotion(actor);
     }
 
@@ -1549,8 +1584,7 @@ public final class WorldPhysics implements AutoCloseable {
         for (var entry : actors.entrySet()) {
             Actor target = entry.getValue();
             if (entry.getKey().equals(id) && target.throwTicks > 0) {
-                target.throwTicks = 0;
-                target.throwX = target.throwZ = 0;
+                clearThrow(target);
                 stopNow(id);
                 resetMotion(target);
             }
@@ -1570,12 +1604,55 @@ public final class WorldPhysics implements AutoCloseable {
         }
     }
 
+    public double winterGround(double x, double z) { return call(() -> scene.groundHeight(x, z)); }
+
+    public JsonNode winterTree() { return call(() -> scene.data.path("winterTree").deepCopy()); }
+
+    public boolean snowPileInReach(String userId, String pileId) {
+        return call(() -> {
+            Actor actor = actors.get(userId);
+            if (actor == null) { return false; }
+            Vector3f p = actor.body.getPhysicsLocation(null);
+            for (JsonNode pile : scene.data.path("winterSnowPiles")) {
+                if (pile.path("id").asText().equals(pileId)) {
+                    double centerY = scene.groundHeight(p.x, p.z) + number("halfHeight") + number("radius")
+                            + number("offset");
+                    return Math.hypot(p.x - pile.path("x").asDouble(), p.z - pile.path("z").asDouble())
+                            <= pile.path("radius").asDouble() && Math.abs(p.y - centerY) <= .65;
+                }
+            }
+            return false;
+        });
+    }
+
+    /** 눈덩이 포물선과 정적 구조물의 첫 충돌 거리를 반환한다. */
+    public double snowballDistance(double x, double y, double z, double yaw) {
+        return call(() -> {
+            Vector3f previous = new Vector3f((float) x, (float) (y + .35), (float) z);
+            for (int i = 1; i <= 32; i++) {
+                double distance = i * .5;
+                Vector3f next = new Vector3f((float) (x + Math.sin(yaw) * distance),
+                        (float) (y + .35 + com.ssafy.ontop.world.winter.SnowballService.ARC_HEIGHT
+                                * Math.sin(Math.PI * distance / 16)),
+                        (float) (z + Math.cos(yaw) * distance));
+                double fraction = space.rayTest(previous, next).stream()
+                        .filter(hit -> hit.getCollisionObject().getCollisionGroup() == 2)
+                        .mapToDouble(hit -> hit.getHitFraction()).min().orElse(1);
+                if (fraction < 1) {
+                    return distance - .5 + fraction * .5;
+                }
+                previous = next;
+            }
+            return 16.0;
+        });
+    }
+
     private boolean canOccupy(Vector3f center) {
         standProbe.setPhysicsLocation(center);
         boolean[] blocked = {false};
         space.contactTest(standProbe, event -> {
             var other = event.getObjectA() == standProbe ? event.getObjectB() : event.getObjectA();
-            if (other.getCollisionGroup() == 2 && event.getDistance1() < -.04f) { blocked[0] = true; }
+            if (other.getCollisionGroup() == 2 && event.getDistance1() < -STAND_PENETRATION_TOLERANCE) { blocked[0] = true; }
         });
         return !blocked[0];
     }
@@ -1607,7 +1684,7 @@ public final class WorldPhysics implements AutoCloseable {
             probe.setPhysicsLocation(center);
             boolean[] blocked = {false};
             space.contactTest(probe, event -> {
-                if (event.getDistance1() < -0.04f) {
+                if (event.getDistance1() < -STAND_PENETRATION_TOLERANCE) {
                     blocked[0] = true;
                 }
             });
@@ -1619,6 +1696,10 @@ public final class WorldPhysics implements AutoCloseable {
 
     private void placeNow(String id, double x, double y, double z) {
         Actor a = actors.get(id);
+        // 외부 순간 이동 뒤 이전 던지기 속도와 world sweep이 남지 않게 한다.
+        if (a.throwTicks > 0) {
+            clearThrow(a);
+        }
         a.relocations++;
         a.courseRide = false;
         stop(id);
@@ -1628,6 +1709,13 @@ public final class WorldPhysics implements AutoCloseable {
         a.body.setLinearVelocity(Vector3f.ZERO);
         a.positionValidator = null;
         resetMotion(a);
+    }
+
+    private void clearThrow(Actor actor) {
+        actor.throwTicks = 0;
+        actor.throwX = actor.throwZ = 0;
+        // 착지뿐 아니라 강제 해제·퇴장·위치 복구도 기본 ghost sweep으로 복원한다.
+        actor.body.setSweepTest(true);
     }
 
     private void resetMotion(Actor actor) {

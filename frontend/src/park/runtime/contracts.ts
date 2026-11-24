@@ -29,10 +29,15 @@ export interface ParkRuntimePort {
   sendTyping?(typing: boolean): Promise<boolean>
   setMyRoomOpen?(open: boolean): Promise<boolean>
   sendSpectatorChat(text: string): Promise<boolean>
+  pingRummikub?(meldIndex: number): Promise<boolean>
   pingOmok(x: number, y: number): Promise<boolean>
   pingLedger(target: import('../../game/ledger/protocol').LedgerPingTarget): Promise<boolean>
   sendEmote(id: import('../../features/emotes/catalog').EmoteId): Promise<boolean>
   pickupAvatar?(targetId: string): Promise<boolean>
+  pickupSnowball?(pileId: string): Promise<boolean>
+  escapeSnowball?(freezeId: string, key: 'A' | 'D'): Promise<boolean>
+  aimSnowball?(yaw: number): Promise<import('../../features/winter/trajectory').SnowballAim | null>
+  throwSnowball?(yaw: number): Promise<boolean>
   throwAvatar?(carryId: string, direction: { dx: number; dy: number; dz: number }): Promise<boolean>
   releaseAvatar?(carryId: string): Promise<boolean>
   setInteractionBusy?(busy: boolean, confirm?: boolean, minigame?: boolean): Promise<boolean>
@@ -64,9 +69,13 @@ export interface ParkRuntimePort {
   hitOneCardHand?(attemptId: string): Promise<boolean>
   sendAlkkagiSpectator?(input: Record<string, unknown>): Promise<boolean>
   actStoneRumble?(input: import('../../game/stone-rumble/protocol').StoneAction, clearQueuedActions?: boolean): Promise<boolean>
+  actQuoridor?(input: import('../../game/quoridor/protocol').QuoridorInput): Promise<boolean>
   actAlkkagi?(input: Record<string, unknown>): Promise<boolean>
   actBridge(input: import('../../game/bridge/protocol').BridgeInput): Promise<boolean>
+  actRummikub?(input: import('../../game/rummikub/protocol').RummikubInput): Promise<boolean>
   actLedger(input: import('../../game/ledger/protocol').LedgerInput): Promise<boolean>
+  actDavinci?(input: import('../../game/davinci/protocol').DavinciInput): Promise<boolean>
+  pingDavinci?(targetUserId: string, tileId: string): Promise<boolean>
   flipHalli(): Promise<boolean>
   /** bellWindowId and expectedVersion come from the state the player saw when pressing the bell. */
   ringHalli(bellWindowId: number, expectedVersion: number): Promise<boolean>

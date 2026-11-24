@@ -97,6 +97,16 @@ public class RaffleRepository {
                 """, (rows, index) -> round(rows), Date.valueOf(weekStartDate)).stream().findFirst();
     }
 
+    public Optional<RaffleRound> shareRound(LocalDate weekStartDate) {
+        return jdbc.query("""
+                SELECT id, week_start_date, sales_starts_at, sales_ends_at,
+                       ticket_price, weekly_ticket_limit, sales_status
+                FROM raffle_rounds
+                WHERE week_start_date = ?
+                FOR SHARE
+                """, (rows, index) -> round(rows), Date.valueOf(weekStartDate)).stream().findFirst();
+    }
+
     public Optional<RaffleTicket> ticket(long roundId, long userId, String idempotencyKey) {
         return jdbc.query("""
                 SELECT id, round_id, user_id, ticket_number, purchase_price, balance_after,

@@ -46,31 +46,32 @@ class JevPolicyAuditTests {
             conflictScore.set(.98);
             var result=client.assessConflict(List.of(a,b),List.of(a,b),10_001);
             assertThat(result.suspected()).isTrue();
-            assertThat(result.policyVersion()).isEqualTo("negative-advisory-v5");
+            assertThat(result.policyVersion()).isEqualTo("targeted-abuse-advisory-v6");
             assertThat(captured.get().path("questions").size()).isEqualTo(2);
             assertThat(captured.get().path("questions").has("negative_0")).isTrue();
             assertThat(result.pendingMessageIds()).containsExactly("a");
             var instructions=captured.get().path("questions").path("negative_0").path("instructions");
             assertThat(instructions.path("target").asText()).isEqualTo("A: 너나 그만해");
-            assertThat(instructions.path("question").asText()).contains("Profanity is NOT required", "그렇게 살지마", "가정교육 못 받으심?", "caring advice", "신고하고 싶어요");
+            assertThat(instructions.path("question").asText()).contains("Profanity is NOT required", "너 머리가 비었냐", "If ambiguous, prefer no warning", "쉽다 ㅋ", "시귀봉진", "Genuine quotation/reporting");
             client.triage("전체 접속 불가입니다");
             assertThat(captured.get().path("questions").size()).isEqualTo(6);
             assertThat(captured.get().path("questions").has("global")).isTrue();
         } finally { server.stop(0); }
     }
-    @Test void advisoryThresholdIncludesHalfWithoutChangingLegacyModerationThreshold()throws Exception {
+    @Test void 명백한_공격의_점수가_기준에_도달해야_경고하고_기존_검열_기준은_유지한다()throws Exception {
         var server=server();
         try {
             var client=client(server);var chats=List.of(new AiDecisions.Chat("a","world:one","A","합성 검증 문구",10_000,4,4));
-            for(double value:List.of(.499,.5,.61)){
+            for(double value:List.of(.499,.5,.61,.849,.85,.99)){
                 conflictScore.set(value);var assessment=client.assessConflict(chats,chats,10_001);
-                assertThat(assessment.threshold()).isEqualTo(.5);
-                assertThat(assessment.suspected()).isEqualTo(value>=.5);
+                assertThat(assessment.threshold()).isEqualTo(.85);
+                assertThat(assessment.suspected()).isEqualTo(value>=.85);
             }
             var pair=List.of(chats.getFirst(),new AiDecisions.Chat("b","world:one","B","다른 합성 문구",10_001,4,4));
+            conflictScore.set(.61);
             assertThat(client.moderate(pair,pair).conflict()).isFalse();
             conflictScore.set(.85);assertThat(client.moderate(pair,pair).conflict()).isTrue();
-            var old=client.assessConflict(chats,chats,50_001);assertThat(old.threshold()).isEqualTo(.5);assertThat(old.suspected()).isFalse();
+            var old=client.assessConflict(chats,chats,50_001);assertThat(old.threshold()).isEqualTo(.85);assertThat(old.suspected()).isFalse();
         }finally{server.stop(0);}
     }
     @Test void profanityAndInsultHaveIndependentGatesAndGenuineMentionIsProtected() throws Exception {

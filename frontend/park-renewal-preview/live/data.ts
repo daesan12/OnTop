@@ -13,6 +13,7 @@ import { buildRenewalJumpCourse } from './jumpCourseData'
 import { buildRenewalConstructionSites } from './construction'
 import { buildRenewalBenches } from './benches'
 import { buildRenewalBoats } from './boats'
+import { buildSleighFacility } from '../../src/features/winter/sleigh/route'
 
 function offset(position: Point3, x: number, y: number, z: number): Point3 {
   return [position[0] + x, position[1] + y, position[2] + z]
@@ -77,7 +78,7 @@ export function buildRenewalMapData() {
     tableAnchorIds: tables.map(t => t.id),
     tables, facilities, pavilions, physics, jumpCourse: buildRenewalJumpCourse(),
     interactions: {
-      ...old, benches: buildRenewalBenches(), fitness, telescopes, boats: buildRenewalBoats(), ...buildRenewalRecreation(),
+      ...old, sleighs: buildSleighFacility(), benches: buildRenewalBenches(), fitness, telescopes, boats: buildRenewalBoats(), ...buildRenewalRecreation(),
       construction: [
         ...old.construction.filter(s => s.id === 'layout-drink').map(s => ({ ...s, ...kioskPlacement('lottery', 3.25) })),
         ...buildRenewalConstructionSites(),

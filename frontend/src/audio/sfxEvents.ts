@@ -6,6 +6,8 @@ import type { SfxName } from './sfx'
 
 /** Who must act now: the bridge responder answers a declaration, otherwise the turn holder. */
 export function turnOwner(g: Game): string | null {
+  if (g.rummikub) return g.rummikub.turnUserId
+  if (g.davinci) return g.davinci.turnUserId
   if (g.stone) return null
   if (g.alkkagi) return g.alkkagi.turnUserId
   if (g.omok) return g.omok.turnUserId
@@ -13,6 +15,7 @@ export function turnOwner(g: Game): string | null {
   if (g.onecard) return g.onecard.turnUserId
   if (g.ledger) return g.ledger.turnUserId
   if (g.halli) return g.halli.turnUserId
+  if (g.quoridor) return g.quoridor.turnUserId
   return g.bridge.stage === 'RESPONDING' ? g.bridge.responderUserId : g.bridge.turnUserId
 }
 

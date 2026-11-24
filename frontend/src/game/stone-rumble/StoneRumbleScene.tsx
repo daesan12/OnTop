@@ -25,7 +25,7 @@ import { StoneRumbleLighting } from './StoneRumbleLighting'
 import { createStoneMaterial } from './visibility'
 import { StoneHitEffect } from './StoneHitEffect'
 import type { StoneFeedbackFrame } from './feedback'
-import { followStoneYaw } from './motion'
+import { followStoneCamera, followStoneYaw, STONE_CAMERA_DRAG, StonePositionBuffer } from './motion'
 
 const StoneRumbleEnvironment = lazy(loadStoneRumblePark)
 const stonePigeonMaterial = createStoneMaterial(pigeonMaterial)
@@ -91,7 +91,8 @@ function AvatarRig({ player, index, own, time, gameId, feedback, source, files, 
   const body = useRef<Group>(null), dive = useRef(0), diveYaw = useRef(0)
   const aimMarker = useRef<Group>(null)
   const facing = useRef({ x: player.x, z: player.z, yaw: Math.atan2(player.aimX, player.aimZ) })
-  useEffect(() => { initial.current = true; dive.current = 0 }, [gameId])
+  const positions = useMemo(() => new StonePositionBuffer(), [])
+  useEffect(() => { initial.current = true; dive.current = 0; positions.reset() }, [gameId, positions])
   useEffect(() => () => rig.dispose(), [rig])
   useFrame((_, dt) => {
     const root = group.current
@@ -104,10 +105,7 @@ function AvatarRig({ player, index, own, time, gameId, feedback, source, files, 
       initial.current = false
     }
     const previousX = root.position.x, previousZ = root.position.z
-    const follow = 1 - Math.exp(-dt * 34)
-    root.position.x += (player.x - root.position.x) * follow
-    root.position.z += (player.z - root.position.z) * follow
-    root.position.y += (player.y - root.position.y) * (1 - Math.exp(-dt * 38))
+    positions.sample(player, time, performance.now(), root.position)
     // 보간 잔여 이동이나 마우스 조준 대신 서버 좌표의 실제 이동 방향을 따른다.
     const dx = player.x - facing.current.x, dz = player.z - facing.current.z
     if (Math.hypot(dx, dz) > .001) facing.current.yaw = Math.atan2(dx, dz)
@@ -218,6 +216,7 @@ function Stage({ state, ownId, viewId, input, fire, feedback, localOnly, control
   const clickPending = useRef(false)
   const previousView = useRef(viewId), previousGame = useRef(state.gameId)
   const focus = useMemo(() => new Vector3(), []), desiredFocus = useMemo(() => new Vector3(), [])
+  const followedPosition = useMemo(() => new StonePositionBuffer(), [])
   useEffect(() => {
     const canvas = gl.domElement
     const tapSlop = 8
@@ -250,7 +249,7 @@ function Stage({ state, ownId, viewId, input, fire, feedback, localOnly, control
         gesture.orbiting = true
         controls.current.manualOrbit = true
         controls.current.pointerAiming = false
-        controls.current.yaw = (controls.current.yaw - (event.clientX - gesture.x) * .008) % (2 * Math.PI)
+        controls.current.yaw = (controls.current.yaw - (event.clientX - gesture.x) * STONE_CAMERA_DRAG) % (2 * Math.PI)
         gesture.x = event.clientX
       } else if (event.pointerType === 'mouse') aim(event)
     }
@@ -314,20 +313,24 @@ function Stage({ state, ownId, viewId, input, fire, feedback, localOnly, control
   useFrame((_, dt) => {
     const aspect = size.width / size.height
     const control = controls.current
+    const newGame = previousGame.current !== state.gameId
+    if (newGame || previousView.current !== viewId) followedPosition.reset()
+    // 탈락/대상 부재 중에는 마지막 초점을 유지하고 새 생존 대상을 받은 뒤 이동한다.
     if (player?.alive || !cameraReady.current) {
       const x = player?.alive ? player.x : 0, y = player?.alive ? player.y : 24, z = player?.alive ? player.z : 0
-      desiredFocus.set(x, y, z)
+      if (player?.alive) followedPosition.sample(player, state.serverTime, performance.now(), desiredFocus)
+      else desiredFocus.set(x, y, z)
     }
-    if (!cameraReady.current || previousView.current !== viewId || previousGame.current !== state.gameId) {
+    if (!cameraReady.current || newGame) {
       focus.copy(desiredFocus)
-      cameraReady.current = true; previousView.current = viewId; previousGame.current = state.gameId
+      cameraReady.current = true
     }
+    previousView.current = viewId; previousGame.current = state.gameId
     // Smooth the follow point, but apply the orbit as an angle so a quick half-turn
     // doesn't interpolate the camera through the player.
     focus.lerp(desiredFocus, 1 - Math.exp(-dt * 14))
     const cameraDelta = Math.min(dt, .05)
-    control.renderedYaw = followStoneYaw(control.renderedYaw, control.yaw, cameraDelta,
-      control.manualOrbit ? 24 : 12, control.manualOrbit ? 24 : 5.2)
+    control.renderedYaw = followStoneCamera(control.renderedYaw, control.yaw, cameraDelta, control.manualOrbit)
     const sin = Math.sin(control.renderedYaw), cos = Math.cos(control.renderedYaw)
     const scale = zoom.current * Math.max(1, Math.min(1.2, .9 / aspect))
     camera.position.set(focus.x + sin * 7.5 * scale, focus.y + 9 * scale, focus.z + cos * 7.5 * scale)

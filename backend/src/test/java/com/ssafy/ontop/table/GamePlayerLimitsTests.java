@@ -13,7 +13,7 @@ class GamePlayerLimitsTests {
 
     @ParameterizedTest
     @EnumSource(TableGame.class)
-    void 게임별_정원까지만_앉고_현재_참가자가_모두_준비해야_한다(TableGame game) {
+    void 게임별_정원과_허용_인원을_지키고_모두_준비해야_한다(TableGame game) {
         TableRoom room = new TableRoom("table-1");
         room.join("first");
         room.selectGame(game);
@@ -28,7 +28,10 @@ class GamePlayerLimitsTests {
             }
             assertThat(room.snapshot().allReady()).isFalse();
             room.setReady("user-" + count, true);
-            assertThat(room.snapshot().allReady()).isTrue();
+            boolean supportedPlayerCount = game != TableGame.QUORIDOR || count == 2 || count == 4;
+            assertThat(room.snapshot().allReady())
+                    .as("%s의 %d인 시작 가능 여부", game, count)
+                    .isEqualTo(supportedPlayerCount);
             assertThat(room.snapshot().capacity()).isEqualTo(game.maximumPlayers());
             assertThat(room.snapshot().seats()).hasSize(game.maximumPlayers());
         }

@@ -70,7 +70,7 @@ class PlusMinusMySqlTests {
     }
 
     @Test
-    void 다른_키의_동시_START도_하루_10판을_넘지_않는다() throws Exception {
+    void 다른_키의_동시_START도_횟수_제한없이_각각_한번씩_처리한다() throws Exception {
         long user = 회원(1000);
         var results = 동시에(12, i -> {
             try {
@@ -81,9 +81,9 @@ class PlusMinusMySqlTests {
             }
         });
 
-        assertThat(results).filteredOn("PLAYED"::equals).hasSize(10);
-        assertThat(results).filteredOn("PLUS_MINUS_DAILY_LIMIT"::equals).hasSize(2);
-        assertThat(원장수(user, "MINIGAME_ENTRY_FEE")).isEqualTo(10);
+        assertThat(results).filteredOn("PLAYED"::equals).hasSize(12);
+        assertThat(results).filteredOn("PLUS_MINUS_DAILY_LIMIT"::equals).isEmpty();
+        assertThat(원장수(user, "MINIGAME_ENTRY_FEE")).isEqualTo(12);
     }
 
     @Test

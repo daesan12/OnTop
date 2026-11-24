@@ -193,6 +193,8 @@ public class TableHub {
     private final com.ssafy.ontop.world.service.WorldTyping typing =
             new com.ssafy.ontop.world.service.WorldTyping(System::nanoTime);
     private final WorldEmoteService emotes;
+    private final com.ssafy.ontop.world.winter.SnowballService snowballs =
+            new com.ssafy.ontop.world.winter.SnowballService();
     private final WorldProximity proximity;
     private final WorldFacilityService facilities;
     private final PreparedParkMap preparedPark;
@@ -263,6 +265,8 @@ public class TableHub {
     private long receivedMessages;
     private final LongAdder sentMessages = new LongAdder();
     private final LongAdder sentBytes = new LongAdder();
+    private long worldTickRuns;
+    private volatile WorldTickTiming lastWorldTickTiming;
     private final Map<ConnectionCloseReason, LongAdder> closedByReason = new EnumMap<>(ConnectionCloseReason.class);
     private boolean stopped;
     private BehaviorLog behaviorLog = BehaviorLog.disabled();
@@ -480,7 +484,7 @@ public class TableHub {
         this.preparedPark = preparedPark;
         this.facilities = preparedPark == null ? new WorldFacilityService()
                 : new WorldFacilityService(preparedPark.facilities(), java.time.Clock.systemUTC(), System::nanoTime,
-                        preparedPark.boatRoute());
+                        preparedPark.boatRoute(), preparedPark.sleighRoute());
         if (preparedPark != null && (!channels.mapMetadata().equals(preparedPark.metadata())
                 || !maps.metadata().equals(preparedPark.metadata()))) {
             throw new IllegalArgumentException("채널·시설·연결 응답은 같은 맵을 사용해야 합니다.");
@@ -877,6 +881,14 @@ public class TableHub {
                 gameResults.get().check(sessionId, requestId, request.payload().get("gameSessionId").textValue());
                 return;
             }
+            advanceWinter();
+            if (snowballs.frozen(member.userId(), System.nanoTime()) && Set.of(
+                    "TABLE_JOIN", "TABLE_WATCH", "GAME_WATCH", "WORLD_CARRY_PICKUP", "WORLD_FACILITY_USE",
+                    "WORLD_FOLLOW_START", "WORLD_EMOTE_SEND", "WORLD_SECRET_DOORS_SET", "WORLD_INTERIOR_ACCESS",
+                    "WORLD_MOBILITY_START", "WORLD_BALLOON_START", "WORLD_BOAT_JOIN", "WORLD_BOAT_REPLY",
+                    "WORLD_MYROOM_SET", "WORLD_SNOWBALL_PICKUP", "WORLD_SNOWBALL_THROW").contains(request.type())) {
+                fail(request, "SNOWBALL_FROZEN", "얼어 있어요. A·D를 번갈아 눌러 얼음을 깨주세요.");
+            }
             if (request.type().equals("WORLD_CHAT_TYPING_SET")) {
                 String channel = channels.channelOf(member.userId());
                 if (channel == null) { fail(request, "NOT_IN_CHANNEL", "먼저 채널에 입장해주세요."); }
@@ -931,7 +943,7 @@ public class TableHub {
             // 참가자에게도 로비 복구 오류 대신 관전 권한 오류를 주도록 복구 게이트 앞에서 처리한다.
             // 관전자의 로비 자격은 canSpectate에서 다시 검사한다.
             if (request.type().equals("GAME_SPECTATOR_CHAT_SEND") || request.type().equals("OMOK_SPECTATOR_PING_SEND")
-                    || request.type().equals("DICE_LEDGER_SPECTATOR_PING_SEND")) {
+                    || request.type().equals("DICE_LEDGER_SPECTATOR_PING_SEND") || request.type().equals("RUMMIKUB_SPECTATOR_PING_SEND") || request.type().equals("DAVINCI_SPECTATOR_PING_SEND")) {
                 sendSpectatorEvent(sessionId, member, request);
                 return;
             }
@@ -986,6 +998,9 @@ public class TableHub {
                     }
                 }
                 case "WORLD_EMOTE_SEND" -> sendEmote(member, request);
+                case "WORLD_SNOWBALL_THROW", "WORLD_SNOWBALL_PREPARE", "WORLD_SNOWBALL_AIM" -> throwSnowball(member, request);
+                case "WORLD_SNOWBALL_PICKUP", "WORLD_SNOWBALL_ESCAPE", "WORLD_SNOWBALL_CHECK" ->
+                        snowballState(member, request);
                 case "WORLD_CARRY_PICKUP", "WORLD_CARRY_THROW", "WORLD_CARRY_RELEASE" -> carry(member, request);
                 case "WORLD_INTERACTION_SET" -> interactionBusy(member, request);
                 case "WORLD_FOLLOW_START", "WORLD_FOLLOW_STOP", "WORLD_FOLLOW_CHECK" -> follow(member, request);
@@ -1060,6 +1075,7 @@ public class TableHub {
         chat.disconnected(member.userId());
         cancelEmote(member.userId(), "DISCONNECTED");
         emotes.disconnected(member.userId());
+        clearWinter(member.userId());
         appearancePushes.remove(member.userId());
         profileMemberships.remove(member);
         positionSampler.forget(member.userId());
@@ -1407,6 +1423,7 @@ public class TableHub {
             member.peer().offer(protocol.encode(request.requestId(), "CHANNEL_STATE", change.state()));
             member.peer().offer(protocol.encode(null, "WORLD_STATE", channels.worldState(channelId)));
         }
+        publishWinter(channelId, member, null);
         publishTyping(channelId, member, null, false);
         sendParkDebris(member, channelId);
         if (balloons != null) {
@@ -1581,6 +1598,7 @@ public class TableHub {
             recordFacility(member.accountId(), facilityLease, "CHANNEL_LEFT");
             syncDuckBoat(facilityLease.channelId());
         }
+        clearWinter(member.userId());
         WorldChannelRegistry.State state = channels.leave(member.userId());
         String typingChannel = typing.remove(member.userId());
         if (typingChannel != null) { publishTyping(typingChannel, null, null, true); }
@@ -2008,6 +2026,24 @@ public class TableHub {
                 Map.of("status", status, "fare", DuckBoatSchedule.FARE, "leaseId", leaseId)));
     }
 
+    /** 서버의 고정 항로로 이동시키고 한 바퀴가 끝나면 지상 하차를 확정한다. */
+    private void advanceSleighs() {
+        for (var lease : facilities.sleighRiders()) {
+            if (!facilities.sleighArrived(lease)) {
+                channels.moveHeld(lease.userId(), facilities.sleighPose(lease));
+                continue;
+            }
+            var exit = channels.facilityExit(lease.userId(), lease);
+            if (exit == null) continue; // Keep the rider held at the dock until a safe ground exit is available.
+            channels.releaseFacility(lease.userId(), exit);
+            facilities.release(lease.userId());
+            var member = boatMember(lease.userId());
+            recordFacility(member == null ? null : member.accountId(), lease, "ARRIVED");
+            publishFacilities(lease.channelId(), null, null);
+            publishWorld(channels.worldState(lease.channelId()), null, null);
+        }
+    }
+
     /** 운항 중인 배가 있으면 장식 순환 배를 숨기고 충돌도 뺀다. */
     private void syncDuckBoat(String channel) {
         boolean sailing = facilities.boatSailing(channel);
@@ -2045,7 +2081,7 @@ public class TableHub {
         var vehicle = VehicleKind.valueOf(payload.path("vehicle").asText());
         if (current != null && current.id.equals(id)
                 && current.station.equals(station) && current.vehicle == vehicle) {
-            if (current.seconds == 0 || current.endStatus != null) {
+            if (current.billingCount == 0 || current.endStatus != null) {
                 rememberMobilityRequest(current.startRequests, request.requestId());
             } else {
                 sendMobility(member, request.requestId(), id, vehicle, "RIDING", current.total(), null);
@@ -2076,7 +2112,7 @@ public class TableHub {
 
     private void submitMobilityPayment(MobilityRide ride, long deadline) {
         ride.paymentDeadline = deadline;
-        ride.payment = rentals.submit(ride.owner.accountId(), ride.id, ride.seconds + 1, ride.vehicle, deadline,
+        ride.payment = rentals.submit(ride.owner.accountId(), ride.id, ride.billingCount + 1, ride.vehicle, deadline,
                 payment -> completeMobilityPayment(ride, payment));
         if (ride.payment == null) {
             endRide(ride.owner.userId(), "FAILED", "FAILED");
@@ -2089,13 +2125,13 @@ public class TableHub {
             return;
         }
         ride.payment = null;
-        boolean first = ride.seconds == 0;
+        boolean first = ride.billingCount == 0;
         boolean paid = payment == MobilityWallet.Payment.PAID
                 || (!first && payment == MobilityWallet.Payment.ALREADY_PAID);
         String receipt = null;
         if (paid) {
-            ride.seconds++;
-            receipt = ride.id + ":" + ride.seconds;
+            ride.billingCount++;
+            receipt = ride.id + ":" + ride.billingCount;
         }
         if (ride.endStatus != null) {
             finishRide(ride, receipt);
@@ -2117,7 +2153,7 @@ public class TableHub {
                 finishRide(ride, receipt);
                 return;
             }
-            ride.nextPaymentAt = System.nanoTime() + MobilityRentals.SECOND;
+            ride.nextPaymentAt = System.nanoTime() + ride.vehicle.billingSeconds() * MobilityRentals.SECOND;
             endFollows(user);
             cancelEmote(user, "ACTIVITY_STARTED");
             publishWorld(channels.setVehicle(user, ride.vehicle), null, null);
@@ -2126,13 +2162,13 @@ public class TableHub {
             ride.logged = true;
             recordMobilityStart(ride);
         } else {
-            ride.nextPaymentAt += MobilityRentals.SECOND;
+            ride.nextPaymentAt += ride.vehicle.billingSeconds() * MobilityRentals.SECOND;
             notifyMobilityRide(ride, Set.of(), "RIDING", receipt);
         }
     }
 
-    // 첫 1초 요금이 커밋돼 실제로 탄 뒤에만 시작을, 그렇게 시작한 탈것만 종료를 남긴다. 시설 이용과 같은
-    // FACILITY_USED·FACILITY_RELEASED를 쓰고 leaseId로 짝을 맞춘다. 이용 시간은 요금을 낸 초 수다.
+    // 첫 구간 결제가 확정돼 실제로 탄 뒤에만 시작과 종료를 남긴다.
+    // 탈것 durationMs는 기존 행동 로그·분석 계약의 결제 구간 합이며 실제 탑승 체류 시간과 다르다.
     private void recordMobilityStart(MobilityRide ride) {
         recordBehavior(BehaviorEventType.FACILITY_USED, ride.owner.accountId(), builder -> mobilityProps(builder, ride));
     }
@@ -2140,7 +2176,7 @@ public class TableHub {
     private void recordMobilityEnd(MobilityRide ride) {
         recordBehavior(BehaviorEventType.FACILITY_RELEASED, ride.owner.accountId(),
                 builder -> mobilityProps(builder, ride).prop("endReason", ride.logReason)
-                        .prop("durationMs", ride.seconds * 1000).prop("fee", ride.total()));
+                        .prop("durationMs", ride.paidDurationMs()).prop("fee", ride.total()));
     }
 
     private static BehaviorEvent.Builder mobilityProps(BehaviorEvent.Builder builder, MobilityRide ride) {
@@ -2173,7 +2209,7 @@ public class TableHub {
         // the decision is included in the final total when the worker reports its result.
         boolean resolved = ride.payment == null || ride.payment.cancel();
         markEnded(ride, status, logReason);
-        if (ride.seconds > 0) {
+        if (ride.billingCount > 0) {
             var world = channels.setVehicle(user, null);
             if (world != null) {
                 publishWorld(world, null, null);
@@ -2222,7 +2258,7 @@ public class TableHub {
                 continue;
             }
             String user = ride.owner.userId();
-            if (!mobilityPositionValid(ride, ride.seconds == 0)) {
+            if (!mobilityPositionValid(ride, ride.billingCount == 0)) {
                 endRide(user, "ENDED", "AUTO_ENDED");
             } else if (ride.payment != null) {
                 if (now - ride.paymentDeadline >= 0) {
@@ -2247,11 +2283,35 @@ public class TableHub {
         if (stopped) {
             return;
         }
+        long started = System.nanoTime();
+        long registryNanos = 0;
+        long physicsNanos = 0;
+        long snapshotNanos = 0;
+        long simulationLagNanos = 0;
+        long publishNanos = 0;
+        long encodeNanos = 0;
+        long queueNanos = 0;
+        long positionLogNanos = 0;
+        long watchNanos = 0;
+        int patches = 0;
+        int recipients = 0;
         try {
+            advanceWinter();
             syncSpectatorPresence();
             advanceRentals();
             advanceDuckBoats();
+            advanceSleighs();
+            long registryStarted = System.nanoTime();
+            long previousPhysicsTick = channels.lastTickTiming().tick();
             var worlds = channels.advance(Set.copyOf(seating.keySet()), follows.activeStates());
+            registryNanos = System.nanoTime() - registryStarted;
+            var registryTiming = channels.lastTickTiming();
+            if (registryTiming.tick() != previousPhysicsTick) {
+                physicsNanos = registryTiming.physicsNanos();
+                snapshotNanos = registryTiming.snapshotNanos();
+                simulationLagNanos = registryTiming.schedulerLagNanos();
+            }
+            patches = worlds.size();
             dispatchJumpmap(channels.drainJumpmap());
             for (var ended : channels.drainSuspensionEnds()) {
                 publishChannel(ended, null, null);
@@ -2266,19 +2326,41 @@ public class TableHub {
                         cancelEmote(avatar.userId(), "MOVEMENT");
                     }
                 }
-                publishWorld(state, null, null);
+                WorldPublishTiming published = publishWorld(state, null, null);
+                publishNanos += published.totalNanos();
+                encodeNanos += published.encodeNanos();
+                queueNanos += published.queueNanos();
+                recipients += published.recipients();
+                long positionLogStarted = System.nanoTime();
                 recordPositions(state, null);
+                positionLogNanos += System.nanoTime() - positionLogStarted;
+                long watchStarted = System.nanoTime();
                 for (Member member : java.util.List.copyOf(members.values())) {
                     if (channels.isInChannel(member.userId(), state.channelId())) {
                         refreshWatchRange(member);
                     }
                 }
+                watchNanos += System.nanoTime() - watchStarted;
             }
         } catch (RuntimeException exception) {
             // Do not silently lose the scheduled simulation after one failed tick.
             org.slf4j.LoggerFactory.getLogger(TableHub.class).error("광장 이동 tick 실패", exception);
+        } finally {
+            lastWorldTickTiming = new WorldTickTiming(++worldTickRuns, System.nanoTime() - started,
+                    registryNanos, physicsNanos, snapshotNanos, simulationLagNanos, publishNanos,
+                    encodeNanos, queueNanos, positionLogNanos, watchNanos, patches, recipients);
         }
     }
+
+    /** 마지막 예약 실행의 구간별 시간. 클라이언트·회원 식별자는 포함하지 않는다. */
+    public WorldTickTiming lastWorldTickTiming() {
+        return lastWorldTickTiming;
+    }
+
+    public record WorldTickTiming(long run, long totalNanos, long registryNanos, long physicsNanos,
+                                  long snapshotNanos, long simulationLagNanos, long publishNanos,
+                                  long encodeNanos, long queueNanos, long positionLogNanos,
+                                  long watchNanos, int patches, int recipients) { }
 
     /** 점프맵 판정 신호는 레지스트리 잠금 밖에서 넘긴다. 서비스가 없으면 버린다. */
     private void dispatchJumpmap(java.util.List<WorldChannelRegistry.JumpmapDelivery> deliveries) {
@@ -2745,6 +2827,137 @@ public class TableHub {
         }
     }
 
+    private void publishWinter(String channel, Member actor, String requestId) {
+        var state = snowballs.state(channel);
+        for (Member target : members.values()) {
+            if (channels.isInChannel(target.userId(), channel)) {
+                target.peer().offer(protocol.encode(target == actor ? requestId : null, "WORLD_SNOWBALL_STATE", state));
+            }
+        }
+    }
+
+    private void advanceWinter() {
+        long now = System.nanoTime();
+        var changedChannels = new java.util.LinkedHashSet<String>();
+        for (String user : snowballs.expire(now)) {
+            var world = channels.winterFreeze(user, false);
+            if (world != null) {
+                publishWorld(world, null, null);
+                changedChannels.add(world.channelId());
+            }
+        }
+        var impacts = snowballs.arrive(now, java.time.Instant.now(), this::snowballTargets);
+        for (var impact : impacts) {
+            if (!impact.hitUserId().isEmpty() && snowballs.frozen(impact.hitUserId(), now)) {
+                var frozen = channels.winterFreeze(impact.hitUserId(), true);
+                if (frozen != null) { publishWorld(frozen, null, null); }
+            }
+            changedChannels.add(impact.channelId());
+        }
+        // 같은 틱의 상태를 모두 확정한 뒤 채널당 한 번 보내고, 개별 탄착 이벤트는 보존한다.
+        changedChannels.forEach(channel -> publishWinter(channel, null, null));
+        for (var impact : impacts) {
+            for (Member target : members.values()) {
+                if (channels.isInChannel(target.userId(), impact.channelId())) {
+                    target.peer().offer(protocol.encode(null, "WORLD_SNOWBALL_IMPACT", impact));
+                }
+            }
+        }
+    }
+
+    private void clearWinter(String user) {
+        String channel = channels.channelOf(user);
+        snowballs.disconnected(user);
+        channels.winterFreeze(user, false);
+        if (channel != null) { publishWinter(channel, null, null); }
+    }
+
+    private void snowballState(Member member, Request request) {
+        String user = member.userId(), channel = channels.channelOf(user);
+        if (channel == null) { fail(request, "NOT_IN_CHANNEL", "먼저 공원에 입장해주세요."); }
+        try {
+            if (request.type().equals("WORLD_SNOWBALL_PICKUP")) {
+                if (carryBusy(user) || channels.carryState(user) != null || mobilityRides.containsKey(user)) {
+                    fail(request, "SNOWBALL_ACTIVITY_CONFLICT", "다른 활동을 마친 뒤 눈을 주워주세요.");
+                }
+                if (!channels.snowPileInReach(user, request.payload().path("pileId").asText())) {
+                    fail(request, "SNOW_PILE_OUT_OF_RANGE", "바닥의 눈더미 가까이에서 주워주세요.");
+                }
+                snowballs.pickup(request.requestId(), channel, user, System.nanoTime());
+            } else if (request.type().equals("WORLD_SNOWBALL_ESCAPE")) {
+                snowballs.escape(request.requestId(), channel, user, request.payload().path("freezeId").asText(),
+                        request.payload().path("key").asText(), System.nanoTime());
+                if (!snowballs.frozen(user, System.nanoTime())) {
+                    var world = channels.winterFreeze(user, false);
+                    if (world != null) { publishWorld(world, null, null); }
+                }
+            }
+            publishWinter(channel, member, request.requestId());
+        } catch (com.ssafy.ontop.world.winter.SnowballService.Rejected failure) {
+            fail(request, failure.code(), failure.getMessage());
+        }
+    }
+
+    private void throwSnowball(Member member, Request request) {
+        String user = member.userId(), channel = channels.channelOf(user);
+        var origin = channels.positionOf(user);
+        if (channel == null || origin == null) {
+            fail(request, "NOT_IN_CHANNEL", "먼저 공원에 입장해주세요.");
+        }
+        if (carryBusy(user) || channels.carryState(user) != null || mobilityRides.containsKey(user)
+                || origin.swimming()) {
+            fail(request, "SNOWBALL_ACTIVITY_CONFLICT", "공원에서 다른 활동을 마친 뒤 눈싸움을 해주세요.");
+        }
+        if (request.type().equals("WORLD_SNOWBALL_PREPARE")) {
+            try {
+                var motion = snowballs.prepare(request.requestId(), channel, user, request.payload().path("yaw").asDouble(),
+                        System.nanoTime(), java.time.Instant.now());
+                for (Member target : members.values()) {
+                    if (channels.isInChannel(target.userId(), channel)) {
+                        target.peer().offer(protocol.encode(target == member ? request.requestId() : null,
+                                "WORLD_SNOWBALL_WINDUP", motion));
+                    }
+                }
+            } catch (com.ssafy.ontop.world.winter.SnowballService.Rejected failure) {
+                fail(request, failure.code(), failure.getMessage());
+            }
+            return;
+        }
+        var targets = snowballTargets(channel);
+        com.ssafy.ontop.world.winter.SnowballService.Event event;
+        try {
+            if (request.type().equals("WORLD_SNOWBALL_AIM")) {
+                var aim = snowballs.preview(channel, user, origin, request.payload().path("yaw").asDouble(), targets,
+                        yaw -> channels.snowballDistance(user, yaw), System.nanoTime());
+                member.peer().offer(protocol.encode(request.requestId(), "WORLD_SNOWBALL_AIM_STATE", aim));
+                return;
+            }
+            event = snowballs.create(request.requestId(), channel, user, origin,
+                    request.payload().path("yaw").asDouble(), targets,
+                    yaw -> channels.snowballDistance(user, yaw), System.nanoTime(), java.time.Instant.now());
+        } catch (com.ssafy.ontop.world.winter.SnowballService.Rejected failure) {
+            fail(request, failure.code(), failure.getMessage());
+            return;
+        }
+        publishWinter(channel, null, null);
+        for (Member target : members.values()) {
+            if (channels.isInChannel(target.userId(), channel)) {
+                target.peer().offer(protocol.encode(target == member ? request.requestId() : null,
+                        "WORLD_SNOWBALL_EVENT", event));
+            }
+        }
+    }
+
+    private java.util.List<com.ssafy.ontop.world.winter.SnowballService.Target> snowballTargets(String channel) {
+        return members.values().stream()
+                .filter(target -> channels.isInChannel(target.userId(), channel))
+                .filter(target -> !carryBusy(target.userId()) && channels.carryState(target.userId()) == null
+                        && !mobilityRides.containsKey(target.userId()))
+                .map(target -> new com.ssafy.ontop.world.winter.SnowballService.Target(
+                        target.userId(), channels.positionOf(target.userId())))
+                .filter(target -> target.position() != null && !target.position().swimming()).toList();
+    }
+
     private void sendEmote(Member member, Request request) {
         String channelId = channels.channelOf(member.userId());
         if (channelId == null) {
@@ -2842,22 +3055,89 @@ public class TableHub {
                         .anyMatch(link -> link.followerId().equals(userId) || link.targetId().equals(userId));
     }
 
-    private void publishWorld(WorldChannelRegistry.WorldState state, Member actor, String requestId) {
+    private WorldPublishTiming publishWorld(WorldChannelRegistry.WorldState state, Member actor, String requestId) {
+        long started = System.nanoTime();
+        long encodeNanos = 0;
+        long queueNanos = 0;
+        int offered = 0;
         Set<String> recipients = state.avatars().stream().map(WorldChannelRegistry.Avatar::userId)
                 .collect(Collectors.toSet());
         String notification = null;
         for (Member target : members.values()) {
             if (recipients.contains(target.userId())) {
+                String message;
                 if (target == actor && requestId != null) {
-                    target.peer().offer(protocol.encode(requestId, "WORLD_STATE", state));
+                    long encodeStarted = System.nanoTime();
+                    message = protocol.encode(requestId, "WORLD_STATE", state);
+                    encodeNanos += System.nanoTime() - encodeStarted;
                 } else {
                     // 같은 방송의 공개 상태만 재사용한다. 요청 응답과 다음 버전은 별도로 직렬화한다.
                     if (notification == null) {
+                        long encodeStarted = System.nanoTime();
                         notification = protocol.encode(null, "WORLD_STATE", state);
+                        encodeNanos += System.nanoTime() - encodeStarted;
                     }
-                    target.peer().offer(notification);
+                    message = notification;
                 }
+                long queueStarted = System.nanoTime();
+                target.peer().offer(message);
+                queueNanos += System.nanoTime() - queueStarted;
+                offered++;
             }
+        }
+        return new WorldPublishTiming(System.nanoTime() - started, encodeNanos, queueNanos, offered);
+    }
+
+    private record WorldPublishTiming(long totalNanos, long encodeNanos, long queueNanos, int recipients) { }
+
+    public synchronized com.ssafy.ontop.world.winter.community.WinterCommunity.Player winterPlayer(long user, String channel) {
+        String identity = Long.toString(user);
+        Member member = members.values().stream().filter(value -> value.userId().equals(identity) && isMapReady(value))
+                .findFirst().orElse(null);
+        if (stopped || member == null || !isMapReady(member) || channel == null || !channel.equals(channels.channelOf(identity))) {
+            throw new com.ssafy.ontop.world.winter.community.WinterCommunityException(403, "WINTER_NOT_IN_CHANNEL", "공원 채널에 다시 입장해주세요.");
+        }
+        return winterPlayers(channel).stream().filter(player -> player.userId().equals(identity)).findFirst()
+                .orElseThrow(() -> new com.ssafy.ontop.world.winter.community.WinterCommunityException(403,
+                        "WINTER_NOT_IN_CHANNEL", "공원 위치를 다시 확인해주세요."));
+    }
+
+    public synchronized java.util.List<com.ssafy.ontop.world.winter.community.WinterCommunity.Player> winterPlayers(String channel) {
+        if (stopped) { return java.util.List.of(); }
+        var result = new java.util.ArrayList<com.ssafy.ontop.world.winter.community.WinterCommunity.Player>();
+        for (var avatar : channels.winterAvatars(channel)) {
+            Member member = members.values().stream().filter(value -> value.userId().equals(avatar.userId()) && isMapReady(value))
+                    .findFirst().orElse(null);
+            if (member == null || !isMapReady(member)) { continue; }
+            var p = avatar.position();
+            double groundY = channels.winterGround(channel, p.x(), p.z());
+            boolean free = avatar.tableSeat() == null && avatar.activity() == null && avatar.carry() == null
+                    && !Boolean.TRUE.equals(avatar.vrActive()) && !p.swimming()
+                    && facilities.current(avatar.userId()) == null && !mobilityRides.containsKey(avatar.userId())
+                    && !emotes.isActive(avatar.userId()) && aiPracticeChatGame(avatar.userId()).isEmpty()
+                    && follows.activeStates().stream().flatMap(state -> state.links().stream())
+                        .noneMatch(link -> link.followerId().equals(avatar.userId()) || link.targetId().equals(avatar.userId()))
+                    && !snowballs.frozen(avatar.userId(), System.nanoTime())
+                    && Math.abs(p.y() - groundY - .76) < .65;
+            result.add(new com.ssafy.ontop.world.winter.community.WinterCommunity.Player(avatar.userId(),
+                    avatar.nickname(), p.x(), p.y(), p.z(), free));
+        }
+        return java.util.List.copyOf(result);
+    }
+
+    public synchronized void requireWinterTree(com.ssafy.ontop.world.winter.community.WinterCommunity.Player player, String channel) {
+        var tree = channels.winterTree(channel);
+        if (!tree.isObject() || Math.hypot(player.x() - tree.path("x").asDouble(), player.z() - tree.path("z").asDouble())
+                > tree.path("radius").asDouble() + 3.2 || Math.abs(player.y() - tree.path("y").asDouble() - .76) > .8) {
+            throw new com.ssafy.ontop.world.winter.community.WinterCommunityException(403, "WINTER_TREE_OUT_OF_RANGE", "광장 트리 가까이에서 편지를 확인해주세요.");
+        }
+    }
+
+    public synchronized void winterTreeChanged(Object state) {
+        if (stopped) { return; }
+        String message = protocol.encode(null, "WORLD_WINTER_TREE", state);
+        for (Member member : members.values()) {
+            if (isMapReady(member) && channels.channelOf(member.userId()) != null) { member.peer().offer(message); }
         }
     }
 
@@ -4385,8 +4665,10 @@ public class TableHub {
         if(request.type().equals("GAME_SPECTATOR_CHAT_SEND")&&aiPracticeGames.containsValue(request.payload().path("gameId").asText())){sendPracticeChat(member,request,request.payload().path("gameId").asText());return;}
         if(request.type().equals("OMOK_SPECTATOR_PING_SEND")&&aiPracticeGames.containsValue(request.payload().path("gameId").asText())){sendPracticePing(member,request,request.payload().path("gameId").asText());return;}
 
+        boolean rummikubPing = request.type().equals("RUMMIKUB_SPECTATOR_PING_SEND");
         boolean ledgerPing = request.type().equals("DICE_LEDGER_SPECTATOR_PING_SEND");
-        boolean ping = ledgerPing || request.type().equals("OMOK_SPECTATOR_PING_SEND");
+        boolean codePing = request.type().equals("DAVINCI_SPECTATOR_PING_SEND");
+        boolean ping = rummikubPing || codePing || ledgerPing || request.type().equals("OMOK_SPECTATOR_PING_SEND");
         var payload = request.payload();
         if (member.accountId() == null) {
             fail(request, "GAME_SPECTATOR_AUTH_REQUIRED", "인증된 회원만 관전 채팅·핑을 보낼 수 있습니다.");
@@ -4400,9 +4682,11 @@ public class TableHub {
         if (push == null || ping && reconnect.get().canControlGame(member.accountId(), sessionId, gameId)) {
             fail(request, "GAME_SPECTATOR_ACCESS_DENIED", "관전이 승인된 경기에서만 보낼 수 있습니다.");
         }
-        if (ping && !(ledgerPing ? "DICE_LEDGER" : "OMOK").equals(push.gameCode)
+        if (ping && !(rummikubPing ? "RUMMIKUB".equals(push.gameCode) : codePing ? "DAVINCI_CODE".equals(push.gameCode)
+                : ledgerPing ? "DICE_LEDGER".equals(push.gameCode)
+                : Set.of("OMOK", "QUORIDOR").contains(push.gameCode))
                 || !Set.of("OMOK", "DICE", "ONE_CARD", "LIAR_BRIDGE", "DICE_LEDGER", "ALKKAGI",
-                        "HALLI_GALLI", "STONE_RUMBLE").contains(push.gameCode)) {
+                        "HALLI_GALLI", "QUORIDOR", "RUMMIKUB", "DAVINCI_CODE", "STONE_RUMBLE").contains(push.gameCode)) {
             fail(request, "GAME_SPECTATOR_UNSUPPORTED_GAME", "지원하는 경기 채팅 또는 오목·주사위 장부 추천을 이용해주세요.");
         }
         if (!"PLAYING".equals(push.status)) {
@@ -4412,15 +4696,32 @@ public class TableHub {
         var kind = ping ? SpectatorEventPolicy.Kind.PING : SpectatorEventPolicy.Kind.CHAT;
         String text = ping ? null : new ChatText(payload.get("text").textValue()).value();
         long basedOnVersion = ping ? payload.get("basedOnVersion").longValue() : 0;
-        int x = ping && !ledgerPing ? payload.get("x").intValue() : 0;
-        int y = ping && !ledgerPing ? payload.get("y").intValue() : 0;
+        int x = ping && !ledgerPing && !codePing && !rummikubPing ? payload.get("x").intValue() : 0;
+        int y = ping && !ledgerPing && !codePing && !rummikubPing ? payload.get("y").intValue() : 0;
+        String codeTarget = codePing ? payload.path("targetUserId").asText() : "";
+        String codeTile = codePing ? payload.path("tileId").asText() : "";
+        if (codePing && !com.ssafy.ontop.game.davinci.service.DavinciSocial.validTarget(push.publicState, codeTarget, codeTile)) {
+            fail(request, "DAVINCI_SPECTATOR_PING_INVALID_TARGET", "공개된 게임판의 타일을 선택해주세요.");
+        }
+        if (ping && "QUORIDOR".equals(push.gameCode) && (x < 0 || x > 8 || y < 0 || y > 8)) {
+            fail(request, "QUORIDOR_PING_INVALID_POSITION", "길목 한 수 게임판 안의 위치를 선택해주세요.");
+        }
         String category = ledgerPing && payload.has("category") ? payload.get("category").textValue() : null;
         Integer dieId = ledgerPing && payload.has("dieId") ? payload.get("dieId").intValue() : null;
-        String content = ledgerPing ? basedOnVersion + ":" + (category != null ? category : "die" + dieId)
+        int meldIndex = rummikubPing ? payload.path("meldIndex").intValue() : 0;
+        String content = rummikubPing ? basedOnVersion + ":meld:" + meldIndex : codePing ? basedOnVersion + ":" + codeTarget + ":" + codeTile
+                : ledgerPing ? basedOnVersion + ":" + (category != null ? category : "die" + dieId)
                 : ping ? basedOnVersion + ":" + x + ":" + y : text;
-        String type = ledgerPing ? "DICE_LEDGER_SPECTATOR_PING" : ping ? "OMOK_SPECTATOR_PING" : "GAME_SPECTATOR_CHAT_MESSAGE";
+        String type = rummikubPing ? "RUMMIKUB_SPECTATOR_PING" : codePing ? "DAVINCI_SPECTATOR_PING" : ledgerPing ? "DICE_LEDGER_SPECTATOR_PING" : ping ? "OMOK_SPECTATOR_PING" : "GAME_SPECTATOR_CHAT_MESSAGE";
         long now = worldClock.sample().serverNow();
-        java.util.function.Function<SpectatorEventPolicy.Stamp, Object> eventOf = issued -> ledgerPing
+        java.util.function.Function<SpectatorEventPolicy.Stamp, Object> eventOf = issued -> rummikubPing
+                ? Map.of("gameId", gameId, "eventId", eventId, "senderUserId", member.userId(),
+                        "basedOnVersion", basedOnVersion, "meldIndex", meldIndex, "sentAt", issued.sentAt(),
+                        "expiresAt", issued.expiresAt(), "serverNow", now) : codePing
+                ? Map.of("gameId", gameId, "eventId", eventId, "senderUserId", member.userId(),
+                        "basedOnVersion", basedOnVersion, "targetUserId", codeTarget, "tileId", codeTile,
+                        "sentAt", issued.sentAt(), "expiresAt", issued.expiresAt(), "serverNow", now)
+                : ledgerPing
                 ? new DiceLedgerSpectatorPing(gameId, eventId, member.userId(), basedOnVersion, category, dieId, issued, now)
                 : ping ? new OmokSpectatorPing(gameId, eventId, member.userId(), basedOnVersion, x, y, issued, now)
                 : new GameSpectatorChatMessage(gameId, eventId, member.userId(), text, issued, now);
@@ -4434,7 +4735,7 @@ public class TableHub {
             }
             // Hub 잠금이 경기 상태 변경 알림과의 경계다. 더 새 버전 알림을 받았으면 아직 전달 전이어도 거절한다.
             if (ping && (basedOnVersion != push.deliveredVersion || push.requestedVersion > push.deliveredVersion)) {
-                fail(request, ledgerPing ? "DICE_LEDGER_SPECTATOR_PING_STALE_VERSION" : "OMOK_SPECTATOR_PING_STALE_VERSION",
+                fail(request, rummikubPing ? "RUMMIKUB_SPECTATOR_PING_STALE_VERSION" : codePing ? "DAVINCI_SPECTATOR_PING_STALE_VERSION" : ledgerPing ? "DICE_LEDGER_SPECTATOR_PING_STALE_VERSION" : "OMOK_SPECTATOR_PING_STALE_VERSION",
                         "최신 판 상태에서 다시 추천해주세요.");
             }
             stamp = spectatorEvents.accept(member.accountId(), eventId, kind, gameId, content, now);
@@ -4513,8 +4814,9 @@ public class TableHub {
                 error = "GAME_ACTION_UNAVAILABLE";
             }
             finishGameAction(sessionId, member, request.requestId(), result, error);
-            if (error == null) {
+            if (error == null && result.version() > command.expectedVersion()) {
                 // 입력자 연결이 끊겨도 확정된 변경은 남은 참가자에게 전달한다.
+                // 공개 버전이 그대로인 개인 입력은 관전자에게 시점을 재방송하지 않는다.
                 gameStateChanged(new GameStateChanged(result.gameId(), result.version()));
             }
         });
@@ -4630,7 +4932,7 @@ public class TableHub {
         private final VehicleKind vehicle;
         private final Set<String> startRequests = new LinkedHashSet<>();
         private final Set<String> endRequests = new LinkedHashSet<>();
-        private long seconds;
+        private long billingCount;
         private long nextPaymentAt;
         private long paymentDeadline;
         private MobilityRentals.Charge payment;
@@ -4647,7 +4949,11 @@ public class TableHub {
         }
 
         private long total() {
-            return seconds * vehicle.rate();
+            return billingCount * vehicle.rate();
+        }
+
+        private long paidDurationMs() {
+            return billingCount * vehicle.billingSeconds() * 1000;
         }
     }
 

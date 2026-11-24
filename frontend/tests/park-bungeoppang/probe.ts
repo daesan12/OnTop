@@ -1,6 +1,28 @@
 import { _roots } from '@react-three/fiber';
 import { Box3, Vector3 } from 'three';
 import { BUNG_GRILL, bungeoppangView } from '../../src/features/bungeoppang/bungeoppangView';
+import { winterCookingSurface } from '../../src/features/winter/protectedSurfaces';
+
+export function winterCookingProbe() {
+  const { scene } = [..._roots.values()][0]!.store.getState();
+  let visibleSnow = 0, workingSnowVertices = 0, shopSnowVertices = 0;
+  const point = new Vector3(), protectedArea = winterCookingSurface;
+  scene.updateMatrixWorld(true);
+  scene.traverse(node => {
+    if (node.name !== 'winter-roof-snow') return;
+    if (node.visible) visibleSnow++;
+    if (node.parent?.name !== 'facility-bread' || !('geometry' in node)) return;
+    const positions = (node as import('three').Mesh).geometry.getAttribute('position');
+    shopSnowVertices += positions.count;
+    for (let i = 0; i < positions.count; i++) {
+      point.fromBufferAttribute(positions, i).applyMatrix4(node.matrixWorld);
+      if (point.y <= protectedArea.topY && Math.abs(point.x - protectedArea.x) <= protectedArea.radius
+        && Math.abs(point.z - protectedArea.z) <= protectedArea.radius) workingSnowVertices++;
+    }
+  });
+  return { winterVisible: scene.getObjectByName('winter-park')?.visible ?? false,
+    visibleSnow, workingSnowVertices, shopSnowVertices };
+}
 
 export function cookingStageReady() {
   const canvas = document.querySelector('canvas');

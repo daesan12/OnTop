@@ -1,13 +1,22 @@
 import { HORROR_PORTALS } from './horrorPlan'
 
-// Flip this and regenerate the renewal map to reopen the outdoor entrances.
-export const SECRET_ENTRANCES_OPEN = false
+// Outdoor entrances and their terrain openings share the generated FE/BE map contract.
+export const SECRET_ENTRANCES_OPEN = true
 
 const floor = 8.35
 export const annex = { x0: -2.12, x1: 2.12, z0: -47.8, z1: -39.8, floor, ceiling: floor + 3 }
 const west = HORROR_PORTALS[1]
-export const upperRamp = { x: -51.4, width: 2.1, z0: -85.2, z1: -91.4, y0: west.floor, y1: 14.2 }
-export const upperRoom = { x0: -56.7, x1: -49.65, z0: -92.95, z1: -91.4, floor: upperRamp.y1 }
+// S15P31B105-450: the way to the top no longer starts beside the exit. Up the ramp you see the exit door, but behind
+// bars; the way on is round the gallery to the far (east) end, up a stair, across the hall on a bridge, along a
+// narrow way above the west gallery into the top room, and down a stair that comes out behind the bars.
+/** A sloping stair: `y0` at `z0`, `y1` at `z1`, `width` across x, centred on `x`. */
+export type InteriorRamp = { x: number; width: number; z0: number; z1: number; y0: number; y1: number }
+/** From the gallery up to the bridge, against the outer edge of the east gallery, climbing north. */
+export const upperStair: InteriorRamp = { x: 18.8, width: 2, z0: -79.1, z1: -72.9, y0: west.floor, y1: 14.2 }
+/** From the top room down behind the bars to the exit door, going north. */
+export const exitStair: InteriorRamp = { x: -53.7, width: 1.8, z0: -86.4, z1: -91.4, y0: west.floor, y1: 14.2 }
+export const interiorRamps: readonly InteriorRamp[] = [upperStair, exitStair]
+export const upperRoom = { x0: -56.7, x1: -49.65, z0: -92.95, z1: -91.4, floor: 14.2 }
 export const upperArrival = { ...upperRoom, ceiling: 16.3 }
 
 type Point = readonly [number, number, number]
@@ -59,16 +68,36 @@ export const galleryVolumes = [
 
 export const upperRoomVolumes = [
   deck(upperRoom.x0, upperRoom.x1, upperRoom.z0, upperRoom.z1, upperRoom.floor),
-  deck(-56.7,-52.55,-91.4,-89.85,upperRoom.floor),
-  volume([-56.7,15.67,-91.4],[.22,2.94,3.1]),
-  volume([-54.62,15.67,-89.85],[4.15,2.94,.22]),
-  volume([-49.65,14.7,-92.18],[.22,1,1.55]),
+  volume([-56.7,15.67,-92.18],[.22,2.94,1.55]),
+  // The east side is a doorway now (the narrow way comes in there): only its lintel is left.
   volume([-49.65,16.87,-92.18],[.22,.66,1.55]),
   volume([-54.7,15.67,-92.91],[4,2.94,.16]),
   guardX(-56.7,-52.7,-92.91,upperRoom.floor),
-  guardX(-50.25,-49.65,-91.4,upperRoom.floor),
-  volume([-55.65,14.45,-90.42],[1.05,.5,.62],'wood'),
+  // The open north edge, either side of the stair down to the exit.
+  guardX(-56.7,-54.6,-91.4,upperRoom.floor),
+  guardX(-52.8,-49.65,-91.4,upperRoom.floor),
+  volume([-55.6,14.45,-92.3],[1.05,.5,.62],'wood'),
 ]
+
+// The third floor: a landing at the top of the east stair, the bridge across the hall (well clear of the hanging
+// lamps and the lift cage), the narrow way south above the west gallery and in at the top room's east door. Railed;
+// the gallery still passes underneath (two metres of headroom).
+const top = 14.2
+export const catwalkVolumes = [
+  deck(16,19.8,-72.9,-70.9,top),
+  deck(-46.6,16,-72.5,-70.9,top),
+  deck(-46.6,-44.9,-91.4,-72.5,top),
+  deck(-49.65,-44.9,-92.95,-91.4,top),
+  guardX(-46.6,19.8,-70.9,top), guardX(-44.9,16,-72.5,top), guardX(16,17.8,-72.9,top), guardZ(19.8,-72.9,-70.9,top),
+  guardZ(-46.6,-91.4,-70.9,top), guardZ(-44.9,-92.95,-72.5,top), guardX(-49.65,-46.6,-91.4,top),
+  // The open east side of the stair up, in steps that climb with it.
+  ...Array.from({ length: 6 }, (_, i) => {
+    const z0 = upperStair.z0 + i * (upperStair.z1 - upperStair.z0) / 6, z1 = z0 + (upperStair.z1 - upperStair.z0) / 6
+    const y = upperStair.y0 + (upperStair.y1 - upperStair.y0) * (i + .5) / 6
+    return guardZ(19.8, z0, z1, y)
+  }),
+]
+
 export const annexVolumes = [
   volume([0, floor - .15, -43.8], [4.24, .3, 8]),
   volume([0, annex.ceiling + .16, -43.8], [4.24, .32, 8]),

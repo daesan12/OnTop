@@ -50,6 +50,33 @@ class GameStatePushTests {
     private final GameReconnectService reconnect = mock(GameReconnectService.class);
     private TableHub hub;
 
+    @Test
+    void 공개버전이_그대로인_개인입력은_재방송하지_않고_본인조회만_허용한다() throws Exception {
+        GameActionGateway actions = mock(GameActionGateway.class);
+        createHub(Optional.of(actions));
+        Peer first = peer(101L);
+        Peer second = peer(202L);
+        when(actions.apply(any())).thenReturn(new GameActionResult(101, "game-1", "private-place", 8));
+
+        hub.receive(first.id, mapper.writeValueAsString(Map.of("requestId", "place", "type", "GAME_ACTION_SEND",
+                "payload", Map.of("gameId", "game-1", "actionId", "private-place", "expectedVersion", 8,
+                        "input", Map.of("kind", "place", "position", 2)))));
+
+        assertThat(first.next().path("type").asText()).isEqualTo("GAME_ACTION_RESULT");
+        assertThat(second.messages.poll(100, TimeUnit.MILLISECONDS)).isNull();
+        verifyNoInteractions(states);
+        when(states.load(101, "game-1")).thenReturn(Optional.of(new GameStateView(101, "game-1", 8,
+                GameStateView.Role.PLAYER, mapper.createObjectNode(),
+                mapper.createObjectNode().put("selectedPosition", 2))));
+        hub.receive(first.id, "{\"requestId\":\"private-check\",\"type\":\"GAME_STATE_CHECK\","
+                + "\"payload\":{\"gameId\":\"game-1\"}}");
+        JsonNode refreshed = first.next();
+        assertThat(refreshed.path("type").asText()).isEqualTo("GAME_STATE");
+        assertThat(refreshed.path("payload").path("privateState").path("selectedPosition").asInt()).isEqualTo(2);
+        assertThat(second.messages.poll(100, TimeUnit.MILLISECONDS)).isNull();
+        verify(states, times(1)).load(anyLong(), anyString());
+    }
+
     @AfterEach
     void close() {
         if (hub != null) {

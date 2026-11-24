@@ -27,6 +27,8 @@ describe('team frontend-test deployment isolation', () => {
     const config = JSON.parse(
       fs.readFileSync('public/park-bindings.frontend-test.json', 'utf8'),
     )
+    const supplied = JSON.parse(fs.readFileSync('../docs/integration/collision-feedback/park-bindings.frontend-test.json', 'utf8'))
+    expect(config.bindings).toEqual(supplied.bindings)
     const bindings = parseBindings(config.bindings)
     expect(bindings).toHaveLength(4)
     expect(new Set(bindings.map((b) => b.tableId)).size).toBe(4)

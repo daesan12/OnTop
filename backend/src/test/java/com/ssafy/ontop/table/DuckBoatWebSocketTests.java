@@ -76,7 +76,7 @@ class DuckBoatWebSocketTests {
         route = prepared.boatRoute();
         synchronized (hub) {
             ReflectionTestUtils.setField(hub, "facilities", new WorldFacilityService(prepared.facilities(), clock,
-                    System::nanoTime, route));
+                    System::nanoTime, route, prepared.sleighRoute()));
         }
         dock = prepared.facilities().facilities().stream().filter(d -> d.kind().equals("BOAT")).findFirst().orElseThrow();
         reset(wallet);

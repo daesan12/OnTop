@@ -1,0 +1,88 @@
+import { expect, it } from 'vitest'
+import { PerspectiveCamera, Vector3 } from 'three'
+import { QUORIDOR_FOV, largerQuoridorViewport, quoridorCameraActive, quoridorCameraPose, quoridorYaw } from '../../src/game/quoridor/camera'
+import { BOARD_SPAN, CELL_PITCH, cellPoint, coordinate, wallDimensions, wallPoint } from '../../src/game/quoridor/presentation'
+
+// 트레이의 베벨, 칸 끝에서 들어 올린 말, 장벽의 실제 형상을 독립적으로 투영한다.
+function visibleGeometry(scale = 1) {
+  const points: Vector3[] = []
+  const box = (cx: number, cz: number, halfX: number, halfZ: number, bottom: number, top: number) => {
+    for (const x of [cx - halfX, cx + halfX]) for (const z of [cz - halfZ, cz + halfZ])
+      for (const y of [bottom, top]) points.push(new Vector3(x * scale, y, z * scale))
+  }
+  box(0, 0, BOARD_SPAN / 2 + .006, BOARD_SPAN / 2 + .006, -.076, .049)
+  for (const x of [-4 * CELL_PITCH, 4 * CELL_PITCH]) for (const z of [-4 * CELL_PITCH, 4 * CELL_PITCH])
+    box(x, z, .05, .05, .034, .264)
+  for (const orientation of ['HORIZONTAL', 'VERTICAL'] as const) {
+    const [width, height, depth] = wallDimensions({ x: 0, y: 0, orientation })
+    for (const x of [-3.5 * CELL_PITCH, 3.5 * CELL_PITCH]) for (const z of [-3.5 * CELL_PITCH, 3.5 * CELL_PITCH])
+      box(x, z, width / 2, depth / 2, .19 - height / 2, .19 + height / 2)
+    box(orientation === 'VERTICAL' ? -.66 : 0, orientation === 'HORIZONTAL' ? .66 : 0,
+      width / 2, depth / 2, .085 - height / 2, .085 + height / 2)
+  }
+  return points
+}
+
+it('3D 칸과 두 칸 장벽의 중심이 서버 0~8·0~7 좌표와 일치한다', () => {
+  expect(cellPoint({ x: 4, y: 4 })).toEqual([0, .034, 0])
+  expect(coordinate({ x: 0, y: 0 })).toBe('A9')
+  expect(coordinate({ x: 8, y: 8 })).toBe('I1')
+  const a = cellPoint({ x: 2, y: 3 }), b = cellPoint({ x: 3, y: 4 })
+  for (const orientation of ['HORIZONTAL', 'VERTICAL'] as const) {
+    const wall = { x: 2, y: 3, orientation }, p = wallPoint(wall)
+    expect(p[0]).toBeCloseTo((a[0] + b[0]) / 2)
+    expect(p[2]).toBeCloseTo((a[2] + b[2]) / 2)
+    expect(Math.max(...wallDimensions(wall).filter((_, i) => i !== 1))).toBeCloseTo(2 * CELL_PITCH - .012)
+  }
+})
+
+it.each([[1536,1024,140,160,16,16],[390,844,190,190,16,16],[800,450,68,32,252,212]])('%ix%i 화면에서 네 방향의 판과 집어 든 말·장벽까지 HUD 밖에 맞춰진다', (width,height,top,bottom,left,right) => {
+  const insets = { top, bottom, left, right }
+  for (const scale of [.8, 1, 1.3]) for (const goal of ['NORTH','EAST','SOUTH','WEST'] as const) {
+    const frame = quoridorCameraPose(width,height,scale,quoridorYaw(goal),insets)
+    const camera = new PerspectiveCamera(QUORIDOR_FOV,width/height,.01,100)
+    camera.position.set(...frame.position);camera.lookAt(...frame.target);camera.updateMatrixWorld()
+    for (const point of visibleGeometry(scale)) {
+      const p = point.project(camera), screenX=(p.x+1)*width/2, screenY=(1-p.y)*height/2
+      expect(screenX).toBeGreaterThanOrEqual(insets.left)
+      expect(screenX).toBeLessThanOrEqual(width-insets.right)
+      expect(screenY).toBeGreaterThanOrEqual(insets.top)
+      expect(screenY).toBeLessThanOrEqual(height-insets.bottom)
+    }
+    expect(Math.hypot(frame.position[0]-frame.target[0],frame.position[2]-frame.target[2])).toBeGreaterThan(.1)
+  }
+})
+
+it('참가자의 종료·정산 뒤에는 카메라를 반환하고 관전 최종 판은 해제할 때까지 보존한다', () => {
+  expect(quoridorCameraActive(undefined,false)).toBe(false)
+  expect(quoridorCameraActive('PLAYING',false)).toBe(true)
+  expect(quoridorCameraActive('PLAYING',true)).toBe(false)
+  expect(quoridorCameraActive('FINISHED',false)).toBe(false)
+  expect(quoridorCameraActive('FINISHED',false,true)).toBe(true)
+})
+
+it('넓은 화면은 채팅·상태판 옆 공간을 활용해 확대하고 좁은 중앙 영역은 기존 구도를 보존한다', () => {
+  const standard = { top: 202, bottom: 172, left: 16, right: 16 }
+  const center = { top: 90, bottom: 134, left: 332, right: 272 }
+  const distance = (frame: ReturnType<typeof quoridorCameraPose>) =>
+    Math.hypot(...frame.position.map((value, i) => value - frame.target[i]))
+  const selected = largerQuoridorViewport(1536, 1024, [standard, center])
+  const before = quoridorCameraPose(1536, 1024, 1, 0, standard)
+  const after = quoridorCameraPose(1536, 1024, 1, 0, selected)
+  expect(distance(before) / distance(after)).toBeGreaterThan(1.1)
+  expect(selected).toEqual(center)
+  const narrow = { ...center, left: 620, right: 620 }
+  expect(largerQuoridorViewport(1280, 1024, [standard, narrow])).toEqual(standard)
+  for (const yaw of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) {
+    const frame = quoridorCameraPose(1536, 1024, 1, yaw, selected)
+    const camera = new PerspectiveCamera(QUORIDOR_FOV, 1536 / 1024, .01, 100)
+    camera.position.set(...frame.position); camera.lookAt(...frame.target); camera.updateMatrixWorld()
+    for (const point of visibleGeometry()) {
+      const p = point.project(camera)
+      expect((p.x + 1) * 768).toBeGreaterThanOrEqual(selected.left)
+      expect((p.x + 1) * 768).toBeLessThanOrEqual(1536 - selected.right)
+      expect((1 - p.y) * 512).toBeGreaterThanOrEqual(selected.top)
+      expect((1 - p.y) * 512).toBeLessThanOrEqual(1024 - selected.bottom)
+    }
+  }
+})

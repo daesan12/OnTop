@@ -1,0 +1,25 @@
+.winter-sleigh-hud{position:fixed;bottom:calc(76px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);z-index:45;box-sizing:border-box;width:min(380px,calc(100vw - 32px));max-height:calc(100dvh - 140px);overflow:auto;scrollbar-width:none;padding:8px 11px;border:1px solid #c6a76b;border-radius:12px;background:radial-gradient(ellipse at 100% 0,#c7aa6426,transparent 60%),linear-gradient(125deg,#234d40f7,#12372ff7);color:#f8efd9;text-align:center;box-shadow:inset 0 0 0 3px #d8bc7d24,0 6px 24px #10271d40;pointer-events:auto;font:12px/1.35 'Malgun Gothic',sans-serif}
+.winter-sleigh-hud::-webkit-scrollbar{display:none}
+.winter-sleigh-hud__heading,.winter-sleigh-hud__actions{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.winter-sleigh-hud__title{display:flex;align-items:center;gap:6px;min-width:0;text-align:left}
+.winter-sleigh-hud__title img{flex:none;object-fit:contain;filter:drop-shadow(0 2px 3px #081f2860)}
+.winter-sleigh-hud__title>strong{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:600;letter-spacing:.02em}
+.winter-sleigh-hud__free{border:1px solid #d2b87866;border-radius:4px;background:#e8d6a80d;color:#ebd69e;padding:1px 4px;font-size:10px;font-weight:400;letter-spacing:0;white-space:nowrap}
+.winter-sleigh-hud p{margin:0;border:1px solid #d4b37d45;border-radius:6px;padding:4px 6px;background:#081f1a40;color:#f4dfb5;font-size:11px;white-space:nowrap}
+.winter-sleigh-hud__actions>span{font-size:11px;color:#e0ddc7}
+.winter-sleigh-hud progress{display:block;width:100%;height:5px;margin:7px 0;border:0;border-radius:4px;overflow:hidden;appearance:none;background:#0b2923;accent-color:#dec283}
+.winter-sleigh-hud progress::-webkit-progress-bar{border-radius:4px;background:#0b2923;box-shadow:inset 0 0 0 1px #cbb77b38}
+.winter-sleigh-hud progress::-webkit-progress-value{border-radius:4px;background:repeating-linear-gradient(115deg,#b94d47 0 7px,#f1deaf 7px 12px)}
+.winter-sleigh-hud progress::-moz-progress-bar{border-radius:4px;background:repeating-linear-gradient(115deg,#b94d47 0 7px,#f1deaf 7px 12px)}
+.winter-sleigh-hud button{min-height:34px;border:1px solid #d0ad72;border-radius:7px;background:linear-gradient(#a3403c,#82302f);color:#fff4dc;box-shadow:inset 0 1px #ffffff1f;padding:5px 9px;font:inherit;font-size:11px;cursor:pointer}
+.winter-sleigh-hud button:hover{background:linear-gradient(#b94e46,#963b35)}
+.winter-sleigh-hud button:focus-visible{outline:3px solid #f6df9c;outline-offset:2px}
+.park-page:has(.winter-sleigh-hud)>.park-weather-placement{display:none}
+.winter-sleigh-hud__clock{margin-top:1px}
+.park-page .winter-sleigh-hud__clock .park-location-chip{position:static;transform:none;display:flex;justify-content:center;flex-wrap:wrap;gap:6px;max-width:100%;padding:0;border:0;border-radius:0;background:none;box-shadow:none;color:#d8d8be;white-space:normal}
+.park-page .winter-sleigh-hud__clock .park-location-chip__place{gap:4px;font-size:11px}
+.park-page .winter-sleigh-hud__clock .park-location-chip__time{gap:4px;color:#d8d8be;font-size:11px;white-space:nowrap}
+.park-page .winter-sleigh-hud__clock .park-location-chip img{width:12px;height:12px}
+.park-page .winter-sleigh-hud__clock .park-location-chip>i{height:12px;background:#d8c58d55}
+@media(max-width:700px){.winter-sleigh-hud{left:12px;right:86px;bottom:calc(94px + env(safe-area-inset-bottom,0px));width:auto;transform:none;padding:7px 9px}.winter-sleigh-hud__actions{justify-content:center}}
+@media(max-height:500px){.winter-sleigh-hud{bottom:calc(62px + env(safe-area-inset-bottom,0px));max-height:calc(100dvh - 100px)}}

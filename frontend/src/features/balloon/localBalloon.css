@@ -435,3 +435,8 @@
   .park-balloon-paper .park-balloon-ticket-actions button { font-size: 17px; }
   .park-balloon-hud-heading strong { font-size: 21px; }
 }
+.park-balloon-collision-warning { position: fixed; inset: 0; z-index: 80; pointer-events: none; box-sizing: border-box; box-shadow: inset 0 0 70px 14px #d44222a6; animation: balloon-collision-pulse 1s ease-in-out infinite alternate; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: max(24px, env(safe-area-inset-top)) 20px 0; color: #fff8ed; text-shadow: 0 2px 4px #240b05; }
+.park-balloon-collision-warning strong, .park-balloon-collision-warning span { background: #662419ed; padding: 8px 14px; border-radius: 8px; text-align: center; font-size: clamp(14px, 2vw, 18px); }
+.park-balloon-collision-warning strong { font-size: clamp(20px, 3vw, 28px); }
+@keyframes balloon-collision-pulse { from { box-shadow: inset 0 0 45px 6px #d4422244; } to { box-shadow: inset 0 0 85px 20px #d44222bb; } }
+@media (prefers-reduced-motion: reduce) { .park-balloon-collision-warning { animation: none; } }

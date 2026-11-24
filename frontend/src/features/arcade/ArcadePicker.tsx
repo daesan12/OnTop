@@ -9,6 +9,7 @@ import { useMole } from '../mole/store'
 import { plusMinusManual } from '../plusMinus/manual'
 import { DAILY_PLAYS as PLUS_MINUS_DAILY, FEE as PLUS_MINUS_FEE } from '../plusMinus/protocol'
 import { usePlusMinus } from '../plusMinus/store'
+import { DAILY_PLAYS as RPS_DAILY } from '../rpsRoulette/protocol'
 import { rpsRouletteManual } from '../rpsRoulette/manual'
 import { useRpsRoulette } from '../rpsRoulette/store'
 import { speedMoleManual } from '../speedMole/manual'
@@ -48,17 +49,17 @@ function ArcadeDialog() {
     return () => el?.close()
   }, [])
 
-  const plays = (left: number | null, daily: number) => left === null ? (busy ? '확인 중' : '-') : `${left} / ${daily}판`
-  const rpsLeft = rps ? Math.max(0, rps.rules.dailyPlays - rps.playedToday) : null
-  const plusLeft = plus ? Math.max(0, plus.rules.dailyPlays - plus.playedToday) : null
+  const plays = (left: number | null, daily: number) => daily === 0 ? '무제한' : left === null ? (busy ? '확인 중' : '-') : `${left} / ${daily}판`
+  const rpsLeft = rps ? rps.rules.dailyPlays === 0 ? Infinity : Math.max(0, rps.rules.dailyPlays - rps.playedToday) : null
+  const plusLeft = plus ? plus.rules.dailyPlays === 0 ? Infinity : Math.max(0, plus.rules.dailyPlays - plus.playedToday) : null
   const choices: Choice[] = [
     { id: 'rps-roulette', name: rpsRouletteManual.title, tagline: rpsRouletteManual.subtitle, summary: rpsRouletteManual.summary,
       fee: `${(rps?.rules.fees ?? [10, 20, 30]).join(' · ')}냥`, prize: '참가비 × 룰렛 칸 × 도전 배수',
-      limitLabel: '오늘 남은 판', limit: plays(rpsLeft, rps?.rules.dailyPlays ?? 15), playsLeft: rpsLeft,
+      limitLabel: '플레이 횟수', limit: plays(rpsLeft, rps?.rules.dailyPlays ?? RPS_DAILY), playsLeft: rpsLeft,
       inProgress: !!rps?.round && rps.round.phase !== 'SETTLED' },
     { id: 'plus-minus', name: plusMinusManual.title, tagline: plusMinusManual.subtitle, summary: plusMinusManual.summary,
       fee: `${plus?.rules.fee ?? PLUS_MINUS_FEE}냥`, prize: '결괏값 × 10냥 · 7 + 잭팟 500냥',
-      limitLabel: '오늘 남은 판', limit: plays(plusLeft, plus?.rules.dailyPlays ?? PLUS_MINUS_DAILY), playsLeft: plusLeft,
+      limitLabel: '플레이 횟수', limit: plays(plusLeft, plus?.rules.dailyPlays ?? PLUS_MINUS_DAILY), playsLeft: plusLeft,
       inProgress: false },
     { id: 'whack-a-mole', name: moleManual.title, tagline: moleManual.subtitle, summary: moleManual.summary,
       fee: '무료', prize: `${mole?.rules.pointsPerCoin ?? MOLE_POINTS_PER_COIN}점당 1냥 · 하루 상한 안에서`,

@@ -82,3 +82,8 @@ describe('plus minus service', () => {
     expect(f.values.size).toBe(0)
   })
 })
+
+it('서버의 무제한 표시는 기존 횟수를 초과해도 유효하다', () => {
+  expect(parsePlusMinusState({ ...state(null), playedToday: 120, rules: { ...rules, dailyPlays: 0 } }).rules.dailyPlays).toBe(0)
+  expect(() => parsePlusMinusState({ ...state(null), rules: { ...rules, dailyPlays: -1 } })).toThrow()
+})

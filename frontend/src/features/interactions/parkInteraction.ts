@@ -1,13 +1,21 @@
+import { nearbyParkNpcs } from '../ai/parkNpcInteraction'
+import { CHRISTMAS_TREE } from '../winter/plan'
+import { openWinterCommunity } from '../winter/community/panelState'
+import { renewalGroundHeight } from '../../park/renewalMap'
+import { openParkDialogue } from '../ai/parkDialogueState'
+import { parkDialogues } from '../ai/parkDialogue'
+import { SLEIGH_ID } from '../winter/sleigh/constants'
+import { boardSleigh } from '../winter/sleigh/boarding'
+import { winterFrozen } from '../winter/state'
 import { DUCK_BOAT, FITNESS, FITNESS_STATIONS, TABLES, TELESCOPES, TELESCOPE, MAILBOX, MAILBOX_BASE_Y } from '../../park/mapConfig'
 import { boatQueueOpen } from '../duckBoat/controller'
 import { openBoatChooser } from '../duckBoat/model'
-import { authoritativePose, avatars, useSession } from '../../network/worldClient'
+import { authoritativePose, avatars, useSession, estimatedServerTime } from '../../network/worldClient'
 import { parkRuntime } from '../../park/runtime/runtime'
 import { balloonEntrance, canReachBalloonDoor } from '../balloon/boarding'
 import { openLocalBalloon } from '../balloon/localRide'
 import { A_FRAME, A_FRAME_SIGNS } from '../../config/parkAdvertising'
 import { renewalAdSigns } from '../../../park-renewal-preview/live/advertisingPlacement'
-import { groundSurfaceHeight } from '../../../park-renewal-preview/groundSurface'
 import { BALLOON_RIDE_ENABLED } from '../../park/mapSelection'
 import { viewControls } from '../../world/cameraPerspective'
 import { tableBusy, useGame } from '../../game/store'
@@ -77,7 +85,8 @@ const stoneRumbleGuidePosition = stoneRumbleTable && stoneRumbleStelePosition(st
 
 const plazaKiosksEnabled = GENERATED_PARK_ENABLED || RENEWAL_PARK_ENABLED
 const advertisementSigns = RENEWAL_PARK_ENABLED
-  ? renewalAdSigns.map(sign => ({ ...sign, y: groundSurfaceHeight(sign.x, sign.z) }))
+  ? await import('../../../park-renewal-preview/groundSurface').then(({ groundSurfaceHeight }) =>
+    renewalAdSigns.map(sign => ({ ...sign, y: groundSurfaceHeight(sign.x, sign.z) })))
   : GENERATED_PARK_ENABLED ? [] : A_FRAME_SIGNS.map(sign => ({ ...sign, y: 0 }))
 const recreationLabels: Record<RenewalRecreationId, string> = {
   fortune: '오늘의 운세 보기',
@@ -89,7 +98,7 @@ const recreationLabels: Record<RenewalRecreationId, string> = {
 }
 
 export interface ParkInteraction {
-  kind: 'bench' | 'table' | 'fitness' | 'telescope' | 'boat' | 'balloon' | 'feedback' | 'notes' | 'bungeoppang' | 'rps-roulette' | 'renewal-game' | 'spot-difference' | 'construction' | 'gacha' | 'ranking-board' | 'vr' | 'jumpmap-guide' | 'stone-rumble-guide' | 'avatar-pickup' | 'avatar-throw' | 'joke-judge' | 'interior-item' | 'interior-access' | 'advertisement'
+  kind: 'winter-tree' | 'park-npc' | 'sleigh' | 'bench' | 'table' | 'fitness' | 'telescope' | 'boat' | 'balloon' | 'feedback' | 'notes' | 'bungeoppang' | 'rps-roulette' | 'renewal-game' | 'spot-difference' | 'construction' | 'gacha' | 'ranking-board' | 'vr' | 'jumpmap-guide' | 'stone-rumble-guide' | 'avatar-pickup' | 'avatar-throw' | 'joke-judge' | 'interior-item' | 'interior-access' | 'advertisement'
   id: string
   label: string
   seat?: 0 | 1
@@ -103,12 +112,23 @@ export interface ParkInteraction {
 export function getParkInteraction(preferredGuide?: typeof STONE_RUMBLE_GUIDE_ID): ParkInteraction | null {
   const session = useSession.getState(), benches = useBenchState.getState(), fitness = useFitnessState.getState()
   const p = avatars.get(session.sessionId)
+  if (winterFrozen(session.sessionId, estimatedServerTime())) return null
   const mobility = useMobility.getState()
   if (mobility.target || mobility.phase !== 'idle' || p?.vehicle || facilityMovementBlocked(session.sessionId)) return null
   if (!roamingInput.ready || !p || session.status !== 'connected' || !session.mapCompatible || session.tableId || p.seatIndex >= 0
     || p.fitnessId || p.telescopeId || p.swimming || session.pending || benches.pending || fitness.pending
     || useTelescopeState.getState().pending || tableBusy() || useGame.getState().watchedGameId || useDisplayGame.getState().localPractice || panelOwnsKeys()) return null
   const choices: ParkInteraction[] = []
+  if (RENEWAL_PARK_ENABLED && !p.carry && Math.abs(p.current.y - renewalGroundHeight(p.current.x, p.current.z) - .76) < .8) {
+    const tree = CHRISTMAS_TREE, distance = Math.hypot(p.current.x - tree.x, p.current.z - tree.z)
+    if (distance <= tree.radius + 3.2) choices.push({ kind: 'winter-tree', id: tree.id, label: '트리에 편지 걸기', available: true, occupied: false,
+      distance: Math.max(0, distance - tree.radius), score: interactionScore(Math.max(0, distance - tree.radius), { x: tree.x, y: renewalGroundHeight(tree.x, tree.z) + 2, z: tree.z }) })
+  }
+  for (const npc of nearbyParkNpcs(p.current, session.roomId)) {
+    const distance = Math.hypot(p.current.x - npc.x, p.current.z - npc.z)
+    choices.push({ kind: 'park-npc', id: npc.id, label: parkDialogues[npc.speaker].interactionLabel, available: true, occupied: false, distance,
+      score: interactionScore(distance, { x: npc.x, y: npc.y + 1, z: npc.z }) })
+  }
   if(canReachJokeJudge(p.current)){const distance=Math.hypot(p.current.x-jokeJudgePosition.x,p.current.z-jokeJudgePosition.z);choices.push({kind:'joke-judge',id:'joke-judge',label:'김부장과 대화',occupied:false,available:true,distance,score:interactionScore(distance,{...jokeJudgePosition,y:jokeJudgePosition.y+1.5})})}
   if (p.carry && p.carry.role !== 'CARRIER') return null
   const carry = carryInteraction()
@@ -151,6 +171,13 @@ export function getParkInteraction(preferredGuide?: typeof STONE_RUMBLE_GUIDE_ID
     if (distance > 2.5 || Math.abs(p.current.y - (sign.y + .8)) > 1) continue
     choices.push({ kind: 'advertisement', id: `a-frame-${sign.id}`, label: '광고 보기',
       occupied: false, available: true, distance, score: interactionScore(distance, { ...sign, y: sign.y + A_FRAME.panelY }) })
+  }
+  if (RENEWAL_PARK_ENABLED && facilityInRange(p.current, SLEIGH_ID)) {
+    const d = useFacilityState.getState().catalog[SLEIGH_ID]
+    const occupied = Object.values(useFacilityState.getState().occupancies).some(l => l.facilityId === SLEIGH_ID)
+    const distance = Math.hypot(p.current.x - d.center.x, p.current.z - d.center.z)
+    choices.push({ kind: 'sleigh', id: SLEIGH_ID, label: occupied ? '썰매 비행 중 · 잠시 기다려주세요' : '루돌프 썰매 타기 · 무료',
+      occupied, available: !occupied && facilityAvailable(SLEIGH_ID), distance, score: interactionScore(distance, d.center) })
   }
   if (BALLOON_RIDE_ENABLED && balloonEntrance && canReachBalloonDoor(p.current)) {
     const distance = Math.hypot(p.current.x - balloonEntrance.x, p.current.z - balloonEntrance.z)
@@ -286,15 +313,24 @@ export function interactWithPark(expectedId?: string): boolean {
     const { sessionId, roomId } = useSession.getState(), pose = avatars.get(sessionId)?.current
     return !!pose && interiorVisit.addDiamond(visitScope(sessionId, roomId), pose)
   }
+  if (target.kind === 'winter-tree') return openWinterCommunity('tree')
   if (target.kind === 'avatar-pickup' || target.kind === 'avatar-throw') interactWithAvatar(target.kind, target.id)
   else if (target.kind === 'stone-rumble-guide') openStoneRumbleGuide(stoneRumbleGuideScope(useSession.getState()))
   else if (target.kind === 'jumpmap-guide') openJumpmapGuide(jumpmapGuideScope(useSession.getState()))
   else if (target.kind === 'ranking-board') openRankingBoard()
   else if (target.kind === 'advertisement') window.dispatchEvent(new Event('ontap-open-pickus'))
+  else if (target.kind === 'park-npc') {
+    const session = useSession.getState(), own = avatars.get(session.sessionId)
+    const npc = own && nearbyParkNpcs(own.current, session.roomId).find(n => n.id === target.id)
+    if (!npc) return false
+    parkRuntime.stopMovement()
+    openParkDialogue(npc.speaker, session.sessionId + ':' + session.roomId)
+  }
   else if (target.kind === 'joke-judge') openJokeContest()
   else if (target.kind === 'vr') openParkVrZone()
   else if (target.kind === 'gacha') openParkGacha()
   else if (target.kind === 'spot-difference') openSpotDifference()
+  else if (target.kind === 'sleigh') { if (!target.available) return false; void boardSleigh(target.id); return true }
   else if (target.kind === 'balloon') return openLocalBalloon()
   else if (target.kind === 'construction') openConstructionNotice(target.id)
   else if (target.kind === 'bungeoppang') openBungeoppang()

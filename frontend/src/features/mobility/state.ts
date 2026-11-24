@@ -4,8 +4,8 @@ export type Vehicle = 'BICYCLE' | 'SCOOTER'
 export const HOLD_MS = 700
 export const rentalCapability = { available: false, xrAvailable: false }
 export const vehicles = {
-  BICYCLE: { label: '전기자전거', rate: 1, side: -1, speed: 11 },
-  SCOOTER: { label: '킥보드', rate: 2, side: 1, speed: 14 },
+  BICYCLE: { label: '전기자전거', rate: 1, billingSeconds: 20, side: -1, speed: 11 },
+  SCOOTER: { label: '킥보드', rate: 1, billingSeconds: 10, side: 1, speed: 14 },
 } as const
 
 export const isVehicle = (value: unknown): value is Vehicle => value === 'BICYCLE' || value === 'SCOOTER'

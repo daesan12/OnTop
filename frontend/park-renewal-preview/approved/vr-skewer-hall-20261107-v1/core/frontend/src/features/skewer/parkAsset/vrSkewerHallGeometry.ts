@@ -67,7 +67,8 @@ export function buildVrSkewerHall(compact=false){
  const body=new PropBuilder(),full=new PropBuilder(),cut=new PropBuilder(),roof=new PropBuilder(),neon=new PropBuilder(),roofNeon=new PropBuilder()
  body.box('stone','#c0b6a2',[0,.08,0],[13.2,.16,9.3])
  body.box('paint','#33263f',[0,.17,0],[12.15,.04,8.4])
- for(let x=-5.5;x<6;x++)for(let z=-3.5;z<4;z++)body.box('paint',(x+z)%2?'#403047':'#4b3650',[x,.197,z],[.97,.014,.97])
+ // Keep a readable depth separation from the base floor at oblique camera angles.
+ for(let x=-5.5;x<6;x++)for(let z=-3.5;z<4;z++)body.box('paint',(x+z)%2?'#403047':'#4b3650',[x,.22,z],[.97,.04,.97])
  for(const x of [-6.2,6.2])body.box('wood',dark,[x,4.52,0],[.26,.24,8.8])
  for(const z of [-4.3,4.3])body.box('wood',wood,[0,4.52,z],[12.6,.26,.3])
  for(const x of [-2.2,2.2])body.box('wood',wood,[x,1.98,4.42],[.25,3.96,.3])

@@ -1,4 +1,5 @@
 // Local underground layout. Intentionally absent from public facility/navigation data.
+import {buildMaze,MAZE_ARRIVAL,MAZE_GOAL,MAZE_SEED,mazeArrows,mazeRoute,type Doorway,type MazeArrow} from './horrorMaze'
 export type HorrorPoint=readonly[number,number]
 export type HorrorVec=readonly[number,number,number]
 export const HORROR={x0:-58,x1:26,z0:-105,z1:-48,floor:6.8,ceiling:17.2,height:10.4,wall:.9} as const
@@ -39,11 +40,8 @@ export function horrorFloorAt(x:number,z:number){const apron=horrorApronHeight(x
 export type HorrorSolid={id:string;x0:number;x1:number;z0:number;z1:number;height:number}
 const box=(id:string,x:number,z:number,w:number,d:number,height:number):HorrorSolid=>({id,x0:x-w/2,x1:x+w/2,z0:z-d/2,z1:z+d/2,height})
 export const HORROR_PILLARS=[-15,-6,3,12].flatMap(x=>[-98,-89,-67,-57].map(z=>box(`pillar-${x}-${z}`,x,z,2.8,2.8,10.4)))
-export const HORROR_SOLIDS:HorrorSolid[]=[
+const BUILT:HorrorSolid[]=[
  ...HORROR_PILLARS,
- box('entry-light-baffle',22.2,-82.6,.8,5.2,10.4),
- box('entry-north-return',23,-76.8,6,.65,10.4),
- box('entry-south-return',23,-88,6,.65,10.4),
  box('machinery-core',-38,-71,12,10,4.5),
  box('lift-cage',-37,-85,6,5,7.8),
  box('ramp-east-wall',-49.1,-72,.7,26,10.4),
@@ -51,22 +49,45 @@ export const HORROR_SOLIDS:HorrorSolid[]=[
  box('upper-landing-east-wall-north',-49.1,-92.675,.7,2.65,7.4),
  box('upper-landing-east-wall-south',-49.1,-86.825,.7,3.65,10.4),
  box('upper-landing-south-return',-56.8,-84.7,2.4,.6,10.4),
- box('exit-light-baffle',-54.5,-88,.7,3,10.4),
+ // S15P31B105-450: the exit door is shut off from the landing: bars you see it through as you come up the ramp, and
+ // walls round the corner it stands in. You come down into it from the top room (interiorAccess.exitStair).
+ {id:'exit-bars',x0:-55.6,x1:-52.3,z0:-85.35,z1:-85.05,height:8.2},
+ {id:'exit-alcove-east',x0:-52.5,x1:-52.1,z0:-91.4,z1:-85.05,height:8.8},
+ {id:'exit-alcove-south',x0:-57.1,x1:-52.1,z0:-91.6,z1:-91.4,height:7.1},
 ]
 export const HORROR_CRYPT={x:-25,z:-76,rx:6.8,rz:8.4,height:2.2} as const
-function portalClear(x:number,z:number,r:number){return HORROR_PORTALS.some(p=>{const d=(x-p.x)*p.outward;return d>=-1.2&&d<=3.6&&Math.abs(z-p.z)<p.width/2-r})}
-export function horrorWalkable(x:number,z:number,r=.36){
- if(!inHorror(x,z,r)&&!portalClear(x,z,r))return false
- if(HORROR_SOLIDS.some(s=>x>s.x0-r&&x<s.x1+r&&z>s.z0-r&&z<s.z1+r))return false
- return ((x-HORROR_CRYPT.x)/(HORROR_CRYPT.rx+r))**2+((z-HORROR_CRYPT.z)/(HORROR_CRYPT.rz+r))**2>1
+const clearOfBuilt=(x:number,z:number,r=.36)=>!BUILT.some(s=>x>s.x0-r&&x<s.x1+r&&z>s.z0-r&&z<s.z1+r)&&((x-HORROR_CRYPT.x)/(HORROR_CRYPT.rx+r))**2+((z-HORROR_CRYPT.z)/(HORROR_CRYPT.rz+r))**2>1
+/** A doorway of the labyrinth you could really walk through: a clear metre of it, and clear a step either side. */
+export function mazeDoorway(d:Doorway){
+ const len=Math.hypot(d.x1-d.x0,d.z1-d.z0),ux=(d.x1-d.x0)/len,uz=(d.z1-d.z0)/len;let run=0
+ for(let s=.3;s<len-.3;s+=.25){const x=d.x0+ux*s,z=d.z0+uz*s;run=[-.6,0,.6].every(k=>clearOfBuilt(x-uz*k,z+ux*k))?run+1:0;if(run>=4)return true}
+ return false
 }
+// S15P31B105-450: the lower hall is a labyrinth (horrorMaze); the old east-door baffles gave way to it.
+export const HORROR_MAZE=buildMaze(MAZE_SEED,mazeDoorway)
+export const HORROR_SOLIDS:HorrorSolid[]=[...BUILT,...HORROR_MAZE.walls]
+function portalClear(x:number,z:number,r:number){return HORROR_PORTALS.some(p=>{const d=(x-p.x)*p.outward;return d>=-1.2&&d<=3.6&&Math.abs(z-p.z)<p.width/2-r})}
+/** Nothing in the way at (x, z). With `y` (feet or capsule), what stands lower than that (the labyrinth under the gallery) is not in the way. */
+export function horrorWalkable(x:number,z:number,r=.36,y=-Infinity){
+ if(!inHorror(x,z,r)&&!portalClear(x,z,r))return false
+ if(HORROR_SOLIDS.some(s=>y<HORROR.floor+s.height&&x>s.x0-r&&x<s.x1+r&&z>s.z0-r&&z<s.z1+r))return false
+ return y>=HORROR.floor+HORROR_CRYPT.height||((x-HORROR_CRYPT.x)/(HORROR_CRYPT.rx+r))**2+((z-HORROR_CRYPT.z)/(HORROR_CRYPT.rz+r))**2>1
+}
+/** The chalk arrows along the way through the labyrinth (MazeArrows), where there is floor to draw them on. */
+export const HORROR_MAZE_ARROWS=mazeArrows(HORROR_MAZE,mazeRoute(HORROR_MAZE,HORROR_MAZE.cellAt(...MAZE_ARRIVAL)!,HORROR_MAZE.cellAt(...MAZE_GOAL)!)).filter(a=>horrorWalkable(a.x,a.z,.3,HORROR.floor))
+/** And up top (interiorAccess): past the bars to the gallery, round to the east stair, over the bridge, into the top room, down to the exit. */
+const G=HORROR_PORTALS[1].floor,T=14.2
+export const HORROR_UPPER_ARROWS:readonly MazeArrow[]=[
+ {x:-50.8,z:-86.6,dx:0,dz:-1,y:G},{x:-47.6,z:-90.2,dx:1,dz:0,y:G},{x:17.6,z:-90.6,dx:0,dz:1,y:G},{x:18.8,z:-80.6,dx:0,dz:1,y:G},
+ {x:15,z:-71.7,dx:-1,dz:0,y:T},{x:-45.75,z:-74,dx:0,dz:-1,y:T},{x:-45.75,z:-90.6,dx:0,dz:-1,y:T},{x:-48.4,z:-92.2,dx:-1,dz:0,y:T},{x:-53.7,z:-92.2,dx:0,dz:1,y:T},
+]
 /** Sweep at 15cm intervals; a large frame cannot tunnel through a column or a wall. */
 export function horrorMotion(from:HorrorPoint,to:HorrorPoint,y:number){
  if(y>HORROR.ceiling+.5||y<HORROR.floor-1)return true
  if(Math.max(from[0],to[0])< -62||Math.min(from[0],to[0])>30||Math.max(from[1],to[1])< -106||Math.min(from[1],to[1])> -47)return true
  const n=Math.max(1,Math.ceil(Math.hypot(to[0]-from[0],to[1]-from[1])/.15))
  const started=inHorror(...from)
- for(let i=1;i<=n;i++){const x=from[0]+(to[0]-from[0])*i/n,z=from[1]+(to[1]-from[1])*i/n,touched=inHorror(x,z,-.36);if(!horrorState.open&&touched)return false;if(horrorState.open&&(started||touched)&&!horrorWalkable(x,z))return false}
+ for(let i=1;i<=n;i++){const x=from[0]+(to[0]-from[0])*i/n,z=from[1]+(to[1]-from[1])*i/n,touched=inHorror(x,z,-.36);if(!horrorState.open&&touched)return false;if(horrorState.open&&(started||touched)&&!horrorWalkable(x,z,.36,y))return false}
  return true
 }
 export function updateHorrorPresence(x:number,z:number,y:number){const inside=horrorState.open&&inHorror(x,z)&&Math.abs(y-horrorGround(x,z))<.65;if(inside!==horrorState.inside){horrorState.inside=inside;emit()}return inside}

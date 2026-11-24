@@ -1,0 +1,1912 @@
+{
+  "detail-bench-optimized.glb": {
+    "sha256": "90fa3bd0dd0bac6ad7ed13b73df10c75611c1fd1c27da6cd99fc47b60d399198",
+    "parts": [
+      {
+        "name": "part-0",
+        "triangles": 498,
+        "vertices": 448,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-1",
+        "triangles": 96,
+        "vertices": 192,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-2",
+        "triangles": 240,
+        "vertices": 280,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-3",
+        "triangles": 1116,
+        "vertices": 3348,
+        "attributes": [
+          "position",
+          "normal",
+          "color"
+        ]
+      },
+      {
+        "name": "part-4",
+        "triangles": 1116,
+        "vertices": 3348,
+        "attributes": [
+          "position",
+          "normal",
+          "color"
+        ]
+      },
+      {
+        "name": "part-5",
+        "triangles": 1116,
+        "vertices": 3348,
+        "attributes": [
+          "position",
+          "normal",
+          "color"
+        ]
+      }
+    ]
+  },
+  "detail-boundary-optimized.glb": {
+    "sha256": "17495378c424c22273c377b95003d73a0b03f3043d3d4f7a628c817b4a40574a",
+    "parts": [
+      {
+        "name": "part-0",
+        "triangles": 6228,
+        "vertices": 8304,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ]
+      },
+      {
+        "name": "part-1",
+        "triangles": 6228,
+        "vertices": 8304,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ]
+      },
+      {
+        "name": "part-2",
+        "triangles": 17992,
+        "vertices": 26296,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-3",
+        "triangles": 2076,
+        "vertices": 4152,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-4",
+        "triangles": 1392,
+        "vertices": 2784,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-5",
+        "triangles": 300,
+        "vertices": 442,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-6",
+        "triangles": 64,
+        "vertices": 72,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-7",
+        "triangles": 64,
+        "vertices": 72,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-8",
+        "triangles": 100,
+        "vertices": 144,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-9",
+        "triangles": 240,
+        "vertices": 253,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-10",
+        "triangles": 24,
+        "vertices": 48,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-11",
+        "triangles": 2,
+        "vertices": 4,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ]
+      },
+      {
+        "name": "part-12",
+        "triangles": 16,
+        "vertices": 18,
+        "attributes": [
+          "position",
+          "normal"
+        ]
+      }
+    ]
+  },
+  "detail-city-optimized.glb": {
+    "sha256": "5679f2945bdda0688261d594a0ad1144423acdb5e5cff65f164f807375b323be",
+    "parts": [
+      {
+        "name": "part-0",
+        "triangles": 12,
+        "vertices": 24,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ]
+      },
+      {
+        "name": "part-1",
+        "triangles": 12,
+        "vertices": 24,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ]
+      },
+      {
+        "name": "part-2",
+        "triangles": 12,
+        "vertices": 24,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ]
+      },
+      {
+        "name": "part-3",
+        "triangles": 12,
+        "vertices": 24,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ]
+      },
+      {
+        "name": "part-4",
+        "triangles": 12,
+        "vertices": 24,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ]
+      },
+      {
+        "name": "part-5",
+        "triangles": 12,
+        "vertices": 24,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ]
+      },
+      {
+        "name": "part-6",
+        "triangles": 12,
+        "vertices": 24,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ]
+      },
+      {
+        "name": "part-7",
+        "triangles": 12,
+        "vertices": 24,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ]
+      },
+      {
+        "name": "part-8",
+        "triangles": 12,
+        "vertices": 24,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ]
+      },
+      {
+        "name": "part-9",
+        "triangles": 12,
+        "vertices": 24,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ]
+      },
+      {
+        "name": "part-10",
+        "triangles": 12,
+        "vertices": 24,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ]
+      },
+      {
+        "name": "part-11",
+        "triangles": 12,
+        "vertices": 24,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ]
+      },
+      {
+        "name": "part-12",
+        "triangles": 12,
+        "vertices": 24,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ]
+      },
+      {
+        "name": "part-13",
+        "triangles": 12,
+        "vertices": 24,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ]
+      },
+      {
+        "name": "part-14",
+        "triangles": 12,
+        "vertices": 24,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ]
+      },
+      {
+        "name": "part-15",
+        "triangles": 12,
+        "vertices": 24,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ]
+      },
+      {
+        "name": "part-16",
+        "triangles": 12,
+        "vertices": 24,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ]
+      },
+      {
+        "name": "part-17",
+        "triangles": 12,
+        "vertices": 24,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ]
+      },
+      {
+        "name": "part-18",
+        "triangles": 12,
+        "vertices": 24,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ]
+      },
+      {
+        "name": "part-19",
+        "triangles": 12,
+        "vertices": 24,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ]
+      },
+      {
+        "name": "part-20",
+        "triangles": 12,
+        "vertices": 24,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ]
+      }
+    ]
+  },
+  "detail-fence-optimized.glb": {
+    "sha256": "7664b4cefc1edc7e390c7db9dd6abc6e253dd56afe6d95ba8d8342aa32969ec1",
+    "parts": [
+      {
+        "name": "part-0",
+        "triangles": 76384,
+        "vertices": 229152,
+        "attributes": [
+          "position",
+          "normal",
+          "color"
+        ]
+      },
+      {
+        "name": "part-1",
+        "triangles": 38192,
+        "vertices": 114576,
+        "attributes": [
+          "position",
+          "normal",
+          "color"
+        ]
+      },
+      {
+        "name": "part-2",
+        "triangles": 27720,
+        "vertices": 83160,
+        "attributes": [
+          "position",
+          "normal",
+          "color"
+        ]
+      },
+      {
+        "name": "part-3",
+        "triangles": 1584,
+        "vertices": 3168,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-4",
+        "triangles": 4580,
+        "vertices": 2968,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-5",
+        "triangles": 3456,
+        "vertices": 2976,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-6",
+        "triangles": 1728,
+        "vertices": 1824,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      }
+    ]
+  },
+  "detail-fortress-optimized.glb": {
+    "sha256": "9a378828a3b6c27446552c7905fd7be6c9e58519b886e56f99c468ed5487db4f",
+    "parts": [
+      {
+        "name": "part-0",
+        "triangles": 568,
+        "vertices": 1136,
+        "attributes": [
+          "position",
+          "color",
+          "normal"
+        ]
+      },
+      {
+        "name": "part-1",
+        "triangles": 12,
+        "vertices": 24,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ]
+      },
+      {
+        "name": "part-2",
+        "triangles": 12,
+        "vertices": 24,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ]
+      },
+      {
+        "name": "part-3",
+        "triangles": 12,
+        "vertices": 24,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ]
+      },
+      {
+        "name": "part-4",
+        "triangles": 12,
+        "vertices": 24,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ]
+      },
+      {
+        "name": "part-5",
+        "triangles": 12,
+        "vertices": 24,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ]
+      },
+      {
+        "name": "part-6",
+        "triangles": 12,
+        "vertices": 24,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ]
+      },
+      {
+        "name": "part-7",
+        "triangles": 72264,
+        "vertices": 41528,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      }
+    ]
+  },
+  "detail-fountain-optimized.glb": {
+    "sha256": "034ac541945d83fb3bef573c2a0b3c186174ce2d9172b732390c323ad6b58ec5",
+    "parts": [
+      {
+        "name": "part-0",
+        "triangles": 108,
+        "vertices": 324,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ]
+      },
+      {
+        "name": "part-1",
+        "triangles": 12,
+        "vertices": 24,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ]
+      },
+      {
+        "name": "part-2",
+        "triangles": 24,
+        "vertices": 40,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ]
+      },
+      {
+        "name": "part-3",
+        "triangles": 80,
+        "vertices": 240,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ]
+      },
+      {
+        "name": "part-4",
+        "triangles": 8,
+        "vertices": 19,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ]
+      },
+      {
+        "name": "part-5",
+        "triangles": 800,
+        "vertices": 1360,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-6",
+        "triangles": 384,
+        "vertices": 344,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-7",
+        "triangles": 37632,
+        "vertices": 75511,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-8",
+        "triangles": 96,
+        "vertices": 192,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-9",
+        "triangles": 6528,
+        "vertices": 5848,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-10",
+        "triangles": 32640,
+        "vertices": 29240,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-11",
+        "triangles": 4896,
+        "vertices": 4488,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-12",
+        "triangles": 24480,
+        "vertices": 22440,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-13",
+        "triangles": 256,
+        "vertices": 388,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ]
+      },
+      {
+        "name": "part-14",
+        "triangles": 64,
+        "vertices": 66,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ]
+      },
+      {
+        "name": "part-15",
+        "triangles": 192,
+        "vertices": 194,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ]
+      },
+      {
+        "name": "part-16",
+        "triangles": 80,
+        "vertices": 124,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ]
+      }
+    ]
+  },
+  "detail-gacha-optimized.glb": {
+    "sha256": "ab4380fbdefb62686aa40adb01a56c907cc3ddd7b4511797ed80906bfccf75e1",
+    "parts": [
+      {
+        "name": "part-0",
+        "triangles": 4756,
+        "vertices": 4112,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-1",
+        "triangles": 108,
+        "vertices": 128,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-2",
+        "triangles": 44736,
+        "vertices": 30666,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-3",
+        "triangles": 24,
+        "vertices": 48,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-4",
+        "triangles": 4096,
+        "vertices": 2145,
+        "attributes": [
+          "position",
+          "uv",
+          "normal"
+        ]
+      }
+    ]
+  },
+  "detail-jump-course-optimized.glb": {
+    "sha256": "34fa8fb959347ef0fceed9c1b2414da5d81f038ae022fad013d00950bab1ea15",
+    "parts": [
+      {
+        "name": "part-0",
+        "triangles": 6012,
+        "vertices": 12042,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color",
+          "surfaceFinish"
+        ]
+      },
+      {
+        "name": "part-1",
+        "triangles": 2088,
+        "vertices": 5658,
+        "attributes": [
+          "position",
+          "uv",
+          "normal",
+          "color"
+        ]
+      },
+      {
+        "name": "part-2",
+        "triangles": 896,
+        "vertices": 520,
+        "attributes": [
+          "position",
+          "uv",
+          "normal",
+          "color"
+        ]
+      },
+      {
+        "name": "part-3",
+        "triangles": 1580,
+        "vertices": 1539,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-4",
+        "triangles": 288,
+        "vertices": 43,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-5",
+        "triangles": 208,
+        "vertices": 360,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-6",
+        "triangles": 32,
+        "vertices": 36,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-7",
+        "triangles": 1144,
+        "vertices": 912,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-8",
+        "triangles": 32,
+        "vertices": 36,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-9",
+        "triangles": 36,
+        "vertices": 72,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-10",
+        "triangles": 1764,
+        "vertices": 3144,
+        "attributes": [
+          "position",
+          "uv",
+          "normal",
+          "color"
+        ]
+      },
+      {
+        "name": "part-11",
+        "triangles": 48,
+        "vertices": 43,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-12",
+        "triangles": 996,
+        "vertices": 1060,
+        "attributes": [
+          "position",
+          "uv",
+          "normal",
+          "color"
+        ]
+      },
+      {
+        "name": "part-13",
+        "triangles": 432,
+        "vertices": 387,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-14",
+        "triangles": 528,
+        "vertices": 501,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-15",
+        "triangles": 552,
+        "vertices": 588,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-16",
+        "triangles": 552,
+        "vertices": 588,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-17",
+        "triangles": 1376,
+        "vertices": 3040,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-18",
+        "triangles": 32,
+        "vertices": 36,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-19",
+        "triangles": 96,
+        "vertices": 98,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ]
+      }
+    ]
+  },
+  "detail-jump-optimized.glb": {
+    "sha256": "55459a5fa5ef5f877e9c58d9d368558876919ceefd4610ded11a5bdce4a05d31",
+    "parts": [
+      {
+        "name": "part-0",
+        "triangles": 6012,
+        "vertices": 12042,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color",
+          "surfaceFinish"
+        ]
+      }
+    ]
+  },
+  "detail-lamp-optimized.glb": {
+    "sha256": "16b77fc20ea86a831a52b80c353222892c63e2af0614e88728986e1b516b9a7c",
+    "parts": [
+      {
+        "name": "part-0",
+        "triangles": 108,
+        "vertices": 324,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ]
+      },
+      {
+        "name": "part-1",
+        "triangles": 12,
+        "vertices": 24,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ]
+      },
+      {
+        "name": "part-2",
+        "triangles": 32,
+        "vertices": 52,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ]
+      },
+      {
+        "name": "part-3",
+        "triangles": 8,
+        "vertices": 19,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ]
+      },
+      {
+        "name": "part-4",
+        "triangles": 12,
+        "vertices": 24,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ]
+      }
+    ]
+  },
+  "detail-mailbox-optimized.glb": {
+    "sha256": "ff577ffb1221c95275faf6fd07c75bdda028d3de3d625ddb6810c3700feb004c",
+    "parts": [
+      {
+        "name": "part-0",
+        "triangles": 1762,
+        "vertices": 2518,
+        "attributes": [
+          "position",
+          "uv",
+          "normal",
+          "color"
+        ]
+      },
+      {
+        "name": "part-1",
+        "triangles": 192,
+        "vertices": 112,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-2",
+        "triangles": 2168,
+        "vertices": 2429,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-3",
+        "triangles": 2956,
+        "vertices": 3874,
+        "attributes": [
+          "position",
+          "uv",
+          "normal",
+          "color"
+        ]
+      },
+      {
+        "name": "part-4",
+        "triangles": 2792,
+        "vertices": 2299,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-5",
+        "triangles": 736,
+        "vertices": 1096,
+        "attributes": [
+          "position",
+          "uv",
+          "normal",
+          "color"
+        ]
+      },
+      {
+        "name": "part-6",
+        "triangles": 840,
+        "vertices": 1313,
+        "attributes": [
+          "position",
+          "uv",
+          "normal",
+          "color"
+        ]
+      },
+      {
+        "name": "part-7",
+        "triangles": 588,
+        "vertices": 1216,
+        "attributes": [
+          "position",
+          "uv",
+          "normal",
+          "color"
+        ]
+      },
+      {
+        "name": "part-8",
+        "triangles": 480,
+        "vertices": 450,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-9",
+        "triangles": 2,
+        "vertices": 4,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ]
+      }
+    ]
+  },
+  "detail-notes-optimized.glb": {
+    "sha256": "b36976b3f96c8e22eb692177f11e7cf923f79d69172083ad23115fcbe2158155",
+    "parts": [
+      {
+        "name": "part-0",
+        "triangles": 3620,
+        "vertices": 4609,
+        "attributes": [
+          "position",
+          "uv",
+          "normal",
+          "color"
+        ]
+      },
+      {
+        "name": "part-1",
+        "triangles": 828,
+        "vertices": 924,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-2",
+        "triangles": 5036,
+        "vertices": 4964,
+        "attributes": [
+          "position",
+          "uv",
+          "normal",
+          "color"
+        ]
+      },
+      {
+        "name": "part-3",
+        "triangles": 6688,
+        "vertices": 5189,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-4",
+        "triangles": 64,
+        "vertices": 72,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-5",
+        "triangles": 1804,
+        "vertices": 2738,
+        "attributes": [
+          "position",
+          "uv",
+          "normal",
+          "color"
+        ]
+      },
+      {
+        "name": "part-6",
+        "triangles": 64,
+        "vertices": 72,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-7",
+        "triangles": 28,
+        "vertices": 56,
+        "attributes": [
+          "position",
+          "uv",
+          "normal",
+          "color"
+        ]
+      },
+      {
+        "name": "part-8",
+        "triangles": 1056,
+        "vertices": 935,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-9",
+        "triangles": 64,
+        "vertices": 72,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-10",
+        "triangles": 2,
+        "vertices": 4,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ]
+      },
+      {
+        "name": "part-11",
+        "triangles": 2,
+        "vertices": 4,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ]
+      }
+    ]
+  },
+  "detail-pagoda-optimized.glb": {
+    "sha256": "1e407f9b86630721a41acf793a99ac6f04288cf6bd479a6c4b9f7fb793f5a79b",
+    "parts": [
+      {
+        "name": "part-0",
+        "triangles": 348,
+        "vertices": 624,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-1",
+        "triangles": 34416,
+        "vertices": 37640,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-2",
+        "triangles": 6012,
+        "vertices": 12042,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color",
+          "surfaceFinish"
+        ]
+      }
+    ]
+  },
+  "detail-ranking-optimized.glb": {
+    "sha256": "a9bf43fd7d57b94ea662fc59357f8c56df01e03975dddeae0dd1ff3bc45d00e7",
+    "parts": [
+      {
+        "name": "part-0",
+        "triangles": 596,
+        "vertices": 1038,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-1",
+        "triangles": 48,
+        "vertices": 96,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-2",
+        "triangles": 84,
+        "vertices": 168,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-3",
+        "triangles": 528,
+        "vertices": 1376,
+        "attributes": [
+          "position",
+          "uv",
+          "color",
+          "normal"
+        ]
+      },
+      {
+        "name": "part-4",
+        "triangles": 24,
+        "vertices": 48,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      }
+    ]
+  },
+  "detail-stairs-optimized.glb": {
+    "sha256": "6598c3ca09f728decf02873bc96971d02d40be6e55d675839808665d36cc0dfb",
+    "parts": [
+      {
+        "name": "part-0",
+        "triangles": 1844,
+        "vertices": 3500,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-1",
+        "triangles": 1900,
+        "vertices": 5700,
+        "attributes": [
+          "position",
+          "normal"
+        ]
+      }
+    ]
+  },
+  "detail-table-optimized.glb": {
+    "sha256": "e6756b32b5607684466accbb65c491c4249ef9d5fe5c1c20523229c494b481fd",
+    "parts": [
+      {
+        "name": "part-0",
+        "triangles": 108,
+        "vertices": 324,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ]
+      },
+      {
+        "name": "part-1",
+        "triangles": 12,
+        "vertices": 24,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ]
+      },
+      {
+        "name": "part-2",
+        "triangles": 12,
+        "vertices": 24,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ]
+      },
+      {
+        "name": "part-3",
+        "triangles": 12,
+        "vertices": 24,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ]
+      },
+      {
+        "name": "part-4",
+        "triangles": 12,
+        "vertices": 24,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ]
+      },
+      {
+        "name": "part-5",
+        "triangles": 12,
+        "vertices": 24,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ]
+      },
+      {
+        "name": "part-6",
+        "triangles": 12,
+        "vertices": 24,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ]
+      },
+      {
+        "name": "part-7",
+        "triangles": 12,
+        "vertices": 24,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ]
+      }
+    ]
+  },
+  "detail-telescope-optimized.glb": {
+    "sha256": "5f795b9af402ae530126961fcb548d09fefc796025fbdf3154bc76adb9934861",
+    "parts": [
+      {
+        "name": "part-0",
+        "triangles": 912,
+        "vertices": 1054,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-1",
+        "triangles": 464,
+        "vertices": 440,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-2",
+        "triangles": 604,
+        "vertices": 1244,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-3",
+        "triangles": 220,
+        "vertices": 204,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-4",
+        "triangles": 524,
+        "vertices": 456,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-5",
+        "triangles": 480,
+        "vertices": 360,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-6",
+        "triangles": 192,
+        "vertices": 216,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ]
+      },
+      {
+        "name": "part-7",
+        "triangles": 960,
+        "vertices": 561,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ]
+      }
+    ]
+  },
+  "facility-arcade-optimized.glb": {
+    "sha256": "be7c90002f0c88431ce4882487e56e2ff9fa94f7eace914713285fb0eb11fe13",
+    "parts": [
+      {
+        "name": "part-0",
+        "triangles": 924,
+        "vertices": 1836
+      },
+      {
+        "name": "part-1",
+        "triangles": 24,
+        "vertices": 48
+      },
+      {
+        "name": "part-2",
+        "triangles": 3024,
+        "vertices": 6048
+      },
+      {
+        "name": "part-3",
+        "triangles": 12552,
+        "vertices": 10071
+      },
+      {
+        "name": "part-4",
+        "triangles": 14624,
+        "vertices": 18250
+      },
+      {
+        "name": "part-5",
+        "triangles": 88576,
+        "vertices": 49210
+      },
+      {
+        "name": "part-6",
+        "triangles": 1580,
+        "vertices": 2106
+      },
+      {
+        "name": "part-7",
+        "triangles": 336,
+        "vertices": 672
+      },
+      {
+        "name": "part-8",
+        "triangles": 3504,
+        "vertices": 5568
+      },
+      {
+        "name": "part-9",
+        "triangles": 48,
+        "vertices": 96
+      }
+    ]
+  },
+  "facility-folk-optimized.glb": {
+    "sha256": "2e26a905bd4aec4ed68ecbc7a8cbd8552ded719e96456a04d509dcd8cf81be11",
+    "parts": [
+      {
+        "name": "part-0",
+        "triangles": 21484,
+        "vertices": 64452
+      },
+      {
+        "name": "part-1",
+        "triangles": 180,
+        "vertices": 540
+      },
+      {
+        "name": "part-2",
+        "triangles": 12120,
+        "vertices": 36360
+      },
+      {
+        "name": "part-3",
+        "triangles": 3188,
+        "vertices": 9564
+      },
+      {
+        "name": "part-4",
+        "triangles": 6060,
+        "vertices": 18180
+      },
+      {
+        "name": "part-5",
+        "triangles": 1264,
+        "vertices": 3792
+      },
+      {
+        "name": "part-6",
+        "triangles": 2632,
+        "vertices": 7896
+      },
+      {
+        "name": "part-7",
+        "triangles": 5112,
+        "vertices": 15336
+      },
+      {
+        "name": "part-8",
+        "triangles": 976,
+        "vertices": 2928
+      }
+    ]
+  },
+  "facility-mole-optimized.glb": {
+    "sha256": "13220aa6219423e9686105adba664b3a5b542dc3fa850bde6807d7e6bf2a275f",
+    "parts": [
+      {
+        "name": "part-0",
+        "triangles": 1496,
+        "vertices": 1360
+      },
+      {
+        "name": "part-1",
+        "triangles": 1852,
+        "vertices": 5243
+      },
+      {
+        "name": "part-2",
+        "triangles": 12956,
+        "vertices": 10792
+      },
+      {
+        "name": "part-3",
+        "triangles": 72,
+        "vertices": 144
+      },
+      {
+        "name": "part-4",
+        "triangles": 17536,
+        "vertices": 11898
+      },
+      {
+        "name": "part-5",
+        "triangles": 2784,
+        "vertices": 1618
+      },
+      {
+        "name": "part-6",
+        "triangles": 2624,
+        "vertices": 2162
+      },
+      {
+        "name": "part-7",
+        "triangles": 36580,
+        "vertices": 19731
+      },
+      {
+        "name": "part-8",
+        "triangles": 280,
+        "vertices": 312
+      }
+    ]
+  },
+  "facility-shooting-optimized.glb": {
+    "sha256": "183cb0eeeef956fd5a29c87b28707d5725fc69bd81d42a0a3b654f5337383848",
+    "parts": [
+      {
+        "name": "part-0",
+        "triangles": 11996,
+        "vertices": 35988
+      },
+      {
+        "name": "part-1",
+        "triangles": 96,
+        "vertices": 288
+      },
+      {
+        "name": "part-2",
+        "triangles": 8558,
+        "vertices": 25674
+      },
+      {
+        "name": "part-3",
+        "triangles": 2160,
+        "vertices": 6480
+      },
+      {
+        "name": "part-4",
+        "triangles": 3324,
+        "vertices": 9972
+      },
+      {
+        "name": "part-5",
+        "triangles": 1300,
+        "vertices": 3900
+      },
+      {
+        "name": "part-6",
+        "triangles": 6704,
+        "vertices": 20112
+      },
+      {
+        "name": "part-7",
+        "triangles": 832,
+        "vertices": 2496
+      },
+      {
+        "name": "part-8",
+        "triangles": 24,
+        "vertices": 72
+      }
+    ]
+  },
+  "facility-tower-optimized.glb": {
+    "sha256": "fcbbe0bcea5ea57b3787b3e1bd77706df7e7b44d902643241c27490b72edbde1",
+    "parts": [
+      {
+        "name": "part-0",
+        "triangles": 720,
+        "vertices": 722
+      },
+      {
+        "name": "part-1",
+        "triangles": 42708,
+        "vertices": 54714
+      },
+      {
+        "name": "part-2",
+        "triangles": 32,
+        "vertices": 52
+      },
+      {
+        "name": "part-3",
+        "triangles": 96,
+        "vertices": 288
+      }
+    ]
+  }
+}

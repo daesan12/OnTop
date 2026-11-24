@@ -136,6 +136,8 @@ gameId/version/state를 노출하지 않으며 기존 FE 파서와 재시도 UI�
 | 수동 기권 | GAME_FORFEIT | GAME_FORFEIT_RESULT |
 | 오목 관전 채팅·핑 | GAME_SPECTATOR_CHAT_SEND / OMOK_SPECTATOR_PING_SEND | GAME_SPECTATOR_CHAT_MESSAGE / OMOK_SPECTATOR_PING ([상세](../websocket-api/10-game-spectator-events.md), 승인 관전자만 발신) |
 | 주사위 장부 관전 훈수 | DICE_LEDGER_SPECTATOR_PING_SEND | DICE_LEDGER_SPECTATOR_PING ([상세](../dice-ledger.md#관전자-훈수-핑), 승인 관전자만 발신) |
+| 흑백수사 관전 타일 추천 | DAVINCI_SPECTATOR_PING_SEND | DAVINCI_SPECTATOR_PING ([상세](../DAVINCI_CODE.md#관전자-타일-추천-api), 승인 관전자만 공개된 타일 ID를 참조) |
+| 수패마루 관전 조합 추천 | RUMMIKUB_SPECTATOR_PING_SEND | RUMMIKUB_SPECTATOR_PING ([상세](../rummikub/README.md#규칙과-계약), 승인 관전자만 공개 조합의 meldIndex 0~34를 참조) |
 | 알까기 관전 커서·훈수 | ALKKAGI_SPECTATOR_SEND | ALKKAGI_SPECTATOR_EVENT ([상세](../websocket-api/11-alkkagi-spectator-events.md), 로컬 알까기 활성화·관전 권한 필요) |
 | 경기 결과 | GAME_RESULT_CHECK | GAME_RESULT |
 | 원카드 장난·방어 | ONECARD_PRANK_REACH_SEND / ONECARD_PRANK_HIT_SEND / ONECARD_HAND_RESTORE_SEND / ONECARD_HAND_FLIP_SEND | [방어·차단·뒤집기·복구](../onecard-ux-be-spec.md), 구형 FLIP은 방어 비활성 호환 전용 |
@@ -199,6 +201,24 @@ ERROR와 CONNECTED는 요청 타입이 아니다.
 | WORLD_BALLOON_END | `{ticketId}`로 비행을 종료한다. 종료할 표시 상태가 없으면 요청자에게 `WORLD_BALLOON_END_ACK`를 보낸다. |
 
 서버는 비행 위치와 탑승 상태를 `WORLD_BALLOON_STATE`로 같은 채널에 공유한다. 종료 상태의 `flight`는 `null`이다. 관찰자는 이 상태로 기체와 탑승 아바타를 표시한다. [열기구 이용 및 검증 절차](../../frontend/src/features/balloon/README.md)
+
+## 겨울 공원 · 눈싸움
+
+기존 인증·맵 확인·채널 입장 절차를 그대로 사용한다. 공원 놀이이며 경기 보상·지갑·정산을 만들지 않는다.
+상세 필드·오류·동결 해제는 [겨울 공원·눈싸움 계약](../world-winter-api.md)을 따른다.
+
+| 요청 | payload | 응답/방송 |
+| --- | --- | --- |
+| WORLD_SNOWBALL_PICKUP | `{pileId}`. 서버가 바닥 눈더미까지의 거리를 확인해 한 개를 줍는다. | WORLD_SNOWBALL_STATE |
+| WORLD_SNOWBALL_CHECK | `{}`. 현재 채널의 눈 소지·피격·동결 상태를 조회한다. | WORLD_SNOWBALL_STATE |
+| WORLD_SNOWBALL_PREPARE | `{yaw}`. 300ms 던지기 준비 동작이며 소지량·명중은 변경하지 않는다. | WORLD_SNOWBALL_WINDUP |
+| WORLD_SNOWBALL_AIM | `{yaw}`. 실제 발사와 같은 서버 판정으로 표적을 조회하며 요청자에게만 응답한다. | WORLD_SNOWBALL_AIM_STATE |
+| WORLD_SNOWBALL_THROW | `{yaw}`. 서버 위치·정적 구조물·현재 대상을 확인해 눈 한 개를 소비하고 발사한다. | WORLD_SNOWBALL_EVENT |
+| WORLD_SNOWBALL_ESCAPE | `{freezeId, key}`. 현재 동결 ID와 A/D 교대 입력으로 탈출한다. | WORLD_SNOWBALL_STATE |
+
+`WORLD_SNOWBALL_STATE`는 채널 입장과 상태 변경 시 같은 채널에 공유한다. 3회 피격 시 5초 동안 동결되며,
+자연 만료와 A/D 탈출 모두 물리 이동 잠금을 해제하고 월드·눈싸움 상태를 전파한다. FE의 소지 중 미리보기는
+로컬 물리 월드를 사용하고, 서버 조준 조회는 승인된 준비 동작당 최대 한 번으로 제한한다. 실제 명중은 서버가 확정한다.
 
 ## 오리배 대기·초대·운항
 

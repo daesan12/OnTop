@@ -1,4 +1,8 @@
+import { sleighRider } from '../features/winter/sleigh/controller'
+import { SleighCamera } from '../features/winter/sleigh/camera'
 import { ALKKAGI_FOV, alkkagiCameraActive, alkkagiTopDownFrame } from '../game/alkkagi/camera'
+import { QUORIDOR_FOV, quoridorCamera, quoridorCameraActive, quoridorCameraPose, quoridorViewport, quoridorYaw } from '../game/quoridor/camera'
+import { BOARD_Y as QUORIDOR_BOARD_Y, playerGoal } from '../game/quoridor/presentation'
 import { gatheringCameraActive } from '../features/tableLobby/gathering'
 import { oneCardPlayerViewActive, oneCardCameraPose, oneCardSpectatorCameraPose, ONECARD_CAMERA } from '../game/onecard/camera'
 import { tabletLobbyActive } from '../features/tableLobby/tabletModel'
@@ -25,11 +29,12 @@ import { avatars, sampleAvatar, useSession,estimatedServerTime } from '../networ
 import {activeParkDebris} from '../features/parkDebris/state'
 import { cameraOcclusion, CameraOcclusionFader } from './cameraOcclusion'
 import { installRoamingInput, viewControls } from './input'
-import { constrainMonumentStairCamera, constrainRoamingCamera } from './cameraCollision'
+import { constrainMonumentStairCamera, constrainRoamingCamera, constrainSecretExitCamera } from './cameraCollision'
 import { seatScope, seatedLook, resetSeatedLook, useTableLobby, SEATED_LOOK } from '../features/tableLobby/state'
 import { useDiceUI, diceCamera, holdBustCamera } from '../game/farkle/controls'
 import { DICE_CAMERA, DICE_SPECTATOR_CAMERA, diceFocusActive, diceSpectatorCameraPose } from '../game/farkle/camera'
 import { LEDGER_CAMERA, ledgerCameraPose, ledgerFocusActive } from '../game/ledger/camera'
+import { rummikubCameraPose } from '../game/rummikub/camera'
 import { HALLI_CAMERA, halliCameraPose, halliPlayerViewActive, halliSpectatorCameraPose, halliSpectatorViewActive } from '../game/halligalli/camera'
 import { roamingFirstPerson } from './roamingCamera'
 import { rememberRoamingView, restoreRoamingView } from './cameraReturn'
@@ -45,6 +50,7 @@ import { advanceOmokCamera, OMOK_FOCUS_LAYER, omokTopDownHeight, omokSpectatorFr
 import { boardFocusLighting } from './boardFocusLighting'
 import { wardrobeView } from '../features/wardrobe/view'
 import { parkXRView } from './xrView'
+import { secretTileCamera } from '../game/davinci/camera'
 
 /** Whole-figure framing used by the wardrobe zoom (the avatar plus a little headroom). */
 const WARDROBE_FRAME = { height: CHARACTER.height * 1.08, minDistance: 1.4, maxDistance: 5 }
@@ -95,9 +101,10 @@ export function CameraRig() {
       seatScope: '',
       bungeoppangFov: null as number | null,
       rotation: new Quaternion(), targetRotation: new Quaternion(),
-      targetUp: new Vector3(0, 1, 0), lookMatrix: new Matrix4(), omokTransition: false, diceTransition: false, alkkagiTransition: false,
+      targetUp: new Vector3(0, 1, 0), lookMatrix: new Matrix4(), omokTransition: false, diceTransition: false, alkkagiTransition: false, quoridorTransition: false,
       center: new Vector3(), pan: new Vector3(), feet: new Vector3(),
       jumpOrbitRun: '', jumpOrbitDirection: new Vector3(),
+      sleighCamera: new SleighCamera(),
     }),
     [],
   )
@@ -108,6 +115,7 @@ export function CameraRig() {
     aimTrack = useRef<{ written: { yaw: number; pitch: number } | null; age: number; seen: { yaw: number; pitch: number } | null }>(
       { written: null, age: 0, seen: null })
   useEffect(() => installRoamingInput(gl.domElement), [gl])
+  useEffect(() => () => { quoridorCamera.ready = false; quoridorCamera.gameId = '' }, [])
   useEffect(
     () => () => {
       if (cameraOcclusion.scenery === occlusion) cameraOcclusion.scenery = null
@@ -136,6 +144,8 @@ export function CameraRig() {
     [occlusion, state, mountedCamera, raycaster],
   )
   useFrame(({ camera, scene }, delta) => {
+    quoridorCamera.ready = false
+    quoridorCamera.gameId = ''
     const priorJumpOrbitRun = state.jumpOrbitRun
     state.jumpOrbitRun = ''
     camera.userData.showConstellationLines = false
@@ -150,6 +160,15 @@ export function CameraRig() {
       occlusion.reset()
       return
     }
+    const sleigh = sleighRider(useSession.getState().sessionId)
+    if (sleigh) {
+      interactionAim.ready = false
+      cameraOcclusion.strength.value = 0
+      occlusion.reset()
+      state.sleighCamera.follow(camera, sleigh, delta)
+      return
+    }
+    if (state.sleighCamera.leave(camera)) state.owner = ''
     const balloonRider = localBalloonRider(useSession.getState().sessionId)
     if (balloonRider) {
       interactionAim.ready = false
@@ -212,7 +231,7 @@ export function CameraRig() {
       state.owner = ''
       state.omokTransition = false
       state.diceTransition = false
-      state.alkkagiTransition = false
+      state.alkkagiTransition = false; state.quoridorTransition = false
     }
     if (!avatar) {
       interactionAim.ready = false
@@ -224,7 +243,7 @@ export function CameraRig() {
       state.owner = ''
       state.omokTransition = false
       state.diceTransition = false
-      state.alkkagiTransition = false
+      state.alkkagiTransition = false; state.quoridorTransition = false
       return
     }
     if (welcomeFlight.active) {
@@ -256,7 +275,7 @@ export function CameraRig() {
     if (bungeoppangView.active) {
       state.omokTransition = false
       state.diceTransition = false
-      state.alkkagiTransition = false
+      state.alkkagiTransition = false; state.quoridorTransition = false
       if (camera instanceof PerspectiveCamera) {
         state.bungeoppangFov ??= camera.fov
         // Keep all three mould columns in view on narrow screens too.
@@ -290,7 +309,7 @@ export function CameraRig() {
       camera.userData.showConstellationLines = true
       state.omokTransition = false
       state.diceTransition = false
-      state.alkkagiTransition = false
+      state.alkkagiTransition = false; state.quoridorTransition = false
       const { yaw, pitch } = telescopeView
       camera.position.set(telescope.position[0], telescope.position[1] + TELESCOPE.eyeHeight + (RENEWAL_PARK_ENABLED ? .44 : 0), telescope.position[2])
       state.look.set(camera.position.x + Math.sin(yaw) * Math.cos(pitch), camera.position.y + Math.sin(pitch),
@@ -344,8 +363,12 @@ export function CameraRig() {
     const ownAlkkagi = seated && !!avatar.tableId && (session.tableStates[session.tableId]?.gameCode === 'ALKKAGI'
       || game?.role === 'PLAYER' && !!game.alkkagi)
     const focusedAlkkagi = alkkagiCamera && (game?.role === 'PLAYER' ? !looking : spectatorBoard)
-    boardFocusLighting.requested = focusedOmok || focusedAlkkagi
-    if (focusedOmok || focusedAlkkagi) {
+    const ownQuoridor = seated && !!avatar.tableId && (session.tableStates[session.tableId]?.gameCode === 'QUORIDOR'
+      || game?.role === 'PLAYER' && !!game.quoridor)
+    const focusedQuoridor = !!game?.quoridor && quoridorCameraActive(game.quoridor.status, !!gameSession.lastResult, game.role === 'SPECTATOR')
+      && (game.role === 'PLAYER' ? ownQuoridor && !looking : spectatorBoard)
+    boardFocusLighting.requested = focusedOmok || focusedAlkkagi || focusedQuoridor
+    if (focusedOmok || focusedAlkkagi || focusedQuoridor) {
       camera.layers.set(OMOK_FOCUS_LAYER)
       raycaster.layers.set(OMOK_FOCUS_LAYER)
     }
@@ -354,7 +377,7 @@ export function CameraRig() {
     const ownDice = seated && !!avatar.tableId && game?.role === 'PLAYER' && !!game.dice
     const diceFocus = seated && !!avatar.tableId && diceFocusActive(game, session.sessionId,
       useDiceUI.getState().boardView || holdBustCamera(game?.gameId, session.sessionId))
-    const ledgerFocus = seated && !!avatar.tableId && ledgerFocusActive(game, session.sessionId, looking)
+    const ledgerFocus = seated && !!avatar.tableId && (ledgerFocusActive(game, session.sessionId, looking) || !looking && game?.role === 'PLAYER' && !!game.rummikub)
     state.look.set(pose.x, pose.y + CAMERA.focusHeight - 0.8, pose.z)
     if (state.owner !== session.sessionId) {
       state.focus.copy(state.look)
@@ -396,6 +419,16 @@ export function CameraRig() {
         state.desired.set(anchor.position[0] + Math.sin(yaw) * radius,
           Math.min(anchor.position[1] + 2.8, spectatorClearHeight(anchor.pavilionId)), anchor.position[2] + Math.cos(yaw) * radius)
       }
+    } else if (focusedQuoridor) {
+      const anchor = game?.role === 'PLAYER' ? renderedTableAnchors.get(avatar.tableId) ?? TABLES.find(t => t.id === avatar.tableId) : (closeAnchor ?? watchedAnchor)
+      if (anchor && game?.quoridor) {
+        const insets = quoridorViewport.gameId === game.gameId ? quoridorViewport : undefined
+        const frame = quoridorCameraPose(gl.domElement.clientWidth, gl.domElement.clientHeight, tableScale(anchor),
+          quoridorYaw(game.role === 'PLAYER' ? playerGoal(game.quoridor, session.sessionId) : undefined), insets)
+        const y = anchor.position[1] + (anchor.boardOffsetY ?? 0) + QUORIDOR_BOARD_Y + .05
+        state.look.set(anchor.position[0] + frame.target[0], y + frame.target[1], anchor.position[2] + frame.target[2])
+        state.desired.set(anchor.position[0] + frame.position[0], y + frame.position[1], anchor.position[2] + frame.position[2])
+      }
     } else if (focusedAlkkagi) {
       const anchor = game?.role === 'PLAYER' ? TABLES.find(t => t.id === avatar.tableId)! : (closeAnchor ?? watchedAnchor)!
       if (anchor) {
@@ -420,6 +453,12 @@ export function CameraRig() {
       const yaw = Math.atan2(-turnSeat.x, -turnSeat.z) + .35 + benchLook.yaw - Math.PI / 4
       const pose = oneCardSpectatorCameraPose(anchor, yaw, camera instanceof PerspectiveCamera ? camera.aspect : 1.6, spectatorClearHeight(anchor.pavilionId))
       state.desired.set(...pose.position); state.look.set(...pose.target)
+    } else if (game?.davinci && (seated && !!avatar.tableId || game.role === 'SPECTATOR' && (closeAnchor || watchedAnchor))) {
+      const anchor = game.role === 'PLAYER' ? TABLES.find(t => t.id === avatar.tableId) : closeAnchor ?? watchedAnchor
+      if (anchor) {
+        const pose = secretTileCamera(anchor, game.role === 'PLAYER' ? session.seatIndex : 0, camera instanceof PerspectiveCamera ? camera.aspect : 1.6)
+        state.desired.set(...pose.position); state.look.set(...pose.target)
+      }
     } else if (halliPlayerViewActive(game, seated && !!avatar.tableId, looking)) {
       const anchor = TABLES.find(t => t.id === avatar.tableId)
       if (anchor) {
@@ -454,7 +493,9 @@ export function CameraRig() {
     } else if (ledgerFocus) {
       const anchor = TABLES.find(t => t.id === avatar.tableId)!
       const seat = tableSeats(anchor, session.seatIndex + 1)[session.seatIndex] ?? tableSeats(anchor)[0]!
-      const scale = tableScale(anchor), pose = ledgerCameraPose(anchor.position, seat.x * scale, seat.z * scale, scale)
+      const scale = tableScale(anchor), pose = game?.rummikub
+        ? rummikubCameraPose(anchor.position, seat.x * scale, seat.z * scale, scale,{width:gl.domElement.clientWidth,height:gl.domElement.clientHeight})
+        : ledgerCameraPose(anchor.position, seat.x * scale, seat.z * scale, scale)
       state.desired.set(...pose.position)
       state.look.set(...pose.target)
     } else if (diceSpectator) {
@@ -472,7 +513,7 @@ export function CameraRig() {
       )
       state.desired.set(
         state.look.x,
-        Math.min(state.look.y + (spectatorBoard && game?.ledger ? 3.2 : 2.6) * tableScale(anchor), spectatorClearHeight(anchor.pavilionId)),
+        Math.min(state.look.y + (spectatorBoard && (game?.ledger || game?.rummikub) ? 3.2 : 2.6) * tableScale(anchor), spectatorClearHeight(anchor.pavilionId)),
         state.look.z + 0.001,
       )
     } else if (closeAnchor) {
@@ -604,17 +645,21 @@ export function CameraRig() {
         }
       }
       state.look.copy(center)
-      if (RENEWAL_PARK_ENABLED) constrainMonumentStairCamera(state.desired, state.look)
+      if (RENEWAL_PARK_ENABLED) {
+        constrainMonumentStairCamera(state.desired, state.look)
+        if (!wardrobeView.active) constrainSecretExitCamera(state.desired, state.look)
+      }
       // Keep the requested upward angle when the ground prevents the orbit from lowering.
       if (orbitY < 0 && !wardrobeView.active) state.look.y += Math.max(0, state.desired.y - orbitHeight)
     }
-    const targetFov = debrisAnchor ? 55 : tablet ? 43 : focusedAlkkagi ? ALKKAGI_FOV : gathering ? ownOmok ? 60 : CAMERA.fov : seated && oneCardPlayerViewActive(game) ? ONECARD_CAMERA.fov : diceFocus ? DICE_CAMERA.fov : ledgerFocus ? LEDGER_CAMERA.fov : diceSpectator ? DICE_SPECTATOR_CAMERA.fov : boardFocus || spectatorBoard ? GOMOKU.topDownFov : seated ? GOMOKU.seatedFov : CAMERA.fov
+    const targetFov = debrisAnchor ? 55 : tablet ? 43 : focusedQuoridor ? QUORIDOR_FOV : focusedAlkkagi ? ALKKAGI_FOV : gathering ? ownOmok ? 60 : CAMERA.fov : seated && oneCardPlayerViewActive(game) ? ONECARD_CAMERA.fov : diceFocus ? DICE_CAMERA.fov : ledgerFocus ? LEDGER_CAMERA.fov : diceSpectator ? DICE_SPECTATOR_CAMERA.fov : boardFocus || spectatorBoard ? GOMOKU.topDownFov : seated ? GOMOKU.seatedFov : CAMERA.fov
     const smoothingOmok = focusedOmok || ownOmok || state.omokTransition
     const smoothingDice = ownDice || state.diceTransition
     // A defeat shot is an intermediate camera goal, not the end of the return transition.
     const holdAlkkagi = ownAlkkagi || alkkagiCamera || !!debrisAnchor && debris?.gameCode === 'ALKKAGI'
     const smoothingAlkkagi = holdAlkkagi || state.alkkagiTransition
-    const smoothingBoard = smoothingOmok || smoothingDice || smoothingAlkkagi || diceSpectator
+    const smoothingQuoridor = focusedQuoridor || ownQuoridor || state.quoridorTransition
+    const smoothingBoard = smoothingOmok || smoothingDice || smoothingAlkkagi || smoothingQuoridor || diceSpectator
     let omokSettled = false
     if (smoothingBoard) {
       // A stable up vector preserves each seat's orientation at exactly 90 degrees.
@@ -624,14 +669,17 @@ export function CameraRig() {
       if (smoothingOmok) state.omokTransition = focusedOmok || ownOmok || !omokSettled
       if (smoothingDice) state.diceTransition = ownDice || !omokSettled
       if (smoothingAlkkagi) state.alkkagiTransition = holdAlkkagi || !omokSettled
+      if (smoothingQuoridor) state.quoridorTransition = focusedQuoridor || ownQuoridor || !omokSettled
     } else {
       if (firstPerson && performance.now() >= bungeoppangView.returningUntil) camera.position.copy(state.desired)
       else camera.position.lerp(state.desired, 1 - Math.exp(-(performance.now() < bungeoppangView.returningUntil ? 24 : 12) * Math.min(delta, 0.1)))
     }
     if (!firstPerson && !seated && !watchedAnchor) constrainRoamingCamera(camera.position)
     // Position smoothing can cross a stair edge even when the desired orbit is clear.
-    if (RENEWAL_PARK_ENABLED && !firstPerson && !temporaryView && !watchedAnchor && !smoothingBoard)
+    if (RENEWAL_PARK_ENABLED && !firstPerson && !temporaryView && !watchedAnchor && !smoothingBoard) {
       constrainMonumentStairCamera(camera.position, state.look)
+      if (!wardrobeView.active) constrainSecretExitCamera(camera.position, state.look)
+    }
     if (!smoothingBoard) {
       if (performance.now() < bungeoppangView.returningUntil) {
         state.rotation.copy(camera.quaternion)
@@ -640,6 +688,9 @@ export function CameraRig() {
       } else camera.lookAt(state.look)
     }
     diceCamera.ready = diceFocus || diceSpectator ? omokSettled : !!(spectatorBoard && game?.dice) && camera.position.distanceTo(state.desired) < .005
+    quoridorCamera.gameId = focusedQuoridor ? game?.gameId ?? '' : ''
+    quoridorCamera.ready = focusedQuoridor && omokSettled
+    state.sleighCamera.returnToPark(camera, state.desired, state.look, delta)
     camera.getWorldDirection(state.direction)
     setInteractionCamera(camera)
     interactionAim.ready = true
@@ -655,7 +706,7 @@ export function CameraRig() {
     if (!smoothingBoard && camera instanceof PerspectiveCamera && state.bungeoppangFov === null) {
       const halliView = !debrisAnchor && !tablet && !gathering && (halliPlayerViewActive(game, seated && !!avatar.tableId, looking)
         || halliSpectatorViewActive(game, !!(closeAnchor || watchedAnchor)))
-      const fov = halliView ? HALLI_CAMERA.fov : targetFov
+      const fov = game?.davinci ? 52 : halliView ? HALLI_CAMERA.fov : targetFov
       if (Math.abs(camera.fov - fov) > 0.01) {
         camera.fov = fov
         camera.updateProjectionMatrix()

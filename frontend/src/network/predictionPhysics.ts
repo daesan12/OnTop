@@ -364,6 +364,11 @@ class PredictionPhysics implements PredictionSimulation {
   stepJumped() { return this.launchedJump }
   stepSupported() { return this.supportCollider === undefined ? this.grounded : this.supportCollider !== null }
   pose(): Pose { return { ...this.body.translation(), yaw: this.yaw } }
+  raycastStatic(from: { x: number; y: number; z: number }, to: { x: number; y: number; z: number }) {
+    const direction = { x: to.x - from.x, y: to.y - from.y, z: to.z - from.z }
+    const hit = this.world.castRay(new RAPIER.Ray(from, direction), 1, true, undefined, undefined, this.collider)
+    return hit?.timeOfImpact ?? 1
+  }
   dispose() { this.world.free() }
 }
 

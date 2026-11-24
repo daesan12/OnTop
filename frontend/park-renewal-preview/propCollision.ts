@@ -1,3 +1,6 @@
+import { mainPagodaCollision } from './pagodaCollision'
+import { WINTER_DECOR } from '../src/features/winter/plan'
+import { christmasCollision } from '../src/features/winter/christmasCollision'
 import { GARDEN_PAGODA, MOVEMENT, PAGODA_TIERS } from '../src/config'
 import { DRAFT_FITNESS_STATIONS, DRAFT_FOUNTAIN, SITES as originalSites } from '../src/layout-preview/layout'
 import { PARK_DATA } from '../src/map/park'
@@ -16,7 +19,7 @@ import { REST_FURNITURE_VERTICAL_SCALE, pavilionBenchSegments } from './pavilion
 
 type Placement = { x: number; y: number; z: number; yaw: number; scale?: number }
 type Shape = { kind: 'circle'; radius: number } | { kind: 'box'; halfX: number; halfZ: number; cos: number; sin: number }
-type Blocker = Shape & { x: number; z: number; bottom: number; top: number }
+type Blocker = Shape & { x: number; z: number; bottom: number; top: number; previewOnly?: boolean }
 const blockers: Blocker[] = []
 const furnitureHeight = PARK_DATA.physics.furniturePolicy.movementHeight
 export const parkPropBlockers: readonly Blocker[] = blockers
@@ -272,17 +275,21 @@ for (let i = 0; i < 20; i++) {
   const edge = (n: number): Point => [1.81 * Math.sin(n * Math.PI / 10), 1.81 * Math.cos(n * Math.PI / 10)]
   rail(basket, edge(i), edge(i + 1), .15, .32, 1.57)
 }
-const pagoda = atSite('pagoda')
-const pagodaBase = GARDEN_PAGODA.baseWidth
-// Fill the plinth below the terrace surface and seal the body above it.
-box(pagoda, [0, 0], pagodaBase, pagodaBase, 1.5, 1.8 + GARDEN_PAGODA.pedestalTop)
-for (const [i, tier] of PAGODA_TIERS.entries()) {
-  const width = tier.width * GARDEN_PAGODA.scale * GARDEN_PAGODA.widthScale * .72
-  const depth = tier.cross ? width * .55 : width
-  const bottom = 1.8 + tier.y * GARDEN_PAGODA.scale - .08
-  const top = 1.8 + (PAGODA_TIERS[i + 1]?.y ?? GARDEN_PAGODA.height / GARDEN_PAGODA.scale) * GARDEN_PAGODA.scale
-  box(pagoda, [0, 0], width, depth, bottom, top)
-  if (tier.cross) box(pagoda, [0, 0], depth, width, bottom, top)
+for (const d of WINTER_DECOR) {
+  const y = heightAt(d.x, d.z) + .085
+  const approved = christmasCollision(d.kind)
+  register({ kind: 'circle', x: d.x, z: d.z, radius: approved?.radius ?? d.radius,
+    bottom: y - .1, top: y + d.height, ...(approved ? { previewOnly: true } : {}) })
+}
+// 단독 보행 프리뷰는 2D 포락선을 사용하고 실제 서비스는 정확한 볼록체를 사용한다.
+const mainSite = site('pagoda'), mainSolid = mainPagodaCollision(mainSite.x, heightAt(mainSite.x, mainSite.z), mainSite.z)
+for (const b of mainSolid.boxes) register({ kind: 'box', x: b.center[0], z: b.center[2],
+  halfX: b.half[0], halfZ: b.half[2], cos: 1, sin: 0, bottom: b.center[1] - b.half[1], top: b.center[1] + b.half[1], previewOnly: true })
+for (const h of mainSolid.hulls) {
+  const xs = h.vertices.filter((_, i) => i % 3 === 0), ys = h.vertices.filter((_, i) => i % 3 === 1), zs = h.vertices.filter((_, i) => i % 3 === 2)
+  register({ kind: 'box', x: (Math.min(...xs) + Math.max(...xs)) / 2, z: (Math.min(...zs) + Math.max(...zs)) / 2,
+    halfX: (Math.max(...xs) - Math.min(...xs)) / 2, halfZ: (Math.max(...zs) - Math.min(...zs)) / 2,
+    cos: 1, sin: 0, bottom: Math.min(...ys), top: Math.max(...ys), previewOnly: true })
 }
 const jumpSite = site('jump')
 const jumpBase = { x: jumpSite.x, y: heightAt(jumpSite.x, jumpSite.z), z: jumpSite.z, yaw: 0, scale: .8 }

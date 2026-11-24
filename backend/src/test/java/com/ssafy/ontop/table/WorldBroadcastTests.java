@@ -112,9 +112,10 @@ class WorldBroadcastTests {
         doAnswer(invocation -> {
             if (invocation.getArgument(0) instanceof TextMessage text) {
                 JsonNode value = mapper.readTree(text.getPayload());
-                // Typing snapshots have their own delivery tests; this queue asserts world-position delivery.
+                // 입력 중·눈싸움 상태는 각 전용 테스트에서 검증하고, 여기서는 월드 위치 전달을 확인한다.
                 String type = value.path("type").asText();
-                if (!type.equals("WORLD_PARK_DEBRIS_STATE") && !type.equals("WORLD_CHAT_TYPING_STATE")) {
+                if (!type.equals("WORLD_PARK_DEBRIS_STATE") && !type.equals("WORLD_CHAT_TYPING_STATE")
+                        && !type.equals("WORLD_SNOWBALL_STATE")) {
                     peer.messages.add(new Message(text.getPayload(), value));
                 }
             }

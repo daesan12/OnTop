@@ -1,5 +1,6 @@
 import { groundHeight } from '../park/mapConfig'
 import { MONUMENT_STAIRS as stairs, MONUMENT_STAIR_CHEEK_WIDTH, MONUMENT_TREAD_OFFSET } from '../../park-renewal-preview/monumentStairPlan'
+import { HORROR_PORTALS } from '../../park-renewal-preview/horrorPlan'
 
 type Position = { x: number; y: number; z: number }
 const clearance = .27
@@ -45,4 +46,19 @@ export function constrainRoamingCamera(
   heightAt: (x: number, z: number) => number = groundHeight,
 ) {
   position.y = Math.max(position.y, heightAt(position.x, position.z) + 0.3)
+}
+
+/** Keep the exit's third-person orbit outside the hill instead of lifting it over the buried hall. */
+export function constrainSecretExitCamera(position: Position, focus: Position) {
+  const exit = HORROR_PORTALS[1]
+  const outward = (focus.x - exit.x) * exit.outward
+  if (outward <= .18 || outward > 8 || Math.abs(focus.z - exit.z) > 4.6
+    || focus.y < exit.floor || focus.y > exit.floor + exit.height + 1) return
+  const boundary = Math.min(.6, outward - .18)
+  const cameraOutward = (position.x - exit.x) * exit.outward
+  if (cameraOutward >= boundary) return
+  const t = (outward - boundary) / (outward - cameraOutward)
+  position.x = focus.x + (position.x - focus.x) * t
+  position.y = focus.y + (position.y - focus.y) * t
+  position.z = focus.z + (position.z - focus.z) * t
 }
