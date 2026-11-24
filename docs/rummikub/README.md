@@ -457,3 +457,74 @@ dev 대비 수정하지 않았다. V184 흑백수사와 V185 수패마루 migrat
 GitLab 브라우저에서 기존 MR의 충돌 차단과 필수 승인 없음·MR 파이프라인 없음 상태를 확인했다.
 해결 커밋을 푸시한 뒤 충돌 해제와 정확한 HEAD를 확인하고 MR을 머지하며, 해당 Jenkins 결과가 확인되기 전에는
 작업 브랜치를 삭제하지 않는다. 실제 원격 머지·빌드 결과는 완료 보고로 남긴다.
+
+## 2026-11-23 기권 복귀·실제 DB 엽전 정산 검증
+
+MR !676이 병합된 최신 `origin/dev`의 `549e0c2a21b6824a86fe99fa25b1468de7006704`를 기준으로
+`fix/supae-forfeit-settlement`에서 검증했다. 갇힘이나 중복 정산은 재현되지 않아 제품 코드는 바꾸지 않고
+다음 회귀 테스트를 추가했다. 맵·공통 입력/카메라·인프라·V185는 변경하지 않았다.
+
+- `MultiplayerForfeitFlowTests`에 수패마루 3/4인전을 추가했다. 기권자 즉시 LOBBY/좌석 해제,
+  중복 기권, 재접속·채널 이동·WORLD_MOVE, 남은 인원의 경기 지속, 최종 종료·개인 결과,
+  같은 테이블 재준비·새 경기 첫 액션을 확인했다. 기존 원카드·거짓말 다리 건너기 회귀도 유지한다.
+- `RummikubSettlementWalletFlowMySqlTests`는 격리된 MySQL 8.4와 실제 인증·WS·엔진·예약·정산·outbox·지갑을
+  사용한다. 2인 정상 빈손 승리/기권을 각 0/5냥, 3/4인 연속 기권을 각 5냥으로 총 6개 검증했다.
+  정상 승리에 필요한 섞기만 고정하고 지갑·정산은 대역으로 바꾸지 않았다.
+- 초기 100냥·참가비 5냥 기준 2인 승자/패자는 105/95냥, 3인은 110/95/95냥,
+  4인은 115/95/95/95냥이었다. 모든 최종 예약금은 0냥이고 총액은 보존됐다.
+  다인전 중도 기권자의 판돈은 남은 경기가 끝날 때 정산한다.
+  결과 재조회·중복 기권·outbox/알림 재처리에도 거래 수(각 4/6/8개)와 잔액은 증가하지 않았다.
+- 실제 DB 결과의 참가자 영수증 15건을 현재 FE의 `parseEnvelope`/`parseResult`와 지갑 갱신 처리에 넣어
+  정산 완료 시 HTTP 잔액 재조회, 같은 결과의 중복 갱신 방지, PENDING/타인 결과 무시를 확인했다.
+- Chrome의 두 별도 origin 계정으로 실제 공원 테이블에서 상대 차례 기권 → 공원 복귀·상대 승리 →
+  양쪽 재착석 → 기존 기권자가 방장인 새 경기 시작 → 자기 차례 기권 → 양쪽 공원 복귀를 확인했다.
+  이 화면 검증은 기존 0냥 메모리 fixture이며 실제 DB 금액 검증과 구분한다.
+  게임 탭 두 개와 FE 5544/BE 19464는 검증 직후 종료했고 포트 잔류도 없었다.
+
+BE 관련 테스트 50개와 MySQL 테스트 6개 모두 통과했다. MySQL 테스트는 `mysqlTest` 태스크로 실행한다.
+`TEST_RUMMIKUB_DB_URL`은 `jdbc:mysql://127.0.0.1:<port>/ontop_game_test_supae_<고유값>` 전용 DB만 허용하며,
+`TEST_GAME_DB_USERNAME`/`TEST_GAME_DB_PASSWORD`를 외부 환경으로 전달한다. 기존 데이터가 있는 DB는 사용하지 않는다.
+
+```powershell
+./gradlew.bat --offline test --tests 'com.ssafy.ontop.table.MultiplayerForfeitFlowTests' --tests 'com.ssafy.ontop.game.rummikub.*Tests'
+./gradlew.bat --offline mysqlTest --tests 'com.ssafy.ontop.table.RummikubSettlementWalletFlowMySqlTests'
+```
+
+실행 증거는 `backend/build/reports/rummikub-settlement-wallet-flow.json` 및 저장소 밖
+`OnTop/qa-supae-forfeit-20261123/`에 보관한다. 임시 MySQL 컨테이너는 성공 후 제거했다.
+새 DB의 전체 migration/V185 적용을 확인했으며 기존 운영 DB의 업그레이드·운영 OAuth·배포 환경 정산·
+서버 재시작 복원·VR은 이번 검증 범위가 아니다. 2026-11-23 검증 당시에는 별도 MR을 생성하거나 머지하지 않았다.
+
+## 2026-11-24 대표 이미지·기권 정산 검증 통합 MR
+
+사용자가 미반영 대표 이미지와 기권·정산 검증을 하나의 MR로 생성하도록 요청했다. `feat/supae-cover`에
+`fix/supae-forfeit-settlement`의 `51bc983d`를 이력 보존 merge로 묶었다. 최신 dev `cda90f0d`를 포함하며
+이 통합은 충돌이 없었다. 앞선 대표 이미지 dev 반영 과정의 태블릿 충돌 1건은 수패마루·길목 한 수 이미지를
+함께 보존해 해결했다. MR 대상은 `dev`이며 이번 요청에 머지는 포함되지 않는다.
+
+변경은 FE 대표 그림·선택/준비/설명서 연결과 BE 테스트·검증 문서 7파일이다. 게임 규칙·런타임·맵·좌표·충돌·
+인프라·마이그레이션 파일은 dev 대비 바꾸지 않는다. 대표 이미지의 실제 공원 PC/390×844 검수·빌드 결과는
+`frontend/src/game/rummikub/assets/SOURCE.md`와 `OnTop/qa-supae-cover-20261124/`에 기록했다.
+
+통합 후 BE 수패마루·다인전 기권 50개, FE 태블릿·설명서·길목 한 수·외관 보존 27개 및 TypeScript를 통과했다.
+실제 MySQL 8.4 테스트 6개도 새 DB에서 다시 실행했으나, 최신 dev의 V186 마이그레이션에서 SQL 1064/42000으로
+애플리케이션 시작이 실패했다. 기존 CHECK_CLAUSE를 연결하는 14행 PREPARE에서 게임 코드 문자열 부근의
+구문 오류가 보고됐으며, 게임 생성·정산 검증에 도달하지 못했다. 이번 결과를 실제 DB 테스트 통과로 간주하지 않는다.
+V186은 이번 MR의 변경 파일이 아니며 적용 여부 미확인 상태에서 수정·repair·우회하지 않았다.
+실패 DB는 `ontop-supae-settlement-e33692a3`에 진단용으로 남기되 컨테이너는 종료했다.
+앞선 2026-11-23의 V185 기준 MySQL 6개 통과 기록과 이번 최신 dev 실행의 제약을 구분한다.
+
+## 2026-11-24 MR !691 머지 전 재검증
+
+사용자가 최신 dev 기준의 MR !691 머지를 명시적으로 요청했다. V186 담당자의 보완 `ae620f2b`가 포함된
+`origin/dev` `21055a823a28af5a73389e3d154fea0952bad9da`를 `40575510`에 충돌 없이 통합했다.
+V186 파일은 최신 dev의 보완을 그대로 가져왔으며 별도 SQL 수정·repair·운영 DB 조치는 수행하지 않았다.
+
+통합 후 BE 수패마루·다인전 기권 50개, FE 태블릿·설명서·길목 한 수·외관 보존 27개와 TypeScript를 다시 통과했다.
+새 격리 MySQL 8.4에서 실제 정산 테스트 6개도 모두 통과했다(실행 ID `4e5cd7e5`). 2인 정상 빈손 승리·기권을
+각 0/5냥, 3/4인 연속 기권을 각 5냥으로 확인했고 예약금 해제·중복 정산 방지·재접속·테이블 복귀를 검증했다.
+성공 DB 컨테이너는 제거했다. 이전 V186 실패로 생긴 Draft 사유는 이 재검증으로 해소됐다.
+
+현재 Jenkins 관리용 `http://localhost:8081`은 연결이 거부돼 빌드 상태를 조회하지 못했다.
+관리 접속 복구 및 머지 커밋의 빌드 확인 요청문을 채팅에 전달했으며 터널·서버·네트워크·CI 설정은 수정하지 않았다.
+머지 완료와 Jenkins 성공 확인이 모두 충족될 때까지 작업 브랜치를 유지한다.

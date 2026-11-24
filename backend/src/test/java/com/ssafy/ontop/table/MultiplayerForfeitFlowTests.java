@@ -44,6 +44,7 @@ import static org.mockito.Mockito.when;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "spring.profiles.active=local", "ontop.websocket.authenticated=true", "ontop.game-start.enabled=true",
         "ontop.games.onecard.enabled=true", "ontop.games.bridge.enabled=true", "server.address=127.0.0.1",
+        "ontop.games.rummikub.enabled=true",
         "ontop.world.channels[0].channel-id=one", "ontop.world.channels[0].name=연속검증",
         "ontop.world.channels[0].capacity=8", "ontop.world.channels[1].channel-id=two",
         "ontop.world.channels[1].name=격리검증", "ontop.world.channels[1].capacity=8",
@@ -85,7 +86,7 @@ class MultiplayerForfeitFlowTests {
     }
 
     @ParameterizedTest
-    @CsvSource({"ONE_CARD,3", "ONE_CARD,4", "LIAR_BRIDGE,3", "LIAR_BRIDGE,4"})
+    @CsvSource({"ONE_CARD,3", "ONE_CARD,4", "LIAR_BRIDGE,3", "LIAR_BRIDGE,4", "RUMMIKUB,3", "RUMMIKUB,4"})
     void 다인전_중도기권_탈락복귀_최종정산_재준비를_개인정보노출없이연결한다(String code, int count) throws Exception {
         List<Long> users = List.of(101L, 202L, 505L, 606L).subList(0, count);
         List<ScenarioClient> players = new ArrayList<>();
@@ -219,7 +220,8 @@ class MultiplayerForfeitFlowTests {
                 clock.advanceSeconds(4); // 3~4인 손패 분배 완료 뒤 새 경기의 첫 입력을 검증한다.
             }
             assertThat(current.request("GAME_ACTION_SEND", Map.of("gameId", GAME + "-2", "actionId", "fresh-round",
-                    "expectedVersion", 0, "input", Map.of("kind", code.equals("ONE_CARD") ? "draw" : "roll")))
+                    "expectedVersion", 0, "input", Map.of("kind",
+                            code.equals("ONE_CARD") || code.equals("RUMMIKUB") ? "draw" : "roll")))
                     .path("type").asText()).isEqualTo("GAME_ACTION_RESULT");
             Files.writeString(Path.of("build/multiplayer-forfeit-" + code + "-" + count + ".json"),
                     mapper.writerWithDefaultPrettyPrinter().writeValueAsString(Map.of("receipt", receipt,
