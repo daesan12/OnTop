@@ -4,7 +4,7 @@ import { useWinterCommunity } from './community/state'
 import { ChristmasCommunityTree } from './community/ChristmasCommunityTree'
 import { ChristmasAsset } from './ChristmasAssets'
 import { useFrame } from '@react-three/fiber'
-import { BufferAttribute, BufferGeometry, Float32BufferAttribute, Group, InstancedMesh, Object3D, ShaderMaterial, type Points } from 'three'
+import { BufferAttribute, BufferGeometry, Float32BufferAttribute, Group, InstancedMesh, Object3D, ShaderMaterial, Vector3, type Points } from 'three'
 import { groundSurfaceHeight } from '../../../park-renewal-preview/groundSurface'
 import { estimatedServerTime, useSession, avatars, sampleAvatar } from '../../network/worldClient'
 import { SnowballAim } from './SnowballAim'
@@ -15,6 +15,8 @@ import { useWinter, type WinterPlayer } from './state'
 import { FrostEffect } from './FrostEffect'
 import { createHolidayArt } from './holidayArt'
 import { createChristmasTreeArt } from './christmasTreeArt'
+import { bulbCentres, TREE_WARM_WHITE } from './community/treeLighting'
+import { TreeLightGlow } from './community/TreeLightGlow'
 import { winterProtectedSurfaces } from './protectedSurfaces'
 import { snowballHands } from './SnowballHand'
 import { snowballPoint } from './trajectory'
@@ -26,14 +28,16 @@ function decoration(kind: typeof WINTER_DECOR[number]['kind']) {
 
 function HolidayProp({ art, kind }: { art: ReturnType<typeof createHolidayArt>; kind: string }) {
   const lit = useWinterCommunity(s => kind === 'tree' && !!s.tree?.lit)
+  const lights = useMemo(() => kind === 'tree' && art.glow ? bulbCentres(art.glow) : [], [art, kind])
+  const star = useMemo(() => new Vector3(0, 7.2, 0), [])
   return <group name={'winter-art-' + kind}>{Object.entries(art).map(([finish, geometry]) =>
     <mesh key={finish} name={'winter-' + kind + '-' + finish} geometry={geometry} dispose={null} castShadow receiveShadow raycast={() => {}}>
       <meshStandardMaterial vertexColors roughness={finish === 'gold' ? .34 : .74}
         metalness={finish === 'gold' ? .48 : 0} side={2}
-        emissive={finish === 'glow' || finish === 'star' && lit ? '#ffe5a0' : '#000000'} emissiveIntensity={finish === 'glow' ? lit ? 4 : .9 : finish === 'star' && lit ? 3 : 0}
+        emissive={finish === 'glow' || finish === 'star' && lit ? kind === 'tree' ? TREE_WARM_WHITE : '#ffe5a0' : '#000000'} emissiveIntensity={finish === 'glow' ? lit ? 4 : .9 : finish === 'star' && lit ? 4.5 : 0}
         toneMapped={finish !== 'glow' && !(finish === 'star' && lit)} />
     </mesh>,
-  )}{lit && <mesh name="winter-tree-star-halo" position={[0, 7.2, 0]} raycast={() => {}}><sphereGeometry args={[.65, 16, 10]} /><meshBasicMaterial color="#ffdf82" transparent opacity={.12} depthWrite={false} /></mesh>}</group>
+  )}{lit && <TreeLightGlow bulbs={lights} star={star} />}</group>
 }
 
 function Snowfall({ low }: { low: boolean }) {
