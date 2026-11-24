@@ -9,8 +9,8 @@ import java.util.Set;
 
 /** 서버 고정 시간 간격으로 판정한다. 클라이언트는 좌표·명중·승패를 제출하지 않는다. */
 public final class StoneRumbleMatch {
-    public static final double TILE_SIZE = 2.6;
-    public static final long STEP_DELAY = 2000;
+    public static final double TILE_SIZE = StoneHexGrid.SPACING;
+    public static final long STEP_DELAY = 1000;
     public static final long PIGEON_COOLDOWN = 1500;
     public static final long DROP_DURATION = 1200;
     public static final long COUNTDOWN_DURATION = 3000;
@@ -67,18 +67,23 @@ public final class StoneRumbleMatch {
             }
             for (int q = -radius; q <= radius; q++) {
                 for (int r = -radius; r <= radius; r++) {
+                    int ring = StoneHexGrid.ring(q, r);
+                    if (ring > radius) {
+                        continue;
+                    }
                     Tile tile = new Tile(tiles.size(), floor, q, r,
                             UNSCHEDULED);
                     tiles.add(tile);
                     tileIndex.put(key(floor, q, r), tile);
-                    collapseRings.get(ringOffset + radius - Math.max(Math.abs(q), Math.abs(r))).add(tile);
+                    collapseRings.get(ringOffset + radius - ring).add(tile);
                 }
             }
         }
         int[][] spawns = {{-2, 0}, {2, 0}, {0, -3}, {0, 3}, {-3, 3}, {3, -3}, {-4, 1}, {4, -1}};
         for (int i = 0; i < users.size(); i++) {
             int q = spawns[i][0], r = spawns[i][1];
-            players.add(new Player(Long.toString(users.get(i)), q * TILE_SIZE, r * TILE_SIZE, startsAt, landsAt));
+            players.add(new Player(Long.toString(users.get(i)), StoneHexGrid.x(q, r), StoneHexGrid.z(r),
+                    startsAt, landsAt));
         }
     }
 
@@ -191,11 +196,9 @@ public final class StoneRumbleMatch {
             collidePlayers();
             if (now < startsAt) {
                 // 준비 이동으로 경기 시작 전에 발판 밖으로 떨어지지 않게 한다.
-                double limit = (RADII[2] + .5) * TILE_SIZE - .4;
                 for (Player player : players) {
                     if (player.alive) {
-                        player.x = Math.max(-limit, Math.min(limit, player.x));
-                        player.z = Math.max(-limit, Math.min(limit, player.z));
+                        keepOnPreparationFloor(player);
                         if (player.y < HEIGHTS[2]) {
                             player.y = HEIGHTS[2];
                             player.vy = 0;
@@ -386,8 +389,35 @@ public final class StoneRumbleMatch {
     }
 
     private Tile tileAt(int floor, double x, double z) {
-        return tileIndex.get(key(floor, (int) Math.floor(x / TILE_SIZE + .5),
-                (int) Math.floor(z / TILE_SIZE + .5)));
+        StoneHexGrid.Cell cell = StoneHexGrid.cell(x, z);
+        return tileIndex.get(key(floor, cell.q(), cell.r()));
+    }
+
+    /** 카운트다운 중에는 육각 경기장의 실제 가장자리에 머물게 한다. */
+    private void keepOnPreparationFloor(Player player) {
+        if (tileAt(2, player.x, player.z) != null) {
+            return;
+        }
+        Tile nearest = null;
+        double distance = Double.POSITIVE_INFINITY;
+        for (Tile tile : tiles) {
+            if (tile.floor != 2) {
+                continue;
+            }
+            double candidate = Math.hypot(player.x - StoneHexGrid.x(tile.q, tile.r),
+                    player.z - StoneHexGrid.z(tile.r));
+            if (candidate < distance) {
+                nearest = tile;
+                distance = candidate;
+            }
+        }
+        if (nearest != null) {
+            double centerX = StoneHexGrid.x(nearest.q, nearest.r);
+            double centerZ = StoneHexGrid.z(nearest.r);
+            double scale = Math.min(1, (TILE_SIZE * 0.5 - 0.4) / Math.max(distance, 0.001));
+            player.x = centerX + (player.x - centerX) * scale;
+            player.z = centerZ + (player.z - centerZ) * scale;
+        }
     }
 
     private static String key(int floor, int q, int r) {
@@ -399,7 +429,7 @@ public final class StoneRumbleMatch {
     }
 
     public Snapshot snapshot() {
-        return new Snapshot("STONE_RUMBLE", finished() ? "FINISHED" : "PLAYING", now, startsAt, endedAt,
+        return new Snapshot("STONE_RUMBLE", StoneHexGrid.LAYOUT, finished() ? "FINISHED" : "PLAYING", now, startsAt, endedAt,
                 endReason, winners, tiles.stream().map(t -> new TileView(t.id, t.floor, t.q, t.r,
                         t.breakAt, t.stepped)).toList(),
                 players.stream().map(p -> new PlayerView(p.userId, p.x, p.y, p.z, p.floor, p.alive, p.grounded,
@@ -425,7 +455,7 @@ public final class StoneRumbleMatch {
         return StoneRumbleRewards.reward(players.size(), rank, tied);
     }
 
-    public record Snapshot(String gameCode, String status, long serverTime, long startsAt, long endedAt,
+    public record Snapshot(String gameCode, String tileLayout, String status, long serverTime, long startsAt, long endedAt,
             String endReason, List<String> winnerUserIds, List<TileView> tiles, List<PlayerView> players,
             List<PigeonView> pigeons, long landsAt, String phase, List<String> readyUserIds) { }
     public record TileView(int id, int floor, int q, int r, long breakAt, boolean stepped) { }

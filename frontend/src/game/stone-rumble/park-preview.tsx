@@ -41,7 +41,7 @@ async function boot() {
   Object.assign(window, { stoneRumbleParkTest: {
     state: () => {
       const world = useSession.getState(), game = useGame.getState()
-      return { userId: world.sessionId, roomId: world.roomId, status: world.status, mapStatus: world.mapContractStatus,
+      return { userId: world.sessionId, roomId: world.roomId, status: world.status, pending: world.pending, mapStatus: world.mapContractStatus,
         avatar: avatars.get(world.sessionId)?.current, tableId: world.tableId, table: world.tableStates[world.tableId],
         error: world.error || game.error, recovery: game.recovery, uncertain: game.uncertain,
         gameId: game.game?.gameId, game: game.game?.stone, result: game.result ?? game.lastResult, startPhase: game.start?.phase }
@@ -54,6 +54,7 @@ async function boot() {
     }),
     tables: () => TABLES.map(table => ({ id: table.id, position: table.position, interactionPoints: table.interactionPoints })),
     interactionRadius: GOMOKU.interactionRadius,
+    joinTable: (anchorId: string) => parkRuntime.joinTable(anchorId),
     route: async (start: { x: number; z: number }, destination: { x: number; z: number }) =>
       (await import('../../features/navigation/parkNavigation')).findParkRoute(start, destination),
     direction: (forward: number, side: number) => cameraRelativeMove(forward, side, viewControls.yaw, true, false, { dx: 0, dz: 0, run: false, jump: false }),

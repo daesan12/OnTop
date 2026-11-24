@@ -50,7 +50,7 @@ class StoneRumbleMatchTests {
         assertThat(match.snapshot().players().getFirst().x()).isGreaterThan(before + 5);
         assertThat(match.snapshot().phase()).isEqualTo("RUNNING");
         assertThat(match.snapshot().tiles().stream().filter(StoneRumbleMatch.TileView::stepped))
-                .allSatisfy(tile -> assertThat(tile.breakAt()).isEqualTo(6200)).isNotEmpty();
+                .allSatisfy(tile -> assertThat(tile.breakAt()).isEqualTo(5200)).isNotEmpty();
         match.control("101", 0, 0, 1, 0, false, true);
         assertThat(match.snapshot().pigeons()).hasSize(1);
     }
@@ -94,8 +94,10 @@ class StoneRumbleMatchTests {
             match.control("101", -1, 0, -1, 0, false, true, true);
             match.advance(time + 20);
         }
-        assertThat(match.snapshot().players().getFirst().x()).isCloseTo(-16.5,
-                org.assertj.core.data.Offset.offset(0.000001));
+        var own = match.snapshot().players().getFirst();
+        var cell = StoneHexGrid.cell(own.x(), own.z());
+        assertThat(StoneHexGrid.ring(cell.q(), cell.r())).isLessThanOrEqualTo(6);
+        assertThat(own.x()).isBetween(-16.9, -15.6);
         assertThat(match.snapshot().players().getFirst().y()).isEqualTo(24);
         assertThat(match.snapshot().players().getFirst().alive()).isTrue();
         assertThat(match.snapshot().tiles()).noneMatch(StoneRumbleMatch.TileView::stepped);
@@ -122,11 +124,11 @@ class StoneRumbleMatchTests {
         var match = matchStartingAtThreeSeconds(List.of(101L, 202L));
         var state = match.snapshot();
 
-        assertThat(state.tiles()).hasSize(683);
-        assertThat(state.tiles().stream().filter(t -> t.floor() == 2)).hasSize(169);
-        assertThat(state.tiles().stream().filter(t -> t.floor() == 1)).hasSize(225);
-        assertThat(state.tiles().stream().filter(t -> t.floor() == 0)).hasSize(289);
-        assertThat(state.tiles().stream().filter(t -> t.floor() == 2 && t.q() == 6 && t.r() == 6)
+        assertThat(state.tiles()).hasSize(513);
+        assertThat(state.tiles().stream().filter(t -> t.floor() == 2)).hasSize(127);
+        assertThat(state.tiles().stream().filter(t -> t.floor() == 1)).hasSize(169);
+        assertThat(state.tiles().stream().filter(t -> t.floor() == 0)).hasSize(217);
+        assertThat(state.tiles().stream().filter(t -> t.floor() == 2 && t.q() == 6 && t.r() == 0)
                 .findFirst().orElseThrow().breakAt()).isEqualTo(21_000);
         assertThat(state.tiles().stream().filter(t -> t.floor() == 2 && t.q() == 0 && t.r() == 0)
                 .findFirst().orElseThrow().breakAt()).isGreaterThan(49000);
@@ -140,17 +142,17 @@ class StoneRumbleMatchTests {
 
         match.advance(3000);
         assertThat(match.snapshot().tiles().stream().filter(StoneRumbleMatch.TileView::stepped)).hasSize(2);
-        match.advance(4980);
+        match.advance(3980);
         assertThat(match.snapshot().players().getFirst().y()).isEqualTo(24);
         assertThat(match.snapshot().tiles().stream().filter(t -> t.floor() == 2 && t.q() == -2 && t.r() == 0)
-                .findFirst().orElseThrow().breakAt()).isEqualTo(5000);
-        match.advance(5040);
+                .findFirst().orElseThrow().breakAt()).isEqualTo(4000);
+        match.advance(4040);
         assertThat(match.snapshot().players().getFirst().y()).isLessThan(24);
-        match.advance(6400);
+        match.advance(5400);
         assertThat(match.snapshot().players().getFirst().floor()).isEqualTo(1);
-        match.advance(10000);
+        match.advance(8000);
         assertThat(match.snapshot().players().getFirst().floor()).isZero();
-        match.advance(13400);
+        match.advance(10400);
 
         assertThat(match.snapshot().status()).isEqualTo("FINISHED");
         assertThat(match.snapshot().endReason()).isEqualTo("ALL_FALLEN");
@@ -243,7 +245,10 @@ class StoneRumbleMatchTests {
     void 대각선_명중도_방향을_유지하며_한칸_밀어낸다() {
         var match = matchStartingAtThreeSeconds(List.of(101L, 202L, 303L));
         match.advance(3000);
-        double aimX = 2 / Math.sqrt(13), aimZ = -3 / Math.sqrt(13);
+        var source = match.snapshot().players().getFirst();
+        var target = match.snapshot().players().get(2);
+        double dx = target.x() - source.x(), dz = target.z() - source.z();
+        double aimX = dx / Math.hypot(dx, dz), aimZ = dz / Math.hypot(dx, dz);
         match.control("101", 0, 0, aimX, aimZ, false, true);
         long time = 3000;
         while (match.snapshot().players().get(2).hitAt() == 0 && time < 3800) {
@@ -288,7 +293,7 @@ class StoneRumbleMatchTests {
     }
 
     @Test
-    void 정사각형_격자의_대각선_이동은_실제_착지한_발판을_예약한다() {
+    void 육각형_격자의_대각선_이동은_실제_착지한_발판을_예약한다() {
         var match = matchStartingAtThreeSeconds(List.of(101L, 202L));
         match.advance(3000);
         assertThat(match.snapshot().players().getFirst().x()).isEqualTo(-2 * StoneRumbleMatch.TILE_SIZE);
@@ -298,7 +303,7 @@ class StoneRumbleMatchTests {
         match.control("101", 1, 1, 1, 0, false, false);
         match.advance(3440);
 
-        assertThat(match.snapshot().tiles().stream().filter(t -> t.floor() == 2 && t.q() == -1 && t.r() == 1)
+        assertThat(match.snapshot().tiles().stream().filter(t -> t.floor() == 2 && t.q() == -2 && t.r() == 1)
                 .findFirst().orElseThrow().stepped()).isTrue();
         assertThat(match.snapshot().players().getFirst().grounded()).isTrue();
     }
@@ -391,7 +396,7 @@ class StoneRumbleMatchTests {
                 match.control("101", 0, 0, 1, 0, true, false);
                 baseline.control("101", 0, 0, 1, 0, true, false);
             }
-            long startedAt = jumping ? 3100 : 5300;
+            long startedAt = jumping ? 3100 : 4300;
             match.advance(startedAt);
             baseline.advance(startedAt);
             var before = match.snapshot().players().getFirst();

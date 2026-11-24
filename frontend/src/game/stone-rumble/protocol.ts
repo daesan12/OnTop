@@ -1,3 +1,5 @@
+import { STONE_FLOOR_RADII, STONE_TILE_COUNTS, STONE_TILE_LAYOUT, stoneTileRing } from './layout'
+
 export interface StonePlayer {
   userId: string; x: number; y: number; z: number; floor: number; alive: boolean; grounded: boolean
   aimX: number; aimZ: number; pigeonReadyAt: number; hitAt: number; eliminatedAt: number; forfeited: boolean
@@ -7,6 +9,7 @@ export interface StonePlayer {
 export interface StoneTile { id: number; floor: number; q: number; r: number; breakAt: number; stepped: boolean }
 export interface StonePigeon { id: number; owner: string; x: number; y: number; z: number; vx: number; vz: number }
 export interface StoneState {
+  tileLayout: typeof STONE_TILE_LAYOUT
   gameCode: 'STONE_RUMBLE'; gameId: string; status: 'PLAYING' | 'FINISHED'; serverTime: number
   startsAt: number; endedAt: number; endReason: string | null; winnerUserIds: string[]
   landsAt: number; phase: 'LOADING' | 'DROPPING' | 'COUNTDOWN' | 'RUNNING' | 'FINISHED'; readyUserIds?: string[]
@@ -18,7 +21,7 @@ const object = (v: unknown): v is Record<string, unknown> => !!v && typeof v ===
 const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v)
 const id = (v: unknown): v is string => typeof v === 'string' && v.length > 0 && v.length <= 120
 export function parseStoneState(value: unknown): StoneState {
-  if (!object(value) || value.gameCode !== 'STONE_RUMBLE' || !id(value.gameId)
+  if (!object(value) || value.gameCode !== 'STONE_RUMBLE' || value.tileLayout !== STONE_TILE_LAYOUT || !id(value.gameId)
     || !['PLAYING', 'FINISHED'].includes(String(value.status))
     || !['serverTime', 'startsAt', 'endedAt', 'landsAt'].every(k => finite(value[k]))
     || !['LOADING', 'DROPPING', 'COUNTDOWN', 'RUNNING', 'FINISHED'].includes(String(value.phase))
@@ -35,9 +38,12 @@ export function parseStoneState(value: unknown): StoneState {
       && (p.rewardCoins === undefined || Number.isInteger(p.rewardCoins) && Number(p.rewardCoins) >= 0 && Number(p.rewardCoins) <= 80))
     || new Set(value.players.map(p => p.userId)).size !== value.players.length
     || Array.isArray(value.readyUserIds) && value.readyUserIds.some(user => !(value.players as Record<string, unknown>[]).some(p => p.userId === user))
-    || !Array.isArray(value.tiles) || value.tiles.length !== 683
+    || !Array.isArray(value.tiles) || value.tiles.length !== STONE_TILE_COUNTS.reduce((sum, count) => sum + count, 0)
     || !value.tiles.every(t => object(t) && ['id', 'floor', 'q', 'r'].every(k => Number.isInteger(t[k]))
-      && [0, 1, 2].includes(Number(t.floor)) && finite(t.breakAt) && typeof t.stepped === 'boolean')
+      && [0, 1, 2].includes(Number(t.floor)) && stoneTileRing(Number(t.q), Number(t.r)) <= STONE_FLOOR_RADII[Number(t.floor)]!
+      && finite(t.breakAt) && typeof t.stepped === 'boolean')
+    || new Set(value.tiles.map(t => `${t.floor}:${t.q}:${t.r}`)).size !== value.tiles.length
+    || new Set(value.tiles.map(t => t.id)).size !== value.tiles.length
     || !Array.isArray(value.pigeons) || value.pigeons.length > 16
     || !value.pigeons.every(p => object(p) && id(p.owner) && ['id', 'x', 'y', 'z', 'vx', 'vz'].every(k => finite(p[k])))) {
     throw new Error('돌탑 경기 상태를 읽지 못했어요. 다시 연결해 주세요.')

@@ -47,7 +47,7 @@ export const StoneRumbleGuide = memo(function StoneRumbleGuide() {
       </ol>
       <p className="stone-rumble-guide-collapse">{stoneRumbleManual.points[0]}</p>
       <div className="stone-rumble-guide-controls" aria-label="돌탑 생존전 조작">
-        <span><kbd>WASD</kbd> 이동·시점</span><span><kbd>Space</kbd> 점프</span>
+        <span><kbd>WASD</kbd> 이동</span><span><kbd>마우스</kbd> 시점 · <kbd>Esc</kbd> 해제</span><span><kbd>Space</kbd> 점프</span>
         <span><kbd>Shift</kbd> 슬라이딩</span><span><kbd>E</kbd> 비둘기 발사</span>
       </div>
     </div>

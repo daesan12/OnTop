@@ -32,7 +32,8 @@ class StoneRumbleDemoTests {
         var preparation = (ObjectNode) response.get("preparationState");
 
         assertThat(response.get("gameId")).isEqualTo("");
-        assertThat(preparation.path("tiles").size()).isEqualTo(683);
+        assertThat(preparation.path("tiles").size()).isEqualTo(513);
+        assertThat(preparation.path("tileLayout").asText()).isEqualTo("HEX_AXIAL_V1");
         assertThat(preparation.path("players").size()).isEqualTo(8);
         assertThat(preparation.path("serverTime").asLong()).isZero();
         clock.now = 30_000;

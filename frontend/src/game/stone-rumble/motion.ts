@@ -1,9 +1,4 @@
-export const STONE_CAMERA_DRAG = .003
 export const STONE_RENDER_DELAY = 120
-
-export function followStoneCamera(current: number, target: number, delta: number, manual: boolean) {
-  return followStoneYaw(current, target, Math.min(.05, Math.max(0, delta)), manual ? 8 : 6, manual ? 2.8 : 1.6)
-}
 
 type StonePosition = { x: number; y: number; z: number }
 type PositionSample = StonePosition & { at: number }

@@ -1,5 +1,6 @@
 import { expect, it } from 'vitest'
-import { followStoneCamera, followStoneYaw, StonePositionBuffer, StoneRenderClock } from '../../src/game/stone-rumble/motion'
+import { followStoneYaw, StonePositionBuffer, StoneRenderClock } from '../../src/game/stone-rumble/motion'
+import { advanceStoneCamera, createStoneCamera } from '../../src/game/stone-rumble/camera'
 
 it('turns toward a new movement direction across multiple frames and eases into it', () => {
   const target = Math.PI / 2, dt = 1 / 60
@@ -21,16 +22,19 @@ it('takes the short arc when a direction change crosses the angle wrap', () => {
   expect(followStoneYaw(current, target, 1 / 60, 12, 5.2)).toBeGreaterThan(current)
 })
 
-it.each([false, true])('빠른 방향 반전도 프레임마다 회전 속도를 제한한다: manual=%s', manual => {
-  let yaw = 0
+it.each([1 / 30, 1 / 60])('마우스 방향 반전도 프레임 지연에 따른 급회전을 제한한다: dt=%s', dt => {
+  const camera = createStoneCamera()
+  camera.yaw = Math.PI
   for (let frame = 0; frame < 30; frame++) {
-    const next = followStoneCamera(yaw, Math.PI, 1 / 60, manual)
-    expect(Math.abs(next - yaw)).toBeLessThanOrEqual((manual ? 2.8 : 1.6) / 60 + 1e-9)
-    yaw = next
+    const previous = camera.renderedYaw
+    advanceStoneCamera(camera, dt)
+    expect(Math.abs(camera.renderedYaw - previous)).toBeLessThanOrEqual(12 * dt + 1e-9)
   }
-  expect(yaw).toBeGreaterThan(.5)
-  expect(yaw).toBeLessThan(Math.PI / 2)
-  expect(Math.abs(followStoneCamera(0, Math.PI, 3, manual))).toBeLessThanOrEqual(.14 + 1e-9)
+  expect(camera.renderedYaw).toBeCloseTo(Math.PI, 3)
+  camera.yaw += Math.PI
+  const previous = camera.renderedYaw
+  advanceStoneCamera(camera, 3)
+  expect(Math.abs(camera.renderedYaw - previous)).toBeLessThanOrEqual(.6 + 1e-9)
 })
 
 it('100ms 서버 낙하 사이를 매 프레임 이어 그리고 착지면을 뚫지 않는다', () => {

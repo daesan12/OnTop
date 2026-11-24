@@ -29,12 +29,12 @@ describe('돌탑 8인 서버 계약', () => {
     expect(visibleStoneFloor(2, 11)).toBe(0)
     expect(visibleStoneFloor(2, -3)).toBe(0)
   })
-  it('실제 엔진의 8명·683개 발판 응답을 참가자와 관전자가 읽는다', () => {
+  it('실제 엔진의 8명·513개 육각 발판 응답을 참가자와 관전자가 읽는다', () => {
     const payload = { gameId: snapshot.gameId, version: 1, publicState: snapshot, privateState: {} }
     const player = parseGame({ ...payload, role: 'PLAYER' }, '808')
     const spectator = parseGame({ ...payload, role: 'SPECTATOR' }, '999')
     expect(gamePlayers(player)).toHaveLength(8)
-    expect(player.stone?.tiles).toHaveLength(683)
+    expect(player.stone?.tiles).toHaveLength(513)
     expect(STONE_TILE_COUNTS).toEqual([0, 1, 2].map(floor => snapshot.tiles.filter(tile => tile.floor === floor).length))
     expect(snapshot.players[0]!.x).toBe(-2 * STONE_TILE_SIZE)
     expect(player.stone?.players[0]?.slideReadyAt).toBe(snapshot.landsAt)

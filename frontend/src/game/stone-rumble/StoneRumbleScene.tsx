@@ -1,6 +1,6 @@
 import { Component, lazy, memo, Suspense, useEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from 'react'
 import { Canvas, createPortal, events, useFrame, useLoader, useThree } from '@react-three/fiber'
-import { Group, Mesh, MeshBasicMaterial, Object3D, Plane, Scene, SphereGeometry, Vector2, Vector3, type InstancedMesh, type Material } from 'three'
+import { Group, Mesh, MeshBasicMaterial, Object3D, Scene, SphereGeometry, Vector3, type InstancedMesh, type Material } from 'three'
 import { ParkAssetLoader } from '../../world/art/assetLoader'
 import { characterUrls } from '../../world/art/CharacterRig'
 import type { GLTF } from 'three/addons/loaders/GLTFLoader.js'
@@ -25,7 +25,9 @@ import { StoneRumbleLighting } from './StoneRumbleLighting'
 import { createStoneMaterial } from './visibility'
 import { StoneHitEffect } from './StoneHitEffect'
 import type { StoneFeedbackFrame } from './feedback'
-import { followStoneCamera, followStoneYaw, STONE_CAMERA_DRAG, StonePositionBuffer } from './motion'
+import { followStoneYaw, StonePositionBuffer } from './motion'
+import { advanceStoneCamera, STONE_CAMERA_DISTANCE, type StoneCameraState } from './camera'
+import { useStoneCameraInput } from './useStoneCameraInput'
 
 const StoneRumbleEnvironment = lazy(loadStoneRumblePark)
 const stonePigeonMaterial = createStoneMaterial(pigeonMaterial)
@@ -37,7 +39,7 @@ class SceneBoundary extends Component<{ children: ReactNode; onStatus?: StoneSce
   componentDidCatch() { this.props.onStatus?.(false, '3D 경기장을 열지 못했어요. 다시 준비해 주세요.') }
   render() { return this.state.failed ? null : this.props.children }
 }
-export type StoneCamera = MutableRefObject<{ yaw: number; renderedYaw: number; manualOrbit: boolean; pointerAiming: boolean }>
+export type StoneCamera = MutableRefObject<StoneCameraState>
 export type StoneInput = MutableRefObject<Omit<StoneControl, 'kind' | 'seq'>>
 
 type AvatarProps = { player: StonePlayer; index: number; own: boolean; time: number; gameId: string; feedback?: MutableRefObject<StoneFeedbackFrame> }
@@ -196,120 +198,24 @@ function ArrivalClouds({ state }: { state: StoneState }) {
   </group>
 }
 
-function Stage({ state, ownId, viewId, input, fire, feedback, localOnly, controls, cameraEnabled }: {
+function Stage({ state, ownId, viewId, input, fire, feedback, localOnly, controls, cameraEnabled, onCapture }: {
   state: StoneState; ownId: string; viewId: string; input: StoneInput; fire: () => void; localOnly: boolean
-  controls: StoneCamera; cameraEnabled: boolean
+  controls: StoneCamera; cameraEnabled: boolean; onCapture: (captured: boolean) => void
   feedback?: MutableRefObject<StoneFeedbackFrame>
 }) {
   const material = useMemo(() => new MeshBasicMaterial({ fog: false, toneMapped: false, transparent: true, opacity: .34, depthWrite: false }), [])
   useEffect(() => () => material.dispose(), [material])
-  const { camera, raycaster, gl, size } = useThree()
-  const pointer = useMemo(() => new Vector2(), [])
+  const { camera, size } = useThree()
   const player = state.players.find(p => p.userId === viewId)
   const lastFloor = useRef(2)
   if (player?.alive) lastFloor.current = visibleStoneFloor(player.floor, player.y)
   const ownFloor = lastFloor.current
-  const point = useMemo(() => new Vector3(), []), plane = useMemo(() => new Plane(new Vector3(0, 1, 0)), [])
-  const cameraReady = useRef(false), zoom = useRef(1)
-  const cameraEnabledRef = useRef(cameraEnabled)
-  cameraEnabledRef.current = cameraEnabled
+  const cameraReady = useRef(false)
   const clickPending = useRef(false)
   const previousView = useRef(viewId), previousGame = useRef(state.gameId)
   const focus = useMemo(() => new Vector3(), []), desiredFocus = useMemo(() => new Vector3(), [])
   const followedPosition = useMemo(() => new StonePositionBuffer(), [])
-  useEffect(() => {
-    const canvas = gl.domElement
-    const tapSlop = 8
-    let gesture: { id: number; x: number; y: number; orbiting: boolean; canTap: boolean } | null = null
-    const clearGesture = () => {
-      gesture = null
-      controls.current.manualOrbit = false
-    }
-    const blur = () => { clearGesture(); clickPending.current = false }
-    const aim = (event: PointerEvent) => {
-      const bounds = canvas.getBoundingClientRect()
-      pointer.set((event.clientX - bounds.left) / bounds.width * 2 - 1,
-        1 - (event.clientY - bounds.top) / bounds.height * 2)
-      controls.current.pointerAiming = true
-    }
-    const move = (event: PointerEvent) => {
-      if (!cameraEnabledRef.current) return
-      // Pointerdown only fires for the first mouse button in a chord.
-      if (event.pointerType === 'mouse' && (event.buttons & 2) !== 0 && !gesture) {
-        gesture = { id: event.pointerId, x: event.clientX, y: event.clientY, orbiting: true, canTap: false }
-        canvas.setPointerCapture(event.pointerId)
-      }
-      if (gesture?.id === event.pointerId) {
-        if (event.pointerType === 'mouse' && (event.buttons & 2) === 0) {
-          clearGesture()
-          aim(event)
-          return
-        }
-        if (!gesture.orbiting && Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) < tapSlop) return
-        gesture.orbiting = true
-        controls.current.manualOrbit = true
-        controls.current.pointerAiming = false
-        controls.current.yaw = (controls.current.yaw - (event.clientX - gesture.x) * STONE_CAMERA_DRAG) % (2 * Math.PI)
-        gesture.x = event.clientX
-      } else if (event.pointerType === 'mouse') aim(event)
-    }
-    const down = (event: PointerEvent) => {
-      if (!cameraEnabledRef.current) return
-      const touch = event.pointerType === 'touch'
-      if (touch && !event.isPrimary) {
-        if (gesture) gesture.canTap = false
-        return
-      }
-      if (touch || event.button === 2) {
-        event.preventDefault()
-        if (gesture) return
-        gesture = { id: event.pointerId, x: event.clientX, y: event.clientY, orbiting: !touch, canTap: touch }
-        if (!touch) {
-          controls.current.manualOrbit = true
-          controls.current.pointerAiming = false
-        }
-        canvas.setPointerCapture(event.pointerId)
-      } else if (event.button === 0) {
-        aim(event)
-        clickPending.current = true
-      }
-    }
-    const cancel = (event: PointerEvent) => { if (gesture?.id === event.pointerId) clearGesture() }
-    const up = (event: PointerEvent) => {
-      if (gesture?.id !== event.pointerId) return
-      if (cameraEnabledRef.current && gesture.canTap && !gesture.orbiting
-        && Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) < tapSlop) {
-        aim(event)
-        clickPending.current = true
-      }
-      cancel(event)
-    }
-    const context = (event: Event) => { if (cameraEnabledRef.current) event.preventDefault() }
-    const wheel = (event: WheelEvent) => {
-      if (!cameraEnabledRef.current) return
-      event.preventDefault()
-      zoom.current = Math.min(1.35, Math.max(.74, zoom.current + Math.sign(event.deltaY) * .065))
-    }
-    canvas.addEventListener('pointermove', move)
-    canvas.addEventListener('pointerdown', down)
-    canvas.addEventListener('pointerup', up)
-    canvas.addEventListener('pointercancel', cancel)
-    canvas.addEventListener('lostpointercapture', cancel)
-    canvas.addEventListener('contextmenu', context)
-    canvas.addEventListener('wheel', wheel, { passive: false })
-    window.addEventListener('blur', blur)
-    return () => {
-      canvas.removeEventListener('pointermove', move)
-      canvas.removeEventListener('pointerdown', down)
-      canvas.removeEventListener('pointerup', up)
-      canvas.removeEventListener('pointercancel', cancel)
-      canvas.removeEventListener('lostpointercapture', cancel)
-      canvas.removeEventListener('contextmenu', context)
-      canvas.removeEventListener('wheel', wheel)
-      window.removeEventListener('blur', blur)
-      clearGesture()
-    }
-  }, [gl, pointer, controls])
+  useStoneCameraInput(controls, cameraEnabled, clickPending, onCapture)
   useFrame((_, dt) => {
     const aspect = size.width / size.height
     const control = controls.current
@@ -330,19 +236,17 @@ function Stage({ state, ownId, viewId, input, fire, feedback, localOnly, control
     // doesn't interpolate the camera through the player.
     focus.lerp(desiredFocus, 1 - Math.exp(-dt * 14))
     const cameraDelta = Math.min(dt, .05)
-    control.renderedYaw = followStoneCamera(control.renderedYaw, control.yaw, cameraDelta, control.manualOrbit)
+    advanceStoneCamera(control, cameraDelta)
     const sin = Math.sin(control.renderedYaw), cos = Math.cos(control.renderedYaw)
-    const scale = zoom.current * Math.max(1, Math.min(1.2, .9 / aspect))
-    camera.position.set(focus.x + sin * 7.5 * scale, focus.y + 9 * scale, focus.z + cos * 7.5 * scale)
-    camera.lookAt(focus.x - sin * 1.5, focus.y + .4, focus.z - cos * 1.5)
+    const scale = control.zoom * Math.max(1, Math.min(1.2, .9 / aspect))
+    const distance = STONE_CAMERA_DISTANCE * scale
+    const horizontal = Math.cos(control.renderedPitch) * distance
+    camera.position.set(focus.x + sin * horizontal, focus.y + 1 + Math.sin(control.renderedPitch) * distance,
+      focus.z + cos * horizontal)
+    camera.lookAt(focus.x - sin, focus.y + .9, focus.z - cos)
     camera.updateMatrixWorld()
-    if (player?.userId === ownId && player.alive && cameraEnabled && controls.current.pointerAiming) {
-      plane.constant = -(player.y + .8)
-      raycaster.setFromCamera(pointer, camera)
-      if (raycaster.ray.intersectPlane(plane, point)) {
-        const length = Math.hypot(point.x - player.x, point.z - player.z)
-        if (length > .1) { input.current.aimX = (point.x - player.x) / length; input.current.aimZ = (point.z - player.z) / length }
-      }
+    if (player?.userId === ownId && player.alive && cameraEnabled) {
+      input.current.aimX = -sin; input.current.aimZ = -cos
     }
     if (clickPending.current) {
       clickPending.current = false
@@ -360,15 +264,16 @@ function Stage({ state, ownId, viewId, input, fire, feedback, localOnly, control
   </>
 }
 
-type StoneRumbleSceneProps = Parameters<typeof Stage>[0] & {
+type StoneRumbleSceneProps = Omit<Parameters<typeof Stage>[0], 'onCapture'> & {
   onStatus: StoneSceneStatus; preparationAttempt: number; paused: boolean; sceneReady: boolean
 }
 
 export const StoneRumbleScene = memo(function StoneRumbleScene({ onStatus, preparationAttempt, paused, sceneReady, ...props }: StoneRumbleSceneProps) {
   const playScene = useMemo(() => { const scene = new Scene(); scene.name = 'stone-rumble-play'; return scene }, [])
-  return <div className="stone-rumble-scene" data-view-id={props.viewId} data-camera="orbit" aria-label="현재 층 중심 돌탑 경기장">
+  const [captured, setCaptured] = useState(false)
+  return <div className="stone-rumble-scene" data-view-id={props.viewId} data-camera="third-person" data-pointer-lock={captured} aria-label="육각 발판 돌탑 경기장">
     <SceneBoundary key={preparationAttempt} onStatus={onStatus}>
-      <Canvas dpr={1} frameloop={paused ? 'demand' : 'always'} events={gameEvents} camera={{ position: [0, 42, 7.5], fov: 50, near: .1, far: 800 }} gl={{ alpha: false, antialias: true }}>
+      <Canvas dpr={1} frameloop={paused ? 'demand' : 'always'} events={gameEvents} camera={{ position: [0, 42, 7.5], fov: 55, near: .1, far: 800 }} gl={{ alpha: false, antialias: true }}>
         {!sceneReady && <SceneBoundary><Suspense fallback={null}>
           <group name="stone-rumble-backdrop-source">
             <EnvironmentScene />
@@ -377,10 +282,14 @@ export const StoneRumbleScene = memo(function StoneRumbleScene({ onStatus, prepa
           </group>
         </Suspense></SceneBoundary>}
         <Suspense fallback={null}>
-          {createPortal(<><StoneRumbleLighting /><Stage {...props} /></>, playScene)}
+          {createPortal(<><StoneRumbleLighting /><Stage {...props} onCapture={setCaptured} /></>, playScene)}
           <StoneRumblePreparation onStatus={onStatus} playScene={playScene} />
         </Suspense>
       </Canvas>
+      {props.cameraEnabled && <div className="stone-rumble-camera-hint" aria-live="polite">
+        <span className="stone-camera-mouse">{captured ? '마우스로 둘러보기 · Esc 시점 해제' : '화면 클릭 → 마우스로 둘러보기 · 우클릭 드래그도 가능'}</span>
+        <span className="stone-camera-touch">드래그로 좌우·상하 둘러보기</span>
+      </div>}
     </SceneBoundary>
   </div>
 }, (previous, next) => {
