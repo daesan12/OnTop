@@ -5,8 +5,10 @@
 .winter-hud .winter-frozen{display:flex;flex-direction:column;align-items:center;gap:3px;color:#e4f5ff}
 .winter-hud .winter-frozen strong{font-size:14px}
 .park-page .park-interaction:has(.winter-frozen)>button[aria-keyshortcuts='E']{display:none}
-.park-page .park-interaction:has(.winter-hud){padding:4px 6px;gap:4px;border-radius:10px}
-.park-page .park-interaction .winter-hud>button[aria-keyshortcuts='Q']{display:flex;align-items:center;gap:6px;min-height:40px;max-width:100%;padding:8px 12px;border:0;background:transparent;font-size:15px;line-height:20px}
-.park-page .park-interaction .winter-hud>button[aria-keyshortcuts='Q'] kbd{flex-shrink:0;min-width:22px;margin-right:0}
-@media(max-width:900px){.park-page .park-interaction:has(.winter-hud){bottom:210px}}
-@media(max-height:540px){.park-page .park-interaction:has(.winter-hud){bottom:76px}.winter-hud>small,.winter-hud>span{display:none}}
+.park-page .park-interaction:has(.winter-hud){left:50%;right:auto;top:auto;bottom:110px;transform:translateX(-50%) scale(var(--park-hint-scale,.86));transform-origin:bottom center;width:max-content;max-width:min(360px,calc(100vw - 32px));z-index:46;box-sizing:border-box;padding:5px 7px;gap:3px;border-radius:10px;max-height:calc(100dvh - 160px);overflow:auto;scrollbar-width:none;overscroll-behavior:contain}
+.park-interaction:has(.winter-hud)::-webkit-scrollbar{display:none}
+.winter-hud__actions{display:flex;justify-content:center;flex-wrap:wrap;gap:4px;max-width:100%}
+.park-page .park-interaction .winter-hud__actions>button{display:flex;align-items:center;justify-content:center;gap:5px;min-height:32px;max-width:100%;padding:4px 6px;border:0;background:transparent;font-size:12px;line-height:18px}
+.park-page .park-interaction .winter-hud__actions kbd{flex-shrink:0;min-width:20px;margin-right:0}
+@media(max-width:900px){.park-page .park-interaction:has(.winter-hud){bottom:calc(var(--park-edge,12px) + 180px);max-height:calc(100dvh - 260px)}}
+@media(max-height:540px){.park-page .park-interaction:has(.winter-hud){bottom:64px;max-height:calc(100dvh - 130px)}}

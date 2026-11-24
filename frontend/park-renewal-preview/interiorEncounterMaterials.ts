@@ -1,6 +1,6 @@
 import { DataTexture, LinearFilter, LinearMipmapLinearFilter, RepeatWrapping, RGBAFormat } from 'three'
 
-export type Finish = 'stone' | 'cloth' | 'metal' | 'wood' | 'water'
+export type Finish = 'stone' | 'cloth' | 'metal' | 'wood' | 'water' | 'skin' | 'flesh' | 'hair'
 
 const size = 128
 
@@ -37,4 +37,8 @@ export const encounterFinishes = {
   wood: { roughness: .81, metalness: 0, bumpScale: .041, texture: grain('wood') },
   metal: { roughness: .63, metalness: .37, bumpScale: .019, texture: grain('metal') },
   water: { roughness: .26, metalness: .16, bumpScale: .066, texture: grain('water') },
+  // Encounter bodies (S15P31B105-450): clammy skin, wet flesh, and hair that catches a sliver of light.
+  skin: { roughness: .56, metalness: 0, bumpScale: .012, texture: grain('stone') },
+  flesh: { roughness: .38, metalness: 0, bumpScale: .03, texture: grain('stone') },
+  hair: { roughness: .34, metalness: .08, bumpScale: .004, texture: grain('cloth') },
 }

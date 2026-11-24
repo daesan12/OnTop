@@ -1,33 +1,82 @@
-import {useEffect,useRef,useState} from 'react'
-import {useFrame} from '@react-three/fiber'
+import {useContext,useEffect,useRef,useState} from 'react'
+import {useFrame,useThree} from '@react-three/fiber'
 import {Group,Sphere,Vector3} from 'three'
 import {CustomerModelPoolV5} from '../bungeoppang/customerModelV5'
 import {instantiateResident,RESIDENT_LOOKS,type ResidentKind} from './residentRig'
-import {CharacterModel} from '../../ai-lab/CharacterModel'
 import {npcFrameView} from './npcFrameView'
 import {OMOK_FOCUS_LAYER} from '../../world/omokCamera'
+import {ResidentLoading} from './residentLoading'
+import {ResidentLoadQueue} from './residentLoadQueue'
+import {prepareObjectTextures,waitForScenePrograms} from '../../world/prepareScene'
 
 const pool=new CustomerModelPoolV5()
+const loads=new ResidentLoadQueue()
+const maxLoadAttempts=3
 export function ResidentModel({kind,speed,seated=false,airborne=false,talking=false}:{kind:ResidentKind;speed:{current:number};seated?:boolean;airborne?:boolean;talking?:boolean}) {
- const host=useRef<Group>(null),instance=useRef<ReturnType<typeof instantiateResident>|null>(null),[failed,setFailed]=useState(false)
+ const enabled=useContext(ResidentLoading)
+ const renderer=useThree(state=>state.get)
+ const host=useRef<Group>(null),instance=useRef<ReturnType<typeof instantiateResident>|null>(null),[wanted,setWanted]=useState(false)
+ const distance=useRef(Infinity)
  const frame=useRef({ elapsed:0, center:new Vector3(), sphere:new Sphere(new Vector3(),3), visible:true })
- useEffect(()=>{let active=true;const root=host.current!,asset=RESIDENT_LOOKS[kind],lease=pool.acquire(asset)
-  setFailed(false);root.userData.loadError=false
-  void lease.ready.then(source=>{if(!active)return;const actor=instantiateResident(source,kind);instance.current=actor;root.add(actor.root);root.userData.loaded=true}).catch(()=>{if(active){root.userData.loadError=true;setFailed(true)}})
-  return()=>{active=false;instance.current?.dispose();instance.current=null;lease.release();root.userData.loaded=false}
- },[kind])
+ useEffect(()=>{
+  if(!enabled||!wanted)return
+  let active=true,lease:ReturnType<typeof pool.acquire>|undefined,attempts=0
+  let preparing:ReturnType<typeof instantiateResident>|undefined
+  let retryTimer:ReturnType<typeof setTimeout>|undefined,cancel=()=>{}
+  const root=host.current!
+  root.userData.loadError=false;root.userData.loadAttempts=0
+  const release=()=>{lease?.release();lease=undefined}
+  const enqueue=()=>{retryTimer=undefined;cancel=loads.enqueue(async()=>{
+   if(!active)return
+   root.userData.loadAttempts=++attempts
+   root.userData.loadError=false
+   performance.mark('park-resident-load-start-'+kind)
+   try {
+    lease=pool.acquire(RESIDENT_LOOKS[kind])
+    const source=await lease.ready
+    if(!active)return
+    performance.mark('park-resident-clone-start-'+kind)
+    const actor=preparing=instantiateResident(source,kind)
+    performance.mark('park-resident-clone-end-'+kind)
+    const {gl,camera,scene}=renderer()
+    // Texture uploads and the program wait also apply without parallel linking.
+    // Three's compileAsync and our wait both retain their non-KHR fallback.
+    await Promise.all([
+     waitForScenePrograms(gl,()=>active,gl.compileAsync(actor.root,camera,scene)),
+     prepareObjectTextures(gl,actor.root,()=>active),
+    ])
+    if(!active)return
+    preparing=undefined
+    instance.current=actor;root.add(actor.root);root.userData.loaded=true;root.userData.loadError=false
+   } catch(error) {
+    preparing?.dispose();preparing=undefined
+    // A rejected lease stays cached while held. Release it before reacquiring,
+    // and wait outside the queue so other residents can finish during backoff.
+    release()
+    if(!active)return
+    root.userData.loadError=true
+    if(attempts<maxLoadAttempts)retryTimer=setTimeout(enqueue,1000*2**(attempts-1))
+    else console.warn('[park-resident] NPC model could not be loaded', {kind,attempts}, error)
+   }
+  },()=>distance.current)}
+  enqueue()
+  return()=>{active=false;cancel();clearTimeout(retryTimer);preparing?.dispose();preparing=undefined;instance.current?.dispose();instance.current=null;release();root.userData.loaded=false}
+ },[kind,enabled,wanted,renderer])
  useFrame(({camera,size,clock,gl},dt)=>{
   const resident=instance.current,group=host.current
-  if(!resident||!group)return
+  if(!group)return
   const state=frame.current
   if(group.parent?.visible===false||camera.layers.mask===1<<OMOK_FOCUS_LAYER){
-   resident.root.visible=false
+   if(resident)resident.root.visible=false
    state.visible=false
    state.elapsed=0
    return
   }
   group.getWorldPosition(state.center)
   const distanceSquared=camera.position.distanceToSquared(state.center)
+  distance.current=distanceSquared
+  if(enabled&&!wanted&&distanceSquared<=90**2)setWanted(true)
+  if(!resident)return
   const {frustum}=npcFrameView(camera,size.width,size.height,clock.elapsedTime)
   state.sphere.center.copy(state.center).y+=1.25
   // Keep close off-camera actors active for their visible shadows.
@@ -45,5 +94,6 @@ export function ResidentModel({kind,speed,seated=false,airborne=false,talking=fa
   resident.update(Math.min(.1,state.elapsed),speed.current,seated,airborne,talking)
   state.elapsed=0
  },.75)
- return <group ref={host} name={'detailed-npc-'+kind}>{failed&&<group scale={RESIDENT_LOOKS[kind].height/2.1}><CharacterModel role={kind==='POLICE'?'POLICE':kind==='ELDER'?'GUIDE':'VISITOR'} moving={speed.current>.1} talking={talking} motionSpeed={speed} airborne={airborne}/></group>}</group>
+ // Attach only the finished resident; a different temporary character visibly morphs on load.
+ return <group ref={host} name={'detailed-npc-'+kind}/>
 }

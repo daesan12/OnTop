@@ -87,7 +87,8 @@ function PlusMinusDialog() {
 
   const spinning = live ? 3 - (spin?.stopped ?? 0) : 0
   const shown = !!round && !live
-  const playsLeft = (data?.rules.dailyPlays ?? DAILY_PLAYS) - (data?.playedToday ?? 0)
+  const dailyPlays = data?.rules.dailyPlays ?? DAILY_PLAYS
+  const playsLeft = dailyPlays === 0 ? Infinity : dailyPlays - (data?.playedToday ?? 0)
   const fee = data?.rules.fee ?? FEE
   const canStart = !live && !busy && playsLeft > 0 && !!data
   const activeStop = live && spin && !spin.landing ? spin.stopped : -1
@@ -128,7 +129,7 @@ function PlusMinusDialog() {
         <div className="plus-minus-board">
           {['tl', 'tr', 'bl', 'br'].map(corner => <span key={corner} className="plus-minus-screw" data-corner={corner} aria-hidden="true" />)}
           <ReelFace firstReel={reelsOf[0]} operatorReel={reelsOf[1]} secondReel={reelsOf[2]} reels={reels}
-            plays={`${Math.max(0, playsLeft)}/${data?.rules.dailyPlays ?? DAILY_PLAYS}`}
+            plays={dailyPlays === 0 ? '횟수 무제한' : `${Math.max(0, playsLeft)}/${dailyPlays}`}
             balance={balance === null ? '-' : `${balance.toLocaleString('ko-KR')}냥`}
             payout={String(Math.min(999, ledPayout)).padStart(3, '0')} active={activeStop} celebrate={celebrate} />
           <div className="plus-minus-stops">

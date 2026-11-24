@@ -1,4 +1,5 @@
-import { acceptSnowballWindup, acceptSnowball, acceptWinterState, resetWinter, winterFrozen } from '../features/winter/state'
+import { acceptSnowballWindup, acceptSnowball, acceptSnowballImpact, acceptWinterState, resetWinter, winterFrozen } from '../features/winter/state'
+import { acceptWinterTree, resetWinterCommunity } from '../features/winter/community/state'
 import { filterChat } from '../features/chat/filterChat'
 import { setHorrorOpen } from '../../park-renewal-preview/horrorPlan'
 import { create } from 'zustand'
@@ -250,6 +251,7 @@ export function resetWorld(status: Session['status'] = 'idle', error = '') {
   clearRoamingInput()
   avatars.clear()
   resetWinter()
+  resetWinterCommunity()
   worldPoses.clear()
   worldTableSeats.clear()
   channelVersion = worldVersion = -1
@@ -283,6 +285,7 @@ export function clearChannel(keepFeedbackDraft = false, keepNotesDraft = false) 
   clearRoamingInput()
   avatars.clear()
   resetWinter()
+  resetWinterCommunity()
   worldPoses.clear()
   worldTableSeats.clear()
   channelVersion = worldVersion = -1
@@ -617,11 +620,14 @@ export function receive(message: Envelope, expectedMapVersion: string = EXPECTED
         : state.publicTables && Object.keys(state.publicTables).length === next.tables.length
           && next.tables.every(table => state.publicTables?.[table.tableId]?.anchorId === (table.anchorId ?? null)
             && state.publicTables?.[table.tableId]?.chairCount === table.chairCount
-            && state.publicTables?.[table.tableId]?.gameCode === table.gameCode)
+            && state.publicTables?.[table.tableId]?.gameCode === table.gameCode
+            && state.publicTables?.[table.tableId]?.secretTiles?.gameId === table.secretTiles?.gameId
+            && state.publicTables?.[table.tableId]?.secretTiles?.state.version === table.secretTiles?.state.version)
           ? state.publicTables
           : Object.fromEntries(next.tables.map(table => [table.tableId, {
             tableId: table.tableId, anchorId: table.anchorId ?? null, chairCount: table.chairCount,
             ...(table.gameCode !== undefined ? { gameCode: table.gameCode } : {}),
+            ...(table.secretTiles !== undefined ? { secretTiles: table.secretTiles } : {}),
           }]))
       const present = new Set(ids)
       for (const id of Object.keys(equipment)) {
@@ -884,6 +890,11 @@ export function receive(message: Envelope, expectedMapVersion: string = EXPECTED
       if (emoteTimeline.cancelEvent(cancellation, estimatedServerTime())) stopAvatarEmote(cancellation.userId)
       break
     }
+    case 'WORLD_WINTER_TREE': {
+      if (state.status !== 'connected' || !state.mapCompatible) return
+      acceptWinterTree(p)
+      return
+    }
     case 'WORLD_SNOWBALL_STATE': {
       if (state.status !== 'connected' || !state.mapCompatible) return
       const wasFrozen = winterFrozen(state.sessionId, estimatedServerTime())
@@ -898,6 +909,10 @@ export function receive(message: Envelope, expectedMapVersion: string = EXPECTED
     }
     case 'WORLD_SNOWBALL_EVENT': {
       if (state.status === 'connected' && state.mapCompatible) acceptSnowball(p, state.roomId, state.sessionId, estimatedServerTime())
+      break
+    }
+    case 'WORLD_SNOWBALL_IMPACT': {
+      if (state.status === 'connected' && state.mapCompatible) acceptSnowballImpact(p, state.roomId, state.sessionId, estimatedServerTime())
       break
     }
     case 'WORLD_EMOTE_EVENT': {

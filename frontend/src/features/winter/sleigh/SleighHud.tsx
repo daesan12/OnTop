@@ -4,6 +4,7 @@ import { parkRuntime } from '../../../park/runtime/runtime'
 import { useFacilityState } from '../../facilities/state'
 import { SLEIGH_LAP_MS } from './route'
 import { LocationChip } from '../../parkMenus/LocationChip'
+import bellOrnament from '../community/ui-art/bell-photo.webp'
 import './sleigh.css'
 
 export function SleighHud() {
@@ -19,7 +20,9 @@ export function SleighHud() {
   if (lease?.kind !== 'SLEIGH') return null
   const elapsed = Math.max(0, now - Date.parse(lease.startedAt)), remaining = Math.max(0, Math.ceil((SLEIGH_LAP_MS - elapsed) / 1000))
   return <aside className="winter-sleigh-hud" aria-label="루돌프 썰매 비행">
-    <div className="winter-sleigh-hud__heading"><strong>루돌프 썰매 · 무료</strong>
+    <div className="winter-sleigh-hud__heading"><div className="winter-sleigh-hud__title">
+      <img src={bellOrnament} alt="" aria-hidden="true" width="30" height="34" />
+      <strong>루돌프 썰매 <span className="winter-sleigh-hud__free">무료</span></strong></div>
       <p role="status">{remaining ? `도착까지 ${remaining}초` : '착륙 중 · 잠시 기다려주세요'}</p></div>
     <div className="winter-sleigh-hud__clock"><LocationChip /></div>
     <progress value={Math.min(elapsed, SLEIGH_LAP_MS)} max={SLEIGH_LAP_MS} aria-label="비행 진행" />

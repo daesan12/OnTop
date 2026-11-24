@@ -8,6 +8,7 @@ import {PreservedFountain} from './PreservedFountain'
 import {ParkLamps} from '../src/world/art/ParkFurniture'
 import {NightLighting} from '../src/world/NightLighting'
 import type {QualityPreset} from '../src/config'
+import {GeometrySourceReady} from './geometrySourceReady'
 
 const lampposts=lamps.map(([x,z])=>[x,heightAt(x,z),z]as const)
 
@@ -26,20 +27,22 @@ export function RetainingFace() {
  )
 }
 
-export function ParkPathLights({quality}: {quality?: QualityPreset}) {
+export function ParkPathLights({quality,geometryReady=true}: {quality?: QualityPreset;geometryReady?:boolean}) {
  return <>
-  <ParkLamps placements={lampposts}/>
+  {geometryReady&&<GeometrySourceReady><ParkLamps placements={lampposts}/></GeometrySourceReady>}
   {quality&&<NightLighting quality={quality} placements={lampposts}/>}
  </>
 }
 
-export function EntranceLandscape({quality, showFitnessStations}: {quality: QualityPreset; showFitnessStations: boolean}) {
+export function EntranceLandscape({quality, showFitnessStations, detailsReady=true}: {quality: QualityPreset; showFitnessStations: boolean;detailsReady?:boolean}) {
  return <>
   <RetainingFace />
   <ParkCurbs />
   <LakeSurface />
-  <PreservedFitness showStations={showFitnessStations} />
-  <PreservedFountain />
-  <ParkPathLights quality={quality} />
+  {detailsReady&&<GeometrySourceReady revision={showFitnessStations}><PreservedFitness showStations={showFitnessStations} /></GeometrySourceReady>}
+  {detailsReady&&<GeometrySourceReady><PreservedFountain /></GeometrySourceReady>}
+  {/* Keep the light pool from the first frame so streaming lamp geometry does
+      not change every exterior material's shader layout. */}
+  <ParkPathLights quality={quality} geometryReady={detailsReady}/>
  </>
 }

@@ -140,12 +140,12 @@ describe('Story 420 playability with a modelled human', () => {
     const table = humans.map(human => ({
       human: human.name,
       now: summarize(human, timing, seeds),
-      before: summarize(human, tightTiming, seeds),
     }))
-    console.table(table.map(({ human, now, before }) => ({
+    // Only clumsy play is compared with the historical gap below.
+    const clumsyBefore = summarize(humans[1]!, tightTiming, seeds)
+    console.table(table.map(({ human, now }) => ({
       사람: human,
       '완주율 (930ms)': `${now.completed}%`, '무MISS (930ms)': `${now.noMiss}%`, '피격 (930ms)': now.broomHits,
-      '완주율 (850ms)': `${before.completed}%`, '무MISS (850ms)': `${before.noMiss}%`, '피격 (850ms)': before.broomHits,
       'MISS 중 회피 직후 (930ms)': `${now.afterDodgeMisses}/${now.misses}`,
       'PERFECT 비율': `${now.perfectShare}%`,
     })))
@@ -159,6 +159,6 @@ describe('Story 420 playability with a modelled human', () => {
       expect(now.afterDodgeMisses).toBeGreaterThanOrEqual(now.misses * 0.99)
     }
     // The widened gap is what lifts clumsy play from about 60 % to over 90 % finished rounds.
-    expect(clumsy!.now.completed - clumsy!.before.completed).toBeGreaterThan(25)
+    expect(clumsy!.now.completed - clumsyBefore.completed).toBeGreaterThan(25)
   }, 60_000)
 })

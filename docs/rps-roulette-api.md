@@ -9,7 +9,7 @@
 | 항목 | 값 |
 | --- | --- |
 | 참가비 | 10 / 20 / 30냥. START에서 차감 |
-| 하루 판 수 | KST 날짜 기준 15판. START에서 차감 |
+| 하루 판 수 | 횟수 제한 없음. `dailyPlays: 0`은 무제한이며 `playedToday`는 KST 날짜별 누적 기록 |
 | 기계 손 | 바위·가위·보 각 1/3. 입력 전에 정하고 SHA-256 커밋만 먼저 공개 |
 | 비김 | 엽전 없이 같은 판에서 다시 대결 |
 | 대결 제한 | 5초. 표시 마감 + 1.5초까지 받고, 이후 서버가 무작위 손을 대신 낸다 |
@@ -40,7 +40,7 @@
   "serverNow": "2026-11-01T03:00:00Z",
   "availableBalance": 80,
   "playedToday": 1,
-  "rules": {"fees": [10, 20, 30], "dailyPlays": 15, "multipliers": [1.0, 2.0, 4.0],
+  "rules": {"fees": [10, 20, 30], "dailyPlays": 0, "multipliers": [1.0, 2.0, 4.0],
             "roulette": [10, 1, 2], "duelLimitMs": 5000, "decideLimitMs": 10000, "graceMs": 1500},
   "round": {
     "id": "17", "fee": 20, "phase": "DUEL", "seq": 1, "stakeLevel": 0, "multiplier": 1.0,
@@ -64,13 +64,13 @@
 | 400 | `RPS_INVALID_REQUEST`: 잘못된 키·참가비·손·순번·본문 |
 | 401/403 | 기존 인증·회원·출처 정책 |
 | 404 | `RPS_ROUND_NOT_FOUND`: 본인의 판이 아님 |
-| 409 | `WALLET_NOT_READY` / `INSUFFICIENT_COINS` / `RPS_DAILY_LIMIT` / `RPS_ROUND_IN_PROGRESS` / `RPS_INVALID_PHASE` / `IDEMPOTENCY_KEY_CONFLICT` |
+| 409 | `WALLET_NOT_READY` / `INSUFFICIENT_COINS` / `RPS_ROUND_IN_PROGRESS` / `RPS_INVALID_PHASE` / `IDEMPOTENCY_KEY_CONFLICT` |
 | 503 | `RPS_UNAVAILABLE`: 서비스 미설정·DB/트랜잭션 오류. 같은 요청으로 다시 확인한다 |
 
 ## 지갑·멱등성·마감 처리
 
 `game/rpsroulette/service/RpsRouletteService`는 **지갑 → 판** 순서로 비관적 잠금한다.
-START는 같은 READ_COMMITTED 트랜잭션에서 기존 요청 키 조회 → 진행 중 판 확인 → 15판 확인 → 사용 가능 잔액
+START는 같은 READ_COMMITTED 트랜잭션에서 기존 요청 키 조회 → 진행 중 판 확인 → 사용 가능 잔액
 (`balance - reserved`) 확인 → 차감 → `MINIGAME_ENTRY_FEE`(키 `rps-roulette:<회원>:<요청 키>`) → 판 생성을 커밋한다.
 룰렛 지급은 `RPS_ROULETTE_PAYOUT`(키 `rps-roulette:payout:<판 ID>`)이며 원장 키가 유일해 중복 지급되지 않는다.
 
@@ -88,9 +88,21 @@ MySQL 검증은 매번 만든 loopback 전용 `ontop_rps_test_` DB에서만 실�
 공원 맵(`server-map.json`·mapVersion)은 바꾸지 않는다. 게임기는 화면용 3D 모델과 FE 접근 판정만 두며, 충돌·시설 점유와
 주변 관전 방송은 위치가 확정된 뒤 별도 작업으로 맵 변경과 함께 진행한다.
 
-## 검증
+## 횟수 제한 해제 후 운영 확인 (통합 MR !670, 기존 !667)
+
+`countPlays`는 `user_id`와 KST `play_date`로 집계하며, V136에
+`ix_rps_roulette_user_date (user_id, play_date)`가 정의되어 있다. 실제 DB 적용과 EXPLAIN은 미확인이다.
+캐시는 트랜잭션 롤백·여러 서버의 집계 일관성 검토 없이 추가하지 않는다.
+
+요청 키·행동 순번 검증과 지갑 잠금은 중복 정산을 막지만 호출 빈도를 제한하지 않는다.
+`/api/v1/minigames/rps-roulette` 아래의 `/status`, `/rounds`,
+`/rounds/{roundId}/hands`, `/rounds/{roundId}/challenge`, `/rounds/{roundId}/stop`에
+적용된 사용자·IP별 호출 제한과 이상 거래 알림은 인프라·운영 담당자 확인이 필요하다.
+전용 애플리케이션 레이트 리밋은 현재 없으며, 운영 정책이 준비됐다고 보장하지 않는다.
+
+## 테스트 범위
 
 - `RpsRouletteRulesTests`: 칸 구성, 승패, 지급액, 커밋
-- `RpsRouletteServiceTests`: START 차감, 같은 키, 꽝·비김·지급·2차 도전, 마감 자동 처리, 정리 작업, 지난 순번, 하루 제한, 잔액
+- `RpsRouletteServiceTests`: START 차감, 같은 키, 꽝·비김·지급·2차 도전, 마감 자동 처리, 정리 작업, 지난 순번, 기존 제한을 넘는 반복 시작, 잔액
 - `RpsRouletteHttpTests`: 인증, 키·본문 검증, 오류 코드, no-store, CORS 사전요청
 - `RpsRouletteMySqlTests` (`mysqlTest`, `TEST_RPS_ROULETTE_DB_URL`): V136, 동시 START, 진행 중 판 유일, 원장 롤백

@@ -1,6 +1,10 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { memo, useEffect, useMemo, useRef } from 'react'
+import { SantaBell } from './SantaBell'
+import { useWinterCommunity } from './community/state'
+import { ChristmasCommunityTree } from './community/ChristmasCommunityTree'
+import { ChristmasAsset } from './ChristmasAssets'
 import { useFrame } from '@react-three/fiber'
-import { BufferAttribute, BufferGeometry, Float32BufferAttribute, Group, InstancedMesh, Object3D, ShaderMaterial, type Points } from 'three'
+import { BufferAttribute, BufferGeometry, Float32BufferAttribute, Group, InstancedMesh, Object3D, ShaderMaterial, Vector3, type Points } from 'three'
 import { groundSurfaceHeight } from '../../../park-renewal-preview/groundSurface'
 import { estimatedServerTime, useSession, avatars, sampleAvatar } from '../../network/worldClient'
 import { SnowballAim } from './SnowballAim'
@@ -11,24 +15,29 @@ import { useWinter, type WinterPlayer } from './state'
 import { FrostEffect } from './FrostEffect'
 import { createHolidayArt } from './holidayArt'
 import { createChristmasTreeArt } from './christmasTreeArt'
+import { bulbCentres, TREE_WARM_WHITE } from './community/treeLighting'
+import { TreeLightGlow } from './community/TreeLightGlow'
 import { winterProtectedSurfaces } from './protectedSurfaces'
 import { snowballHands } from './SnowballHand'
 import { snowballPoint } from './trajectory'
-import { winterSceneryVisible } from './presentation'
+import { winterRoofSnowVisible, winterSceneryVisible } from './presentation'
 
 function decoration(kind: typeof WINTER_DECOR[number]['kind']) {
   return kind === 'tree' ? createChristmasTreeArt() : createHolidayArt(kind)
 }
 
 function HolidayProp({ art, kind }: { art: ReturnType<typeof createHolidayArt>; kind: string }) {
+  const lit = useWinterCommunity(s => kind === 'tree' && !!s.tree?.lit)
+  const lights = useMemo(() => kind === 'tree' && art.glow ? bulbCentres(art.glow) : [], [art, kind])
+  const star = useMemo(() => new Vector3(0, 7.2, 0), [])
   return <group name={'winter-art-' + kind}>{Object.entries(art).map(([finish, geometry]) =>
-    <mesh key={finish} geometry={geometry} dispose={null} castShadow receiveShadow raycast={() => {}}>
+    <mesh key={finish} name={'winter-' + kind + '-' + finish} geometry={geometry} dispose={null} castShadow receiveShadow raycast={() => {}}>
       <meshStandardMaterial vertexColors roughness={finish === 'gold' ? .34 : .74}
         metalness={finish === 'gold' ? .48 : 0} side={2}
-        emissive={finish === 'glow' ? '#ffc775' : '#000000'} emissiveIntensity={finish === 'glow' ? .9 : 0}
-        toneMapped={finish !== 'glow'} />
+        emissive={finish === 'glow' || finish === 'star' && lit ? kind === 'tree' ? TREE_WARM_WHITE : '#ffe5a0' : '#000000'} emissiveIntensity={finish === 'glow' ? lit ? 1.3 : .9 : finish === 'star' && lit ? 1.4 : 0}
+        toneMapped={finish !== 'glow' && !(finish === 'star' && lit)} />
     </mesh>,
-  )}</group>
+  )}{lit && <TreeLightGlow bulbs={lights} star={star} />}</group>
 }
 
 function Snowfall({ low }: { low: boolean }) {
@@ -149,21 +158,31 @@ function WinterActors() {
   return <group name="winter-player-props">{Object.values(players).map(p => <WinterActor key={p.userId} player={p} />)}</group>
 }
 
-export function WinterScene({ low = false }: { low?: boolean }) {
-  const group = useRef<Group>(null)
+function HolidayDecorations() {
   const art = useMemo(() => new Map([...new Set(WINTER_DECOR.map(d => d.kind))].map(kind => [kind, decoration(kind)])), [])
   useEffect(() => () => { for (const value of art.values()) for (const g of Object.values(value)) g?.dispose() }, [art])
+  return <>{WINTER_DECOR.map(d => <group key={d.id} name={'winter-' + d.id} position={[d.x, groundSurfaceHeight(d.x, d.z), d.z]}>
+    {d.kind === 'tree'
+      ? <ChristmasCommunityTree fallback={<group scale={12 / 7.68}><HolidayProp kind={d.kind} art={art.get(d.kind)!} /></group>} />
+      : d.kind === 'gifts' ? <HolidayProp kind={d.kind} art={art.get(d.kind)!} />
+      : <ChristmasAsset id={d.kind} fallback={<HolidayProp kind={d.kind} art={art.get(d.kind)!} />} />}
+  </group>)}</>
+}
+
+export const WinterScene = memo(function WinterScene({ low = false, groundReady = true, decorationsReady = true, sleighReady = true }: {
+  low?: boolean; groundReady?: boolean; decorationsReady?: boolean; sleighReady?: boolean
+}) {
+  const group = useRef<Group>(null)
   useFrame(() => { if (group.current) group.current.visible = winterSceneryVisible() })
   return <group ref={group} name="winter-park">
-    <SleighScene />
-    <RoofSnow visible={winterSceneryVisible} protectedAreas={winterProtectedSurfaces} />
+    {sleighReady && <SleighScene />}
+    <SantaBell />
+    <RoofSnow visible={winterRoofSnowVisible} protectedAreas={winterProtectedSurfaces} />
     <Snowfall low={low} />
     <Snowballs />
     <SnowballAim />
-    <GroundSnow />
+    {groundReady && <GroundSnow />}
     <WinterActors />
-    {WINTER_DECOR.map(d => <group key={d.id} name={'winter-' + d.id} position={[d.x, groundSurfaceHeight(d.x, d.z), d.z]}>
-      <HolidayProp kind={d.kind} art={art.get(d.kind)!} />
-    </group>)}
+    {decorationsReady && <HolidayDecorations />}
   </group>
-}
+})

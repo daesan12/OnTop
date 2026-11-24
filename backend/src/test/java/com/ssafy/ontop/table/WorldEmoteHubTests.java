@@ -107,7 +107,11 @@ class WorldEmoteHubTests {
         when(session.getId()).thenReturn(peer.id);
         doAnswer(invocation -> {
             if (invocation.getArgument(0) instanceof TextMessage text) {
-                peer.messages.add(mapper.readTree(text.getPayload()));
+                JsonNode message = mapper.readTree(text.getPayload());
+                // 눈싸움 초기 상태·방송은 WinterSnowballFlowTests에서 검증한다.
+                if (!message.path("type").asText().equals("WORLD_SNOWBALL_STATE")) {
+                    peer.messages.add(message);
+                }
             }
             return null;
         }).when(session).sendMessage(any());

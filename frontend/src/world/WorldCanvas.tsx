@@ -6,8 +6,11 @@ import { ParkSoundscape } from '../audio/ParkSoundscape'
 import { lazy } from 'react'
 import { GENERATED_PARK_ENABLED, JUMPMAP_ENABLED, RENEWAL_GATE_STARTUP, RENEWAL_PARK_ENABLED } from '../park/mapSelection'
 import { loadRenewalParkWorld } from '../park/loadRenewalParkWorld'
+import { usePageVisible } from '../park/usePageVisible'
 import { LIVE_MAP_IDENTITY } from '../network/mapContract'
 import { ShaderPreparedGroup } from '../../park-renewal-preview/live/ShaderPreparedGroup'
+import { FacilityOnApproach } from '../../park-renewal-preview/live/FacilityOnApproach'
+import { START as jumpStart } from '../features/jumpmap/activeCourse'
 import { useJumpmap } from '../features/jumpmap/state'
 const GeneratedParkWorld=lazy(()=>import('../layout-preview/PreviewWorld').then(m=>({default:m.PreviewWorld})))
 const RenewalParkWorld=RENEWAL_PARK_ENABLED ? lazy(loadRenewalParkWorld) : null
@@ -37,6 +40,7 @@ import { Avatars } from './Avatars'
 import {JokeJudgeActor} from '../features/ai/JokeJudgeActor'
 import { CompanionActors } from '../features/ai/CompanionActors'
 import { PoliceNpcs } from '../features/ai/PoliceNpcs'
+import { ResidentLoading } from '../features/ai/residentLoading'
 import { AvatarPoseFrame } from './AvatarPoseFrame'
 import { FollowRopes } from '../features/follow/FollowRopes'
 import { RouteArrows } from '../features/navigation/RouteArrows'
@@ -48,6 +52,7 @@ import {ParkDebrisScene} from '../features/parkDebris/ParkDebrisScene'
 import { BALLOON_RIDE_ENABLED } from '../park/mapSelection'
 import { getParkInteraction, interactWithPark } from '../features/interactions/parkInteraction'
 import { prepareScene, prepareVisibleScenePrograms } from './prepareScene'
+import { createEntryProgramProbes } from './entryProgramProbes'
 import { warmParkGeometry } from '../park/loadParkGeometry'
 import { jumpmapPreparationViews } from '../features/jumpmap/preparation'
 import { useGachaOverlay } from '../features/gacha/view'
@@ -100,6 +105,7 @@ function SceneReady({ mounted, groundMounted, onReady }: {
     () => ({
       phase: 'cold' as 'cold' | 'compiling' | 'ready' | 'presented',
       disposed: false,
+      probes: undefined as ReturnType<typeof createEntryProgramProbes> | undefined,
     }),
     [],
   )
@@ -108,6 +114,7 @@ function SceneReady({ mounted, groundMounted, onReady }: {
     startup.disposed = false
     return () => {
       startup.disposed = true
+      startup.probes?.dispose()
     }
   }, [startup])
   useFrame(({ gl, scene, camera }, _delta, frame) => {
@@ -127,7 +134,8 @@ function SceneReady({ mounted, groundMounted, onReady }: {
         const ready = () => { if (!startup.disposed) startup.phase = 'ready' }
         // Keep the gate image up while the visible programs link together.
         // A preparation failure falls back to the same first render.
-        void prepareVisibleScenePrograms(gl, scene, camera, () => !startup.disposed).then(ready, ready)
+        startup.probes = createEntryProgramProbes(scene)
+        void prepareVisibleScenePrograms(gl, scene, camera, () => !startup.disposed, startup.probes.objects).then(ready, ready)
         return
       }
       startup.phase = 'ready'
@@ -194,11 +202,13 @@ export const WorldCanvas = memo(function WorldCanvas({
   }, [onReady])
   const boardPlayer = useGame(s => s.game?.role === 'PLAYER' && (s.game?.omok?.status === 'PLAYING' || s.game?.alkkagi?.status === 'PLAYING'))
   const boardSpectator = useGame(s => s.game?.role === 'SPECTATOR' && (s.game?.omok?.status === 'PLAYING' || s.game?.alkkagi?.status === 'PLAYING'))
+  const tileRole = useGame(s => s.game?.rummikub?.status === 'PLAYING' ? s.game.role : null)
   const scope = useSession(seatScope), lookScope = useTableLobby(s=>s.lookScope), spectatorView = useTableLobby(s=>s.spectatorView)
   const boardDetail = boardPlayer && !!scope && scope !== lookScope || boardSpectator && spectatorView === 'board'
+  const tileDetail = tileRole === 'PLAYER' && !!scope && scope !== lookScope || tileRole === 'SPECTATOR' && spectatorView === 'board'
   const preset = QUALITY[quality]
   const overlayTargets = useMemo<OverlayTargets>(() => new Map(), [])
-  const [visible, setVisible] = useState(() => !document.hidden)
+  const visible = usePageVisible()
   const gachaSurface = useGachaOverlay(s => s.surface)
   const fortuneOpen = useFortune(s => s.open)
   const [viewport, setViewport] = useState(() => ({
@@ -216,11 +226,6 @@ export const WorldCanvas = memo(function WorldCanvas({
     window.addEventListener('resize', resize)
     return () => window.removeEventListener('resize', resize)
   }, [])
-  useEffect(() => {
-    const changed = () => setVisible(!document.hidden)
-    document.addEventListener('visibilitychange', changed)
-    return () => document.removeEventListener('visibilitychange', changed)
-  }, [])
   const dpr = effectiveDpr(
     quality,
     viewport.width,
@@ -230,6 +235,7 @@ export const WorldCanvas = memo(function WorldCanvas({
   // 판만 표시하는 시점에서는 공원용720p 예산 대신 최대FullHD/기기DPR1을 사용한다.
   // 주변 보기/종료 시 기존 사용자 화질 예산으로 돌아간다.
   const renderDpr = boardDetail ? effectiveDpr('high', viewport.width, viewport.height, viewport.dpr)
+    : tileDetail ? dpr
     : (GENERATED_PARK_ENABLED || RENEWAL_PARK_ENABLED) ? Math.min(dpr, MAP_RENDER_BUDGET.maxDpr, Math.sqrt(MAP_RENDER_BUDGET.maxPixels / Math.max(1, viewport.width * viewport.height))) : dpr
   return (
     <>
@@ -286,13 +292,22 @@ export const WorldCanvas = memo(function WorldCanvas({
           <BoardFocusLighting exposure={RENEWAL_PARK_ENABLED ? PARK_SERVICE_DAY_EXPOSURE : 1} />
           <SceneReady mounted={sceneMounted} groundMounted={groundMounted} onReady={reportFirstFrame} />
           {RENEWAL_PARK_ENABLED && (distantReady || jumpRunActive) &&
-            <Suspense fallback={null}><ShaderPreparedGroup priority={.75}><ServiceJumpCourse /></ShaderPreparedGroup></Suspense>}
+            <FacilityOnApproach site={{ id: 'jump-course', x: jumpStart.x, z: jumpStart.z, radius: 12 }} active={jumpRunActive}>
+              <Suspense fallback={null}><ShaderPreparedGroup batched priority={.75}><ServiceJumpCourse /></ShaderPreparedGroup></Suspense>
+            </FacilityOnApproach>}
           <Suspense fallback={null}>
             <Avatars overlayTargets={overlayTargets} firstGateFrameAt={RENEWAL_GATE_STARTUP ? firstFrameAt : undefined} />
           </Suspense>
-        <PoliceNpcs />
-        <CompanionActors />
-        <JokeJudgeActor />          <FollowRopes />
+        <ResidentLoading.Provider value={!RENEWAL_PARK_ENABLED || entryPresented}>
+          {/* External-store actor updates can repeatedly restart an uncommitted
+              Suspense tree. Subscribe after the entrance has actually rendered. */}
+          {(!RENEWAL_PARK_ENABLED || entryPresented) && <>
+            <PoliceNpcs />
+            <CompanionActors />
+            <JokeJudgeActor />
+          </>}
+        </ResidentLoading.Provider>
+          <FollowRopes />
           <RouteArrows />
         {breadSceneMounted && <Suspense fallback={null}><BungeoppangGrill /></Suspense>}
           <ParkDebrisScene />
@@ -301,7 +316,7 @@ export const WorldCanvas = memo(function WorldCanvas({
           <CameraRig />
           {TABLET_ENABLED && <TableTablet3D />}
           <PerformanceProbe />
-          {!boardDetail && <AdaptiveResolution ceiling={renderDpr} />}
+          {!boardDetail && !tileDetail && <AdaptiveResolution ceiling={renderDpr} />}
         </AvatarPoseFrame>
       </Canvas>
       <AvatarOverlays targets={overlayTargets} />

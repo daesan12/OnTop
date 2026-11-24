@@ -8,17 +8,22 @@ const alwaysVisible = () => true
 const noProtectedAreas: readonly SnowProtectedArea[] = []
 
 /** 원본의 위를 향한 삼각형만 복사한다. 기와·간판·벽과 기존 재질은 그대로 유지한다. */
-export function snowRoofGeometry(root: Object3D, protectedAreas: readonly SnowProtectedArea[] = []) {
+export function* snowRoofGeometrySteps(root: Object3D, protectedAreas: readonly SnowProtectedArea[] = []): Generator<void, BufferGeometry> {
   root.updateWorldMatrix(true, true)
   const inverse = new Matrix4().copy(root.matrixWorld).invert(), vertices: number[] = []
   const a = new Vector3(), b = new Vector3(), c = new Vector3(), ab = new Vector3(), ac = new Vector3()
   const floor = new Vector3().setFromMatrixPosition(root.matrixWorld).y + 2
+  const meshes: Mesh[] = []
   root.traverse(node => {
-    if (!(node instanceof Mesh) || node.userData.winterSnow || node.userData.distanceProxy) return
+    if (node instanceof Mesh && !node.userData.winterSnow && !node.userData.distanceProxy) meshes.push(node)
+  })
+  let triangles = 0
+  for (const node of meshes) {
     const p = node.geometry.getAttribute('position'), index = node.geometry.index
-    if (!p) return
+    if (!p) continue
     const count = index?.count ?? p.count
     for (let i = 0; i < count; i += 3) {
+      if (++triangles % 256 === 0) yield
       a.fromBufferAttribute(p, index ? index.getX(i) : i).applyMatrix4(node.matrixWorld)
       b.fromBufferAttribute(p, index ? index.getX(i + 1) : i + 1).applyMatrix4(node.matrixWorld)
       c.fromBufferAttribute(p, index ? index.getX(i + 2) : i + 2).applyMatrix4(node.matrixWorld)
@@ -34,10 +39,18 @@ export function snowRoofGeometry(root: Object3D, protectedAreas: readonly SnowPr
         vertices.push(v.x, v.y, v.z)
       }
     }
-  })
+  }
   const geometry = new BufferGeometry().setAttribute('position', new Float32BufferAttribute(vertices, 3))
   geometry.computeVertexNormals()
   return geometry
+}
+
+/** Synchronous source for offline builds and geometry comparisons. */
+export function snowRoofGeometry(root: Object3D, protectedAreas: readonly SnowProtectedArea[] = []) {
+  const steps = snowRoofGeometrySteps(root, protectedAreas)
+  let result = steps.next()
+  while (!result.done) result = steps.next()
+  return result.value
 }
 
 export function RoofSnow({ visible = alwaysVisible, protectedAreas = noProtectedAreas }: {
@@ -47,7 +60,7 @@ export function RoofSnow({ visible = alwaysVisible, protectedAreas = noProtected
   const scene = useThree(state => state.scene)
   const state = useRef({ elapsed: 1, cache: null as RoofSnowCache | null })
   useEffect(() => {
-    const cache = new RoofSnowCache(scene, noProtectedAreas, snowRoofGeometry)
+    const cache = new RoofSnowCache(scene, noProtectedAreas, snowRoofGeometrySteps)
     state.current.cache = cache
     return () => { cache.dispose(); state.current.cache = null }
   }, [scene])
@@ -58,9 +71,11 @@ export function RoofSnow({ visible = alwaysVisible, protectedAreas = noProtected
     const show = visible()
     cache.show(show)
     if (!show) return
-    s.elapsed += dt
-    if (s.elapsed < .25) return
-    s.elapsed = 0
+    if (!cache.busy) {
+      s.elapsed += dt
+      if (s.elapsed < .25) return
+      s.elapsed = 0
+    }
     cache.processOne()
   })
   return null

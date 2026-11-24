@@ -32,11 +32,16 @@ export const horrorArt=(()=>{
  for(let x=-56;x<25;x+=2)for(let z=-103;z< -49;z+=2)if(inHorror(x,z,1.2)&&horrorGround(x,z)===f)b.box('stone',(Math.round(x+z)%3)?'#424845':'#363e3e',[x,f+.015,z],[1.95,.03,1.95])
  for(const s of HORROR_SOLIDS){const x=(s.x0+s.x1)/2,z=(s.z0+s.z1)/2,w=s.x1-s.x0,d=s.z1-s.z0
   if(s.id==='machinery-core'||s.id==='lift-cage')continue
+  // The bars across the corner where the exit is: iron rods, rails top and bottom, the green light showing through.
+  if(s.id==='exit-bars'){const lo=exitFloor(),hi=f+s.height;for(let bx=s.x0+.08;bx<s.x1;bx+=.15)b.box('metal','#3b3a33',[bx,(lo+hi)/2,z],[.05,hi-lo,.05]);for(const y of[lo+.12,lo+1.1,hi-.08])b.box('metal','#4a463a',[x,y,z],[w,.1,.12]);continue}
   b.box('stone',s.id.startsWith('pillar')?'#4c534c':'#363d3b',[x,f+s.height/2,z],[w,s.height,d])
+  // The labyrinth's walls (horrorMaze): a footing, a band of darker courses and a coping stone along the top.
+  if(s.id.startsWith('maze')){b.box('stone','#2b3230',[x,f+.18,z],[w+.1,.36,d+.1]);b.box('stone','#2f3634',[x,f+2.3,z],[w+.03,.5,d+.03]);b.box('stone','#4a504a',[x,f+s.height+.08,z],[w+.16,.16,d+.16])}
   if(s.id.startsWith('pillar')){for(const y of[.25,3.15,6.25,10.2])b.box('stone','#555b50',[x,f+y,z],[w+.26,.24,d+.26]);for(let y=.8;y<9;y+=.7)b.box('stone','#303b36',[x,f+y,z],[w+.015,.035,d+.015])}
  }
  // The central dark cistern is sealed and unwalkable, with two broad bypasses.
- const c=HORROR_CRYPT;b.cylinder('stone','#41463c',[c.x,f+c.height/2,c.z],c.rx,c.rx,c.height,[0,0,0],24);b.cylinder('paint','#111b1b',[c.x,f+c.height+.03,c.z],c.rx-.5,c.rx-.5,.06,[0,0,0],24)
+ const c=HORROR_CRYPT;b.cylinder('stone','#41463c',[c.x,f+c.height/2,c.z],c.rx,c.rx,c.height,[0,0,0],24)
+ // (the dark water itself is HorrorDressing's animated cistern surface)
  for(let i=0;i<18;i++){const a=i/18*Math.PI*2;b.box('stone','#5a5b4b',[c.x+Math.cos(a)*6.2,f+c.height+.12,c.z+Math.sin(a)*6.2],[1.5,.3,.9],[0,-a,0])}
  // Engine loop under the balloon: a winch, flywheels, pipes and an empty freight cage.
  b.box('metal','#333c37',[-38,f+.45,-71],[12,.9,10]);b.box('metal','#485047',[-38,f+2,-71],[7,3.1,5.4]);b.cylinder('metal','#6b6251',[-38,f+2.6,-71],1.8,1.8,7.8,[0,0,Math.PI/2],16)
@@ -47,7 +52,7 @@ export const horrorArt=(()=>{
  for(let i=0;i<12;i++)for(const z of[-87.4,-82.6])b.box('metal','#5c614e',[-39.75+i*.5,f+3.8,z],[.06,7.4,.06])
  // Suspended roots and rusted services stay well above the running clearance.
  for(let i=0;i<18;i++){const x=-46+i*3.7,z=-61-(i%4)*8.2;b.curve('wood','#4d4936',[[x,16.9,z],[x-2,15.7,z+1],[x+1,15.1,z+3],[x+4,16.8,z+4]],.13+(i%3)*.04)}
- for(let i=0;i<8;i++){const x=-44+i*8;b.box('wood','#353c31',[x,16.5,-73],[.32,.55,38]);b.curve('metal','#484b3a',[[x,16.4,-92],[x,14.7,-76],[x+3,16.4,-55]],.075)}
+ for(let i=0;i<8;i++){const x=-44+i*8;b.box('wood','#353c31',[x,16.5,-73],[.32,.55,38]);b.curve('metal','#484b3a',[[x,16.6,-92],[x,16.15,-76],[x+3,16.6,-55]],.075)}
  // Small backed stone effigies are set against the hall walls, outside the loops.
  for(const z of[-95,-61]){b.box('stone','#2e3833',[23.4,f+1,z],[2.5,2,3.5]);b.ball('stone','#596050',[23.5,f+3,z],[.7,.9,.7]);b.ball('stone','#525b4c',[23.5,f+1.95,z],[.95,1.2,.8]);b.box('stone','#626754',[23.5,f+.75,z],[2.3,.4,2.4])}
  for(const [x,z]of HORROR_LAMPS){const y=horrorGround(x,z)+2.9;b.box('metal','#3c3c2d',[x,y,z],[.35,.72,.35]);b.box('glow','#d29c54',[x,y+.1,z],[.2,.4,.2]);b.box('metal','#454334',[x,y+.51,z],[.55,.12,.55])}

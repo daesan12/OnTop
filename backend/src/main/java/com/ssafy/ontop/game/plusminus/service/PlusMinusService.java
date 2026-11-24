@@ -60,9 +60,6 @@ public class PlusMinusService {
                 return state(userId, wallet, previous.get(), now);
             }
             LocalDate today = LocalDate.ofInstant(now, PlusMinusRules.KST);
-            if (repository.countPlays(userId, today) >= PlusMinusRules.DAILY_PLAYS) {
-                throw new PlusMinusException(409, "PLUS_MINUS_DAILY_LIMIT", "오늘 10판을 모두 했어요. 내일 다시 만나요.");
-            }
             if (wallet.balance() - wallet.reserved() < PlusMinusRules.FEE) {
                 throw new PlusMinusException(409, "INSUFFICIENT_COINS", "엽전이 부족해요. 참가비 30냥이 필요해요.");
             }

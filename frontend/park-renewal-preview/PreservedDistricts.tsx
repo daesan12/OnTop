@@ -9,8 +9,7 @@ import {pagodaBalustradeArt} from '../src/layout-preview/pagodaBalustrade'
 import {createStairFlight} from '../src/layout-preview/stairFlightGeometry'
 import {site,heightAt,MONUMENT_STAIRS} from './plan'
 import { MONUMENT_TREAD_OFFSET } from './monumentStairPlan'
-import {FITNESS_FENCE,fitnessFenceSegments} from './motionPlan'
-import {guardRailGeometry} from './guardLayout'
+import {buildFitnessFence} from './fitnessFenceGeometry'
 import {stairCheeks,stairRailAnchors} from './stairFinishGeometry'
 import {ParkStoneMaterial} from './ParkStoneMaterial'
 import {HILL_VERGE_INSET,HILLSIDE_RAIL_HEIGHTS,MONUMENT_STAIR_RAIL} from './guardDimensions'
@@ -48,22 +47,6 @@ export function PreservedPagodaGarden(){const s=site('pagoda'),y=heightAt(s.x,s.
  <group name="monument-direct-ascent" position={[MONUMENT_STAIRS.x,MONUMENT_STAIRS.bottom,MONUMENT_STAIRS.zTop]}><PropModel art={longStairs} name="ninety-five-stair-direct-ascent"/><mesh name="terrain-supported-masonry-stair-cheeks" geometry={stairCheeks} userData={{keepOpaque:true}}><ParkStoneMaterial large/></mesh></group>
  </>}
 export function FitnessFence(){
- const art=useMemo(()=>{
-  const builder=new PropBuilder()
-  const capHeight=.1
-  const postHeight=FITNESS_FENCE.height-capHeight
-  for(const {a,z} of fitnessFenceSegments()){
-   const y=heightAt(...a)
-   for(const [x,depth] of [a,z]){
-    builder.box('wood','#785f3e',[x,y+postHeight/2,depth],[.16,postHeight,.16])
-    builder.box('tile','#46584b',[x,y+postHeight+capHeight/2,depth],[.25,capHeight,.25])
-   }
-   for(const height of [.42,FITNESS_FENCE.height-.045]){
-    const path=[[a[0],y,a[1]],[z[0],y,z[1]]] as const
-    builder.add('wood',guardRailGeometry([[...path]],height),'#a18862')
-   }
-  }
-  return builder.finish()
- },[])
+ const art=useMemo(buildFitnessFence,[])
  return <PropModel art={art} name="fitness-boundary-with-north-and-south-openings"/>
 }

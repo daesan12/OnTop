@@ -1,4 +1,56 @@
 {
+  "quoridorTableReview20261124": {
+    "referenceCommit": "56cbd1a0eda58acfe9b4f647815fea54f4c8f362",
+    "previousReferenceCommit": "f395092948684986571a76b564d8d68d8f56f148",
+    "mergeRequest": "!674",
+    "reason": "사용자가 승인하고 dev에 병합한 길목 한 수의 기존 테이블 연결을 검토한다. 보호 파일 200개와 해시 비교 검사를 유지하며 다른 199개 해시·런타임·생성 맵·인프라는 변경하지 않는다.",
+    "reviewedFiles": [
+      { "file": "src/features/tables/TableBoards.tsx", "reason": "기존 Suspense 안에 ParkQuoridorBoard import와 렌더 호출만 추가했다. 테이블 좌표·배율·기존 게임·흑백수사·수패마루 분기·DebrisGameSurface를 보존한다." }
+    ],
+    "verification": "해당 import와 렌더 호출 2줄만 제외하면 기존 기준 SHA-256 27f61d49480a7c20e3e09d4542df99083dfd053ce966b3ba792ecf2d8d9def9e와 정확히 일치한다. 나머지 199개 파일의 소스 해시도 기존 기준과 일치한다. 새 화면 검수를 수행했다는 의미가 아니며 기존 승인·검증 기록은 docs/quoridor.md와 docs/quoridor-3d.md를 참고한다."
+  },
+  "supaeTableReview20261123": {
+    "referenceCommit": "f395092948684986571a76b564d8d68d8f56f148",
+    "mergeRequest": "!676",
+    "reason": "사용자가 승인하고 dev에 병합한 수패마루의 기존 테이블 연결을 검토한다. 보호 파일 200개와 해시 비교 검사를 유지하며 다른 199개 해시·런타임·생성 맵·인프라는 변경하지 않는다.",
+    "reviewedFiles": [
+      { "file": "src/features/tables/TableBoards.tsx", "reason": "기존 Suspense 안에 RummikubSurface import와 렌더 호출만 추가했다. 테이블 좌표·배율·기존 게임·흑백수사 분기·DebrisGameSurface는 보존한다." }
+    ],
+    "verification": "해당 import와 렌더 호출 2줄만 제외하면 기존 기준 SHA-256 511950963915a0e00dad1d9d3c8f9191b8830d66d3a2fe99190e8a74c5221512와 정확히 일치한다. 나머지 199개 파일의 소스 해시도 기존 기준과 일치한다. 승인된 테이블 통합·두 계정 기권 복귀 검증은 docs/rummikub/README.md 및 작업 기록에 남아 있다."
+  },
+  "davinciTableReview20261122": {
+    "referenceCommit": "cc87cd2a566f9f298dd47bc7ab367177fcd4ad2c",
+    "mergeRequest": "!675",
+    "reason": "사용자가 승인하고 dev에 병합한 흑백수사의 기존 테이블 연결을 검토한다. 보호 파일 200개와 해시 비교 검사를 유지하며 다른 199개 해시·런타임·생성 맵·인프라는 변경하지 않는다.",
+    "reviewedFiles": [
+      { "file": "src/features/tables/TableBoards.tsx", "reason": "기존 게임과 같은 Suspense 안에 ParkSecretTiles import와 렌더 호출만 추가했다. 테이블 좌표·배율·기존 보드 분기·DebrisGameSurface를 보존하고 숫자 타일의 높이 배율만 게임 모듈에 전달한다." }
+    ],
+    "verification": "기준 dev f7457e30 대비 해당 소스의 차이가 import와 렌더 호출 두 줄임을 확인했다. 기존 2인·관전·4인 공원 검증은 docs/DAVINCI_CODE.md에 기록되어 있다. parkVisualPreservation.test.ts와 흑백수사·공통 테이블 회귀 검사를 실행한다."
+  },
+  "creatureLandingReview20261122": {
+    "referenceCommit": "d492e8719603c6cf458cc2f2544668683278b7b1",
+    "mergeRequest": "!663",
+    "reason": "사용자가 승인하고 dev에 병합한 두더지·비둘기 착지 발판의 정점 최적화 소스만 검토하여 반영한다. 보호 파일 200개와 기존 해시 비교 검사는 유지하며 다른 199개 기준 해시·런타임·생성 맵·인프라는 수정하지 않는다.",
+    "reviewedFiles": [
+      { "file": "src/features/jumpmap/landingMotion.ts", "commit": "873c8130d7fa31ed3fbfacf8be4a29efda9aaae7", "reason": "두더지·비둘기의 착지 변형은 스케일·이동이므로 테셀레이션 대신 원본 geometry를 복제한다. 원본 정점 좌표·인덱스·모델·재질·배치·충돌과 다른 테마의 착지 계산은 유지한다." }
+    ],
+    "verification": "parkVisualPreservation.test.ts와 creatureLandingGeometry.test.ts에서 외관 보존 기준 및 두 테마의 원본 정점·인덱스 유지와 정점 감소를 검증한다."
+  },
+  "entryPerformanceReview20261122": {
+    "referenceCommit": "00ceb33f801fece2d2092da3f718bae00eb870d8",
+    "previousReferenceCommit": "f3980669e3d6a5c02d2472188a69d149932fbf94",
+    "reason": "사용자가 승인한 공원 진입·초반 이동 준비 최적화 MR !658의 소스 변경 2개를 검토하여 기록한다. 보호 파일 200개와 기존 해시 비교 검사는 유지하며 런타임·맵·인프라는 수정하지 않는다.",
+    "reviewedFiles": [
+      { "file": "src/world/art/assetLoader.ts", "commit": "6e2ee8e2", "reason": "기존 MeshoptDecoder를 단일 worker로 실행하도록 준비 경로만 추가했다. GLTF 로더·모델 URL·모델 데이터·재질·배치·디코딩 결과는 유지한다." },
+      { "file": "src/world/art/StonePagoda.tsx", "commit": "b9fdad68", "reason": "prebuildStaticSurfaces에 선택적인 scale 목록을 받고 기존 캐시 생성 함수를 그대로 호출한다. 기본 scale 목록·돌탑 생성식·지오메트리·재질·좌표·충돌은 유지한다." }
+    ]
+  },
+  "winterTreesReview20261120": {
+    "referenceCommit": "9c8069c8f5dd08e14ab9d8161fa4f7af13b9f8d4",
+    "reviewedFiles": [
+      { "file": "src/world/art/FacetedParkTreeInstances.tsx", "commit": "fe8ab8eb", "reason": "사용자 요청의 눈 덮인 로우폴리 침엽수에 coneGeometry 입력을 추가했다. 기존 기본 지오메트리·재질·나무 배치는 유지하며 겨울 호출부에서만 적설 침엽수 지오메트리를 선택한다." }
+    ]
+  },
   "mergedVisualSourceReview20261117": {
     "referenceCommit": "67c6d66bb9684e41b9646a99f13a3324678f47c1",
     "reviewedFiles": [
@@ -72,7 +124,7 @@
     "src/world/art/advertisementMedia.ts": "3acf2fa86db5705d2c4b66127cfab2dedc6f628f6563a235d7a7f32d0c1d7622",
     "src/world/art/advertisementPoster.ts": "bab905be3ebb74fa8c57cdccae9c3e18ea47b21b56d05fd872fff5f8c84da139",
     "src/world/art/AdvertisementScreen.tsx": "81186d63a32d9f19d1d561e3b35f3298a8d1d67478e319d10240f6e9f7aec315",
-    "src/world/art/assetLoader.ts": "bf8509f93768e70538415aa9dac0067e21f2d75e76568d1e81caef6cd3b7ffb4",
+    "src/world/art/assetLoader.ts": "5572e3d2c6355cc0b99bd975da28d31bf2b8a977e36ecf35b2365f1db40ca7da",
     "src/world/art/bakedProps.ts": "a638b9b0d0f8a9e4ac1deca029eef1b2f3b147cf8010e39ff43064774d76ebe9",
     "src/world/art/BeveledBox.tsx": "06efc22a6ba311427a536a68edb6e88dd47c5e45d40448b96363a13f8d6e7006",
     "src/world/art/boundaryGeometry.ts": "35a2970a050b0a17cea0db82f243e406f660589437c649b38ce89041100cb7b6",
@@ -92,7 +144,7 @@
     "src/world/art/DistantLandscape.tsx": "4a4f23fb9abb6b1bc0aad5c7e5419231ec252dad1c0ad51ca7b62f9eddd79412",
     "src/world/art/EllipticalStation.tsx": "2065eaf9165e27b0cfae5b0b03ac54dd5ac14582378d81a20f5b77db624cb65e",
     "src/world/art/ExerciseStation.tsx": "8ff8c19543fbcf12b0a6771bcb582c4d18578da3da4061e53503d8a5750ee88a",
-    "src/world/art/FacetedParkTreeInstances.tsx": "173644cd2f3631ee647dabdfb6456c4d5d21111d359dab56524ac138077a4e92",
+    "src/world/art/FacetedParkTreeInstances.tsx": "dcd29733b4c68db67d9a3f58d3857b98c260d1e8a3b8ac650908dbb54a575727",
     "src/world/art/FartCloud.tsx": "312b785743a10b15fa96cb99af63c909648bfcfd446bc965047c864003489779",
     "src/world/art/fishCartGeometry.ts": "3d4f4654a48b3c1ad3ee18b599d6ee06de470ec2e68ab81eae6d28b2f351315a",
     "src/world/art/fishCartShape.ts": "0c0149238f0b03e65bf18c7b6de23bc726f3f94d1bb25089dc59665ea65bbe7c",
@@ -148,7 +200,7 @@
     "src/world/art/StaticPropLod.tsx": "67cccee47c1f73ef3ff1c6b8ad3d10315aa8896883605ab8605e5aa8d4105530",
     "src/world/art/staticSurface.ts": "73eb900e210bccd7b5272a4f86b7b5bc16de4af86a6ccff591a09eb3580b2364",
     "src/world/art/SteppingStones.tsx": "fe07a54d25bc6974e6ad94d922ceab35356d1aeff3e65858eb6903e993b483c2",
-    "src/world/art/StonePagoda.tsx": "4d71d0ecd82cb9606d2286319ddb4915624a8bc17aeaf5f7d642e7b8cd93e06e",
+    "src/world/art/StonePagoda.tsx": "8d184ca7af99dda9fcee4cf47eb9ae38aa3aabd9c31478e963a3541eae54f600",
     "src/world/art/SurfaceMaterial.tsx": "cfd88cbcc2922ca0028f5c449c51d2005e4cc59d3ce66d22b6788e7637e41eae",
     "src/world/art/TelescopeModel.tsx": "1566939042f19f0a24d9abf14377d8179bf417064d39ff20dd8b4d15366ebbcd",
     "src/world/art/TraditionalMailbox.tsx": "8bc48b057f2020866a316c6d380cd293e2032a948880d9760e9d8730dc95c654",
@@ -197,7 +249,7 @@
     "src/features/tables/StonePicnicTable.tsx": "bea0d2e0f9742efb8be61a4cc34ea7dd9b604642c939882ebd4e2b82602755ad",
     "src/features/tables/tablePresentation.ts": "2a06fc627ba69b9858af39fd10132d500f32877e774e9243bfebb71de077b434",
     "src/features/tables/TableShell.tsx": "0ab90a77f2d14ca3d4ec2cfd43d0dfaab4b73c5ac98168e2be4d87558549ae62",
-    "src/features/tables/TableBoards.tsx": "47eeca93f7b7280d5f278aa1e3ce241c4b6e260fd6064c9b4bfc31d7f56e7a9a",
+    "src/features/tables/TableBoards.tsx": "9bc3c49d22c616428123bef59ec0a3697c6fa04a59fae0e85cfd4aa765c5d9ee",
     "src/features/tables/TableFurniture.tsx": "a8c11233218c1c9438ff2f4fd2484d4542c12fa6b9bb1689a6e8c88db2123173",
     "src/features/tables/WoodTable.tsx": "75b861034293a665636b3f672b68c8193d4e24ef778cf67ab2acf42f05a13ee0",
     "src/world/art/previewPropGeometry.ts": "ec34bbfbe8a113ef4459b33fd232c0e3699fe646c51e0c3cdeef0c5495653385",
@@ -213,7 +265,7 @@
     "src/world/simpleEnvironmentPalette.ts": "3039ebd2e4dce1370c0c3afdbb3b243e7a3a7b0f25793e5fac5303a77337495a",
     "src/world/ParkSun.tsx": "6883abd22154871f276332132f5121f1107b29269305a60ddce61af3806d68d6",
     "src/world/NightLighting.tsx": "a5d7e50e5aaa182cfb4b419dc682a3bbaec1dcc0c9a804b522dcd45b53c16df4",
-    "src/features/jumpmap/landingMotion.ts": "fadea8bfddd41b094c74fe7f7423e3a6726fe9a931ca6ab80f66d09de2365d1b",
+    "src/features/jumpmap/landingMotion.ts": "b4b5f27275a08c248109d9b4a73e6ea06ebea9368b72ae95756f269b05ea5169",
     "src/world/art/LuckyFacilities.tsx": "cf1f198fea3e3e0130bdf3b94c96d44c014174e352ba0645240ce41a511b77d4",
     "src/world/art/luckyFacilityGeometry.ts": "5c69f18ff9ee9564325e16d8738b6bdebcda6148f114911a595cec0b51cd816b",
     "src/layout-preview/stairFlightGeometry.ts": "73060545b54ff9e5cc27df141bdd5fb0f7912f971f5d821f74dad865aa2bab2d",

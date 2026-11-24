@@ -1,13 +1,85 @@
 import { describe, expect, it, vi } from 'vitest'
-import { BoxGeometry, Group, Mesh, MeshBasicMaterial } from 'three'
+import { BoxGeometry, BufferAttribute, BufferGeometry, Group, Mesh, MeshBasicMaterial } from 'three'
+import { createHash } from 'node:crypto'
+import { readFileSync } from 'node:fs'
 import { localSnowballAim, localSnowballDistance, PreparedSnowballAim } from '../../src/features/winter/localAim'
 import { RoofSnowCache } from '../../src/features/winter/RoofSnowCache'
-import { snowRoofGeometry } from '../../src/features/winter/roofSnow'
+import { snowRoofGeometry, snowRoofGeometrySteps } from '../../src/features/winter/roofSnow'
+import { parkDetailMeshes } from '../../park-renewal-preview/parkDetailMeshes'
+import { facilityGeometryMeshes } from '../../park-renewal-preview/FacilityGeometry'
+import catalog from '../../park-renewal-preview/models/geometry-catalog.json'
+import { optimizedGeometryMatchesSource } from '../../park-renewal-preview/optimizedGeometrySource'
+import { winterFirFoliage, winterFirLightSnow, winterFirHeavySnow,
+  winterFirDistantFoliage, winterFirDistantLightSnow, winterFirDistantHeavySnow } from '../../src/features/winter/winterFirGeometry'
 
 const origin = { x: 0, y: 1, z: 0 }
 const aim = localSnowballAim('park', 'self', origin, 0, 16, [])
 
 describe('겨울 미리보기 비용과 수명', () => {
+  it('나눠 만든 적설은 원본과 같은 지오메트리를 만들고 제거된 지붕 작업은 붙이지 않는다', () => {
+    const scene = new Group(), roof = new Group(), material = new MeshBasicMaterial()
+    roof.name = 'facility-pavilion'
+    const source = new BoxGeometry(4, 4, 4, 40, 1, 40), mesh = new Mesh(source, material)
+    mesh.position.y = 2; roof.add(mesh); scene.add(roof)
+    const original = snowRoofGeometry(roof), steps = snowRoofGeometrySteps(roof)
+    let result = steps.next(), yields = 0
+    while (!result.done) { yields++; result = steps.next() }
+    expect(yields).toBeGreaterThan(1)
+    for (const name of ['position', 'normal'])
+      expect(result.value.getAttribute(name).array).toEqual(original.getAttribute(name).array)
+    const cache = new RoofSnowCache(scene, [], snowRoofGeometrySteps)
+    const time = vi.spyOn(performance, 'now')
+    let now = 0; time.mockImplementation(() => now += 3)
+    cache.processOne(); expect(cache.busy).toBe(true)
+    scene.remove(roof); expect(cache.busy).toBe(false)
+    expect(cache.processOne()).toBe(false)
+    expect(roof.getObjectByName('winter-roof-snow')).toBeUndefined()
+    time.mockRestore(); cache.dispose(); original.dispose(); result.value.dispose(); source.dispose(); material.dispose()
+  })
+  it('요청 전 호환 카탈로그는 현재 GLB와 일치하고 다른 렌더 프로필을 거른다', () => {
+    for (const [file, entry] of Object.entries(catalog)) {
+      const bytes = readFileSync(new URL('../../park-renewal-preview/models/' + file, import.meta.url))
+      expect(createHash('sha256').update(bytes).digest('hex'), file).toBe(entry.sha256)
+    }
+    const entry = catalog['detail-table-optimized.glb'].parts.find(part => part.name === 'part-0')!
+    const source = new BufferGeometry()
+    for (const name of entry.attributes) source.setAttribute(name, new BufferAttribute(new Float32Array(entry.vertices * 3), 3))
+    source.setIndex(new BufferAttribute(new Uint32Array(entry.triangles * 3), 1))
+    expect(optimizedGeometryMatchesSource('detail-table-optimized.glb', [source])).toBe(true)
+    const simple = new BoxGeometry()
+    expect(optimizedGeometryMatchesSource('detail-table-optimized.glb', [simple])).toBe(false)
+    source.dispose(); simple.dispose()
+  })
+  it('원거리 침엽수는 가까운 원본과 적설 높이를 유지하면서 삼각형을 줄인다', () => {
+    const triangles = (g: typeof winterFirFoliage) => g.getAttribute('position').count / 3
+    expect(triangles(winterFirFoliage) + triangles(winterFirLightSnow)).toBe(264)
+    expect(triangles(winterFirDistantFoliage) + triangles(winterFirDistantLightSnow)).toBe(60)
+    for (const [near, far] of [[winterFirFoliage, winterFirDistantFoliage],
+      [winterFirLightSnow, winterFirDistantLightSnow], [winterFirHeavySnow, winterFirDistantHeavySnow]]) {
+      near!.computeBoundingBox(); far!.computeBoundingBox()
+      expect(far!.boundingBox!.max.y).toBeCloseTo(near!.boundingBox!.max.y, 5)
+      expect(far!.boundingBox!.min.y).toBeCloseTo(near!.boundingBox!.min.y, 5)
+      expect([...far!.getAttribute('normal').array].every(Number.isFinite)).toBe(true)
+    }
+  })
+  it('적설 생성 전후에 최적화 모델의 원본 메시 순서와 개수가 유지된다', () => {
+    const scene = new Group(), pagoda = new Group(), tower = new Group()
+    pagoda.name = 'preserved-pagoda-garden'; tower.name = 'forty-metre-tower'
+    const roof = new Group(); roof.name = 'garden-stone-pagoda'; pagoda.add(roof)
+    const geometry = new BoxGeometry(4, 4, 4, 4, 1, 4), material = new MeshBasicMaterial()
+    const stone = new Mesh(geometry, material), frame = new Mesh(geometry, material)
+    stone.position.y = frame.position.y = 2
+    roof.add(stone); tower.add(frame); scene.add(pagoda, tower)
+    const before = parkDetailMeshes(scene, 'pagoda').map(group => group.source)
+    const cache = new RoofSnowCache(scene, [], snowRoofGeometry)
+    expect(cache.processOne()).toBe(true); expect(cache.processOne()).toBe(true)
+    const snow = tower.getObjectByName('winter-roof-snow') as Mesh
+    expect(snow.geometry.getAttribute('position').count).toBeGreaterThanOrEqual(72)
+    expect(parkDetailMeshes(scene, 'pagoda').map(group => group.source)).toEqual(before)
+    expect(facilityGeometryMeshes(tower, 'tower')).toEqual([frame])
+    expect(snow.geometry).not.toBe(geometry)
+    cache.dispose(); geometry.dispose(); material.dispose()
+  })
   it('소지·대기 중에는 서버 조회가 없고 준비 동작 하나에 한 번만 요청한다', async () => {
     const prepared = new PreparedSnowballAim(), request = vi.fn(async () => aim)
     prepared.reset('self/park')

@@ -1,5 +1,6 @@
-import { annex, annexVolumes, galleryVolumes, passageVolumes, upperRamp, upperRoomVolumes } from './interiorAccess'
+import { annex, annexVolumes, catwalkVolumes, galleryVolumes, interiorRamps, passageVolumes, upperRoomVolumes } from './interiorAccess'
 import { HorrorStoneMaterial } from './HorrorStoneMaterial'
+import { GrimeMaterial } from './HorrorGrimeMaterial'
 
 export function AnnexDetails() {
   return <group name="renewal-annex-interior">
@@ -26,42 +27,46 @@ export function AnnexDetails() {
 }
 
 export function HallDetails() {
-  const run = upperRamp.z0 - upperRamp.z1, rise = upperRamp.y1 - upperRamp.y0
   return <group>
     {passageVolumes.map(({center,size}, index) => <mesh key={index} position={center}>
-      <boxGeometry args={[...size]} /><meshLambertMaterial color="#57574b" />
+      <boxGeometry args={[...size]} /><HorrorStoneMaterial color="#57574b" />
     </mesh>)}
-    {[...galleryVolumes, ...upperRoomVolumes].map(({center,size,material}, index) => {
+    {[...galleryVolumes, ...upperRoomVolumes, ...catwalkVolumes].map(({center,size,material}, index) => {
       if (material === 'guard') {
         const alongX = size[0] > size[2], length = alongX ? size[0] : size[2]
         const count = Math.ceil(length / 1.8)
         return <group key={index} position={center} rotation={[0,alongX ? 0 : Math.PI / 2,0]}>
           {[-.45,.5].map(y => <mesh key={y} position={[0,y,0]}>
-            <boxGeometry args={[length,.1,.16]} /><meshLambertMaterial color="#706756" />
+            <boxGeometry args={[length,.1,.16]} /><GrimeMaterial kind="wood" color="#706756" />
           </mesh>)}
           {Array.from({length:count+1}, (_, i) => <mesh key={i} position={[length*(i/count-.5),0,0]}>
-            <boxGeometry args={[.12,1,.13]} /><meshLambertMaterial color="#817560" />
+            <boxGeometry args={[.12,1,.13]} /><GrimeMaterial kind="wood" color="#817560" />
           </mesh>)}
         </group>
       }
       return <mesh key={index} position={center}>
         <boxGeometry args={[...size]} />
-        {material === 'wood' ? <meshLambertMaterial color="#705340" /> : <HorrorStoneMaterial />}
+        {material === 'wood' ? <GrimeMaterial kind="wood" color="#705340" /> : <HorrorStoneMaterial color="#5a5d55" />}
       </mesh>
     })}
-    <mesh position={[upperRamp.x, (upperRamp.y0 + upperRamp.y1) / 2 - .12, (upperRamp.z0 + upperRamp.z1) / 2]}
-      rotation={[Math.atan2(rise,run),0,0]}>
-      <boxGeometry args={[upperRamp.width,.24,Math.hypot(run,rise)]} />
-      <meshLambertMaterial color="#797061" />
-    </mesh>
-    {([[-55,16.48,-90.3],[-45,14.3,-71],[-14,14.3,-54],[22,14.3,-76],[5,14.3,-91]] as const).map(position =>
+    {interiorRamps.map(r => {
+      const run = r.z0 - r.z1, rise = r.y1 - r.y0
+      return <mesh key={r.x} position={[r.x, (r.y0 + r.y1) / 2 - .12, (r.z0 + r.z1) / 2]} rotation={[Math.atan2(rise,run),0,0]}>
+        <boxGeometry args={[r.width,.24,Math.hypot(run,rise)]} />
+        <HorrorStoneMaterial color="#797061" />
+      </mesh>
+    })}
+    {/* The bridge hangs from the vault on iron rods, both sides, every eight metres. */}
+    {Array.from({ length: 8 }, (_, i) => 12 - i * 8).flatMap(x => [-70.82, -72.58].map(z =>
+      <mesh key={x + ',' + z} position={[x, 15.75, z]}><boxGeometry args={[.05, 3.1, .05]} /><meshLambertMaterial color="#3a3a31" /></mesh>))}
+    {([[-55,16.48,-90.3],[-48.6,14.3,-66],[-14,14.3,-54],[22,14.3,-76],[5,14.3,-91]] as const).map(position =>
       <group key={position.join(',')} position={position}>
         <mesh><boxGeometry args={[.2,.32,.2]} /><meshBasicMaterial color="#eac28e" /></mesh>
         <pointLight intensity={19} distance={13} color="#ffc68d" />
       </group>)}
     <pointLight position={[1.4,9.2,-50]} color="#a7a77d" intensity={12} distance={6} />
     <mesh position={[-57.98,13.46,-88]}>
-      <boxGeometry args={[.22,3.2,2.4]} /><meshLambertMaterial color="#626258" />
+      <boxGeometry args={[.22,3.2,2.4]} /><GrimeMaterial kind="paint" color="#626258" />
     </mesh>
   </group>
 }

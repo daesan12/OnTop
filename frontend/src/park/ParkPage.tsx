@@ -1,3 +1,6 @@
+import { ParkNpcDialogue } from '../features/ai/ParkNpcDialogue'
+import { WinterCommunityBridge } from '../features/winter/community/WinterCommunityBridge'
+import { WinterCommunityPanels } from '../features/winter/community/WinterCommunityPanels'
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useState, type CSSProperties } from 'react'
 import { installBrowserShortcutGuard } from './browserShortcuts'
 import { NotificationCenter } from '../features/notifications/NotificationCenter'
@@ -151,8 +154,8 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked, welco
   const gachaOpen = useGachaOverlay(s => s.surface !== null)
   const hideAnnouncements = gameplayActive || bungeoppang || vrPhase !== 'closed'
     || !!arcadeScope || moleOpen || plusMinusOpen || rpsOpen || speedMoleOpen || jumpRopeOpen || spotDifferenceOpen || gachaOpen
-  const omokFocus = useGame(s => (s.game?.omok?.status === 'PLAYING' || s.game?.alkkagi?.status === 'PLAYING') && !s.lastResult)
-  const omokChat = useGame(s => (s.game?.omok?.status === 'PLAYING' || s.game?.alkkagi?.status === 'PLAYING') && !s.lastResult)
+  const omokFocus = useGame(s => (s.game?.omok?.status === 'PLAYING' || s.game?.alkkagi?.status === 'PLAYING' || s.game?.davinci?.status === 'PLAYING') && !s.lastResult)
+  const omokChat = useGame(s => (s.game?.omok?.status === 'PLAYING' || s.game?.alkkagi?.status === 'PLAYING' || s.game?.davinci?.status === 'PLAYING') && !s.lastResult)
   const stoneOverlay = useGame(s => {
     if (!s.game?.stone && !(s.start?.gameCode === 'STONE_RUMBLE' && ['PLAYING', 'SETTLING'].includes(s.start.phase))) return 'none'
     return s.game?.role === 'PLAYER' && (s.game.stone?.status === 'FINISHED' || s.result || s.lastResult) ? 'result' : 'game'
@@ -161,6 +164,7 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked, welco
     && !!s.tableStates[s.tableId]?.seats.some(seat => seat.userId === s.sessionId))
   // GamePanel의 돌탑 전체 화면/결과가 덮는 동안만 공원 렌더를 멈춘다. 퇴장 후 잔여 결과는 공원을 가리지 않는다.
   const stoneFocus = stoneOverlay === 'game' || stoneOverlay === 'result' && seated
+  const secretTilesPlaying = useGame(s => !!s.game?.davinci)
   const session = useSession(useShallow(s=>({ sessionId:s.sessionId,roomId:s.roomId })))
   // Everyone plays on the Low preset; the graphics choice is not offered.
   const quality: QualityPreset = 'low'
@@ -195,7 +199,7 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked, welco
       <ParkSfx />
       <RewardCoinFlight />
       <ChannelEntryGate />
-      <AiResidentsHost />
+      <AiResidentsHost /><ParkNpcDialogue /><WinterCommunityBridge /><WinterCommunityPanels />
       <AnnouncementBanner hidden={hideAnnouncements} />
       <EntryNewsPopup hidden={hideAnnouncements || welcomeStoryDeadline != null} launcherHost={entryNewsHost} />
       {welcomeStoryDeadline != null && onWelcomeStoryComplete &&
@@ -222,7 +226,7 @@ function ParkContent({ onExit, exitError, onAuthEnded, onOperationBlocked, welco
           {omokChat ? <SpectatorChat /> : !omokFocus && <ParkChat key={`${session.sessionId}:${session.roomId}`} />}
         </div>
 
-        {!omokFocus && <aside className="park-shortcuts" aria-label="조작 방법">
+        {!omokFocus && !secretTilesPlaying && <aside className="park-shortcuts" aria-label="조작 방법">
           {shortcuts.map(({ key, action }) => (
             <div className="park-shortcuts__item" key={key}><kbd>{key}</kbd><span>{riding && key === 'Space' ? '하차' : action}</span></div>
           ))}

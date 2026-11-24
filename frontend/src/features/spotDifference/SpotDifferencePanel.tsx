@@ -3,8 +3,9 @@ import { useSession } from '../../network/worldClient'
 import { PaperPopup } from '../tableLobby/PaperPopup'
 import { refreshWalletAfterSettlement } from '../wallet/settlementRefresh'
 import { cards, height, rounds, roundSeconds, spotDifference, targetsPerRound, width,
-  type Budget, type Difficulty, type Position, type Round } from './api'
+  type Budget, type Difficulty, type DuelRoom, type Position, type Round } from './api'
 import { closeSpotDifference } from './store'
+import { SpotDuelLobby, type DuelLobbyPage } from './SpotDuelLobby'
 import './spotDifference.css'
 
 const aim = { x: width / 2, y: height / 2 }
@@ -17,7 +18,6 @@ const targetSlots = Array.from({ length: targetsPerRound }, (_, index) => index)
 const roundIntroMs = 700
 const urgentMs = 10_000
 const duelSyncMs = 500
-const inviteCodePattern = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i
 type Mode = 'SOLO' | 'DUEL'
 type BoardSide = 'original' | 'comparison'
 type Shot = Position & { number: number; side: BoardSide; kind: 'hit' | 'miss' | 'pending' }
@@ -128,8 +128,11 @@ function RoundHud({ view, remaining, urgent }: { view: Round; remaining: number;
 
 export function SpotDifferencePanel() {
   const [mode, setMode] = useState<Mode>()
-  const [invite, setInvite] = useState('')
-  const [copied, setCopied] = useState(false)
+  const [lobbyPage, setLobbyPage] = useState<DuelLobbyPage>('home')
+  const [rooms, setRooms] = useState<DuelRoom[]>([])
+  const [roomsLoading, setRoomsLoading] = useState(false)
+  const [roomsError, setRoomsError] = useState(false)
+  const [roomsRevision, setRoomsRevision] = useState(0)
   const [syncWarning, setSyncWarning] = useState(false)
   const [budget, setBudget] = useState<Budget>()
   const [budgetError, setBudgetError] = useState(false)
@@ -163,7 +166,33 @@ export function SpotDifferencePanel() {
 
   useEffect(() => {
     if (!view) entryHeading.current?.focus()
-  }, [mode, view])
+  }, [mode, view, lobbyPage])
+
+  useEffect(() => {
+    if (mode !== 'DUEL' || view || lobbyPage !== 'rooms') return
+    const abort = new AbortController()
+    const owner = useSession.getState().sessionId
+    let timeout: number
+    setRoomsLoading(true)
+    async function load() {
+      try {
+        const next = await spotDifference.rooms(abort.signal)
+        if (!abort.signal.aborted && owner === useSession.getState().sessionId) {
+          setRooms(next)
+          setRoomsError(false)
+        }
+      } catch {
+        if (!abort.signal.aborted) setRoomsError(true)
+      } finally {
+        if (!abort.signal.aborted) {
+          setRoomsLoading(false)
+          timeout = window.setTimeout(load, 3000)
+        }
+      }
+    }
+    void load()
+    return () => { abort.abort(); window.clearTimeout(timeout) }
+  }, [mode, view, roomsRevision, lobbyPage])
 
   useEffect(() => {
     const abort = new AbortController()
@@ -231,7 +260,8 @@ export function SpotDifferencePanel() {
         setError('판이 끝났어요. 난이도를 골라 다시 시작해 주세요.')
       } else if (status === 410 || status === 409) {
         retry.current = null
-        setError(status === 410 ? '대결 방을 찾을 수 없어요. 코드를 확인해 주세요.' : '입장할 수 없는 방이에요.')
+        setError(status === 410 ? '대결 방이 닫혔어요. 목록에서 다른 방을 선택해 주세요.' : '이미 찬 방이거나 참가 중인 방이 있어요.')
+        setRoomsRevision(value => value + 1)
       } else {
         setError('서버 응답을 확인하지 못했어요. 다시 시도해 주세요.')
       }
@@ -325,10 +355,9 @@ export function SpotDifferencePanel() {
     return () => window.clearTimeout(timeout)
   }, [shot])
 
-  function begin(choice: Difficulty) {
+  function begin(choice: Difficulty, title = '') {
     if (mode === 'DUEL') {
-      setCopied(false)
-      void submit(() => spotDifference.createDuel(choice))
+      void submit(() => spotDifference.createDuel(choice, title))
     } else {
       const requestId = crypto.randomUUID()
       void submit(() => spotDifference.start(choice, requestId))
@@ -402,8 +431,12 @@ export function SpotDifferencePanel() {
         </div>
       </div>
     }
-    {!view && mode && <div className="spot-picker">
-      <h3 ref={entryHeading} tabIndex={-1}>{mode === 'DUEL' ? '멀티플레이 · 방 만들기' : '혼자 플레이 · 난이도 선택'}</h3>
+    {!view && mode === 'DUEL' && <SpotDuelLobby page={lobbyPage} navigate={setLobbyPage} rooms={rooms}
+      loading={roomsLoading} failed={roomsError} busy={busy} headingRef={entryHeading}
+      refresh={() => setRoomsRevision(value => value + 1)} join={id => void submit(() => spotDifference.joinDuel(id))}
+      create={(difficulty, title) => begin(difficulty, title)} />}
+    {!view && mode === 'SOLO' && <div className="spot-picker">
+      <h3 ref={entryHeading} tabIndex={-1}>혼자 플레이 · 난이도 선택</h3>
       <div className="spot-cards" role="group" aria-label="난이도 카드">
         {(Object.keys(cards) as Difficulty[]).map(choice => {
           const card = cards[choice]
@@ -421,17 +454,7 @@ export function SpotDifferencePanel() {
           </button>
         })}
       </div>
-      {mode === 'DUEL' ? <form className="spot-invite" onSubmit={event => {
-        event.preventDefault()
-        if (inviteCodePattern.test(invite.trim())) void submit(() => spotDifference.joinDuel(invite.trim()))
-      }}>
-        <label className="spot-invite-field">초대 코드
-          <input value={invite} onChange={event => setInvite(event.target.value)} autoComplete="off" spellCheck={false} />
-        </label>
-        <button type="submit" className="spot-primary" disabled={busy || !inviteCodePattern.test(invite.trim())}>
-          참가하기
-        </button>
-      </form> : <div className="spot-entry-budget">
+      {mode === 'SOLO' && <div className="spot-entry-budget">
         <strong>오늘 미니게임 보상 {todayEarned === undefined
           ? (budgetError ? '조회 실패' : '조회 중') : `${koreanNumber.format(todayEarned)}냥`}
           {' / '}{koreanNumber.format(dailyCap)}냥</strong>
@@ -442,17 +465,12 @@ export function SpotDifferencePanel() {
         setMode(undefined)
       }}><span aria-hidden>←</span> 게임 방법 다시 보기</button>
     </div>}
+    {!view && mode === 'DUEL' && <button type="button" className="spot-guide-back" disabled={busy}
+      onClick={() => { retry.current = null; setError(''); setLobbyPage('home'); setMode(undefined) }}>← 게임 방법 다시 보기</button>}
     {view && score && !score.joined && !ended && <div className="spot-picker">
       <h3>상대를 기다리는 중</h3>
-      <p>상대가 사격장의 멀티플레이에서 아래 코드를 입력하면 시작해요.</p>
-      <div className="spot-invite">
-        <label className="spot-invite-field">초대 코드
-          <input readOnly value={view.id} onFocus={event => event.currentTarget.select()} />
-        </label>
-        <button type="button" className="spot-primary" onClick={() => {
-          void navigator.clipboard?.writeText(view.id).then(() => setCopied(true), () => setCopied(false))
-        }}>{copied ? '복사했어요' : '코드 복사'}</button>
-      </div>
+      <p>공원에 있는 다른 사람이 사격장 → 멀티플레이의 방 목록에서 참가할 수 있어요.</p>
+      <p>두 사람이 입장하고 그림 준비가 끝나면 자동으로 시작해요.</p>
     </div>}
     {showBoards && <>
       <RoundHud view={view} remaining={remaining} urgent={urgent} />

@@ -1,6 +1,7 @@
 import type { ReactElement } from "react";
 
 export const manualGameIds = [
+  "davinci",
   "stone-rumble",
   "alkkagi",
   "gomoku",
@@ -8,7 +9,9 @@ export const manualGameIds = [
   "onecard",
   "bridge",
   "ledger",
+  "rummikub",
   "halligalli",
+  "quoridor",
   "janggi",
   "fishing",
   "fish-bread",

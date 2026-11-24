@@ -60,7 +60,7 @@ class PlusMinusServiceTests {
     }
 
     @Test
-    void START는_참가비와_하루_판을_차감하고_그_자리에서_지급까지_정산한다() {
+    void START는_참가비를_차감하고_횟수를_기록하며_그_자리에서_지급까지_정산한다() {
         random.queue(SEVEN, PLUS, FIVE);
 
         var state = service.start(USER, "round-1");
@@ -126,19 +126,13 @@ class PlusMinusServiceTests {
     }
 
     @Test
-    void 하루_10판을_넘기면_거절하고_한국_자정에_다시_열린다() {
-        repository.extraPlays = 10;
-
-        assertThatThrownBy(() -> service.start(USER, "round-11"))
-                .isInstanceOfSatisfying(PlusMinusException.class,
-                        error -> assertThat(error.code()).isEqualTo("PLUS_MINUS_DAILY_LIMIT"));
-        assertThat(wallet.balance()).isEqualTo(100);
-
-        repository.extraPlays = 0;
-        repository.rounds.clear();
-        clock.advance(Duration.ofHours(21));
-        assertThat(service.start(USER, "round-12").round().id()).isNotNull();
-        assertThat(repository.rounds.getFirst().playDate()).isEqualTo(LocalDate.parse("2026-11-04"));
+    void 예전_일일_횟수를_넘겨도_새_판을_시작할_수_있다() {
+        repository.extraPlays = 110;
+        random.queue(THREE, MINUS, NINE);
+        var response = service.start(USER, "unlimited");
+        assertThat(response.round().id()).isNotNull();
+        assertThat(response.rules().dailyPlays()).isZero();
+        assertThat(wallet.balance()).isEqualTo(70);
     }
 
     @Test
@@ -172,7 +166,7 @@ class PlusMinusServiceTests {
 
         assertThat(state.round()).isEqualTo(played.round());
         assertThat(state.rules().fee()).isEqualTo(30);
-        assertThat(state.rules().dailyPlays()).isEqualTo(10);
+        assertThat(state.rules().dailyPlays()).isZero();
         assertThat(state.rules().secondReel()).isEqualTo(PlusMinusRules.SECOND_REEL);
         assertThat(state.playedToday()).isEqualTo(1);
     }

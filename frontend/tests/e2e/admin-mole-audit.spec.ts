@@ -14,7 +14,11 @@ test('조회 권한이 없으면 게임 매크로 분석 메뉴와 홈 버튼을
     canRead: false, canGrant: false, canOperate: false,
   } }))
 
-  await page.goto('/admin')
+  // Cold Vite startup can delay the admin bundle and its first permission request.
+  await Promise.all([
+    page.waitForResponse('**/api/v1/admin/me', { timeout: 60_000 }),
+    page.goto('/admin'),
+  ])
 
   await expect(page.getByRole('heading', { name: '접근 권한이 없습니다' })).toBeVisible({ timeout: 20_000 })
   await expect(page.getByRole('button', { name: /게임 매크로 분석/ })).toHaveCount(0)
@@ -195,11 +199,11 @@ test('스피드 두더지의 지속 고속 적중 신호와 구간별 근거를 
   await page.route('**/api/v1/admin/me', route => route.fulfill({ json: {
     canRead: true, canGrant: false, canOperate: false,
   } }))
-  const window = { from: '2026-10-14T01:00:00Z', until: startedAt, limit: 100 }
+  const queryWindow = { from: '2026-10-14T01:00:00Z', until: startedAt, limit: 100 }
   await page.route('**/api/v1/admin/macro-analysis/mole/detections?*', route =>
-    route.fulfill({ json: { ...window, items: [] } }))
+    route.fulfill({ json: { ...queryWindow, items: [] } }))
   await page.route('**/api/v1/admin/macro-analysis/mole/timing?*', route => route.fulfill({ json: {
-    ...window, items: [{ userId: '101', nickname: '검토 회원', withdrawn: false, flaggedRounds: 1,
+    ...queryWindow, items: [{ userId: '101', nickname: '검토 회원', withdrawn: false, flaggedRounds: 1,
       fastRounds: 0, steadyRounds: 0, sustainedPaceRounds: 1, auditedRounds: 2, lowestMedianReactionMs: 400,
       latestRoundId: '456', lastDetectedAt: startedAt }],
   } }))

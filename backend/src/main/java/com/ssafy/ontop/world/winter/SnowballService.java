@@ -5,10 +5,12 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.DoubleUnaryOperator;
+import java.util.function.Function;
 
 /** TableHub 잠금 아래에서 눈 소지·명중·동결·탈출을 확정한다. 재화/경기 상태는 만들지 않는다. */
 public final class SnowballService {
@@ -16,10 +18,13 @@ public final class SnowballService {
     public static final double ARC_HEIGHT = .55;
     public static final int FREEZE_SECONDS = 5;
     public static final int ESCAPE_PRESSES = 6;
+    public static final int MAX_SNOWBALLS = 3;
     private final Map<String, Recent> recent = new HashMap<>();
     private final Map<String, Player> players = new HashMap<>();
     private final Map<String, Long> versions = new HashMap<>();
     private final Map<String, Preparation> preparations = new HashMap<>();
+    private final Map<String, java.util.LinkedHashSet<String>> pickups = new HashMap<>();
+    private final List<Flight> flights = new ArrayList<>();
     public static final int WINDUP_MILLIS = 300;
 
     public record Target(String userId, Position position) { }
@@ -33,6 +38,8 @@ public final class SnowballService {
                       double endX, double endY, double endZ, double distance, String hitUserId) { }
     public record Windup(String motionId, String channelId, String userId, double yaw,
                          String startedAt, int durationMs) { }
+    public record Impact(String shotId, String channelId, String userId, String hitUserId, String impactedAt) { }
+    private record Flight(long arrivesAt, Event event, Player target) { }
     private record Preparation(String requestId, long at, Windup motion) { }
     private record Recent(String requestId, String channelId, long at, Event event) { }
     private static final class Player {
@@ -79,10 +86,13 @@ public final class SnowballService {
         return p != null && p.frozenUntilNanos > now;
     }
 
-    public State pickup(String channel, String user, long now) {
+    public State pickup(String requestId, String channel, String user, long now) {
         if (frozen(user, now)) { throw new Rejected("SNOWBALL_FROZEN", "얼음부터 깨고 눈을 주워주세요."); }
         Player p = player(channel, user);
-        if (p.snowballs == 0) { p.snowballs = 1; changed(channel); }
+        var seen = pickups.computeIfAbsent(user, ignored -> new java.util.LinkedHashSet<>());
+        if (!seen.add(requestId)) { return state(channel); }
+        if (seen.size() > 64) { seen.removeFirst(); }
+        if (p.snowballs < MAX_SNOWBALLS) { p.snowballs++; changed(channel); }
         return state(channel);
     }
 
@@ -97,25 +107,54 @@ public final class SnowballService {
         }
         Player shooter = player(channelId, userId);
         Aim aim = preview(channelId, userId, origin, yaw, targets, obstacle, now);
-        shooter.snowballs = 0;
+        shooter.snowballs--;
         String hit = aim.hitUserId();
-        if (!hit.isEmpty()) {
-            Player victim = player(channelId, hit);
-            victim.hits++;
-            if (victim.hits == 3) {
-                victim.snowballs = 0;
-                victim.freezeId = UUID.randomUUID().toString();
-                victim.frozenUntil = sentAt.plusSeconds(FREEZE_SECONDS);
-                victim.frozenUntilNanos = now + FREEZE_SECONDS * 1_000_000_000L;
-                victim.lastKey = ""; victim.presses = 0; victim.escapeRequests.clear();
-            }
-        }
         changed(channelId);
         Event event = new Event(userId + ":" + requestId, channelId, userId, hit, aim.x(), aim.y(), aim.z(),
                 aim.endX(), aim.endY(), aim.endZ(), sentAt.toString(),
                 (int) Math.max(100, aim.distance() / 22 * 1000));
         recent.put(userId, new Recent(requestId, channelId, now, event));
+        flights.add(new Flight(now + event.durationMs() * 1_000_000L, event,
+                hit.isEmpty() ? null : player(channelId, hit)));
         return event;
+    }
+
+    /** 발사 시에는 탄약만 소비하고, 비행이 끝난 틱에 현재 대상 위치를 다시 확인한다. */
+    public List<Impact> arrive(long now, Instant at, Function<String, Collection<Target>> targets) {
+        var impacts = new ArrayList<Impact>();
+        var changedChannels = new LinkedHashSet<String>();
+        var positions = new HashMap<String, Collection<Target>>();
+        var iterator = flights.iterator();
+        while (iterator.hasNext()) {
+            Flight flight = iterator.next();
+            if (now < flight.arrivesAt()) { continue; }
+            iterator.remove();
+            Event event = flight.event();
+            Player victim = flight.target();
+            String hit = "";
+            if (victim != null && players.get(event.hitUserId()) == victim
+                    && !frozen(event.hitUserId(), now) && victim.immuneUntil <= now) {
+                Position position = positions.computeIfAbsent(event.channelId(), targets).stream()
+                        .filter(target -> target.userId().equals(event.hitUserId()))
+                        .map(Target::position).findFirst().orElse(null);
+                if (position != null && Math.hypot(position.x() - event.endX(), position.z() - event.endZ()) < .65
+                        && Math.abs(position.y() - event.endY()) < 1) {
+                    hit = event.hitUserId();
+                    victim.hits++;
+                    if (victim.hits == 3) {
+                        victim.snowballs = 0;
+                        victim.freezeId = UUID.randomUUID().toString();
+                        victim.frozenUntil = at.plusSeconds(FREEZE_SECONDS);
+                        victim.frozenUntilNanos = now + FREEZE_SECONDS * 1_000_000_000L;
+                        victim.lastKey = ""; victim.presses = 0; victim.escapeRequests.clear();
+                    }
+                    changedChannels.add(event.channelId());
+                }
+            }
+            impacts.add(new Impact(event.shotId(), event.channelId(), event.userId(), hit, at.toString()));
+        }
+        changedChannels.forEach(this::changed);
+        return List.copyOf(impacts);
     }
 
     private void requireSnowball(String channel, String user, double yaw, long now) {
@@ -204,6 +243,8 @@ public final class SnowballService {
     public void disconnected(String userId) {
         preparations.remove(userId);
         recent.remove(userId);
+        pickups.remove(userId);
+        flights.removeIf(flight -> flight.event().userId().equals(userId) || flight.event().hitUserId().equals(userId));
         Player p = players.remove(userId);
         if (p != null) { changed(p.channel); }
     }

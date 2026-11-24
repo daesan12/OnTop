@@ -157,7 +157,7 @@ function Avatar({
       })
     }
     const schedulePreparation = () => {
-      if (firstGateFrameAt?.current === null) pendingFadeShaders.current = prepare
+      if (firstGateFrameAt && (own || firstGateFrameAt.current === null)) pendingFadeShaders.current = prepare
       else prepare()
     }
     const lost = () => { pendingFadeShaders.current = null; current.invalidate() }
@@ -175,7 +175,7 @@ function Avatar({
       current.dispose()
       model.dispose()
     }
-  }, [id, rigs, model, rendererState, firstGateFrameAt])
+  }, [id, rigs, model, rendererState, firstGateFrameAt, own])
   useFrame(({ camera }, delta) => {
     const avatar = avatars.get(id)
     if (!avatar || !root.current || !figure.current) return
@@ -205,7 +205,8 @@ function Avatar({
     const hiddenForCooking = !own && bungeoppangCookingView(frameAt)
     const gateFrameAt = firstGateFrameAt?.current
     // Give the first render and walking input a turn before compiling fade-only variants.
-    if (gateFrameAt != null && (frameAt - gateFrameAt >= 1000 || (opacity > 0 && opacity < 1))) {
+    if (gateFrameAt != null && ((own ? bungeoppangCookingView(frameAt) : frameAt - gateFrameAt >= 1000)
+      || (opacity > 0 && opacity < 1))) {
       pendingFadeShaders.current?.()
     }
     const debrisMotion=!reducedMotion.matches&&activeParkDebris(useSession.getState().tableId,estimatedServerTime())

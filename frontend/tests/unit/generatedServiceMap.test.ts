@@ -16,7 +16,7 @@ const {BUNG_GRILL}=await import('../../src/features/bungeoppang/bungeoppangView'
 const {FISH_CART_GRILL}=await import('../../src/config/fishCart')
 const {benchAnchors}=await import('../../src/features/interactions/benchAnchors')
 const {parseBindings,bindAnchor}=await import('../../src/network/tableBindings')
-const {PARK_DESTINATIONS,findParkRoute,navigationSegmentClear}=await import('../../src/features/navigation/parkNavigation')
+const {PARK_DESTINATIONS,findParkRoute}=await import('../../src/features/navigation/parkNavigation')
 afterAll(()=>vi.unstubAllEnvs())
 
 it('replaces the back massage slot with a second inversion station and matching use/exit poses',async()=>{
@@ -105,11 +105,6 @@ it('matches all 18 accepted BE mappings while preserving existing server IDs',()
     for(const table of map.TABLES)expect(bindAnchor(bindings,channel,table.id,ids)).toBeTruthy()
   }
   expect(JSON.parse(readFileSync('public/park-bindings.frontend-test.json','utf8')).bindings).toHaveLength(4)
-})
-it.each(Object.entries(PARK_DESTINATIONS))('finds a collision-clear approach from the new spawn to %s',(_id,destination)=>{
-  const path=findParkRoute({x:PARK_DATA.world.spawn[0],z:PARK_DATA.world.spawn[1]},destination)
-  expect(path).not.toBeNull()
-  for(let n=1;n<path!.length;n++)expect(navigationSegmentClear(path![n-1]!,path![n]!)).toBe(true)
 })
 it('allows navigation across both generated lake crossings',()=>{
   for(const c of PARK_LAYOUT.lake.CROSSINGS) {

@@ -30,8 +30,9 @@ import org.springframework.transaction.TransactionException;
 public class WorldChannelRegistry implements ChannelPresence {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(WorldChannelRegistry.class);
     private long physicsTick;
-    private TickTiming lastTiming = new TickTiming(0, 0, 0, 0, 0);
-    public record TickTiming(long tick, long schedulerLagNanos, int steps, long processingNanos, int worldPatches) {}
+    private TickTiming lastTiming = new TickTiming(0, 0, 0, 0, 0, 0, 0);
+    public record TickTiming(long tick, long schedulerLagNanos, int steps, long processingNanos,
+                             int worldPatches, long physicsNanos, long snapshotNanos) {}
     public synchronized TickTiming lastTickTiming() { return lastTiming; }
 
     /** Upper bound for a server-issued activity end: v5 is 1s buffer + 3.5s countdown + 180s play. */
@@ -413,6 +414,22 @@ public class WorldChannelRegistry implements ChannelPresence {
         return movement == null ? null : movement.position();
     }
 
+    public synchronized double winterGround(String channel, double x, double z) {
+        var room = rooms.get(channel);
+        return room == null || room.physics == null ? Double.NaN : room.physics.winterGround(x, z);
+    }
+
+    public synchronized java.util.List<Avatar> winterAvatars(String channel) {
+        var room = rooms.get(channel);
+        return room == null ? java.util.List.of() : room.worldState().avatars();
+    }
+
+    public synchronized com.fasterxml.jackson.databind.JsonNode winterTree(String channel) {
+        var room = rooms.get(channel);
+        return room == null || room.physics == null ? com.fasterxml.jackson.databind.node.MissingNode.getInstance()
+                : room.physics.winterTree();
+    }
+
     public synchronized boolean snowPileInReach(String userId, String pileId) {
         Room room = rooms.get(membership.get(userId));
         return room != null && room.physics != null && room.physics.snowPileInReach(userId, pileId);
@@ -560,7 +577,22 @@ public class WorldChannelRegistry implements ChannelPresence {
         return counts;
     }
 
-    public record PublicTable(String tableId, String anchorId, int chairCount, String gameCode) {
+    /** 타일 표현만 갱신한다. 좌석·물리·맵 계약의 배치 값은 바꾸지 않는다. */
+    public synchronized void secretTilePresentations(Map<String, com.fasterxml.jackson.databind.JsonNode> current) {
+        for (Room room : rooms.values()) {
+            var next = room.tables.stream().map(table -> new PublicTable(table.tableId(), table.anchorId(),
+                    table.chairCount(), table.gameCode(), "DAVINCI_CODE".equals(table.gameCode())
+                            ? current.get(table.tableId()) : null)).toList();
+            if (!next.equals(room.tables)) { room.tables = next; room.worldVersion++; room.dirty = true; }
+        }
+    }
+
+    public record PublicTable(String tableId, String anchorId, int chairCount, String gameCode,
+            @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+            com.fasterxml.jackson.databind.JsonNode secretTiles) {
+        public PublicTable(String tableId, String anchorId, int chairCount, String gameCode) {
+            this(tableId, anchorId, chairCount, gameCode, null);
+        }
         public PublicTable(String tableId, String anchorId, int chairCount) {
             this(tableId, anchorId, chairCount, null);
         }
@@ -1017,6 +1049,7 @@ public class WorldChannelRegistry implements ChannelPresence {
         }
         long processingStarted = System.nanoTime();
         long schedulerLag = Math.max(0, now - lastStep - WorldPhysics.STEP_NANOS);
+        long physicsStarted = System.nanoTime();
         for (int i = 0; i < steps; i++) {
             physicsTick++;
             long tick = now - (steps - i - 1) * WorldPhysics.STEP_NANOS;
@@ -1037,9 +1070,11 @@ public class WorldChannelRegistry implements ChannelPresence {
                 }
             }
         }
+        long physicsNanos = System.nanoTime() - physicsStarted;
         lastStep = now - lastStep > 3 * WorldPhysics.STEP_NANOS ? now : lastStep + steps * WorldPhysics.STEP_NANOS;
         expireMinigames(now);
         expireSuspensions(now);
+        long snapshotStarted = System.nanoTime();
         var changes = new java.util.ArrayList<WorldState>();
         for (Room room : rooms.values()) {
             if (room.physics == null) {
@@ -1072,7 +1107,9 @@ public class WorldChannelRegistry implements ChannelPresence {
         if (now - lastPatch >= 100_000_000L) {
             lastPatch = now;
         }
-        lastTiming = new TickTiming(physicsTick, schedulerLag, steps, System.nanoTime() - processingStarted, changes.size());
+        long snapshotNanos = System.nanoTime() - snapshotStarted;
+        lastTiming = new TickTiming(physicsTick, schedulerLag, steps, System.nanoTime() - processingStarted,
+                changes.size(), physicsNanos, snapshotNanos);
         if (!changes.isEmpty()) {
             log.debug("공원 물리/방송 준비 tick={} steps={} schedulerLagMs={} processingMs={} patches={}",
                     physicsTick, steps, schedulerLag / 1_000_000.0, lastTiming.processingNanos() / 1_000_000.0, changes.size());
