@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { PaperPopup } from '../../features/tableLobby/PaperPopup'
 import { StoneRumbleScene } from './StoneRumbleScene'
-import { STONE_FLOOR_COLORS, STONE_FLOOR_HEIGHTS, STONE_OUTER_WARNING_SECONDS, visibleStoneFloor } from './layout'
+import { STONE_FLOOR_COLORS, STONE_FLOOR_HEIGHTS, visibleStoneFloor } from './layout'
 import { nextSurvivor, survivorView } from './spectating'
 import { stoneName, type StoneControl, type StoneState } from './protocol'
 import type { StoneSceneStatus } from './StoneRumblePreparation'
@@ -186,7 +186,6 @@ export function StoneRumbleGame({ state, ownId, connected, send, leave, children
     && (state.phase === 'COUNTDOWN' || starting)
   const falling = !!own?.alive && !own.grounded && own.y < STONE_FLOOR_HEIGHTS[own.floor]! - .35
   const alive = state.players.filter(p => p.alive).length
-  const nextRing = Math.min(...state.tiles.filter(t => !t.stepped && t.breakAt > state.serverTime).map(t => t.breakAt))
   const hold = (code: string) => {
     const release = () => { if (keys.current.delete(code) && updateMovement() && activeRef.current) sendControl() }
     return {
@@ -212,13 +211,13 @@ export function StoneRumbleGame({ state, ownId, connected, send, leave, children
     <header className="stone-rumble-top">
       <div className="stone-rumble-heading"><p>STONE RUMBLE</p><h1><StoneTowerIcon />돌탑 생존전</h1><div className="stone-rumble-counter"><span>생존</span><strong>{alive} <small>/ {state.players.length}</small></strong></div>
       {viewingFloor !== null && <span className="stone-rumble-floor" data-floor={viewingFloor + 1}>
-        <i style={{ backgroundColor: STONE_FLOOR_COLORS[viewingFloor] }} aria-hidden="true" />{viewingFloor + 1}층
+        <i style={{ backgroundColor: STONE_FLOOR_COLORS[viewingFloor] }} aria-hidden="true" />{viewingFloor === STONE_FLOOR_HEIGHTS.length - 1 ? '시작 발판' : `${viewingFloor + 1}층`}
       </span>}</div>
       <div className="stone-rumble-clock" aria-label="경기 경과 시간">{String(Math.floor(elapsed / 60)).padStart(2, '0')}:{String(elapsed % 60).padStart(2, '0')}</div>
       <nav aria-label="경기 메뉴">{topActions}<button onClick={() => { stop(); setHelp(true) }}>조작 안내</button>{own?.alive && !finished && <button onClick={() => { stop(); setConfirmLeave(true) }}>기권</button>}</nav>
     </header>
     {eliminated && !pendingElimination && <div className="stone-rumble-eliminated-status" role="status">탈락 · {finished ? '경기 종료' : '생존자 관전 중'}</div>}
-    <div className="stone-rumble-notice" data-intro={state.phase === 'DROPPING'} role="status">{!connected ? '연결이 끊겼어요. 다시 연결하는 동안 입력을 멈춰요.' : !inputReady && !finished && !spectating ? '경기 상태를 확인하고 있어요.' : state.phase === 'DROPPING' ? <><b>구름에서 내려오는 중</b><small>3층에 착지하면 움직일 수 있어요</small></> : state.phase === 'COUNTDOWN' || starting || spectating ? '' : falling ? own?.floor === 0 ? '돌탑 아래로 떨어지고 있어요!' : '아래층으로 떨어지고 있어요!' : Number.isFinite(nextRing) && nextRing - state.serverTime < STONE_OUTER_WARNING_SECONDS * 1000 ? '바깥 발판이 곧 무너져요!' : ''}</div>
+    <div className="stone-rumble-notice" data-intro={state.phase === 'DROPPING'} role="status">{!connected ? '연결이 끊겼어요. 다시 연결하는 동안 입력을 멈춰요.' : !inputReady && !finished && !spectating ? '경기 상태를 확인하고 있어요.' : state.phase === 'DROPPING' ? <><b>구름에서 내려오는 중</b><small>시작 발판에 착지하면 준비해요</small></> : state.phase === 'COUNTDOWN' || starting || spectating ? '' : falling ? own?.floor === 0 ? '돌탑 아래로 떨어지고 있어요!' : '아래층으로 떨어지고 있어요!' : ''}</div>
     {showCountdown && <div className="stone-rumble-countdown" role="status" aria-live="assertive" aria-atomic="true" aria-label="경기 시작 카운트다운">{state.phase === 'COUNTDOWN' ? countdown : '시작!'}</div>}
     {!finished && !pendingElimination && <footer className="stone-rumble-dock" aria-label="경기 하단바">
       {spectating ? <div className="stone-rumble-watch" aria-label="생존자 관전">
@@ -226,7 +225,7 @@ export function StoneRumbleGame({ state, ownId, connected, send, leave, children
         <span title={viewing ? name(viewing.userId) : undefined}><small>생존자 관전 · Tab</small><b>{viewing ? name(viewing.userId) : '생존자 대기'}</b></span>
         <button disabled={!sceneReady || !viewing || chatOpen} onClick={() => cycle(1)} aria-label="다음 생존자">›</button>
       </div> : <div className="stone-rumble-shortcuts"><span><kbd>WASD</kbd> 이동</span><span><kbd>Space</kbd> 점프</span><span><kbd>E</kbd> 발사</span></div>}
-      {!spectating && <button className="stone-rumble-slide" disabled={!active || knocked || slideCooldown > 0} onClick={slide} aria-label="슬라이딩" aria-keyshortcuts="Shift" title="Shift · 지상/공중 한 칸 다이빙 · 1초 재사용"><kbd>Shift</kbd><span>{slideCooldown > 0 ? `${slideCooldown.toFixed(1)}초` : '슬라이딩'}</span></button>}
+      {!spectating && <button className="stone-rumble-slide" disabled={!active || knocked || slideCooldown > 0} onClick={slide} aria-label="다이빙" aria-keyshortcuts="Shift" title="Shift · 점프 후 빈 구간을 넘는 다이빙 · 1초 재사용"><kbd>Shift</kbd><span>{slideCooldown > 0 ? `${slideCooldown.toFixed(1)}초` : '다이빙'}</span></button>}
       {chat && <button className="stone-rumble-chat-toggle" aria-label={chatOpen ? '채팅 닫기' : '채팅 열기'} aria-expanded={chatOpen} aria-keyshortcuts="Enter" onClick={() => changeChat(!chatOpen)}><img src={chatIcon} alt="" /><span>채팅</span><kbd>Enter</kbd></button>}
       {spectating && exit && <button className="stone-rumble-dock-exit" onClick={exit} aria-label="게임에서 나가기">나가기</button>}
     </footer>}
@@ -264,7 +263,7 @@ export function StoneRumbleGame({ state, ownId, connected, send, leave, children
         <div><dt>이동</dt><dd><kbd>WASD</kbd><span>/</span><kbd>방향키</kbd><small>현재 화면 방향을 기준으로 움직여요</small></dd></div>
         <div><dt>시점</dt><dd>화면 클릭 후 마우스 <small>Esc 해제 · 우클릭/터치 드래그도 가능 · 휠 거리 조절</small></dd></div>
         <div><dt>점프</dt><dd><kbd>Space</kbd></dd></div>
-        <div><dt>슬라이딩</dt><dd><kbd>Shift</kbd><small>공중에서도 한 칸 이동</small></dd></div>
+        <div><dt>다이빙</dt><dd><kbd>Shift</kbd><small>점프 후 빈 구간을 넘어요 · 착지 후 잠깐 회복</small></dd></div>
         <div><dt>비둘기 공격</dt><dd><kbd>클릭</kbd><span>/</span><kbd>E</kbd><small>바라보는 방향으로 발사 · 1.5초 충전</small></dd></div>
       </dl>
       <div className="stone-rumble-help-shortcuts"><span>채팅 <kbd>Enter</kbd></span><span>관전 전환 <kbd>Tab</kbd> / <kbd>Shift + Tab</kbd></span></div>
@@ -274,13 +273,13 @@ export function StoneRumbleGame({ state, ownId, connected, send, leave, children
         <div className="stone-rumble-help-copy">
           <p><strong>마지막까지 살아남은 한 명이 승리해요!</strong></p>
           <h3>1. 구름에서 내려와 준비해요</h3>
-          <p>2~8명이 3층에 내려와요. 착지 후 3·2·1 동안에는 자유롭게 움직여도 발판이 사라지지 않아요. <strong>‘시작!’이 뜨면 경기 시작!</strong></p>
+          <p>2~8명이 각자의 시작 발판에 내려와요. 3·2·1 뒤 시작 발판이 사라지면 아래 8개 층에서 버텨요. <strong>‘시작!’이 뜨면 경기 시작!</strong></p>
           <h3>2. 발판이 사라지기 전에 이동해요</h3>
-          <p>밟은 발판은 <strong>1초 뒤에 사라져요.</strong> 황토색으로 바뀐 발판이 붉어지면 곧 무너진다는 뜻이에요. 다른 발판으로 옮겨 가세요.</p>
-          <p>시작 18초 뒤부터는 <strong>3층 바깥쪽부터 9초마다 한 겹씩</strong> 무너져요. 3층이 모두 사라지면 2층, 그다음 1층의 바깥쪽부터 무너져요.</p>
+          <p>밟은 발판은 <strong>1초 뒤에 사라져요.</strong> 하얗게 바뀐 발판이 붉어지면 곧 무너진다는 뜻이에요. 다른 발판으로 옮겨 가세요.</p>
+          <p>시작 발판을 제외하면 <strong>밟지 않은 발판은 그대로 남아요.</strong> 한 발판씩 점프하며 아껴 쓰거나 아래층의 남은 발판을 찾아 내려가세요. 5분까지 살아남은 사람은 공동 우승이에요.</p>
           <p>떨어져도 아래층에 착지하면 계속할 수 있어요. <strong>1층 아래로 더 떨어지면 탈락해요.</strong></p>
-          <h3>3. 슬라이딩과 비둘기를 활용해요</h3>
-          <p><strong>슬라이딩 — Shift</strong><br />몸을 앞으로 던져 한 칸 이동해요. 움직이던 방향으로, 멈춰 있다면 바라보는 방향으로 나아가요. 점프한 뒤에도 쓸 수 있고, 다시 쓰려면 1초 기다려요.</p>
+          <h3>3. 다이빙과 비둘기를 활용해요</h3>
+          <p><strong>다이빙 — Shift</strong><br />몸을 앞으로 던져 빈 구간을 넘어가요. 움직이던 방향으로, 멈춰 있다면 바라보는 방향으로 나아가요. 점프한 뒤에도 쓸 수 있어요. 착지 후에는 잠깐 몸을 일으켜야 다시 움직이거나 점프할 수 있어요. 재사용 대기는 1초예요.</p>
           <p><strong>비둘기 공격 — 클릭 / E / 화면 탭</strong><br />카메라로 상대 쪽을 바라본 뒤 발사하세요. 화면 클릭으로 시점을 잡고, 그다음 클릭부터 공격해요. 터치는 경기장 탭으로 발사해요. 1.5초마다 충전되며 버튼의 원이 가득 차면 다시 쏠 수 있어요. 맞은 사람은 발판 한 칸만큼 밀려나고 잠깐 움직일 수 없어요.</p>
           <h3>4. 탈락하면 관전하거나 나가요</h3>
           <p>탈락하면 더 이상 움직이거나 공격할 수 없어요. <strong>‘생존자 관전하기’</strong>를 누르면 살아 있는 플레이어의 시점으로 볼 수 있어요.</p>

@@ -7,6 +7,7 @@ import com.ssafy.ontop.game.action.GameActionGateway;
 import com.ssafy.ontop.game.action.GameForfeitCommand;
 import com.ssafy.ontop.game.engine.GameEngineRouter;
 import com.ssafy.ontop.game.result.GameFinished;
+import com.ssafy.ontop.game.stonerumble.domain.StoneRumbleMatch;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -153,7 +154,7 @@ class StoneRumbleEngineTests {
     void 슬라이딩_액션은_중복_재요청에_한번만_적용하고_문자열_변조는_거절한다() {
         engine.create("game-1", "table-1", List.of(101L, 202L));
         readyPlayers("game-1", List.of(101L, 202L));
-        clock.now = 3000;
+        clock.now = 5000;
         engine.tick();
         var state = engine.load(101, "game-1").orElseThrow();
         var input = mapper.createObjectNode().put("kind", "control").put("seq", 1).put("x", 0).put("z", 0)
@@ -161,11 +162,11 @@ class StoneRumbleEngineTests {
         var command = new GameActionCommand(101, "game-1", "slide-1", state.version(), input);
         var result = engine.apply(command);
         assertThat(engine.apply(command)).isEqualTo(result);
-        clock.now = 3300;
+        clock.now = 5300;
         engine.tick();
         var after = engine.load(101, "game-1").orElseThrow();
         assertThat(after.publicState().path("players").get(0).path("x").asDouble())
-                .isCloseTo(-2.6, org.assertj.core.data.Offset.offset(0.000001));
+                .isCloseTo(-5.2 + StoneRumbleMatch.SLIDE_DISTANCE, org.assertj.core.data.Offset.offset(0.000001));
         assertThatThrownBy(() -> engine.apply(new GameActionCommand(101, "game-1", "slide-2", after.version(),
                 input.deepCopy().put("seq", 2).put("slide", "true")))).hasMessage("INVALID_ACTION");
     }

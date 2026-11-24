@@ -145,7 +145,7 @@ public final class StoneRumbleEngine implements GameEngine {
         }
         synchronized (entry) {
             if (entry.publicState == null) {
-                entry.publicState = mapper.valueToTree(entry.match.snapshot());
+                entry.publicState = StoneRumblePublicState.encode(mapper, entry.match.snapshot());
                 entry.publicState.put("gameId", gameId).put("tableId", entry.tableId);
             }
             // 같은 틱의 8인 조회는 공개 스냅샷을 재사용하되, 수신자끼리 변경이 새지 않도록 복사한다.

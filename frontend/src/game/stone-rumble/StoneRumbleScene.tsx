@@ -1,18 +1,12 @@
 import { Component, lazy, memo, Suspense, useEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from 'react'
-import { Canvas, createPortal, events, useFrame, useLoader, useThree } from '@react-three/fiber'
+import { Canvas, createPortal, events, useFrame, useThree } from '@react-three/fiber'
 import { Group, Mesh, MeshBasicMaterial, Object3D, Scene, SphereGeometry, Vector3, type InstancedMesh, type Material } from 'three'
-import { ParkAssetLoader } from '../../world/art/assetLoader'
-import { characterUrls } from '../../world/art/CharacterRig'
 import type { GLTF } from 'three/addons/loaders/GLTFLoader.js'
-import { useSession } from '../../network/worldClient'
-import { emptyEquipment } from '../../network/equipment'
-import { WARDROBE_OUTFITS_ENABLED } from '../../features/wardrobe/feature'
-import { availableLook, isCharacterSource, lookKey, lookSources, resolveLook } from '../../world/art/characterLook'
-import { loadedOutfit } from '../../world/art/outfitSources'
+import { lookKey, lookSources, resolveLook } from '../../world/art/characterLook'
 import { createSafeCharacterRig } from '../../world/art/safeCharacterRig'
-import { resolveWholeSkin } from '../../world/art/wholeSkin'
 import { pigeonGeometry, pigeonMaterial } from '../../world/pigeons/pigeonGeometry'
-import { visibleStoneFloor } from './layout'
+import { visibleStoneFloor, STONE_FLOOR_HEIGHTS, STONE_DROP_HEIGHT } from './layout'
+import { useStoneAppearance } from './useStoneAppearance'
 import { StoneRumbleTiles } from './StoneRumbleTiles'
 import { EnvironmentScene } from '../../world/EnvironmentScene'
 import { ParkSun } from '../../world/ParkSun'
@@ -36,7 +30,7 @@ const gameEvents: typeof events = state => ({ ...events(state), enabled: false }
 class SceneBoundary extends Component<{ children: ReactNode; onStatus?: StoneSceneStatus }, { failed: boolean }> {
   state = { failed: false }
   static getDerivedStateFromError() { return { failed: true } }
-  componentDidCatch() { this.props.onStatus?.(false, '3D 경기장을 열지 못했어요. 다시 준비해 주세요.') }
+  componentDidCatch(error: Error) { this.props.onStatus?.(false, error.message || '3D 경기장을 열지 못했어요. 다시 준비해 주세요.') }
   render() { return this.state.failed ? null : this.props.children }
 }
 export type StoneCamera = MutableRefObject<StoneCameraState>
@@ -44,28 +38,12 @@ export type StoneInput = MutableRefObject<Omit<StoneControl, 'kind' | 'seq'>>
 
 type AvatarProps = { player: StonePlayer; index: number; own: boolean; time: number; gameId: string; feedback?: MutableRefObject<StoneFeedbackFrame> }
 function Avatar(props: AvatarProps & { localOnly: boolean }) {
-  const { player, index, localOnly } = props
-  const base = useLoader(ParkAssetLoader, characterUrls)
-  const [appearance] = useState(() => {
-    // 공원에서 이미 로드한 외형을 써서 경기 도중 리그와 재질을 다시 만들지 않는다.
-    const { profiles, equipment } = useSession.getState()
-    const variant = (localOnly ? index % 2 === 1 : profiles[player.userId]?.character === 'girl') ? 'girl' : 'man'
-    const worn = !localOnly && WARDROBE_OUTFITS_ENABLED ? equipment[player.userId] ?? emptyEquipment : emptyEquipment
-    const look = resolveLook(variant, worn)
-    const whole = resolveWholeSkin(variant, worn)
-    const files = new Map<string, GLTF>([['man', base[0]!], ['girl', base[1]!]])
-    for (const name of whole ? [whole.source] : lookSources(look).filter(source => !isCharacterSource(source))) {
-      const asset = loadedOutfit(name)
-      if (asset) files.set(name, asset)
-    }
-    return { source: files.get(variant)!, files, look: availableLook(variant, look, source => files.has(source)),
-      whole: whole && files.get(whole.source) }
-  })
-  return <AvatarRig {...props} {...appearance} />
+  const appearance = useStoneAppearance(props.player.userId, props.index, props.localOnly)
+  return appearance.ready ? <AvatarRig {...props} {...appearance} /> : null
 }
 
-function AvatarRig({ player, index, own, time, gameId, feedback, source, files, look, whole }: AvatarProps & {
-  source: GLTF; files: ReadonlyMap<string, GLTF>; look: ReturnType<typeof resolveLook>; whole?: GLTF
+function AvatarRig({ player, index, own, time, gameId, feedback, source, files, look, whole, metadata }: AvatarProps & {
+  source: GLTF; files: ReadonlyMap<string, GLTF>; look: ReturnType<typeof resolveLook>; whole?: GLTF; metadata: ReturnType<typeof useStoneAppearance>['metadata']
 }) {
   const shownKey = lookKey(look)
   const sources = useMemo(() => [...new Set([source, ...(whole ? [whole] :
@@ -150,7 +128,7 @@ function AvatarRig({ player, index, own, time, gameId, feedback, source, files, 
     rig.set('head', -.3 * blend)
     rig.apply(dt)
   })
-  return <group name={`stone-player-${player.userId}`} ref={group} visible={player.alive}>
+  return <group name={`stone-player-${player.userId}`} ref={group} visible={player.alive} userData={{ ...metadata, stoneAppearanceReady: true }}>
     <StoneHitEffect userId={player.userId} feedback={feedback} />
     <group ref={body} position={[0, hipHeight, 0]}><primitive object={rig.root} position={[0, -hipHeight, 0]} scale={.95} /></group>
     <mesh position={[0, .025, 0]} rotation={[-Math.PI / 2, 0, 0]}>
@@ -186,7 +164,7 @@ function ArrivalClouds({ state }: { state: StoneState }) {
     if (!clouds.current || state.phase !== 'DROPPING') return
     state.players.forEach((player, index) => {
       for (let puff = 0; puff < 4; puff++) {
-        transform.position.set(player.x + (puff - 1.5) * .9, 35.4 + (puff % 2) * .35, player.z - .6)
+        transform.position.set(player.x + (puff - 1.5) * .9, STONE_DROP_HEIGHT + 2.4 + (puff % 2) * .35, player.z - .6)
         transform.scale.set(1.1, .6 + (puff % 2) * .2, .8)
         transform.updateMatrix(); clouds.current!.setMatrixAt(index * 4 + puff, transform.matrix)
       }
@@ -207,7 +185,7 @@ function Stage({ state, ownId, viewId, input, fire, feedback, localOnly, control
   useEffect(() => () => material.dispose(), [material])
   const { camera, size } = useThree()
   const player = state.players.find(p => p.userId === viewId)
-  const lastFloor = useRef(2)
+  const lastFloor = useRef(STONE_FLOOR_HEIGHTS.length - 1)
   if (player?.alive) lastFloor.current = visibleStoneFloor(player.floor, player.y)
   const ownFloor = lastFloor.current
   const cameraReady = useRef(false)
@@ -223,7 +201,7 @@ function Stage({ state, ownId, viewId, input, fire, feedback, localOnly, control
     if (newGame || previousView.current !== viewId) followedPosition.reset()
     // 탈락/대상 부재 중에는 마지막 초점을 유지하고 새 생존 대상을 받은 뒤 이동한다.
     if (player?.alive || !cameraReady.current) {
-      const x = player?.alive ? player.x : 0, y = player?.alive ? player.y : 24, z = player?.alive ? player.z : 0
+      const x = player?.alive ? player.x : 0, y = player?.alive ? player.y : STONE_FLOOR_HEIGHTS.at(-1)!, z = player?.alive ? player.z : 0
       if (player?.alive) followedPosition.sample(player, state.serverTime, performance.now(), desiredFocus)
       else desiredFocus.set(x, y, z)
     }
@@ -256,7 +234,7 @@ function Stage({ state, ownId, viewId, input, fire, feedback, localOnly, control
   return <>
     <StoneRumbleTiles tiles={state.tiles} material={material} time={state.serverTime} ownFloor={ownFloor} />
     <ArrivalClouds state={state} />
-    {state.players.map((player, index) => <Avatar key={`${state.gameId}/${player.userId}`} localOnly={localOnly} player={player} index={index} own={player.userId === viewId} time={state.serverTime} gameId={state.gameId} feedback={feedback} />)}
+    {state.players.map((player, index) => <Suspense key={`${state.gameId}/${player.userId}`} fallback={null}><Avatar localOnly={localOnly} player={player} index={index} own={player.userId === viewId} time={state.serverTime} gameId={state.gameId} feedback={feedback} /></Suspense>)}
     {state.pigeons.map(pigeon => <Pigeon key={pigeon.id} pigeon={pigeon} time={state.serverTime} />)}
     <group visible={false} userData={{ prepareWhenHidden: true }}>
       <Pigeon pigeon={{ id: -1, owner: ownId, x: 0, y: 24.8, z: 0, vx: 20, vz: 0 }} time={0} />
@@ -274,7 +252,7 @@ export const StoneRumbleScene = memo(function StoneRumbleScene({ onStatus, prepa
   return <div className="stone-rumble-scene" data-view-id={props.viewId} data-camera="third-person" data-pointer-lock={captured} aria-label="육각 발판 돌탑 경기장">
     <SceneBoundary key={preparationAttempt} onStatus={onStatus}>
       <Canvas dpr={1} frameloop={paused ? 'demand' : 'always'} events={gameEvents} camera={{ position: [0, 42, 7.5], fov: 55, near: .1, far: 800 }} gl={{ alpha: false, antialias: true }}>
-        {!sceneReady && <SceneBoundary><Suspense fallback={null}>
+        {!sceneReady && <SceneBoundary onStatus={onStatus}><Suspense fallback={null}>
           <group name="stone-rumble-backdrop-source">
             <EnvironmentScene />
             <ParkSun quality="low" />
@@ -283,7 +261,7 @@ export const StoneRumbleScene = memo(function StoneRumbleScene({ onStatus, prepa
         </Suspense></SceneBoundary>}
         <Suspense fallback={null}>
           {createPortal(<><StoneRumbleLighting /><Stage {...props} onCapture={setCaptured} /></>, playScene)}
-          <StoneRumblePreparation onStatus={onStatus} playScene={playScene} />
+          <StoneRumblePreparation onStatus={onStatus} playScene={playScene} playerIds={props.state.players.map(p => p.userId)} />
         </Suspense>
       </Canvas>
       {props.cameraEnabled && <div className="stone-rumble-camera-hint" aria-live="polite">

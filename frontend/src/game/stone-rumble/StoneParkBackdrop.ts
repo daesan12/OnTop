@@ -1,3 +1,4 @@
+import { STONE_FLOOR_HEIGHTS } from './layout'
 import { Color, CubeCamera, LinearFilter, Scene, WebGLCubeRenderTarget, type PerspectiveCamera, type WebGLRenderer } from 'three'
 
 /** 먼 공원은 준비 중 한 번 찍고, 경기 중에는 시점 방향에 맞는 부분만 그린다. */
@@ -9,8 +10,8 @@ export class StoneParkBackdrop {
   readonly scene = new Scene()
 
   constructor() {
-    // 세 층의 중간에서 촬영한다. 실제 발판과 캐릭터는 별도 장면에서 계속 렌더한다.
-    this.camera.position.set(0, 12, 0)
+    // 경기장 중간 높이에서 촬영한다. 실제 발판과 캐릭터는 별도 장면에서 계속 렌더한다.
+    this.camera.position.set(0, STONE_FLOOR_HEIGHTS[4], 0)
     this.camera.updateMatrixWorld()
     this.scene.background = this.sky
   }

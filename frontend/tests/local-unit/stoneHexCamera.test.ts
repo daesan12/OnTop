@@ -9,7 +9,7 @@ it('육각 발판의 중심과 여섯 이웃은 서버와 같은 2.6m 간격으�
   for (const [q, r] of neighbors) {
     expect(Math.hypot(stoneTileX(q!, r!), stoneTileZ(r!))).toBeCloseTo(STONE_TILE_SIZE, 12)
   }
-  for (let floor = 0; floor < 3; floor++) {
+  for (let floor = 0; floor < 8; floor++) {
     const radius = STONE_FLOOR_RADII[floor]!
     let count = 0
     for (let q = -radius; q <= radius; q++) for (let r = -radius; r <= radius; r++) {
@@ -52,10 +52,22 @@ it('카메라는 아래층을 내려다볼 수 있고 극점 반전과 프레임
   expect(Math.abs(camera.renderedYaw - previous)).toBeLessThanOrEqual(.6 + 1e-9)
 })
 
-it('옛 사각 경기장 응답과 중복·누락·경기장 밖 육각 발판은 화면에 섞지 않는다', () => {
-  expect(parseStoneState(fixture).tileLayout).toBe('HEX_AXIAL_V1')
+it('옛 경기장 응답과 중복·잘못된 번호·잘린 발판 표시는 거절한다', () => {
+  expect(parseStoneState(fixture).tileLayout).toBe('HEX_AXIAL_V2')
   expect(() => parseStoneState({ ...fixture, tileLayout: undefined })).toThrow()
-  expect(() => parseStoneState({ ...fixture, tiles: fixture.tiles.slice(1) })).toThrow()
-  expect(() => parseStoneState({ ...fixture, tiles: fixture.tiles.map((tile, i) => i ? tile : fixture.tiles[1]) })).toThrow()
-  expect(() => parseStoneState({ ...fixture, tiles: fixture.tiles.map((tile, i) => i ? tile : { ...tile, q: 8, r: 8 }) })).toThrow()
+  expect(() => parseStoneState({ ...fixture, tileMarks: undefined })).toThrow()
+  expect(() => parseStoneState({ ...fixture, tileMarks: [[0, 1000, 1], [0, 2000, 1]] })).toThrow()
+  expect(() => parseStoneState({ ...fixture, tileMarks: [[1378, 1000, 1]] })).toThrow()
+  expect(() => parseStoneState({ ...fixture, tileMarks: [[0, 1000, true]] })).toThrow()
+  expect(() => parseStoneState({ ...fixture, tileMarks: [[0, 1000.5, 1]] })).toThrow()
+})
+
+it('관전·재접속은 한 응답만으로 모든 층을 복원하고 이전 표시를 다음 경기에 섞지 않는다', () => {
+  const restored = parseStoneState({ ...fixture, tileMarks: [[0, 12000, 1], [1377, 11000, 0]] })
+  expect(restored.tiles).toHaveLength(1378)
+  expect(restored.tiles[0]).toMatchObject({ id: 0, floor: 0, q: -8, r: 0, breakAt: 12000, stepped: true })
+  expect(restored.tiles[1377]).toMatchObject({ floor: 8, breakAt: 11000, stepped: false })
+  const fresh = parseStoneState(fixture)
+  expect(fresh.tiles[0]!.breakAt).toBe(Number.MAX_SAFE_INTEGER)
+  expect(fresh.tiles[0]!.stepped).toBe(false)
 })

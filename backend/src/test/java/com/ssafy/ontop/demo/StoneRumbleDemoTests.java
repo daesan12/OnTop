@@ -32,8 +32,8 @@ class StoneRumbleDemoTests {
         var preparation = (ObjectNode) response.get("preparationState");
 
         assertThat(response.get("gameId")).isEqualTo("");
-        assertThat(preparation.path("tiles").size()).isEqualTo(513);
-        assertThat(preparation.path("tileLayout").asText()).isEqualTo("HEX_AXIAL_V1");
+        assertThat(preparation.path("tileMarks").size()).isZero();
+        assertThat(preparation.path("tileLayout").asText()).isEqualTo("HEX_AXIAL_V2");
         assertThat(preparation.path("players").size()).isEqualTo(8);
         assertThat(preparation.path("serverTime").asLong()).isZero();
         clock.now = 30_000;
@@ -58,7 +58,7 @@ class StoneRumbleDemoTests {
         ObjectNode state = (ObjectNode) created.getBody().get("publicState");
         assertThat(state.path("serverTime").asLong()).isEqualTo(5000);
         assertThat(state.path("startsAt").asLong()).isEqualTo(9200);
-        assertThat(state.path("players").get(0).path("y").asDouble()).isEqualTo(33);
+        assertThat(state.path("players").get(0).path("y").asDouble()).isEqualTo(41);
         assertThat(events).hasSize(1);
     }
 

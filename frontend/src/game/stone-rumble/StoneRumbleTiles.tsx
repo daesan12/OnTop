@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Color, DynamicDrawUsage, ExtrudeGeometry, InstancedBufferAttribute, Object3D, Shape, type InstancedMesh, type MeshBasicMaterial } from 'three'
-import { STONE_FLOOR_COLORS, STONE_FLOOR_HEIGHTS, STONE_OUTER_WARNING_SECONDS, STONE_STEP_DELAY, STONE_TILE_RADIUS, stoneTileX, stoneTileZ } from './layout'
+import { STONE_FLOOR_COLORS, STONE_FLOOR_HEIGHTS, STONE_STEP_DELAY, STONE_TILE_RADIUS, stoneTileX, stoneTileZ } from './layout'
 import type { StoneTile } from './protocol'
 import { stoneTileEpoch, updateStoneTileMarks } from './tileBuffers'
 import { StoneRenderClock } from './motion'
@@ -31,8 +31,7 @@ function tileSurface(material: MeshBasicMaterial, clock: { value: number }) {
   surface.onBeforeCompile = shader => {
     shader.uniforms.stoneTime = clock
     shader.uniforms.stoneInk = { value: new Color('#454a3c') }
-    shader.uniforms.stoneWarning = { value: new Color('#df7650') }
-    shader.uniforms.stoneStepped = { value: new Color('#f4cc68') }
+    shader.uniforms.stoneStepped = { value: new Color('#fff7e6') }
     shader.uniforms.stoneUrgent = { value: new Color('#e77c65') }
     shader.vertexShader = shader.vertexShader.replace('#include <common>', `#include <common>
       attribute vec2 stoneMark;
@@ -46,11 +45,10 @@ function tileSurface(material: MeshBasicMaterial, clock: { value: number }) {
         float fallen = max(0.0, -remaining);
         transformed *= 1.0 - step(0.65, fallen);
         transformed.z -= fallen * fallen * 15.0;
-        vStoneMark = vec2(mix((1.0 - step(${STONE_OUTER_WARNING_SECONDS.toFixed(1)}, remaining)) * 2.0, 1.0, stoneMark.x), clamp(remaining / ${(STONE_STEP_DELAY / 1000).toFixed(1)}, 0.0, 1.0));
+        vStoneMark = vec2(max(stoneMark.x, 1.0 - step(1.001, remaining)), clamp(remaining / ${(STONE_STEP_DELAY / 1000).toFixed(1)}, 0.0, 1.0));
         vStoneSide = 1.0 - abs(normal.z);`)
     shader.fragmentShader = shader.fragmentShader.replace('#include <common>', `#include <common>
       uniform vec3 stoneInk;
-      uniform vec3 stoneWarning;
       uniform vec3 stoneStepped;
       uniform vec3 stoneUrgent;
       varying vec2 vStonePoint;
@@ -63,8 +61,8 @@ function tileSurface(material: MeshBasicMaterial, clock: { value: number }) {
         float border = 1.0 - smoothstep(0.035 - aa, 0.035 + aa, edge);
         float bevel = 1.0 - smoothstep(0.09 - aa, 0.09 + aa, edge);
         float marked = step(0.5, vStoneMark.x);
-        float stepped = marked * (1.0 - step(1.5, vStoneMark.x));
-        vec3 warning = mix(stoneWarning, mix(stoneStepped, stoneUrgent, 1.0 - step(0.3, vStoneMark.y)), stepped);
+        float stepped = marked;
+        vec3 warning = mix(stoneStepped, stoneUrgent, 1.0 - step(0.3, vStoneMark.y));
         vec3 stone = mix(diffuseColor.rgb, warning, marked);
         stone = mix(stone, vec3(1.0), 0.08 + 0.1 * bevel);
         stone = mix(stone, stoneInk, border * 0.7);
@@ -77,8 +75,8 @@ function tileSurface(material: MeshBasicMaterial, clock: { value: number }) {
   return surface
 }
 
-function TileLayer({ tiles, material, time, hidden, current, floor }: {
-  tiles: StoneTile[]; material: MeshBasicMaterial; time: number; hidden: boolean; current: boolean; floor: number
+function TileLayer({ tiles, material, time, hidden, floor }: {
+  tiles: StoneTile[]; material: MeshBasicMaterial; time: number; hidden: boolean; floor: number
 }) {
   const stones = useRef<InstancedMesh>(null)
   const transform = useMemo(() => new Object3D(), []), color = useMemo(() => new Color(), [])
@@ -109,18 +107,20 @@ function TileLayer({ tiles, material, time, hidden, current, floor }: {
   }, [panel, color, transform, floor])
   useLayoutEffect(() => { updateStoneTileMarks(marks, tiles, epoch) }, [marks, tiles, epoch])
   useFrame(() => {
-    surface.opacity = current ? 1 : .52
-    surface.depthWrite = current
+    // 모든 층을 불투명하게 그려 유리처럼 겹치지 않게 하고, 앞 발판의 깊이로 아래층 픽셀을 거른다.
+    surface.opacity = 1
+    surface.transparent = false
+    surface.depthWrite = true
     clock.value = (renderClock.sample(time, performance.now()) - epoch) / 1000
   })
   return <group visible={!hidden} userData={{ prepareWhenHidden: true }}>
-    <instancedMesh ref={stones} args={[panel, surface, tiles.length]} renderOrder={floor + 10} userData={{ stoneTile: true }} frustumCulled={false} dispose={null} />
+    <instancedMesh ref={stones} args={[panel, surface, tiles.length]} renderOrder={10 - floor} userData={{ stoneTile: true }} frustumCulled={false} dispose={null} />
   </group>
 }
 
 export function StoneRumbleTiles({ tiles, material, time, ownFloor }: {
   tiles: StoneTile[]; material: MeshBasicMaterial; time: number; ownFloor: number
 }) {
-  const layers = useMemo(() => [0, 1, 2].map(floor => tiles.filter(tile => tile.floor === floor)), [tiles])
-  return <group name="stone-rumble-tiles">{layers.map((layer, floor) => <TileLayer key={floor} tiles={layer} material={material} time={time} hidden={floor > ownFloor} current={floor === ownFloor} floor={floor} />)}</group>
+  const layers = useMemo(() => STONE_FLOOR_HEIGHTS.map((_, floor) => tiles.filter(tile => tile.floor === floor)), [tiles])
+  return <group name="stone-rumble-tiles">{layers.map((layer, floor) => <TileLayer key={floor} tiles={layer} material={material} time={time} hidden={floor > ownFloor} floor={floor} />)}</group>
 }

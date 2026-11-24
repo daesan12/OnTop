@@ -1,4 +1,4 @@
-import { STONE_FLOOR_RADII, STONE_TILE_COUNTS, STONE_TILE_LAYOUT, stoneTileRing } from './layout'
+import { STONE_FLOOR_HEIGHTS, STONE_FLOOR_RADII, STONE_TILE_COUNTS, STONE_TILE_LAYOUT, isStoneCell } from './layout'
 
 export interface StonePlayer {
   userId: string; x: number; y: number; z: number; floor: number; alive: boolean; grounded: boolean
@@ -20,7 +20,27 @@ export type StoneAction = StoneControl | { kind: 'scene_ready'; ready: boolean }
 const object = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
 const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v)
 const id = (v: unknown): v is string => typeof v === 'string' && v.length > 0 && v.length <= 120
+const baseTiles: readonly StoneTile[] = STONE_FLOOR_RADII.flatMap((radius, floor) => {
+  const cells: Omit<StoneTile, 'id'>[] = []
+  for (let q = -radius; q <= radius; q++) for (let r = -radius; r <= radius; r++) {
+    if (isStoneCell(floor, q, r)) cells.push({ floor, q, r, breakAt: Number.MAX_SAFE_INTEGER, stepped: false })
+  }
+  return cells
+}).map((tile, id) => Object.freeze({ ...tile, id }))
+
 export function parseStoneState(value: unknown): StoneState {
+  if (!object(value) || value.tileLayout !== STONE_TILE_LAYOUT || !Array.isArray(value.tileMarks)
+    || value.tileMarks.length > baseTiles.length || 'tiles' in value
+    || !value.tileMarks.every(mark => Array.isArray(mark) && mark.length === 3
+      && Number.isInteger(mark[0]) && mark[0] >= 0 && mark[0] < baseTiles.length
+      && Number.isSafeInteger(mark[1]) && mark[1] > 0 && (mark[2] === 0 || mark[2] === 1))
+    || new Set(value.tileMarks.map(mark => mark[0])).size !== value.tileMarks.length) {
+    throw new Error('돌탑 발판 상태를 읽지 못했어요. 다시 연결해 주세요.')
+  }
+  // 이전 패킷에 의존하는 delta가 아니다. 재접속/늦은 관전도 이 한 응답으로 전부 복원한다.
+  const tiles = baseTiles.map(tile => ({ ...tile }))
+  for (const [id, breakAt, stepped] of value.tileMarks) tiles[id] = { ...baseTiles[id]!, breakAt, stepped: stepped === 1 }
+  value = { ...value, tiles }
   if (!object(value) || value.gameCode !== 'STONE_RUMBLE' || value.tileLayout !== STONE_TILE_LAYOUT || !id(value.gameId)
     || !['PLAYING', 'FINISHED'].includes(String(value.status))
     || !['serverTime', 'startsAt', 'endedAt', 'landsAt'].every(k => finite(value[k]))
@@ -32,7 +52,7 @@ export function parseStoneState(value: unknown): StoneState {
     || !Array.isArray(value.players) || value.players.length < 2 || value.players.length > 8
     || !value.players.every(p => object(p) && id(p.userId)
       && ['x', 'y', 'z', 'aimX', 'aimZ', 'pigeonReadyAt', 'hitAt', 'eliminatedAt', 'slideStartedAt', 'slideUntil', 'slideReadyAt', 'slideX', 'slideZ'].every(k => finite(p[k]))
-      && [0, 1, 2].includes(Number(p.floor)) && Number.isInteger(p.floor)
+      && Number(p.floor) >= 0 && Number(p.floor) < STONE_FLOOR_HEIGHTS.length && Number.isInteger(p.floor)
       && ['alive', 'grounded', 'forfeited'].every(k => typeof p[k] === 'boolean')
       && (p.rank === undefined || p.rank === null || Number.isInteger(p.rank) && Number(p.rank) >= 1 && Number(p.rank) <= 8)
       && (p.rewardCoins === undefined || Number.isInteger(p.rewardCoins) && Number(p.rewardCoins) >= 0 && Number(p.rewardCoins) <= 80))
@@ -40,7 +60,7 @@ export function parseStoneState(value: unknown): StoneState {
     || Array.isArray(value.readyUserIds) && value.readyUserIds.some(user => !(value.players as Record<string, unknown>[]).some(p => p.userId === user))
     || !Array.isArray(value.tiles) || value.tiles.length !== STONE_TILE_COUNTS.reduce((sum, count) => sum + count, 0)
     || !value.tiles.every(t => object(t) && ['id', 'floor', 'q', 'r'].every(k => Number.isInteger(t[k]))
-      && [0, 1, 2].includes(Number(t.floor)) && stoneTileRing(Number(t.q), Number(t.r)) <= STONE_FLOOR_RADII[Number(t.floor)]!
+      && isStoneCell(Number(t.floor), Number(t.q), Number(t.r))
       && finite(t.breakAt) && typeof t.stepped === 'boolean')
     || new Set(value.tiles.map(t => `${t.floor}:${t.q}:${t.r}`)).size !== value.tiles.length
     || new Set(value.tiles.map(t => t.id)).size !== value.tiles.length

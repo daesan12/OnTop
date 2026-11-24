@@ -1,10 +1,10 @@
 import { expect, it } from 'vitest'
 import fixture from '../fixtures/stone-rumble-eight.json'
 import { audibleStoneCues, StoneFeedbackTracker, type StoneCue } from '../../src/game/stone-rumble/feedback'
-import type { StoneState } from '../../src/game/stone-rumble/protocol'
+import { parseStoneState, type StoneState } from '../../src/game/stone-rumble/protocol'
 
 function state(time = 10000): StoneState {
-  const value = structuredClone(fixture) as StoneState
+  const value = structuredClone(parseStoneState(fixture))
   value.phase = 'RUNNING'; value.serverTime = time
   value.players.forEach(player => { player.y = 24; player.grounded = true; player.pigeonReadyAt = 0; player.hitAt = 0 })
   return value

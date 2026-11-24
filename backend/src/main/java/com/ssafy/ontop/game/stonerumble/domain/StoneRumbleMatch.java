@@ -14,22 +14,23 @@ public final class StoneRumbleMatch {
     public static final long PIGEON_COOLDOWN = 1500;
     public static final long DROP_DURATION = 1200;
     public static final long COUNTDOWN_DURATION = 3000;
-    public static final double DROP_HEIGHT = 33;
+    public static final double DROP_HEIGHT = 41;
     public static final double PIGEON_SPEED = 20;
     public static final double KNOCKBACK_DISTANCE = TILE_SIZE;
     public static final long KNOCKBACK_DURATION = 400;
     public static final long SLIDE_DURATION = 300;
     public static final long SLIDE_COOLDOWN = 1000;
-    public static final double SLIDE_DISTANCE = TILE_SIZE;
+    public static final double SLIDE_DISTANCE = TILE_SIZE * 1.25;
     public static final double ELIMINATION_HEIGHT = -6.0;
-    private static final int[] RADII = {8, 7, 6};
-    private static final double[] HEIGHTS = {0, 12, 24};
-    private static final long FIRST_COLLAPSE_DELAY = 18_000;
-    private static final long COLLAPSE_INTERVAL = 9_000;
+    public static final int TOP_FLOOR = 8;
+    public static final long MATCH_TIME_LIMIT = 300_000;
+    public static final long DIVE_RECOVERY = 260;
+    private static final int[] RADII = {8, 8, 8, 7, 7, 6, 6, 6, 4};
+    private static final double[] HEIGHTS = {0, 4, 8, 12, 16, 20, 24, 28, 32};
+    private static final int[][] SPAWNS = {{-2, 0}, {2, 0}, {0, -3}, {0, 3}, {-3, 3}, {3, -3}, {-4, 1}, {4, -1}};
     private static final long JUMP_BUFFER_MILLIS = 140;
     private final List<Player> players = new ArrayList<>();
     private final List<Tile> tiles = new ArrayList<>();
-    private final List<List<Tile>> collapseRings = new ArrayList<>();
     private final List<Pigeon> pigeons = new ArrayList<>();
     private final Map<String, Tile> tileIndex = new LinkedHashMap<>();
     public static final long LOADING_TIMEOUT = 90_000;
@@ -39,8 +40,6 @@ public final class StoneRumbleMatch {
     private final long loadingStartedAt;
     private final Set<String> readyUsers = new LinkedHashSet<>();
     private boolean released;
-    private int collapseRing;
-    private long nextCollapseAt;
     private long now;
     private long pigeonSequence;
     private long endedAt;
@@ -54,34 +53,23 @@ public final class StoneRumbleMatch {
         }
         loadingStartedAt = createdAt;
         now = createdAt;
-        for (int floor = RADII.length - 1; floor >= 0; floor--) {
-            for (int ring = RADII[floor]; ring >= 0; ring--) {
-                collapseRings.add(new ArrayList<>());
-            }
-        }
-        for (int floor = 0; floor < 3; floor++) {
+        for (int floor = 0; floor < RADII.length; floor++) {
             int radius = RADII[floor];
-            int ringOffset = 0;
-            for (int upper = floor + 1; upper < RADII.length; upper++) {
-                ringOffset += RADII[upper] + 1;
-            }
             for (int q = -radius; q <= radius; q++) {
                 for (int r = -radius; r <= radius; r++) {
                     int ring = StoneHexGrid.ring(q, r);
-                    if (ring > radius) {
+                    if (ring > radius || floor == TOP_FLOOR && !isSpawn(q, r)) {
                         continue;
                     }
                     Tile tile = new Tile(tiles.size(), floor, q, r,
                             UNSCHEDULED);
                     tiles.add(tile);
                     tileIndex.put(key(floor, q, r), tile);
-                    collapseRings.get(ringOffset + radius - ring).add(tile);
                 }
             }
         }
-        int[][] spawns = {{-2, 0}, {2, 0}, {0, -3}, {0, 3}, {-3, 3}, {3, -3}, {-4, 1}, {4, -1}};
         for (int i = 0; i < users.size(); i++) {
-            int q = spawns[i][0], r = spawns[i][1];
+            int q = SPAWNS[i][0], r = SPAWNS[i][1];
             players.add(new Player(Long.toString(users.get(i)), StoneHexGrid.x(q, r), StoneHexGrid.z(r),
                     startsAt, landsAt));
         }
@@ -98,29 +86,12 @@ public final class StoneRumbleMatch {
             released = true;
             landsAt = now + DROP_DURATION;
             startsAt = landsAt + COUNTDOWN_DURATION;
-            nextCollapseAt = startsAt + FIRST_COLLAPSE_DELAY;
             for (Player p : players) { p.pigeonReadyAt = startsAt; p.slideReadyAt = landsAt; }
-            collapseOuterRing();
-        }
-    }
-
-    /** 위층의 남은 테두리부터 한 겹씩 없앤 후 다음 층으로 내려간다. */
-    private void collapseOuterRing() {
-        while (collapseRing < collapseRings.size()) {
-            boolean remaining = false;
-            for (Tile tile : collapseRings.get(collapseRing)) {
-                if (tile.breakAt > now) {
-                    remaining = true;
-                    tile.breakAt = Math.min(tile.breakAt, nextCollapseAt);
+            for (Tile tile : tiles) {
+                if (tile.floor == TOP_FLOOR) {
+                    tile.breakAt = startsAt + STEP_DELAY;
                 }
             }
-            if (remaining) {
-                return;
-            }
-            if (now >= nextCollapseAt) {
-                nextCollapseAt += COLLAPSE_INTERVAL;
-            }
-            collapseRing++;
         }
     }
 
@@ -155,10 +126,12 @@ public final class StoneRumbleMatch {
             player.jumpBufferedUntil = now + JUMP_BUFFER_MILLIS;
             applyBufferedJump(player);
         }
-        if (slide && now >= player.knockUntil && now >= player.slideReadyAt) {
+        if (slide && !player.diving && now >= player.knockUntil && now >= player.slideReadyAt
+                && now >= player.slideUntil) {
             double directionLength = Math.hypot(player.inputX, player.inputZ);
             player.slideX = (directionLength > .01 ? player.inputX / directionLength : player.aimX) * SLIDE_DISTANCE;
             player.slideZ = (directionLength > .01 ? player.inputZ / directionLength : player.aimZ) * SLIDE_DISTANCE;
+            player.diving = true;
             player.slideStartedAt = now;
             player.slideUntil = now + SLIDE_DURATION;
             player.slideReadyAt = now + SLIDE_COOLDOWN;
@@ -187,7 +160,6 @@ public final class StoneRumbleMatch {
         }
         while (now + 20 <= target && !finished()) {
             now += 20;
-            collapseOuterRing();
             for (Player player : players) {
                 if (player.alive) {
                     move(player);
@@ -199,10 +171,10 @@ public final class StoneRumbleMatch {
                 for (Player player : players) {
                     if (player.alive) {
                         keepOnPreparationFloor(player);
-                        if (player.y < HEIGHTS[2]) {
-                            player.y = HEIGHTS[2];
+                        if (player.y < HEIGHTS[TOP_FLOOR]) {
+                            player.y = HEIGHTS[TOP_FLOOR];
                             player.vy = 0;
-                            player.floor = 2;
+                            player.floor = TOP_FLOOR;
                             player.grounded = true;
                         }
                     }
@@ -212,12 +184,26 @@ public final class StoneRumbleMatch {
             List<String> alive = players.stream().filter(p -> p.alive).map(p -> p.userId).toList();
             if (alive.size() <= 1) {
                 finish(alive.isEmpty() ? "ALL_FALLEN" : "LAST_PLAYER_STANDING", alive, now);
+            } else if (now >= startsAt + MATCH_TIME_LIMIT) {
+                finish("MATCH_TIME_LIMIT", alive, now);
             }
         }
     }
 
+    private static boolean isSpawn(int q, int r) {
+        for (int[] spawn : SPAWNS) {
+            if (spawn[0] == q && spawn[1] == r) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private void move(Player player) {
         applyBufferedJump(player);
+        if (player.diving) {
+            player.slideUntil = Math.max(player.slideUntil, now + 40);
+        }
         boolean recoiling = now <= player.knockUntil;
         boolean sliding = player.slideUntil > player.slideStartedAt && now <= player.slideUntil;
         double inputScale = now >= landsAt && !recoiling && !sliding && now - player.inputAt <= 350 ? 4.5 : 0;
@@ -232,16 +218,16 @@ public final class StoneRumbleMatch {
             player.x += player.knockX * portion;
             player.z += player.knockZ * portion;
         } else if (sliding) {
-            double before = Math.max(0, (double) (now - 20 - player.slideStartedAt) / SLIDE_DURATION);
+            double before = Math.min(1, Math.max(0, (double) (now - 20 - player.slideStartedAt) / SLIDE_DURATION));
             double after = Math.min(1, (double) (now - player.slideStartedAt) / SLIDE_DURATION);
             player.x += player.slideX * (after - before);
             player.z += player.slideZ * (after - before);
         }
-        player.vy -= 18 * 0.02;
+        player.vy -= 22 * 0.02;
         player.y += player.vy * 0.02;
         player.grounded = false;
         if (player.vy <= 0) {
-            for (int floor = 2; floor >= 0; floor--) {
+            for (int floor = TOP_FLOOR; floor >= 0; floor--) {
                 if (oldY + 0.001 >= HEIGHTS[floor] && player.y <= HEIGHTS[floor]) {
                     Tile tile = tileAt(floor, player.x, player.z);
                     if (tile != null && tile.breakAt > now) {
@@ -249,6 +235,12 @@ public final class StoneRumbleMatch {
                         player.vy = 0;
                         player.floor = floor;
                         player.grounded = true;
+                        player.lastGroundedAt = now;
+                        if (player.diving && now >= player.slideStartedAt + SLIDE_DURATION) {
+                            player.diving = false;
+                            player.slideUntil = now + DIVE_RECOVERY;
+                            player.slideReadyAt = Math.max(player.slideReadyAt, player.slideUntil);
+                        }
                         if (now >= startsAt) {
                             tile.breakAt = Math.min(tile.breakAt, now + STEP_DELAY);
                             tile.stepped = true;
@@ -264,9 +256,11 @@ public final class StoneRumbleMatch {
     }
 
     private void applyBufferedJump(Player player) {
-        if (now <= player.jumpBufferedUntil && player.grounded && now >= player.slideUntil) {
+        if (now <= player.jumpBufferedUntil && (player.grounded || now - player.lastGroundedAt <= 80)
+                && now >= player.slideUntil && now >= player.knockUntil) {
             player.jumpBufferedUntil = Long.MIN_VALUE;
-            player.vy = 7;
+            player.vy = 6.6;
+            player.lastGroundedAt = Long.MIN_VALUE / 2;
             player.grounded = false;
         }
     }
@@ -316,6 +310,7 @@ public final class StoneRumbleMatch {
                 }
             }
             if (struck != null) {
+                struck.diving = false;
                 struck.slideUntil = now;
                 struck.slideX = 0;
                 struck.slideZ = 0;
@@ -360,6 +355,7 @@ public final class StoneRumbleMatch {
     }
 
     private void eliminate(Player player, long at, boolean forfeited) {
+        player.diving = false;
         player.alive = false;
         player.grounded = false;
         player.forfeited = forfeited;
@@ -395,13 +391,13 @@ public final class StoneRumbleMatch {
 
     /** 카운트다운 중에는 육각 경기장의 실제 가장자리에 머물게 한다. */
     private void keepOnPreparationFloor(Player player) {
-        if (tileAt(2, player.x, player.z) != null) {
+        if (tileAt(TOP_FLOOR, player.x, player.z) != null) {
             return;
         }
         Tile nearest = null;
         double distance = Double.POSITIVE_INFINITY;
         for (Tile tile : tiles) {
-            if (tile.floor != 2) {
+            if (tile.floor != TOP_FLOOR) {
                 continue;
             }
             double candidate = Math.hypot(player.x - StoneHexGrid.x(tile.q, tile.r),
@@ -443,6 +439,7 @@ public final class StoneRumbleMatch {
 
     private Integer rank(Player player) {
         if (!finished() || Set.of("SIMULATION_LIMIT", "LOADING_TIMEOUT").contains(endReason)) { return null; }
+        if (player.alive) { return 1; }
         return 1 + (int) players.stream().filter(p -> p != player && (p.alive
                 || !player.alive && p.eliminatedAt > player.eliminatedAt)).count();
     }
@@ -477,10 +474,11 @@ public final class StoneRumbleMatch {
     private static final class Player {
         final String userId;
         double x, y = DROP_HEIGHT, z, vy, inputX, inputZ, aimX = 1, aimZ, knockX, knockZ, slideX, slideZ;
-        int floor = 2;
-        boolean alive = true, grounded, forfeited;
+        int floor = TOP_FLOOR;
+        boolean alive = true, grounded, forfeited, diving;
         long inputAt, pigeonReadyAt, protectedUntil, hitAt, eliminatedAt, knockUntil;
         long slideStartedAt, slideUntil, slideReadyAt;
+        long lastGroundedAt = Long.MIN_VALUE / 2;
         long jumpBufferedUntil = Long.MIN_VALUE;
         Player(String userId, double x, double z, long startsAt, long landsAt) {
             this.userId = userId; this.x = x; this.z = z; this.pigeonReadyAt = startsAt;
