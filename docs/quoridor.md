@@ -240,3 +240,23 @@ DB 준비 후 실행할 `QuoridorSettlementMySqlTests` 5개를 추가하고 test
 `fix/quoridor-visual-checkpoint`에서 해당 파일의 기준만 `9bc3c49d22c616428123bef59ec0a3697c6fa04a59fae0e85cfd4aa765c5d9ee`로 갱신하고 !674의 승인된 연결과 위 검토 근거를 fixture에 기록했다. 기존 검토 기록·다른 199개 해시·보호 대상 200개·검사 코드는 유지한다. 제품 코드·새 맵 변경·생성 데이터·인프라·DB 수정은 없다.
 
 parkVisualPreservation·quoridor·quoridorPresentation·quoridorSpectatorEvents·manual의 5개 파일 29개 테스트가 통과했다. 별도 소스 비교로 두 줄을 제외한 본문 일치와 보호 대상·기존 검토 기록 보존도 확인했다. 이번 작업에서 화면 렌더링이나 전체 FE 테스트를 새로 수행했다는 뜻은 아니며, 금지된 맵 전수 탐색·자전거·킥보드 테스트는 실행하지 않았다. Jenkins 빌드는 사용자 직접 확인 요청을 유지한다.
+## V186 MySQL 1064 수정·실제 DB 회귀 (2026-11-24)
+
+최신 `origin/dev` `cda90f0dafe7bd319a22dc33705093498ef6bfd2`를 기준으로 `fix/quoridor-v186-migration`에서 수정했다. 담당자가 DEV V186의 `success=0`과 CHECK_CLAUSE를 동적 DDL에 삽입할 때 발생한 MySQL 1064를 확인했다. 실패한 V186의 SQL만 고치며 새 migration 번호는 만들지 않는다. 다른 환경의 성공 적용 여부는 미확인이다. V186 `success=1`인 환경이 발견되면 적용된 파일의 checksum을 임의 정렬하지 말고 배포 전에 별도 조율해야 한다.
+
+`backend/src/main/resources/db/migration/V186__allow_quoridor_game_sessions.sql`은 메타데이터 표현식의 문자열 재실행을 제거하고 하나의 정적 ALTER로 CHECK를 교체한다. V185의 OMOK·ALKKAGI 2인, DICE·ONE_CARD·LIAR_BRIDGE·DICE_LEDGER·HALLI_GALLI·DAVINCI_CODE·RUMMIKUB 2~4인, STONE_RUMBLE 2~8인을 그대로 보존하고 QUORIDOR 2인/4인만 추가한다. FE/BE 통신·게임 규칙·공원 맵·카메라·CI/CD·서버 설정은 수정하지 않았다.
+
+사용자가 승인한 임시 loopback MySQL **8.4.13**에서 `QuoridorMigrationMySqlTests` 4개가 통과했다. 수정 전 SQL 원본은 운영 migration 경로 밖의 `src/test/resources/quoridor/failed-v186.sql`에 실패 재현용으로 보관했다.
+
+- 기존 V186으로 1064와 Flyway 실패 이력을 재현한 뒤, V185 제약이 남아 있는지 확인하고 **Flyway repair → 수정 V186 migrate → validate**로 복구했다. 성공 이력과 checksum은 보존됐으며 재실행은 0건이다. 직접 이력 UPDATE는 사용하지 않았다.
+- 빈 DB 전체 적용과 V185 데이터가 있는 DB의 순차 적용 모두 성공했다. 다른 CHECK의 표현식을 보존했고, 일반 이스케이프 모드와 NO_BACKSLASH_ESCAPES에서도 수정 V186을 적용했다.
+- 기존 10개 게임·QUORIDOR·미등록 코드 각각 0~9인 INSERT로 허용/거절을 검증했다. QUORIDOR 3인은 거절된다.
+- 빈 DB 원본 의존성 때문에 테스트 locations는 migration·minigame·shop을 사용한다. migration·minigame만으로 새 DB를 만들면 기존 V165가 items 테이블을 찾지 못하는 것을 확인했다. 배포 locations는 변경하지 않았으며 기존 DEV의 스키마/성공 이력을 기준으로 담당자가 실제 locations를 확인해야 한다.
+
+이번에는 이전에 컴파일만 확인했던 `QuoridorSettlementMySqlTests` **5개도 실제 실행·통과**했다. 최신 스키마가 준비된 전용 DB에서 2인 무료 기권, 2인/4인 판돈 7의 기권과 도착 승리, 실제 예약·결과 저장·정산 커밋, 예약금 0·총 잔액 보존·중복 원장 방지를 확인했다. 초기 100에서 2인 승자 107/패자 93, 4인 승자 121/나머지 93을 검증했다. 이는 로컬 실제 DB 검증이며 DEV·PROD의 자산·배포 성공을 확인한 것은 아니다. 기존 길목 한 수와 공통 인원 제한 백엔드 11개 클래스 **62개**도 통과했다.
+
+실행은 backend에서 `./gradlew.bat mysqlTest --tests '*QuoridorMigrationMySqlTests'`, 이어서 동일 준비 DB로 `./gradlew.bat mysqlTest --tests '*QuoridorSettlementMySqlTests'`를 사용한다. 전용 빈 DB의 TEST_GAME_DB_URL은 loopback의 ontop_game_test_quoridor_*만 허용하고 username/password는 환경변수로 전달한다. 테스트는 격리 스키마를 생성할 권한이 필요하므로 서비스 DB에 연결하지 않는다. 검증 컨테이너는 finally에서 삭제했고 작업 label로 남은 컨테이너 0개를 확인했다. 브라우저는 열지 않았다. 로그는 저장소 밖 `OnTop/output/quoridor-v186-20261124`에 보관했다.
+
+### DEV 복구는 담당자 진행
+
+DB 백업과 `SHOW CREATE TABLE game_sessions`, V186 및 전체 성공 Flyway 이력을 먼저 확인한다. 실패가 PREPARE 단계인지, 기존 V185 제약·데이터가 정상인지 확인해야 하며 예상과 다르면 작업을 중단하고 조율한다. 같은 Flyway 버전·접속 설정·locations·검토된 migration 원본으로 repair한 뒤 migrate와 validate를 수행한다. repair는 실패 이력 제거 외에 성공 이력의 checksum/description/type도 보정할 수 있으므로 V186 외 불일치가 없는지 사전에 확인한다([공식 repair 문서](https://documentation.red-gate.com/flyway/reference/commands/repair)). 성공 상태를 직접 UPDATE하거나 clean/DB 초기화로 숨기지 않는다. 복구 후 V186 성공·기존 게임 계약·2인/4인 경기·3인 거절·컨테이너 정상 기동과 내부 8082 health UP을 확인한다. 서비스 DB repair/migrate 및 인프라 직접 변경은 수행하지 않았고 Jenkins는 사용자가 확인한다.
