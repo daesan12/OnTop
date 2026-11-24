@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useThree } from '@react-three/fiber'
-import { Box3, Mesh, MeshStandardMaterial, Vector3, type Object3D } from 'three'
+import { Box3, Mesh, Vector3, type Object3D } from 'three'
 import type { GLTF } from 'three/addons/loaders/GLTFLoader.js'
 import { ParkAssetLoader } from '../../../world/art/assetLoader'
 import { useWinterCommunity } from './state'
 import { TREE_ORNAMENTS, treeOrnamentSlots, type TreeOrnamentKind } from './ornaments'
+import { setTreeLighting, treeLighting } from './treeLighting'
+import { TreeLightGlow } from './TreeLightGlow'
 
 const treeUrl = new URL('./assets/tree.glb', import.meta.url).href
 const requests = new Map<string, Promise<GLTF>>()
@@ -47,31 +49,21 @@ export function ChristmasCommunityTree({ fallback, procedural = false }: { fallb
   const gltf = useModel(procedural ? null : treeUrl), status = useWinterCommunity(s => s.tree)
   const model = useMemo(() => {
     if (!gltf) return undefined
-    const root = gltf.scene.clone(true), lights: MeshStandardMaterial[] = []
+    const root = gltf.scene.clone(true)
     root.name = 'winter-community-tree-12m'
     root.traverse(object => {
       if (object.name.startsWith('Memo_Anchor_')) object.visible = false
       if (!(object instanceof Mesh)) return
       object.castShadow = true; object.receiveShadow = true; object.raycast = () => {}
-      const materials = (Array.isArray(object.material) ? object.material : [object.material]).map(material => {
-        if (!(material instanceof MeshStandardMaterial) || !['MAT_Star_Emission', 'MAT_StringBulb_Emission'].includes(material.name)) return material
-        const copy = material.clone(); copy.emissive.set(0); copy.emissiveIntensity = 0; lights.push(copy)
-        return copy
-      })
-      object.material = Array.isArray(object.material) ? materials : materials[0]!
     })
     root.updateMatrixWorld(true)
-    return { root, lights }
+    return { root, ...treeLighting(root) }
   }, [gltf])
   useEffect(() => {
-    for (const material of model?.lights ?? []) {
-      material.emissive.set(status?.lit ? '#ffdfa1' : '#000000')
-      material.emissiveIntensity = status?.lit ? 3 : 0
-      material.toneMapped = !status?.lit; material.needsUpdate = true
-    }
+    setTreeLighting(model?.materials ?? [], !!status?.lit)
     invalidate()
   }, [model, status?.lit, invalidate])
-  useEffect(() => () => { model?.lights.forEach(material => material.dispose()) }, [model])
+  useEffect(() => () => { model?.materials.forEach(material => material.dispose()) }, [model])
   const ornaments = useMemo(() => treeOrnamentSlots(status?.ornaments ?? []).flatMap(item => {
     if (procedural) {
       const slot = Number(item.anchor.slice(-3)) - 1, row = Math.floor(slot / 12)
@@ -88,6 +80,7 @@ export function ChristmasCommunityTree({ fallback, procedural = false }: { fallb
     {ornaments.map(item => <Ornament key={item.id} kind={item.ornament} position={item.position} />)}
   </group>
   return model ? <group name="winter-tree-community-display"><primitive object={model.root} dispose={null} />
+    {status?.lit && <TreeLightGlow bulbs={model.bulbs} star={model.star} />}
     {ornaments.map(item => <Ornament key={item.id} kind={item.ornament} position={item.position} />)}
   </group> : <>{fallback}</>
 }
