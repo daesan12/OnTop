@@ -227,9 +227,11 @@ public final class StoneRumbleEngine implements GameEngine {
                 }
                 entry.publicState = null;
                 entry.match.advance(clock.millis());
-                if (clock.millis() - entry.publishedAt >= 100 || entry.match.finished()) {
+                boolean urgent = entry.match.presentationVersion() != entry.presentedVersion;
+                if (clock.millis() - entry.publishedAt >= (urgent ? 40 : 100) || entry.match.finished()) {
                     bump(entry);
                     entry.publishedAt = clock.millis();
+                    entry.presentedVersion = entry.match.presentationVersion();
                     notices.add(new GameStateChanged(entry.gameId, entry.version));
                 }
                 collectFinish(entry, notices);
@@ -296,7 +298,7 @@ public final class StoneRumbleEngine implements GameEngine {
         final Map<Long, Long> versions = new HashMap<>();
         final Map<Long, Long> sequences = new HashMap<>();
         final Map<Long, Long> readinessVersions = new HashMap<>();
-        long version = FIRST_VERSION, publishedAt;
+        long version = FIRST_VERSION, publishedAt, presentedVersion;
         ObjectNode publicState;
         boolean finished;
         Entry(String gameId, String tableId, List<Long> players, long now) {

@@ -32,6 +32,7 @@ public final class StoneRumbleMatch {
     private final List<Player> players = new ArrayList<>();
     private final List<Tile> tiles = new ArrayList<>();
     private final List<Pigeon> pigeons = new ArrayList<>();
+    private final List<PigeonImpactView> impacts = new ArrayList<>();
     private final Map<String, Tile> tileIndex = new LinkedHashMap<>();
     public static final long LOADING_TIMEOUT = 90_000;
     private static final long UNSCHEDULED = 9_007_199_254_740_991L;
@@ -44,6 +45,7 @@ public final class StoneRumbleMatch {
     private long pigeonSequence;
     private long endedAt;
     private String endReason;
+    private long presentationVersion;
     private List<String> winners = List.of();
 
     public StoneRumbleMatch(List<Long> users, long createdAt) {
@@ -114,6 +116,11 @@ public final class StoneRumbleMatch {
             throw new IllegalArgumentException("NOT_ACTIVE");
         }
         double length = Math.max(1, Math.hypot(x, z));
+        // 카메라를 조금씩 돌릴 때마다 25Hz 공개로 올라가지 않게 큰 방향 전환만 서두른다.
+        if (Math.hypot(player.inputX - x / length, player.inputZ - z / length) > .5
+                || now - player.inputAt > 350 && Math.hypot(x, z) > .01) {
+            presentationVersion++;
+        }
         player.inputX = x / length;
         player.inputZ = z / length;
         player.inputAt = now;
@@ -132,11 +139,13 @@ public final class StoneRumbleMatch {
             player.slideX = (directionLength > .01 ? player.inputX / directionLength : player.aimX) * SLIDE_DISTANCE;
             player.slideZ = (directionLength > .01 ? player.inputZ / directionLength : player.aimZ) * SLIDE_DISTANCE;
             player.diving = true;
+            presentationVersion++;
             player.slideStartedAt = now;
             player.slideUntil = now + SLIDE_DURATION;
             player.slideReadyAt = now + SLIDE_COOLDOWN;
         }
         if (fire && now >= startsAt && now >= player.pigeonReadyAt) {
+            presentationVersion++;
             pigeons.add(new Pigeon(++pigeonSequence, userId, player.x + player.aimX * 0.6,
                     player.y + 0.8, player.z + player.aimZ * 0.6,
                     player.aimX * PIGEON_SPEED, player.aimZ * PIGEON_SPEED, now));
@@ -259,6 +268,7 @@ public final class StoneRumbleMatch {
         if (now <= player.jumpBufferedUntil && (player.grounded || now - player.lastGroundedAt <= 80)
                 && now >= player.slideUntil && now >= player.knockUntil) {
             player.jumpBufferedUntil = Long.MIN_VALUE;
+            presentationVersion++;
             player.vy = 6.6;
             player.lastGroundedAt = Long.MIN_VALUE / 2;
             player.grounded = false;
@@ -288,6 +298,7 @@ public final class StoneRumbleMatch {
     }
 
     private void movePigeons() {
+        impacts.removeIf(impact -> now - impact.at() > 1000);
         for (Pigeon pigeon : pigeons) {
             if (now - pigeon.bornAt > 1200) {
                 pigeon.dead = true;
@@ -310,6 +321,11 @@ public final class StoneRumbleMatch {
                 }
             }
             if (struck != null) {
+                presentationVersion++;
+                long contactAt = now - 20 + Math.round(firstContact * 20);
+                impacts.add(new PigeonImpactView(pigeon.id, pigeon.owner, struck.userId,
+                        fromX + pigeon.vx * .02 * firstContact, pigeon.y,
+                        fromZ + pigeon.vz * .02 * firstContact, pigeon.vx, pigeon.vz, pigeon.bornAt, contactAt));
                 struck.diving = false;
                 struck.slideUntil = now;
                 struck.slideX = 0;
@@ -424,6 +440,11 @@ public final class StoneRumbleMatch {
         return endReason != null;
     }
 
+    /** 판정은 바꾸지 않고 입력 시작·점프·발사·명중을 빠르게 공개할 때 사용한다. */
+    public long presentationVersion() {
+        return presentationVersion;
+    }
+
     public Snapshot snapshot() {
         return new Snapshot("STONE_RUMBLE", StoneHexGrid.LAYOUT, finished() ? "FINISHED" : "PLAYING", now, startsAt, endedAt,
                 endReason, winners, tiles.stream().map(t -> new TileView(t.id, t.floor, t.q, t.r,
@@ -432,9 +453,9 @@ public final class StoneRumbleMatch {
                         p.aimX, p.aimZ, p.pigeonReadyAt, p.hitAt, p.eliminatedAt, p.forfeited,
                         p.slideStartedAt, p.slideUntil, p.slideReadyAt, p.slideX, p.slideZ,
                         rank(p), reward(p))).toList(),
-                pigeons.stream().map(p -> new PigeonView(p.id, p.owner, p.x, p.y, p.z, p.vx, p.vz)).toList(),
+                pigeons.stream().map(p -> new PigeonView(p.id, p.owner, p.x, p.y, p.z, p.vx, p.vz, p.bornAt)).toList(),
                 landsAt, finished() ? "FINISHED" : !released ? "LOADING" : now < landsAt ? "DROPPING" : now < startsAt ? "COUNTDOWN" : "RUNNING",
-                List.copyOf(readyUsers));
+                List.copyOf(readyUsers), List.copyOf(impacts));
     }
 
     private Integer rank(Player player) {
@@ -454,13 +475,16 @@ public final class StoneRumbleMatch {
 
     public record Snapshot(String gameCode, String tileLayout, String status, long serverTime, long startsAt, long endedAt,
             String endReason, List<String> winnerUserIds, List<TileView> tiles, List<PlayerView> players,
-            List<PigeonView> pigeons, long landsAt, String phase, List<String> readyUserIds) { }
+            List<PigeonView> pigeons, long landsAt, String phase, List<String> readyUserIds,
+            List<PigeonImpactView> impacts) { }
     public record TileView(int id, int floor, int q, int r, long breakAt, boolean stepped) { }
     public record PlayerView(String userId, double x, double y, double z, int floor, boolean alive,
             boolean grounded, double aimX, double aimZ, long pigeonReadyAt, long hitAt,
             long eliminatedAt, boolean forfeited, long slideStartedAt, long slideUntil, long slideReadyAt,
             double slideX, double slideZ, Integer rank, long rewardCoins) { }
-    public record PigeonView(long id, String owner, double x, double y, double z, double vx, double vz) { }
+    public record PigeonView(long id, String owner, double x, double y, double z, double vx, double vz, long bornAt) { }
+    public record PigeonImpactView(long id, String owner, String targetUserId, double x, double y, double z,
+            double vx, double vz, long bornAt, long at) { }
 
     private static final class Tile {
         final int id, floor, q, r;

@@ -7,13 +7,14 @@ export interface StonePlayer {
   rank?: number | null; rewardCoins?: number
 }
 export interface StoneTile { id: number; floor: number; q: number; r: number; breakAt: number; stepped: boolean }
-export interface StonePigeon { id: number; owner: string; x: number; y: number; z: number; vx: number; vz: number }
+export interface StonePigeon { id: number; owner: string; x: number; y: number; z: number; vx: number; vz: number; bornAt?: number }
+export interface StonePigeonImpact extends StonePigeon { targetUserId: string; at: number }
 export interface StoneState {
   tileLayout: typeof STONE_TILE_LAYOUT
   gameCode: 'STONE_RUMBLE'; gameId: string; status: 'PLAYING' | 'FINISHED'; serverTime: number
   startsAt: number; endedAt: number; endReason: string | null; winnerUserIds: string[]
   landsAt: number; phase: 'LOADING' | 'DROPPING' | 'COUNTDOWN' | 'RUNNING' | 'FINISHED'; readyUserIds?: string[]
-  tiles: StoneTile[]; players: StonePlayer[]; pigeons: StonePigeon[]
+  tiles: StoneTile[]; players: StonePlayer[]; pigeons: StonePigeon[]; impacts?: StonePigeonImpact[]
 }
 export interface StoneControl { kind: 'control'; seq: number; x: number; z: number; aimX: number; aimZ: number; jump: boolean; fire: boolean; slide: boolean }
 export type StoneAction = StoneControl | { kind: 'scene_ready'; ready: boolean }
@@ -65,7 +66,12 @@ export function parseStoneState(value: unknown): StoneState {
     || new Set(value.tiles.map(t => `${t.floor}:${t.q}:${t.r}`)).size !== value.tiles.length
     || new Set(value.tiles.map(t => t.id)).size !== value.tiles.length
     || !Array.isArray(value.pigeons) || value.pigeons.length > 16
-    || !value.pigeons.every(p => object(p) && id(p.owner) && ['id', 'x', 'y', 'z', 'vx', 'vz'].every(k => finite(p[k])))) {
+    || !value.pigeons.every(p => object(p) && id(p.owner) && ['id', 'x', 'y', 'z', 'vx', 'vz'].every(k => finite(p[k]))
+      && (p.bornAt === undefined || finite(p.bornAt)))
+    || value.impacts !== undefined && (!Array.isArray(value.impacts) || value.impacts.length > 16
+      || !value.impacts.every(p => object(p) && id(p.owner) && id(p.targetUserId)
+        && ['id', 'x', 'y', 'z', 'vx', 'vz', 'at'].every(k => finite(p[k]))
+        && (p.bornAt === undefined || finite(p.bornAt))))) {
     throw new Error('돌탑 경기 상태를 읽지 못했어요. 다시 연결해 주세요.')
   }
   return value as unknown as StoneState

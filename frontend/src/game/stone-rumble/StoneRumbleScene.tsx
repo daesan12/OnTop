@@ -4,19 +4,18 @@ import { Group, Mesh, MeshBasicMaterial, Object3D, Scene, SphereGeometry, Vector
 import type { GLTF } from 'three/addons/loaders/GLTFLoader.js'
 import { lookKey, lookSources, resolveLook } from '../../world/art/characterLook'
 import { createSafeCharacterRig } from '../../world/art/safeCharacterRig'
-import { pigeonGeometry, pigeonMaterial } from '../../world/pigeons/pigeonGeometry'
 import { visibleStoneFloor, STONE_FLOOR_HEIGHTS, STONE_DROP_HEIGHT } from './layout'
 import { useStoneAppearance } from './useStoneAppearance'
 import { StoneRumbleTiles } from './StoneRumbleTiles'
+import { StonePigeons } from './StonePigeons'
 import { EnvironmentScene } from '../../world/EnvironmentScene'
 import { ParkSun } from '../../world/ParkSun'
 import { loadStoneRumblePark } from './loadPark'
 import { StoneRumblePreparation, type StoneSceneStatus } from './StoneRumblePreparation'
-import type { StoneControl, StonePigeon, StonePlayer, StoneState } from './protocol'
+import type { StoneControl, StonePlayer, StoneState } from './protocol'
 import { STONE_PLAYER_COLORS as COLORS } from './palette'
 import { readStoneCharacterAppearances } from './characterAppearance'
 import { StoneRumbleLighting } from './StoneRumbleLighting'
-import { createStoneMaterial } from './visibility'
 import { StoneHitEffect } from './StoneHitEffect'
 import type { StoneFeedbackFrame } from './feedback'
 import { followStoneYaw, StonePositionBuffer } from './motion'
@@ -24,7 +23,6 @@ import { advanceStoneCamera, STONE_CAMERA_DISTANCE, type StoneCameraState } from
 import { useStoneCameraInput } from './useStoneCameraInput'
 
 const StoneRumbleEnvironment = lazy(loadStoneRumblePark)
-const stonePigeonMaterial = createStoneMaterial(pigeonMaterial)
 // 게임 입력은 캔버스의 DOM 포인터로 받는다. 배경 공원의 시설 선택은 실행하지 않는다.
 const gameEvents: typeof events = state => ({ ...events(state), enabled: false })
 class SceneBoundary extends Component<{ children: ReactNode; onStatus?: StoneSceneStatus }, { failed: boolean }> {
@@ -36,13 +34,13 @@ class SceneBoundary extends Component<{ children: ReactNode; onStatus?: StoneSce
 export type StoneCamera = MutableRefObject<StoneCameraState>
 export type StoneInput = MutableRefObject<Omit<StoneControl, 'kind' | 'seq'>>
 
-type AvatarProps = { player: StonePlayer; index: number; own: boolean; time: number; gameId: string; feedback?: MutableRefObject<StoneFeedbackFrame> }
+type AvatarProps = { player: StonePlayer; index: number; own: boolean; time: number; gameId: string; feedback?: MutableRefObject<StoneFeedbackFrame>; aim?: StoneInput }
 function Avatar(props: AvatarProps & { localOnly: boolean }) {
   const appearance = useStoneAppearance(props.player.userId, props.index, props.localOnly)
   return appearance.ready ? <AvatarRig {...props} {...appearance} /> : null
 }
 
-function AvatarRig({ player, index, own, time, gameId, feedback, source, files, look, whole, metadata }: AvatarProps & {
+function AvatarRig({ player, index, own, time: serverTime, gameId, feedback, aim, source, files, look, whole, metadata }: AvatarProps & {
   source: GLTF; files: ReadonlyMap<string, GLTF>; look: ReturnType<typeof resolveLook>; whole?: GLTF; metadata: ReturnType<typeof useStoneAppearance>['metadata']
 }) {
   const shownKey = lookKey(look)
@@ -69,7 +67,7 @@ function AvatarRig({ player, index, own, time, gameId, feedback, source, files, 
   const group = useRef<Group>(null), initial = useRef(true)
   const gait = useRef({ phase: 0, strength: 0, airborne: 0 })
   const body = useRef<Group>(null), dive = useRef(0), diveYaw = useRef(0)
-  const aimMarker = useRef<Group>(null)
+  const aimMarker = useRef<Group>(null), reticle = useRef<MeshBasicMaterial>(null)
   const facing = useRef({ x: player.x, z: player.z, yaw: Math.atan2(player.aimX, player.aimZ) })
   const positions = useMemo(() => new StonePositionBuffer(), [])
   useEffect(() => { initial.current = true; dive.current = 0; positions.reset() }, [gameId, positions])
@@ -84,8 +82,10 @@ function AvatarRig({ player, index, own, time, gameId, feedback, source, files, 
       gait.current = { phase: 0, strength: 0, airborne: Number(!player.grounded) }
       initial.current = false
     }
+    if (reticle.current) reticle.current.color.set(performance.now() - (feedback?.current.confirmedAt ?? -Infinity) < 240 ? '#f2ba35' : '#fff5d0')
     const previousX = root.position.x, previousZ = root.position.z
-    positions.sample(player, time, performance.now(), root.position)
+    positions.sample(player, serverTime, performance.now(), root.position)
+    const time = positions.displayTime
     // 보간 잔여 이동이나 마우스 조준 대신 서버 좌표의 실제 이동 방향을 따른다.
     const dx = player.x - facing.current.x, dz = player.z - facing.current.z
     if (Math.hypot(dx, dz) > .001) facing.current.yaw = Math.atan2(dx, dz)
@@ -96,12 +96,15 @@ function AvatarRig({ player, index, own, time, gameId, feedback, source, files, 
     const blend = dive.current, standing = 1 - blend
     root.rotation.y = followStoneYaw(root.rotation.y, sliding || blend > .05 ? diveYaw.current : facing.current.yaw,
       Math.min(dt, .05), 20, 14)
-    if (aimMarker.current) aimMarker.current.rotation.y = Math.atan2(player.aimX, player.aimZ) - root.rotation.y
-    root.rotation.z = time - player.hitAt < 400 && player.hitAt > 0 ? -.28 : 0
+    if (aimMarker.current) {
+      const direction = aim?.current ?? player
+      aimMarker.current.rotation.y = Math.atan2(direction.aimX, direction.aimZ) - root.rotation.y
+    }
+    root.rotation.z = time >= player.hitAt && time - player.hitAt < 400 && player.hitAt > 0 ? -.28 : 0
     const travelled = Math.hypot(root.position.x - previousX, root.position.z - previousZ)
     const motion = gait.current
     const gaitBlend = 1 - Math.exp(-dt * 22)
-    const walking = player.grounded && !sliding && !(player.hitAt > 0 && time - player.hitAt < 400)
+    const walking = player.grounded && !sliding && !(player.hitAt > 0 && time >= player.hitAt && time - player.hitAt < 400)
     if (walking) motion.phase = (motion.phase + travelled * 4.8) % (2 * Math.PI)
     const strideStrength = walking ? Math.min(1, travelled / (dt * 3.8)) : 0
     motion.strength += (strideStrength - motion.strength) * gaitBlend
@@ -135,22 +138,7 @@ function AvatarRig({ player, index, own, time, gameId, feedback, source, files, 
       <ringGeometry args={[own ? .42 : .34, own ? .53 : .42, 32]} /><meshBasicMaterial fog={false} toneMapped={false} color={COLORS[index]} transparent opacity={.9} />
     </mesh>
     {own && <mesh position={[0, 2.05, 0]} rotation={[Math.PI, 0, 0]}><coneGeometry args={[.13, .25, 4]} /><meshBasicMaterial fog={false} toneMapped={false} color="#fff3ae" /></mesh>}
-    <group name="stone-aim" ref={aimMarker}><mesh position={[0, .035, .7]} rotation={[Math.PI / 2, 0, 0]}><coneGeometry args={[.13, .3, 3]} /><meshBasicMaterial fog={false} toneMapped={false} color={COLORS[index]} /></mesh></group>
-  </group>
-}
-
-function Pigeon({ pigeon, time }: { pigeon: StonePigeon; time: number }) {
-  const left = useRef<Group>(null), right = useRef<Group>(null)
-  useFrame(() => {
-    const angle = .2 + Math.sin(time * .038) * .85
-    if (left.current) left.current.rotation.z = -angle
-    if (right.current) right.current.rotation.z = angle
-  })
-  return <group position={[pigeon.x, pigeon.y, pigeon.z]} rotation={[0, Math.atan2(pigeon.vx, pigeon.vz), 0]} scale={3.3}>
-    <mesh geometry={pigeonGeometry.body} material={stonePigeonMaterial} />
-    <mesh geometry={pigeonGeometry.head} material={stonePigeonMaterial} position={[0, .187, .064]} />
-    <group ref={left} position={[-.062, .18, .005]}><mesh geometry={pigeonGeometry.leftWing} material={stonePigeonMaterial} /></group>
-    <group ref={right} position={[.062, .18, .005]}><mesh geometry={pigeonGeometry.rightWing} material={stonePigeonMaterial} /></group>
+    <group name="stone-aim" ref={aimMarker}><mesh position={[0, .035, .7]} rotation={[Math.PI / 2, 0, 0]}><coneGeometry args={[.13, .3, 3]} /><meshBasicMaterial fog={false} toneMapped={false} color={COLORS[index]} /></mesh>{aim && <mesh name="stone-pigeon-reticle" position={[0, .8, 8]} rotation={[0, Math.PI, 0]}><ringGeometry args={[.11, .14, 24]} /><meshBasicMaterial fog={false} toneMapped={false} ref={reticle} color="#fff5d0" depthWrite={false} /></mesh>}</group>
   </group>
 }
 
@@ -234,11 +222,8 @@ function Stage({ state, ownId, viewId, input, fire, feedback, localOnly, control
   return <>
     <StoneRumbleTiles tiles={state.tiles} material={material} time={state.serverTime} ownFloor={ownFloor} />
     <ArrivalClouds state={state} />
-    {state.players.map((player, index) => <Suspense key={`${state.gameId}/${player.userId}`} fallback={null}><Avatar localOnly={localOnly} player={player} index={index} own={player.userId === viewId} time={state.serverTime} gameId={state.gameId} feedback={feedback} /></Suspense>)}
-    {state.pigeons.map(pigeon => <Pigeon key={pigeon.id} pigeon={pigeon} time={state.serverTime} />)}
-    <group visible={false} userData={{ prepareWhenHidden: true }}>
-      <Pigeon pigeon={{ id: -1, owner: ownId, x: 0, y: 24.8, z: 0, vx: 20, vz: 0 }} time={0} />
-    </group>
+    {state.players.map((player, index) => <Suspense key={`${state.gameId}/${player.userId}`} fallback={null}><Avatar localOnly={localOnly} player={player} index={index} own={player.userId === viewId} time={state.serverTime} gameId={state.gameId} feedback={feedback} aim={player.userId === ownId ? input : undefined} /></Suspense>)}
+    <StonePigeons state={state} />
   </>
 }
 

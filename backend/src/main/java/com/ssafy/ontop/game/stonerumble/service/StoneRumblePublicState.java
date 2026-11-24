@@ -18,6 +18,7 @@ public final class StoneRumblePublicState {
         state.set("readyUserIds", mapper.valueToTree(snapshot.readyUserIds()));
         state.set("players", mapper.valueToTree(snapshot.players()));
         state.set("pigeons", mapper.valueToTree(snapshot.pigeons()));
+        state.set("impacts", mapper.valueToTree(snapshot.impacts()));
         var marks = state.putArray("tileMarks");
         for (var tile : snapshot.tiles()) {
             if (tile.breakAt() < 9_007_199_254_740_991L) {

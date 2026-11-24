@@ -25,9 +25,8 @@ function tileSurface(material: MeshBasicMaterial, clock: { value: number }) {
       .replace('#include <begin_vertex>', `#include <begin_vertex>
         vStonePoint = position.xy / ${STONE_PANEL_RADIUS.toFixed(8)};
         float remaining = stoneMark.y - stoneTime;
-        float fallen = max(0.0, -remaining);
-        transformed *= 1.0 - step(0.65, fallen);
-        transformed.z -= fallen * fallen * 15.0;
+        // 충돌이 사라진 발판이 추가 0.65초 동안 남아 보이지 않게 한다.
+        transformed *= step(0.0001, remaining);
         vStoneMark = vec2(max(stoneMark.x, 1.0 - step(1.001, remaining)), clamp(remaining / ${(STONE_STEP_DELAY / 1000).toFixed(1)}, 0.0, 1.0));
         vec3 stoneNormal = normal;
         #ifdef USE_INSTANCING
@@ -53,7 +52,7 @@ function tileSurface(material: MeshBasicMaterial, clock: { value: number }) {
         diffuseColor.rgb = mix(stone, vec3(1.0, 0.98, 0.88), countdown * 0.9) * vStoneShade;
         diffuseColor.a = opacity;`)
   }
-  surface.customProgramCacheKey = () => 'stone-hex-faceted-v2'
+  surface.customProgramCacheKey = () => 'stone-hex-faceted-deadline-v3'
   return surface
 }
 

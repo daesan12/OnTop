@@ -26,6 +26,8 @@ export class StoneRenderClock {
 export class StonePositionBuffer {
   private samples: PositionSample[] = []
   private clock = new StoneRenderClock()
+  private displayedAt = 0
+  get displayTime() { return this.displayedAt }
 
   reset() { this.samples = []; this.clock.reset() }
 
@@ -36,6 +38,7 @@ export class StonePositionBuffer {
       this.samples.push({ x: position.x, y: position.y, z: position.z, at: serverTime })
     }
     const time = this.clock.sample(serverTime, now)
+    this.displayedAt = time
     // 패킷 밀도와 무관하게 표시 시각 앞뒤의 샘플과 500ms 여유를 보존한다.
     // 정리 경계 직전 샘플도 남겨 내삽 시작점을 잃지 않는다.
     while (this.samples.length > 2 && this.samples[1]!.at < time - 500) this.samples.shift()
