@@ -1,4 +1,14 @@
 {
+  "quoridorTableReview20261124": {
+    "referenceCommit": "56cbd1a0eda58acfe9b4f647815fea54f4c8f362",
+    "previousReferenceCommit": "f395092948684986571a76b564d8d68d8f56f148",
+    "mergeRequest": "!674",
+    "reason": "사용자가 승인하고 dev에 병합한 길목 한 수의 기존 테이블 연결을 검토한다. 보호 파일 200개와 해시 비교 검사를 유지하며 다른 199개 해시·런타임·생성 맵·인프라는 변경하지 않는다.",
+    "reviewedFiles": [
+      { "file": "src/features/tables/TableBoards.tsx", "reason": "기존 Suspense 안에 ParkQuoridorBoard import와 렌더 호출만 추가했다. 테이블 좌표·배율·기존 게임·흑백수사·수패마루 분기·DebrisGameSurface를 보존한다." }
+    ],
+    "verification": "해당 import와 렌더 호출 2줄만 제외하면 기존 기준 SHA-256 27f61d49480a7c20e3e09d4542df99083dfd053ce966b3ba792ecf2d8d9def9e와 정확히 일치한다. 나머지 199개 파일의 소스 해시도 기존 기준과 일치한다. 새 화면 검수를 수행했다는 의미가 아니며 기존 승인·검증 기록은 docs/quoridor.md와 docs/quoridor-3d.md를 참고한다."
+  },
   "supaeTableReview20261123": {
     "referenceCommit": "f395092948684986571a76b564d8d68d8f56f148",
     "mergeRequest": "!676",
@@ -239,7 +249,7 @@
     "src/features/tables/StonePicnicTable.tsx": "bea0d2e0f9742efb8be61a4cc34ea7dd9b604642c939882ebd4e2b82602755ad",
     "src/features/tables/tablePresentation.ts": "2a06fc627ba69b9858af39fd10132d500f32877e774e9243bfebb71de077b434",
     "src/features/tables/TableShell.tsx": "0ab90a77f2d14ca3d4ec2cfd43d0dfaab4b73c5ac98168e2be4d87558549ae62",
-    "src/features/tables/TableBoards.tsx": "27f61d49480a7c20e3e09d4542df99083dfd053ce966b3ba792ecf2d8d9def9e",
+    "src/features/tables/TableBoards.tsx": "9bc3c49d22c616428123bef59ec0a3697c6fa04a59fae0e85cfd4aa765c5d9ee",
     "src/features/tables/TableFurniture.tsx": "a8c11233218c1c9438ff2f4fd2484d4542c12fa6b9bb1689a6e8c88db2123173",
     "src/features/tables/WoodTable.tsx": "75b861034293a665636b3f672b68c8193d4e24ef778cf67ab2acf42f05a13ee0",
     "src/world/art/previewPropGeometry.ts": "ec34bbfbe8a113ef4459b33fd232c0e3699fe646c51e0c3cdeef0c5495653385",
