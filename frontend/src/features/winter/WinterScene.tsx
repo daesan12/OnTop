@@ -34,7 +34,7 @@ function HolidayProp({ art, kind }: { art: ReturnType<typeof createHolidayArt>; 
     <mesh key={finish} name={'winter-' + kind + '-' + finish} geometry={geometry} dispose={null} castShadow receiveShadow raycast={() => {}}>
       <meshStandardMaterial vertexColors roughness={finish === 'gold' ? .34 : .74}
         metalness={finish === 'gold' ? .48 : 0} side={2}
-        emissive={finish === 'glow' || finish === 'star' && lit ? kind === 'tree' ? TREE_WARM_WHITE : '#ffe5a0' : '#000000'} emissiveIntensity={finish === 'glow' ? lit ? 4 : .9 : finish === 'star' && lit ? 4.5 : 0}
+        emissive={finish === 'glow' || finish === 'star' && lit ? kind === 'tree' ? TREE_WARM_WHITE : '#ffe5a0' : '#000000'} emissiveIntensity={finish === 'glow' ? lit ? 1.3 : .9 : finish === 'star' && lit ? 1.4 : 0}
         toneMapped={finish !== 'glow' && !(finish === 'star' && lit)} />
     </mesh>,
   )}{lit && <TreeLightGlow bulbs={lights} star={star} />}</group>

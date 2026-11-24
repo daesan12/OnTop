@@ -1,6 +1,6 @@
 import { Box3, Mesh, MeshStandardMaterial, Vector3, type BufferGeometry, type Object3D } from 'three'
 
-export const TREE_WARM_WHITE = '#fff1d2'
+export const TREE_WARM_WHITE = '#ffb84d'
 
 /** Weld the faceted emitter seams before finding each disconnected bulb's centre. */
 export function bulbCentres(geometry: BufferGeometry): Vector3[] {
@@ -62,8 +62,8 @@ export function treeLighting(root: Object3D): { bulbs: Vector3[]; star: Vector3 
 export function setTreeLighting(materials: readonly MeshStandardMaterial[], lit: boolean) {
   for (const material of materials) {
     material.emissive.set(lit ? TREE_WARM_WHITE : '#000000')
-    material.emissiveIntensity = lit ? material.name === 'MAT_Star_Emission' ? 4.5
-      : material.name === 'MAT_StringBulb_Emission' ? 3.5 : 1.8 : 0
+    material.emissiveIntensity = lit ? material.name === 'MAT_Star_Emission' ? 1.4
+      : material.name === 'MAT_StringBulb_Emission' ? 1.3 : .8 : 0
     material.toneMapped = !lit; material.needsUpdate = true
   }
 }
