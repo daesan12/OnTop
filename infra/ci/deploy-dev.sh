@@ -114,8 +114,22 @@ healthy() {
   return 1
 }
 
+capture_failure() {
+  local app=ontop-dev-app-app-1 diagnostic_dir
+  diagnostic_dir="$record_dir/failed-deployments/$sha-$(date -u +%Y%m%dT%H%M%SZ)"
+  umask 077
+  install -d -m 0700 "$diagnostic_dir"
+  docker logs --timestamps --tail 4000 "$app" > "$diagnostic_dir/app.log" 2>&1 || true
+  docker inspect --format '{"restartCount":{{.RestartCount}},"state":{{json .State}}}' "$app" \
+    > "$diagnostic_dir/state.json" 2>&1 || true
+  docker inspect --format '{{json .Config.Healthcheck}}' "$app" > "$diagnostic_dir/healthcheck.json" 2>&1 || true
+  docker inspect --format '{{.Config.Image}}' "$app" > "$diagnostic_dir/image.txt" 2>&1 || true
+  echo "Failed app diagnostics saved to $diagnostic_dir" >&2
+}
+
 set_image "$image"
 if ! compose config --quiet || ! compose up -d --no-deps app || ! healthy; then
+  capture_failure || echo 'Failed to save app diagnostics before rollback.' >&2
   echo 'Dev deploy failed; restoring the previous image.' >&2
   set_image "$old_image"
   compose up -d --no-deps app
