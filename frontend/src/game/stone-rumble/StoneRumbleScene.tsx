@@ -68,6 +68,8 @@ function AvatarRig({ player, index, own, time: serverTime, gameId, feedback, aim
   const gait = useRef({ phase: 0, strength: 0, airborne: 0 })
   const body = useRef<Group>(null), dive = useRef(0), diveYaw = useRef(0)
   const aimMarker = useRef<Group>(null), reticle = useRef<MeshBasicMaterial>(null)
+  const protection = useRef<MeshBasicMaterial>(null)
+  const protectionShown = useRef(false), confirmedShown = useRef(false)
   const facing = useRef({ x: player.x, z: player.z, yaw: Math.atan2(player.aimX, player.aimZ) })
   const positions = useMemo(() => new StonePositionBuffer(), [])
   useEffect(() => { initial.current = true; dive.current = 0; positions.reset() }, [gameId, positions])
@@ -82,10 +84,23 @@ function AvatarRig({ player, index, own, time: serverTime, gameId, feedback, aim
       gait.current = { phase: 0, strength: 0, airborne: Number(!player.grounded) }
       initial.current = false
     }
-    if (reticle.current) reticle.current.color.set(performance.now() - (feedback?.current.confirmedAt ?? -Infinity) < 240 ? '#f2ba35' : '#fff5d0')
+    const confirmed = performance.now() - (feedback?.current.confirmedAt ?? -Infinity) < 240
+    if (reticle.current && confirmed !== confirmedShown.current) {
+      reticle.current.color.set(confirmed ? '#f2ba35' : '#fff5d0')
+      confirmedShown.current = confirmed
+    }
     const previousX = root.position.x, previousZ = root.position.z
     positions.sample(player, serverTime, performance.now(), root.position)
     const time = positions.displayTime
+    if (protection.current) {
+      const protectedNow = player.hitAt > 0 && time >= player.hitAt && time < player.hitAt + 900
+      if (protectedNow !== protectionShown.current) {
+        protection.current.color.set(protectedNow ? '#fff3ae' : COLORS[index])
+        protection.current.opacity = .9
+        protectionShown.current = protectedNow
+      }
+      if (protectedNow) protection.current.opacity = .6 + .35 * Math.sin(time * .025)
+    }
     // 보간 잔여 이동이나 마우스 조준 대신 서버 좌표의 실제 이동 방향을 따른다.
     const dx = player.x - facing.current.x, dz = player.z - facing.current.z
     if (Math.hypot(dx, dz) > .001) facing.current.yaw = Math.atan2(dx, dz)
@@ -96,11 +111,13 @@ function AvatarRig({ player, index, own, time: serverTime, gameId, feedback, aim
     const blend = dive.current, standing = 1 - blend
     root.rotation.y = followStoneYaw(root.rotation.y, sliding || blend > .05 ? diveYaw.current : facing.current.yaw,
       Math.min(dt, .05), 20, 14)
+    root.rotation.z = time >= player.hitAt && time - player.hitAt < 400 && player.hitAt > 0 ? -.28 : 0
     if (aimMarker.current) {
       const direction = aim?.current ?? player
-      aimMarker.current.rotation.y = Math.atan2(direction.aimX, direction.aimZ) - root.rotation.y
+      // 피격으로 몸이 기울어져도 조준 링은 실제 수평 발사 경로를 가리킨다.
+      aimMarker.current.quaternion.copy(root.quaternion).invert()
+      aimMarker.current.rotateY(Math.atan2(direction.aimX, direction.aimZ))
     }
-    root.rotation.z = time >= player.hitAt && time - player.hitAt < 400 && player.hitAt > 0 ? -.28 : 0
     const travelled = Math.hypot(root.position.x - previousX, root.position.z - previousZ)
     const motion = gait.current
     const gaitBlend = 1 - Math.exp(-dt * 22)
@@ -133,9 +150,9 @@ function AvatarRig({ player, index, own, time: serverTime, gameId, feedback, aim
   })
   return <group name={`stone-player-${player.userId}`} ref={group} visible={player.alive} userData={{ ...metadata, stoneAppearanceReady: true }}>
     <StoneHitEffect userId={player.userId} feedback={feedback} />
-    <group ref={body} position={[0, hipHeight, 0]}><primitive object={rig.root} position={[0, -hipHeight, 0]} scale={.95} /></group>
+    <group name="stone-player-body" ref={body} position={[0, hipHeight, 0]}><primitive object={rig.root} position={[0, -hipHeight, 0]} scale={.95} /></group>
     <mesh position={[0, .025, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-      <ringGeometry args={[own ? .42 : .34, own ? .53 : .42, 32]} /><meshBasicMaterial fog={false} toneMapped={false} color={COLORS[index]} transparent opacity={.9} />
+      <ringGeometry args={[own ? .42 : .34, own ? .53 : .42, 32]} /><meshBasicMaterial ref={protection} fog={false} toneMapped={false} color={COLORS[index]} transparent opacity={.9} />
     </mesh>
     {own && <mesh position={[0, 2.05, 0]} rotation={[Math.PI, 0, 0]}><coneGeometry args={[.13, .25, 4]} /><meshBasicMaterial fog={false} toneMapped={false} color="#fff3ae" /></mesh>}
     <group name="stone-aim" ref={aimMarker}><mesh position={[0, .035, .7]} rotation={[Math.PI / 2, 0, 0]}><coneGeometry args={[.13, .3, 3]} /><meshBasicMaterial fog={false} toneMapped={false} color={COLORS[index]} /></mesh>{aim && <mesh name="stone-pigeon-reticle" position={[0, .8, 8]} rotation={[0, Math.PI, 0]}><ringGeometry args={[.11, .14, 24]} /><meshBasicMaterial fog={false} toneMapped={false} ref={reticle} color="#fff5d0" depthWrite={false} /></mesh>}</group>
