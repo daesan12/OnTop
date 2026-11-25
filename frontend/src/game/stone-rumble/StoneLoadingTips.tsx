@@ -5,9 +5,9 @@ import './stone-loading.css'
 const tips = [
   {
     kind: 'tiles', title: '밟은 돌에서는 멈추지 마세요',
-    copy: '발판을 밟으면 황토색으로 변해요. 약 2초 뒤 무너지니 다음 돌로 이동하세요.',
+    copy: '발판을 밟으면 하얀색으로 변해요. 약 1초 뒤 무너지니 다음 돌로 이동하세요.',
     detail: '발판이 꺼져도 아래층에 착지하면 계속 생존할 수 있어요.',
-    alt: '황토색 발판이 무너지기 전에 다음 석재 발판으로 옮겨 가는 캐릭터와 아래에 이어진 두 개 층',
+    alt: '하얀색 발판이 무너지기 전에 다음 석재 발판으로 옮겨 가는 캐릭터와 아래에 이어진 두 개 층',
     controls: [{ key: 'WASD', label: '이동' }, { key: 'Space', label: '점프' }],
   },
   {
@@ -19,10 +19,10 @@ const tips = [
   },
   {
     kind: 'dive', title: '점프한 뒤에도 한 칸 더!',
-    copy: 'Space로 점프한 뒤 Shift를 누르면 몸을 앞으로 던지며 한 칸 슬라이딩해요. 지상과 공중 모두 사용할 수 있어요.',
+    copy: 'Space로 점프한 뒤 Shift를 누르면 몸을 앞으로 던져 빈 구간을 넘어요. 착지 뒤에는 잠깐 몸을 일으키는 시간이 필요해요.',
     detail: '아래층에 착지하면 다시 버틸 수 있어요. 1층보다 더 아래로 떨어지면 탈락해요.',
     alt: '무너지는 돌과 다음 발판 사이에서 양팔을 앞으로 뻗고 한 칸 다이빙하는 캐릭터',
-    controls: [{ key: 'Space', label: '점프' }, { key: 'Shift', label: '한 칸 슬라이딩' }],
+    controls: [{ key: 'Space', label: '점프' }, { key: 'Shift', label: '한 칸 다이빙' }],
   },
 ] as const
 
@@ -35,7 +35,7 @@ const imageSizes = [
   '(max-width: 1400px) 47vw',
   '700px',
 ].join(', ')
-const tipNames = ['발판', '비둘기', '슬라이딩'] as const
+const tipNames = ['발판', '비둘기', '다이빙'] as const
 const sceneUrl = (kind: string, width: number) => `${artRoot}scene-${kind}-park-${width}.webp`
 const sceneSources = (kind: string) => `${sceneUrl(kind, 540)} 540w, ${sceneUrl(kind, 1080)} 1080w`
 

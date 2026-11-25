@@ -144,7 +144,8 @@ public final class StoneRumbleDemoApplication {
             this.mapper = mapper;
             this.engine = engine;
             this.clock = clock;
-            preparation = mapper.valueToTree(new StoneRumbleMatch(PLAYERS, 0).snapshot());
+            preparation = com.ssafy.ontop.game.stonerumble.service.StoneRumblePublicState.encode(mapper,
+                    new StoneRumbleMatch(PLAYERS, 0).snapshot());
             preparation.put("gameId", "local-stone-rumble-preparation");
         }
 

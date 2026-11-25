@@ -9,22 +9,37 @@ function setup() {
   const queue = new StoneControlQueue((scope, control) => new Promise((resolve, reject) => sent.push({ scope, input: control, ack: resolve, reject })))
   return { sent, queue }
 }
-it('8인 각각의 지연 응답 중 100번 입력해도 요청은 하나이며 최신 방향과 세 행동을 합친다', async () => {
+it('8인의 지연 응답 중에도 행동 순서와 누른 순간의 방향을 보존하고 이동만 합친다', async () => {
   const peers = Array.from({ length: 8 }, setup)
   for (const { queue, sent } of peers) {
     void queue.send('match', input(1))
     for (let i = 2; i <= 100; i++) void queue.send('match', input(i, { x: i % 2 ? 1 : -1, aimZ: i, jump: i === 10, fire: i === 20, slide: i === 30 }))
     expect(sent).toHaveLength(1)
-    sent[0]!.ack(true)
   }
-  await flush()
+  for (let index = 0; index < 5; index++) {
+    for (const { sent } of peers) sent[index]!.ack(true)
+    await flush()
+  }
   for (const { sent } of peers) {
-    expect(sent).toHaveLength(2)
-    expect(sent[1]!.input).toEqual(input(100, { x: -1, aimZ: 100, jump: true, fire: true, slide: true }))
-    sent[1]!.ack(true)
+    expect(sent.map(s => s.input.seq)).toEqual([1, 10, 20, 30, 100])
+    expect(sent[2]!.input).toEqual(input(20, { x: -1, aimZ: 20, fire: true }))
+    expect(sent[3]!.input).toEqual(input(30, { x: -1, aimZ: 30, slide: true }))
+    expect(sent[4]!.input).toEqual(input(100, { x: -1, aimZ: 100 }))
   }
-  await flush()
-  for (const { sent } of peers) expect(sent).toHaveLength(2)
+})
+
+it('오래된 행동과 과도한 연속 입력은 뒤늦게 발사하지 않고 이동은 최신 상태로 보낸다', async () => {
+  let now = 0
+  const sent: StoneControl[] = [], replies: ((ok: boolean) => void)[] = []
+  const queue = new StoneControlQueue((_, value) => new Promise(resolve => { sent.push(value); replies.push(resolve) }), () => now)
+  void queue.send('match', input(1))
+  const actions = Array.from({ length: 5 }, (_, i) => queue.send('match', input(i + 2, { fire: true })))
+  expect(await actions[4]).toBe(false)
+  void queue.send('match', input(7, { x: 1 }))
+  now = 501
+  replies[0]!(true); await flush()
+  expect(await Promise.all(actions)).toEqual([false, false, false, false, false])
+  expect(sent.map(x => x.seq)).toEqual([1, 7])
 })
 it('채팅·안내·blur 정지 신호는 대기 중인 이동과 행동을 취소한다', async () => {
   const { queue, sent } = setup()

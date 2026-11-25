@@ -34,6 +34,12 @@ class StoneRumbleFinishTests {
     }
 
     @Test
+    void 제한시간_공동생존자는_공동일위_보상으로_정상_정산한다() {
+        assertThat(VerifiedGameFinish.validate(event("MATCH_TIME_LIMIT",
+                GameFinished.Result.WIN, GameFinished.Result.WIN))).isEqualTo(7);
+    }
+
+    @Test
     void 서버_지연_중단은_무효로_분류한다() {
         var result = event("SIMULATION_LIMIT", GameFinished.Result.DRAW, GameFinished.Result.DRAW);
 
