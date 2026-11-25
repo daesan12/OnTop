@@ -11,6 +11,7 @@ public final class StoneRumblePublicState {
     public static ObjectNode encode(ObjectMapper mapper, StoneRumbleMatch.Snapshot snapshot) {
         ObjectNode state = mapper.createObjectNode()
                 .put("gameCode", snapshot.gameCode()).put("tileLayout", snapshot.tileLayout())
+                .put("arenaSize", snapshot.arenaSize())
                 .put("status", snapshot.status()).put("serverTime", snapshot.serverTime())
                 .put("startsAt", snapshot.startsAt()).put("endedAt", snapshot.endedAt())
                 .put("endReason", snapshot.endReason()).put("landsAt", snapshot.landsAt()).put("phase", snapshot.phase());

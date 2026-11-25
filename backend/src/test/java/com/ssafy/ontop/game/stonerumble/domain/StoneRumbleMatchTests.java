@@ -143,7 +143,7 @@ class StoneRumbleMatchTests {
 
     @Test
     void 시작발판_여덟개와_아래로_넓어지는_여덟_경기층을_생성한다() {
-        var match = started(List.of(101L, 202L), 0);
+        var match = started(List.of(101L, 202L, 303L, 404L, 505L, 606L, 707L, 808L), 0);
         var state = match.snapshot();
         assertThat(state.tiles()).hasSize(1378);
         assertThat(state.tiles().stream().filter(t -> t.floor() == 8)).hasSize(8)
@@ -352,15 +352,14 @@ class StoneRumbleMatchTests {
     }
 
     @Test
-    void 슬라이딩은_삼백밀리초에_한칸을_이동하고_일초_재사용_대기를_지킨다() {
+    void 바닥_다이빙은_감속하고_일초_재사용_대기를_지킨다() {
         var match = matchStartingAtThreeSeconds(List.of(101L, 202L));
         match.advance(3000);
         double start = match.snapshot().players().getFirst().x();
         match.control("101", 0, 0, 1, 0, false, false, true);
         match.advance(3300);
 
-        assertThat(match.snapshot().players().getFirst().x() - start).isCloseTo(StoneRumbleMatch.SLIDE_DISTANCE,
-                org.assertj.core.data.Offset.offset(0.000001));
+        assertThat(match.snapshot().players().getFirst().x() - start).isBetween(1.2, 1.5);
         assertThat(match.snapshot().players().getFirst().slideReadyAt()).isEqualTo(4000);
         match.control("101", 0, 0, 1, 0, false, false, true);
         match.advance(3600);
@@ -368,12 +367,11 @@ class StoneRumbleMatchTests {
         match.advance(4000);
         match.control("101", 0, 0, 1, 0, false, false, true);
         match.advance(4300);
-        assertThat(match.snapshot().players().getFirst().x() - start).isCloseTo(StoneRumbleMatch.SLIDE_DISTANCE * 2,
-                org.assertj.core.data.Offset.offset(0.000001));
+        assertThat(match.snapshot().players().getFirst().x() - start).isBetween(2.5, 2.9);
     }
 
     @Test
-    void 이동방향_슬라이딩은_대각선도_한칸이며_도중_반대입력으로_방향을_바꾸지_않는다() {
+    void 이동방향_다이빙은_대각선_속도가_같고_반대입력으로_방향을_바꾸지_않는다() {
         for (double[] direction : List.of(new double[] {0, -1}, new double[] {1, 1})) {
             var match = matchStartingAtThreeSeconds(List.of(101L, 202L));
             match.advance(3000);
@@ -384,19 +382,17 @@ class StoneRumbleMatchTests {
             match.advance(3300);
             var after = match.snapshot().players().getFirst();
             double length = Math.hypot(direction[0], direction[1]);
-            assertThat(after.slideX()).isCloseTo(direction[0] / length * StoneRumbleMatch.SLIDE_DISTANCE,
+            assertThat(after.slideX()).isCloseTo(direction[0] / length * StoneRumbleMatch.DIVE_SPEED,
                     org.assertj.core.data.Offset.offset(0.000001));
-            assertThat(after.slideZ()).isCloseTo(direction[1] / length * StoneRumbleMatch.SLIDE_DISTANCE,
+            assertThat(after.slideZ()).isCloseTo(direction[1] / length * StoneRumbleMatch.DIVE_SPEED,
                     org.assertj.core.data.Offset.offset(0.000001));
-            assertThat(after.x() - start.x()).isCloseTo(direction[0] / length * StoneRumbleMatch.SLIDE_DISTANCE,
-                    org.assertj.core.data.Offset.offset(0.000001));
-            assertThat(after.z() - start.z()).isCloseTo(direction[1] / length * StoneRumbleMatch.SLIDE_DISTANCE,
-                    org.assertj.core.data.Offset.offset(0.000001));
+            assertThat(Math.hypot(after.x() - start.x(), after.z() - start.z())).isBetween(1.2, 1.5);
+            assertThat((after.x() - start.x()) * direction[0] + (after.z() - start.z()) * direction[1]).isPositive();
         }
     }
 
     @Test
-    void 공중_다이빙은_상승과_하강_중에도_한칸_이동하고_수직_운동을_유지한다() {
+    void 공중_다이빙은_상승과_하강_중에도_관성을_유지하고_수직_운동을_보존한다() {
         for (boolean jumping : List.of(true, false)) {
             var match = matchStartingAtThreeSeconds(List.of(101L, 202L));
             var baseline = matchStartingAtThreeSeconds(List.of(101L, 202L));
@@ -416,8 +412,7 @@ class StoneRumbleMatchTests {
             baseline.advance(startedAt + 300);
             var after = match.snapshot().players().getFirst();
 
-            assertThat(after.x() - before.x()).isCloseTo(StoneRumbleMatch.SLIDE_DISTANCE,
-                    org.assertj.core.data.Offset.offset(0.000001));
+            assertThat(after.x() - before.x()).isBetween(2.6, 2.9);
             assertThat(after.y()).isCloseTo(baseline.snapshot().players().getFirst().y(),
                     org.assertj.core.data.Offset.offset(0.000001));
             assertThat(after.slideReadyAt()).isEqualTo(startedAt + 1000);
@@ -427,15 +422,14 @@ class StoneRumbleMatchTests {
     }
 
     @Test
-    void 점프와_다이빙을_동시에_입력해도_한칸_이동하며_정상적으로_상승한다() {
+    void 점프와_다이빙을_동시에_입력해도_공중에서_감속하며_정상적으로_상승한다() {
         var match = matchStartingAtThreeSeconds(List.of(101L, 202L));
         match.advance(3000);
         double before = match.snapshot().players().getFirst().x();
         match.control("101", 0, 0, 1, 0, true, false, true);
         match.advance(3300);
 
-        assertThat(match.snapshot().players().getFirst().x() - before).isCloseTo(StoneRumbleMatch.SLIDE_DISTANCE,
-                org.assertj.core.data.Offset.offset(0.000001));
+        assertThat(match.snapshot().players().getFirst().x() - before).isBetween(2.6, 2.9);
         assertThat(match.snapshot().players().getFirst().slideUntil()).isGreaterThan(3300);
         assertThat(match.snapshot().players().getFirst().slideReadyAt()).isEqualTo(4000);
         assertThat(match.snapshot().players().getFirst().grounded()).isFalse();

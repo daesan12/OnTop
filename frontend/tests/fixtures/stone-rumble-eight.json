@@ -1,6 +1,6 @@
 {
   "gameCode": "STONE_RUMBLE",
-  "tileLayout": "HEX_AXIAL_V2",
+  "tileLayout": "HEX_AXIAL_V3",
   "status": "PLAYING",
   "serverTime": 0,
   "startsAt": 0,
@@ -190,5 +190,6 @@
   ],
   "pigeons": [],
   "tileMarks": [],
-  "gameId": "local-stone-rumble-preparation"
+  "gameId": "local-stone-rumble-preparation",
+  "arenaSize": 8
 }

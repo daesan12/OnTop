@@ -33,7 +33,7 @@ class StoneRumbleDemoTests {
 
         assertThat(response.get("gameId")).isEqualTo("");
         assertThat(preparation.path("tileMarks").size()).isZero();
-        assertThat(preparation.path("tileLayout").asText()).isEqualTo("HEX_AXIAL_V2");
+        assertThat(preparation.path("tileLayout").asText()).isEqualTo("HEX_AXIAL_V3");
         assertThat(preparation.path("players").size()).isEqualTo(8);
         assertThat(preparation.path("serverTime").asLong()).isZero();
         clock.now = 30_000;

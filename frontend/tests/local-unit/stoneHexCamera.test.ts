@@ -53,7 +53,7 @@ it('카메라는 아래층을 내려다볼 수 있고 극점 반전과 프레임
 })
 
 it('옛 경기장 응답과 중복·잘못된 번호·잘린 발판 표시는 거절한다', () => {
-  expect(parseStoneState(fixture).tileLayout).toBe('HEX_AXIAL_V2')
+  expect(parseStoneState(fixture).tileLayout).toBe('HEX_AXIAL_V3')
   expect(() => parseStoneState({ ...fixture, tileLayout: undefined })).toThrow()
   expect(() => parseStoneState({ ...fixture, tileMarks: undefined })).toThrow()
   expect(() => parseStoneState({ ...fixture, tileMarks: [[0, 1000, 1], [0, 2000, 1]] })).toThrow()
@@ -70,4 +70,17 @@ it('관전·재접속은 한 응답만으로 모든 층을 복원하고 이전 �
   const fresh = parseStoneState(fixture)
   expect(fresh.tiles[0]!.breakAt).toBe(Number.MAX_SAFE_INTEGER)
   expect(fresh.tiles[0]!.stepped).toBe(false)
+})
+
+it('소인원 경기의 발판 번호는 해당 크기로 복원하고 인원·크기 불일치를 거절한다', () => {
+  for (const [count, size, total] of [[2, 2, 484], [3, 4, 718], [4, 4, 718], [5, 8, 1378]]) {
+    const raw = { ...fixture, players: fixture.players.slice(0, count), readyUserIds: [], arenaSize: size,
+      tileMarks: [[0, 12000, 1], [total! - 1, 11000, 0]] }
+    const state = parseStoneState(raw)
+    expect(state.tiles).toHaveLength(total!)
+    expect(state.tiles.at(-1)).toMatchObject({ floor: 8, breakAt: 11000 })
+    expect(state.tiles[0]!.stepped).toBe(true)
+    expect(() => parseStoneState({ ...raw, arenaSize: size === 2 ? 4 : 2 })).toThrow()
+    expect(() => parseStoneState({ ...raw, tileMarks: [[total, 11000, 0]] })).toThrow()
+  }
 })

@@ -27,7 +27,7 @@ class StoneHexGridTests {
         StoneRumbleMatch.Snapshot state = new StoneRumbleMatch(
                 List.of(101L, 202L, 303L, 404L, 505L, 606L, 707L, 808L), 0).snapshot();
 
-        assertThat(state.tileLayout()).isEqualTo("HEX_AXIAL_V2");
+        assertThat(state.tileLayout()).isEqualTo("HEX_AXIAL_V3");
         assertThat(state.tiles()).hasSize(1378);
         assertThat(state.tiles()).allSatisfy(tile -> {
             assertThat(StoneHexGrid.cell(StoneHexGrid.x(tile.q(), tile.r()), StoneHexGrid.z(tile.r())))

@@ -20,12 +20,12 @@ public final class StoneRumbleMatch {
     public static final long KNOCKBACK_DURATION = 400;
     public static final long SLIDE_DURATION = 300;
     public static final long SLIDE_COOLDOWN = 1000;
-    public static final double SLIDE_DISTANCE = TILE_SIZE * 1.25;
+    public static final double DIVE_SPEED = 14;
+    public static final long HIT_PROTECTION = 900;
     public static final double ELIMINATION_HEIGHT = -6.0;
     public static final int TOP_FLOOR = 8;
     public static final long MATCH_TIME_LIMIT = 300_000;
     public static final long DIVE_RECOVERY = 260;
-    private static final int[] RADII = {8, 8, 8, 7, 7, 6, 6, 6, 4};
     private static final double[] HEIGHTS = {0, 4, 8, 12, 16, 20, 24, 28, 32};
     private static final int[][] SPAWNS = {{-2, 0}, {2, 0}, {0, -3}, {0, 3}, {-3, 3}, {3, -3}, {-4, 1}, {4, -1}};
     private static final long JUMP_BUFFER_MILLIS = 140;
@@ -34,6 +34,7 @@ public final class StoneRumbleMatch {
     private final List<Pigeon> pigeons = new ArrayList<>();
     private final List<PigeonImpactView> impacts = new ArrayList<>();
     private final Map<String, Tile> tileIndex = new LinkedHashMap<>();
+    private final int arenaSize;
     public static final long LOADING_TIMEOUT = 90_000;
     private static final long UNSCHEDULED = 9_007_199_254_740_991L;
     private long startsAt;
@@ -55,8 +56,9 @@ public final class StoneRumbleMatch {
         }
         loadingStartedAt = createdAt;
         now = createdAt;
-        for (int floor = 0; floor < RADII.length; floor++) {
-            int radius = RADII[floor];
+        arenaSize = StoneArena.size(users.size());
+        for (int floor = 0; floor < HEIGHTS.length; floor++) {
+            int radius = StoneArena.radius(arenaSize, floor);
             for (int q = -radius; q <= radius; q++) {
                 for (int r = -radius; r <= radius; r++) {
                     int ring = StoneHexGrid.ring(q, r);
@@ -136,8 +138,10 @@ public final class StoneRumbleMatch {
         if (slide && !player.diving && now >= player.knockUntil && now >= player.slideReadyAt
                 && now >= player.slideUntil) {
             double directionLength = Math.hypot(player.inputX, player.inputZ);
-            player.slideX = (directionLength > .01 ? player.inputX / directionLength : player.aimX) * SLIDE_DISTANCE;
-            player.slideZ = (directionLength > .01 ? player.inputZ / directionLength : player.aimZ) * SLIDE_DISTANCE;
+            player.slideX = (directionLength > .01 ? player.inputX / directionLength : player.aimX) * DIVE_SPEED;
+            player.slideZ = (directionLength > .01 ? player.inputZ / directionLength : player.aimZ) * DIVE_SPEED;
+            player.diveVelocityX = player.slideX;
+            player.diveVelocityZ = player.slideZ;
             player.diving = true;
             presentationVersion++;
             player.slideStartedAt = now;
@@ -170,6 +174,9 @@ public final class StoneRumbleMatch {
         while (now + 20 <= target && !finished()) {
             now += 20;
             for (Player player : players) {
+                player.previousX = player.x;
+                player.previousY = player.y;
+                player.previousZ = player.z;
                 if (player.alive) {
                     move(player);
                 }
@@ -214,7 +221,7 @@ public final class StoneRumbleMatch {
             player.slideUntil = Math.max(player.slideUntil, now + 40);
         }
         boolean recoiling = now <= player.knockUntil;
-        boolean sliding = player.slideUntil > player.slideStartedAt && now <= player.slideUntil;
+        boolean sliding = player.slideUntil > player.slideStartedAt && now < player.slideUntil;
         double inputScale = now >= landsAt && !recoiling && !sliding && now - player.inputAt <= 350 ? 4.5 : 0;
         double oldY = player.y;
         player.x += player.inputX * inputScale * 0.02;
@@ -227,10 +234,17 @@ public final class StoneRumbleMatch {
             player.x += player.knockX * portion;
             player.z += player.knockZ * portion;
         } else if (sliding) {
-            double before = Math.min(1, Math.max(0, (double) (now - 20 - player.slideStartedAt) / SLIDE_DURATION));
-            double after = Math.min(1, (double) (now - player.slideStartedAt) / SLIDE_DURATION);
-            player.x += player.slideX * (after - before);
-            player.z += player.slideZ * (after - before);
+            // 공중의 관성은 남기고 바닥에서는 마찰로 빠르게 멈춘다. 틱 수에 의존하지 않는 적분이다.
+            double drag = player.grounded ? 10 : 3;
+            double decay = Math.exp(-drag * .02);
+            double portion = (1 - decay) / drag;
+            player.x += player.diveVelocityX * portion;
+            player.z += player.diveVelocityZ * portion;
+            player.diveVelocityX *= decay;
+            player.diveVelocityZ *= decay;
+        } else {
+            player.diveVelocityX = 0;
+            player.diveVelocityZ = 0;
         }
         player.vy -= 22 * 0.02;
         player.y += player.vy * 0.02;
@@ -311,10 +325,11 @@ public final class StoneRumbleMatch {
             double firstContact = Double.POSITIVE_INFINITY;
             for (Player player : players) {
                 if (!player.alive || player.userId.equals(pigeon.owner) || pigeon.dead
-                        || Math.abs(player.y + 0.7 - pigeon.y) > 0.65 || now < player.protectedUntil) {
+                        || now < player.protectedUntil) {
                     continue;
                 }
-                double contact = pigeonContact(fromX, fromZ, pigeon.x - fromX, pigeon.z - fromZ, player);
+                double contact = pigeonContact(fromX, pigeon.y, fromZ,
+                        pigeon.x - fromX, pigeon.z - fromZ, player);
                 if (contact < firstContact) {
                     firstContact = contact;
                     struck = player;
@@ -330,10 +345,12 @@ public final class StoneRumbleMatch {
                 struck.slideUntil = now;
                 struck.slideX = 0;
                 struck.slideZ = 0;
+                struck.diveVelocityX = 0;
+                struck.diveVelocityZ = 0;
                 struck.knockX = pigeon.vx / PIGEON_SPEED * KNOCKBACK_DISTANCE;
                 struck.knockZ = pigeon.vz / PIGEON_SPEED * KNOCKBACK_DISTANCE;
                 struck.knockUntil = now + KNOCKBACK_DURATION;
-                struck.protectedUntil = now + 450;
+                struck.protectedUntil = now + HIT_PROTECTION;
                 struck.hitAt = now;
                 pigeon.dead = true;
             }
@@ -341,21 +358,43 @@ public final class StoneRumbleMatch {
         pigeons.removeIf(p -> p.dead || now - p.bornAt > 1200);
     }
 
-    /** 20ms 사이에 이동한 선분에서 처음 닿는 시각을 구해 빠른 비둘기의 스침도 판정한다. */
-    private static double pigeonContact(double x, double z, double dx, double dz, Player player) {
-        double offsetX = x - player.x, offsetZ = z - player.z;
-        double a = dx * dx + dz * dz;
-        double b = offsetX * dx + offsetZ * dz;
-        double c = offsetX * offsetX + offsetZ * offsetZ - 0.6 * 0.6;
-        if (c <= 0) {
-            return 0;
-        }
-        double discriminant = b * b - a * c;
-        if (discriminant < 0) {
+    /** 상대의 이동을 뺀다. 자세 전환은 5ms 구간의 중간 자세로 검사해 서기·다이빙도 반영한다. */
+    private double pigeonContact(double x, double y, double z, double dx, double dz, Player player) {
+        // 다른 층과 멀리 있는 몸은 캡슐 계산 전에 제외한다. 자세 변화 전체를 포함하는 여유 범위다.
+        if (y < Math.min(player.previousY, player.y) - .13 || y > Math.max(player.previousY, player.y) + 2.03
+                || Math.min(x, x + dx) > Math.max(player.previousX, player.x) + 1.57
+                || Math.max(x, x + dx) < Math.min(player.previousX, player.x) - 1.57
+                || Math.min(z, z + dz) > Math.max(player.previousZ, player.z) + 1.57
+                || Math.max(z, z + dz) < Math.min(player.previousZ, player.z) - 1.57) {
             return Double.POSITIVE_INFINITY;
         }
-        double contact = (-b - Math.sqrt(discriminant)) / a;
-        return contact >= 0 && contact <= 1 ? contact : Double.POSITIVE_INFINITY;
+        double moveX = player.x - player.previousX, moveY = player.y - player.previousY;
+        double moveZ = player.z - player.previousZ;
+        double direction = Math.max(.001, Math.hypot(player.slideX, player.slideZ));
+        for (int part = 0; part < 4; part++) {
+            double start = Math.max(part / 4.0, (player.protectedUntil - (now - 20)) / 20.0);
+            double end = (part + 1) / 4.0;
+            if (start > end) {
+                continue;
+            }
+            double interval = end - start;
+            double at = now - 20 + (start + interval * .5) * 20;
+            double blend = player.slideUntil > player.slideStartedAt
+                    ? Math.max(0, Math.min(1, Math.min((at - player.slideStartedAt) / 80,
+                            (player.slideUntil + 100 - at) / 100))) : 0;
+            double frontX = player.slideX / direction * blend;
+            double frontZ = player.slideZ / direction * blend;
+            double contact = StonePigeonCollision.contact(
+                    x + dx * start - player.previousX - moveX * start,
+                    y - player.previousY - moveY * start,
+                    z + dz * start - player.previousZ - moveZ * start,
+                    (dx - moveX) * interval, -moveY * interval, (dz - moveZ) * interval,
+                    0, .45, 0, frontX, 1.45 - blend, frontZ, .57);
+            if (Double.isFinite(contact)) {
+                return start + contact * interval;
+            }
+        }
+        return Double.POSITIVE_INFINITY;
     }
 
     public void depart(String userId, long at) {
@@ -383,6 +422,8 @@ public final class StoneRumbleMatch {
         player.knockZ = 0;
         player.slideX = 0;
         player.slideZ = 0;
+        player.diveVelocityX = 0;
+        player.diveVelocityZ = 0;
         player.slideUntil = 0;
         pigeons.removeIf(pigeon -> pigeon.owner.equals(player.userId));
     }
@@ -455,7 +496,7 @@ public final class StoneRumbleMatch {
                         rank(p), reward(p))).toList(),
                 pigeons.stream().map(p -> new PigeonView(p.id, p.owner, p.x, p.y, p.z, p.vx, p.vz, p.bornAt)).toList(),
                 landsAt, finished() ? "FINISHED" : !released ? "LOADING" : now < landsAt ? "DROPPING" : now < startsAt ? "COUNTDOWN" : "RUNNING",
-                List.copyOf(readyUsers), List.copyOf(impacts));
+                List.copyOf(readyUsers), List.copyOf(impacts), arenaSize);
     }
 
     private Integer rank(Player player) {
@@ -476,7 +517,7 @@ public final class StoneRumbleMatch {
     public record Snapshot(String gameCode, String tileLayout, String status, long serverTime, long startsAt, long endedAt,
             String endReason, List<String> winnerUserIds, List<TileView> tiles, List<PlayerView> players,
             List<PigeonView> pigeons, long landsAt, String phase, List<String> readyUserIds,
-            List<PigeonImpactView> impacts) { }
+            List<PigeonImpactView> impacts, int arenaSize) { }
     public record TileView(int id, int floor, int q, int r, long breakAt, boolean stepped) { }
     public record PlayerView(String userId, double x, double y, double z, int floor, boolean alive,
             boolean grounded, double aimX, double aimZ, long pigeonReadyAt, long hitAt,
@@ -498,6 +539,7 @@ public final class StoneRumbleMatch {
     private static final class Player {
         final String userId;
         double x, y = DROP_HEIGHT, z, vy, inputX, inputZ, aimX = 1, aimZ, knockX, knockZ, slideX, slideZ;
+        double previousX, previousY, previousZ, diveVelocityX, diveVelocityZ;
         int floor = TOP_FLOOR;
         boolean alive = true, grounded, forfeited, diving;
         long inputAt, pigeonReadyAt, protectedUntil, hitAt, eliminatedAt, knockUntil;

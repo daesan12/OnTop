@@ -166,7 +166,7 @@ class StoneRumbleEngineTests {
         engine.tick();
         var after = engine.load(101, "game-1").orElseThrow();
         assertThat(after.publicState().path("players").get(0).path("x").asDouble())
-                .isCloseTo(-5.2 + StoneRumbleMatch.SLIDE_DISTANCE, org.assertj.core.data.Offset.offset(0.000001));
+                .isBetween(-4.0, -3.7);
         assertThatThrownBy(() -> engine.apply(new GameActionCommand(101, "game-1", "slide-2", after.version(),
                 input.deepCopy().put("seq", 2).put("slide", "true")))).hasMessage("INVALID_ACTION");
     }

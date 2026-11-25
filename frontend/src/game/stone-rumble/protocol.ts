@@ -1,4 +1,4 @@
-import { STONE_FLOOR_HEIGHTS, STONE_FLOOR_RADII, STONE_TILE_COUNTS, STONE_TILE_LAYOUT, isStoneCell } from './layout'
+import { STONE_FLOOR_HEIGHTS, STONE_TILE_LAYOUT, isStoneCell, stoneArenaRadii, stoneArenaSize, type StoneArenaSize } from './layout'
 
 export interface StonePlayer {
   userId: string; x: number; y: number; z: number; floor: number; alive: boolean; grounded: boolean
@@ -11,6 +11,7 @@ export interface StonePigeon { id: number; owner: string; x: number; y: number; 
 export interface StonePigeonImpact extends StonePigeon { targetUserId: string; at: number }
 export interface StoneState {
   tileLayout: typeof STONE_TILE_LAYOUT
+  arenaSize: StoneArenaSize
   gameCode: 'STONE_RUMBLE'; gameId: string; status: 'PLAYING' | 'FINISHED'; serverTime: number
   startsAt: number; endedAt: number; endReason: string | null; winnerUserIds: string[]
   landsAt: number; phase: 'LOADING' | 'DROPPING' | 'COUNTDOWN' | 'RUNNING' | 'FINISHED'; readyUserIds?: string[]
@@ -21,16 +22,28 @@ export type StoneAction = StoneControl | { kind: 'scene_ready'; ready: boolean }
 const object = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
 const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v)
 const id = (v: unknown): v is string => typeof v === 'string' && v.length > 0 && v.length <= 120
-const baseTiles: readonly StoneTile[] = STONE_FLOOR_RADII.flatMap((radius, floor) => {
-  const cells: Omit<StoneTile, 'id'>[] = []
-  for (let q = -radius; q <= radius; q++) for (let r = -radius; r <= radius; r++) {
-    if (isStoneCell(floor, q, r)) cells.push({ floor, q, r, breakAt: Number.MAX_SAFE_INTEGER, stepped: false })
-  }
-  return cells
-}).map((tile, id) => Object.freeze({ ...tile, id }))
+const arenaTiles = new Map<StoneArenaSize, readonly StoneTile[]>()
+function tilesFor(size: StoneArenaSize) {
+  const cached = arenaTiles.get(size)
+  if (cached) return cached
+  const tiles = stoneArenaRadii(size).flatMap((radius, floor) => {
+    const cells: Omit<StoneTile, 'id'>[] = []
+    for (let q = -radius; q <= radius; q++) for (let r = -radius; r <= radius; r++) {
+      if (isStoneCell(floor, q, r, size)) cells.push({ floor, q, r, breakAt: Number.MAX_SAFE_INTEGER, stepped: false })
+    }
+    return cells
+  }).map((tile, id) => Object.freeze({ ...tile, id }))
+  arenaTiles.set(size, tiles)
+  return tiles
+}
 
 export function parseStoneState(value: unknown): StoneState {
-  if (!object(value) || value.tileLayout !== STONE_TILE_LAYOUT || !Array.isArray(value.tileMarks)
+  if (!object(value) || value.tileLayout !== STONE_TILE_LAYOUT || !Array.isArray(value.players)
+    || value.players.length < 2 || value.players.length > 8 || value.arenaSize !== stoneArenaSize(value.players.length)) {
+    throw new Error('돌탑 경기장 크기를 읽지 못했어요. 다시 연결해 주세요.')
+  }
+  const size = value.arenaSize as StoneArenaSize, baseTiles = tilesFor(size)
+  if (!Array.isArray(value.tileMarks)
     || value.tileMarks.length > baseTiles.length || 'tiles' in value
     || !value.tileMarks.every(mark => Array.isArray(mark) && mark.length === 3
       && Number.isInteger(mark[0]) && mark[0] >= 0 && mark[0] < baseTiles.length
@@ -59,9 +72,9 @@ export function parseStoneState(value: unknown): StoneState {
       && (p.rewardCoins === undefined || Number.isInteger(p.rewardCoins) && Number(p.rewardCoins) >= 0 && Number(p.rewardCoins) <= 80))
     || new Set(value.players.map(p => p.userId)).size !== value.players.length
     || Array.isArray(value.readyUserIds) && value.readyUserIds.some(user => !(value.players as Record<string, unknown>[]).some(p => p.userId === user))
-    || !Array.isArray(value.tiles) || value.tiles.length !== STONE_TILE_COUNTS.reduce((sum, count) => sum + count, 0)
+    || !Array.isArray(value.tiles) || value.tiles.length !== baseTiles.length
     || !value.tiles.every(t => object(t) && ['id', 'floor', 'q', 'r'].every(k => Number.isInteger(t[k]))
-      && isStoneCell(Number(t.floor), Number(t.q), Number(t.r))
+      && isStoneCell(Number(t.floor), Number(t.q), Number(t.r), size)
       && finite(t.breakAt) && typeof t.stepped === 'boolean')
     || new Set(value.tiles.map(t => `${t.floor}:${t.q}:${t.r}`)).size !== value.tiles.length
     || new Set(value.tiles.map(t => t.id)).size !== value.tiles.length
