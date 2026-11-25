@@ -31,7 +31,8 @@ final class VerifiedGameFinish {
             Map.entry("QUORIDOR", Set.of("GOAL_REACHED", "LAST_PLAYER_STANDING")),
             Map.entry("RUMMIKUB", Set.of("EMPTY_HAND", "STALEMATE", "LAST_PLAYER_STANDING")),
             Map.entry("DAVINCI_CODE", Set.of("LAST_PLAYER_STANDING")),
-            Map.entry("STONE_RUMBLE", Set.of("LAST_PLAYER_STANDING", "ALL_FALLEN", "SIMULATION_LIMIT", "LOADING_TIMEOUT")));
+            Map.entry("STONE_RUMBLE", Set.of("LAST_PLAYER_STANDING", "ALL_FALLEN", "MATCH_TIME_LIMIT",
+                    "SIMULATION_LIMIT", "LOADING_TIMEOUT")));
 
     private VerifiedGameFinish() { }
 

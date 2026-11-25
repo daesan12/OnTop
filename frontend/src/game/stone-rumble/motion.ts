@@ -1,9 +1,4 @@
-export const STONE_CAMERA_DRAG = .003
 export const STONE_RENDER_DELAY = 120
-
-export function followStoneCamera(current: number, target: number, delta: number, manual: boolean) {
-  return followStoneYaw(current, target, Math.min(.05, Math.max(0, delta)), manual ? 8 : 6, manual ? 2.8 : 1.6)
-}
 
 type StonePosition = { x: number; y: number; z: number }
 type PositionSample = StonePosition & { at: number }
@@ -31,6 +26,8 @@ export class StoneRenderClock {
 export class StonePositionBuffer {
   private samples: PositionSample[] = []
   private clock = new StoneRenderClock()
+  private displayedAt = 0
+  get displayTime() { return this.displayedAt }
 
   reset() { this.samples = []; this.clock.reset() }
 
@@ -41,6 +38,7 @@ export class StonePositionBuffer {
       this.samples.push({ x: position.x, y: position.y, z: position.z, at: serverTime })
     }
     const time = this.clock.sample(serverTime, now)
+    this.displayedAt = time
     // 패킷 밀도와 무관하게 표시 시각 앞뒤의 샘플과 500ms 여유를 보존한다.
     // 정리 경계 직전 샘플도 남겨 내삽 시작점을 잃지 않는다.
     while (this.samples.length > 2 && this.samples[1]!.at < time - 500) this.samples.shift()

@@ -17,6 +17,7 @@ import com.ssafy.ontop.game.start.GameStartCommand;
 import com.ssafy.ontop.game.start.GameStartGateway;
 import com.ssafy.ontop.game.start.GameStartResult;
 import com.ssafy.ontop.user.domain.LoginProvider;
+import com.ssafy.ontop.world.service.WorldAppearanceGateway;
 import com.ssafy.ontop.world.service.WorldProfileGateway;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -93,11 +94,18 @@ public final class StoneRumbleParkApplication {
                 for (long id : ids) {
                     if (Set.of(101L,202L,303L,404L,505L,606L,707L,808L,999L).contains(id)) {
                         result.put(id, new WorldProfileGateway.Profile(
-                                id == 999 ? "관전 로컬" : "돌탑 " + id / 101, "MALE"));
+                                id == 999 ? "관전 로컬" : "돌탑 " + id / 101, id == 202 ? "FEMALE" : "MALE"));
                     }
                 }
                 return Map.copyOf(result);
             };
+        }
+        /** 공원→경기→복귀에서 같은 공개 외형을 쓰는지 검증하는 로컬 데이터다. */
+        @Bean @Primary WorldAppearanceGateway stoneRumbleAppearances() {
+            return id -> id == 101 ? java.util.stream.IntStream.range(0, 5)
+                    .mapToObj(index -> new WorldAppearanceGateway.Equipment(100 + index, "QA_BLACK_" + index,
+                            List.of("HAIR", "FACE", "TOP", "BOTTOM", "SHOES").get(index),
+                            "skin/ssafy-black-male/v3")).toList() : List.of();
         }
         @Bean LocalLedger stoneRumbleLedger(ApplicationEventPublisher events) { return new LocalLedger(events); }
         @Bean FilterRegistrationBean<OncePerRequestFilter> stoneRumbleFixtureHttp(AccessJwtService jwt,

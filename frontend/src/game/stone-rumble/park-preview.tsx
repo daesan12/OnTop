@@ -11,6 +11,15 @@ import { exchangeCallbackCode } from '../../auth/authFlow'
 import { parkRuntime } from '../../park/runtime/runtime'
 import '../../styles.css'
 
+function LocalTestToolbar({ role }: { role: string }) {
+  const playing = useGame(state => !!state.game || !!state.result)
+  if (playing) return null
+  return <nav style={{ position: 'fixed', bottom: 8, left: 8, zIndex: 65, background: '#fff8df', padding: 8, borderRadius: 8 }} aria-label="로컬 돌탑 검수">
+    <strong>로컬 검수 · 실제 회원/재화 없음</strong> · 참가자 {role}
+    {Array.from({ length: 8 }, (_, index) => <a key={index} href={`?role=${index + 1}`} target="_blank" rel="noreferrer" style={{ marginLeft: 8 }}>{index + 1}</a>)}
+  </nav>
+}
+
 /** 인증·입장 이후 착석/설정/준비/시작은 공원의 기존 Runtime과 서버 명령을 사용한다. */
 function LocalChannelEntry() {
   const attempted = useRef(false)
@@ -41,7 +50,7 @@ async function boot() {
   Object.assign(window, { stoneRumbleParkTest: {
     state: () => {
       const world = useSession.getState(), game = useGame.getState()
-      return { userId: world.sessionId, roomId: world.roomId, status: world.status, mapStatus: world.mapContractStatus,
+      return { userId: world.sessionId, roomId: world.roomId, status: world.status, pending: world.pending, mapStatus: world.mapContractStatus,
         avatar: avatars.get(world.sessionId)?.current, tableId: world.tableId, table: world.tableStates[world.tableId],
         error: world.error || game.error, recovery: game.recovery, uncertain: game.uncertain,
         gameId: game.game?.gameId, game: game.game?.stone, result: game.result ?? game.lastResult, startPhase: game.start?.phase }
@@ -54,6 +63,7 @@ async function boot() {
     }),
     tables: () => TABLES.map(table => ({ id: table.id, position: table.position, interactionPoints: table.interactionPoints })),
     interactionRadius: GOMOKU.interactionRadius,
+    joinTable: (anchorId: string) => parkRuntime.joinTable(anchorId),
     route: async (start: { x: number; z: number }, destination: { x: number; z: number }) =>
       (await import('../../features/navigation/parkNavigation')).findParkRoute(start, destination),
     direction: (forward: number, side: number) => cameraRelativeMove(forward, side, viewControls.yaw, true, false, { dx: 0, dz: 0, run: false, jump: false }),
@@ -62,11 +72,7 @@ async function boot() {
     <ParkPage onExit={async () => { await parkRuntime.stop(); location.reload() }} exitError=""
       onAuthEnded={() => location.reload()} onOperationBlocked={() => location.reload()} />
     <LocalChannelEntry />
-    <nav style={{ position: 'fixed', bottom: 8, left: 8, zIndex: 65, background: '#fff8df', padding: 8, borderRadius: 8 }} aria-label="로컬 돌탑 검수">
-      <strong>로컬 검수 · 실제 회원/재화 없음</strong> · 참가자 {role}
-      {Array.from({ length: 8 }, (_, index) => <a key={index} href={`?role=${index + 1}`} target="_blank" rel="noreferrer" style={{ marginLeft: 8 }}>{index + 1}</a>)}
-
-    </nav>
+    <LocalTestToolbar role={role} />
   </>)
 }
 void boot().catch(error => { document.getElementById('root')!.textContent = String(error) })

@@ -27,7 +27,7 @@ const TabletPortrait = lazy(() => import('./TabletPortrait').then(module => ({ d
 const ResidentSeatInvite=lazy(()=>import('../../ai-park/ResidentSeatInvite').then(module=>({default:module.ResidentSeatInvite})))
 
 const descriptions: Record<TableGameCode, string> = {
-  STONE_RUMBLE: '세 층의 돌탑에서 비둘기로 밀어내고 끝까지 버텨요',
+  STONE_RUMBLE: '여덟 층의 발판에서 비둘기로 밀어내고 끝까지 버텨요',
   ALKKAGI: '알을 튕기고 비책으로 승부하는 2인 경기',
   RUMMIKUB: '숫자 타일을 이어 손패를 모두 비워요',
   OMOK: '다섯 돌을 이어 만드는 한 수', DICE: '주사위를 굴려 목표 점수에 도전해요',

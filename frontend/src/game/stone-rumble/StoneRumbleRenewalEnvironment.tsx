@@ -8,7 +8,7 @@ import { _roots } from '@react-three/fiber'
 import { snapshotParkBackground } from './snapshotParkBackground'
 
 const pagoda = site('pagoda')
-// 새 공원의 언덕 높이와 보존된 석단을 포함한다. 경기 좌표·물리는 기존 0/12/24m를 유지한다.
+// 새 공원의 언덕 높이와 보존된 석단을 포함한다. 공원 배치는 바꾸지 않고 게임 좌표의 원점만 맞춘다.
 const arenaBaseY = heightAt(pagoda.x, pagoda.z) + PARK_LAYOUT.SITES.pagoda.floor + GARDEN_PAGODA.height + 8
 
 export default function StoneRumbleRenewalEnvironment() {

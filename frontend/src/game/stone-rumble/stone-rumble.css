@@ -194,3 +194,23 @@
   .stone-rumble .table-paper-popup .paper-close { width: 44px; height: 44px; }
 }
 @media(prefers-reduced-motion:reduce) { .stone-rumble .table-paper-popup { animation: none; } }
+.stone-rumble .stone-rumble-camera-hint {
+  position: absolute;
+  bottom: 90px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100% - 32px);
+  padding: 6px 12px;
+  border-radius: 20px;
+  background: #20372ad9;
+  color: #fff5df;
+  font: 500 12px/1.4 'Malgun Gothic', sans-serif;
+  text-align: center;
+  pointer-events: none;
+}
+.stone-rumble .stone-camera-touch { display: none; }
+@media (pointer: coarse), (max-width: 600px) {
+  .stone-rumble .stone-camera-mouse { display: none; }
+  .stone-rumble .stone-camera-touch { display: inline; }
+  .stone-rumble .stone-rumble-camera-hint { bottom: 150px; }
+}

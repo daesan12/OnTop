@@ -64,10 +64,10 @@ export const gameManuals =allGameManuals.filter(game => JUMPMAP_ENABLED || game.
 
 if (bungeoppangV5Enabled) {
   const bread = gameManuals.find(game => game.id === 'fish-bread')!;
-  bread.timing = '조리 3분 · 마지막 30초는 센 불';
+  bread.timing = '조리 2분 · 마지막 30초는 센 불';
   bread.summary = '반죽 위에 소를 올려 굽고, 2단 쟁반 10개와 눈앞의 손님 세 명을 관리해요.';
   bread.sections = [
-    { id: 'bread-start', title: '소를 넣으면 불이 켜져요', steps: [breadLocation + ' 앞 E → 시작 → 카운트다운 뒤 3분 장사를 해요.',
+    { id: 'bread-start', title: '소를 넣으면 불이 켜져요', steps: [breadLocation + ' 앞 E → 시작 → 카운트다운 뒤 2분 장사를 해요.',
       '반죽만 부었을 때는 불이 꺼져 있어요. 팥·슈크림·피자·초코를 넣는 순간 서버가 준 불로 익기 시작해요.',
       '칸 아래 불꽃의 크기와 약불/보통불/센불·백분율을 함께 살펴요. 마지막 30초에는 더 빨리 익어요.'] },
     { id: 'bread-orders', title: '손님 세 명과 2단 쟁반', steps: ['손님은 나에게만 보이며 최대 세 명이 기다려요. 원하는 손님을 눌러 선택해요.',
@@ -81,7 +81,7 @@ if (bungeoppangV5Enabled) {
       ['폐기할 빵 선택 → 쓰레기통 클릭', '선택한 철판/쟁반 빵 한 개 폐기'],
       ['손님 선택 → R', '선택한 손님 주문 전체 납품'], ['F1 / Esc', '도움말 / 그만두기 확인'],
     ] }, paragraphs: ['가득 찬 쟁반에서는 정상 빵을 꺼내지 못하고 계속 익어요. 탄 빵은 쟁반이 꽉 차도 버릴 수 있어요.',
-      '도움말·확인창·연결 대기 중에도 시간은 계속 흐르고 180초에 새 입력을 마쳐요.'] },
+      '도움말·확인창·연결 대기 중에도 시간은 계속 흐르고 120초에 새 입력을 마쳐요.'] },
     { id: 'bread-result', title: '납품해야 득점', paragraphs: ['양면 품질·콤보·특수 재료 보너스는 기존 규칙을 유지해요. 폐기·미납품 빵에는 점수가 없어요.',
       bungeoppangV5Preview ? 'v5 개발 미리보기는 실제 지갑을 변경하거나 엽전을 지급하지 않아요.' : '최종 점수와 엽전은 서버가 확정해요. 5점당 1냥, 한국 날짜 기준 모든 미니게임 합계 하루 최대 1000냥이에요.'] },
   ];
